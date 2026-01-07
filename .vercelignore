@@ -1,7 +1,4 @@
-# Ignorar Git
-.git
-
-# Ignorar Dependências do Frontend (Não suba a pasta, a Vercel cria a dela)
+# Ignorar Dependências (A Vercel instala as dela)
 node_modules
 
 # Ignorar Testes
@@ -11,9 +8,8 @@ README.md
 .editorconfig
 .styleci.yml
 
-# Ignorar Arquivos Fonte do Frontend (Pois eles serão compilados para public/build)
-resources/js
-resources/css
+# --- CORREÇÃO AQUI: REMOVI resources/js E resources/css DAQUI ---
+# A Vercel precisa deles para compilar o site!
 
 # Ignorar Storage (Logs e Cache local)
 storage/logs
