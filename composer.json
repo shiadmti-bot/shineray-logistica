@@ -64,6 +64,7 @@
             "rm -rf vendor/google/apiclient-services/src/Google/Service/Container*",
             "rm -rf vendor/google/apiclient-services/src/Google/Service/Android*"
         ],
+        
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
         ],
