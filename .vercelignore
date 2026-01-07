@@ -1,0 +1,30 @@
+# Ignorar Git
+.git
+
+# Ignorar Dependências de Frontend (Já foram compiladas para public/build)
+node_modules
+package.json
+package-lock.json
+
+# Ignorar Testes e Arquivos de Desenvolvimento
+tests
+phpunit.xml
+README.md
+.editorconfig
+.styleci.yml
+
+# Ignorar Arquivos de Fonte do Frontend (Já compilados)
+resources/js
+resources/css
+
+# Ignorar Storage (Logs e Cache local não servem na Vercel)
+storage/logs
+storage/framework/sessions
+storage/framework/views
+storage/framework/cache
+
+# Ignorar Arquivos Docker/Env locais
+docker-compose.yml
+Dockerfile
+.env.example
+.env

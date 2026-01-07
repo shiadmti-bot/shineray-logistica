@@ -54,9 +54,15 @@
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
-        "post-autoload-dump": [
+       "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
-            "@php artisan package:discover --ansi"
+            "@php artisan package:discover --ansi",
+            "rm -rf vendor/google/apiclient-services/src/Google/Service/YouTube*",
+            "rm -rf vendor/google/apiclient-services/src/Google/Service/Analytics*",
+            "rm -rf vendor/google/apiclient-services/src/Google/Service/AdSense*",
+            "rm -rf vendor/google/apiclient-services/src/Google/Service/Compute*",
+            "rm -rf vendor/google/apiclient-services/src/Google/Service/Container*",
+            "rm -rf vendor/google/apiclient-services/src/Google/Service/Android*"
         ],
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
