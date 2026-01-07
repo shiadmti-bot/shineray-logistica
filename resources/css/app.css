@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Customização NProgress */
+#nprogress .bar {
+    background: #DC2626 !important; /* Vermelho Shineray */
+    height: 4px !important;
+}
+#nprogress .peg {
+    box-shadow: 0 0 10px #DC2626, 0 0 5px #DC2626 !important;
+}
+#nprogress .spinner-icon {
+    border-top-color: #DC2626 !important;
+    border-left-color: #DC2626 !important;
+}

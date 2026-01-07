@@ -1,0 +1,21 @@
+{
+    "name": "Shineray Logística",
+    "short_name": "Shineray Log",
+    "start_url": "/dashboard",
+    "background_color": "#DC2626",
+    "theme_color": "#DC2626",
+    "display": "standalone",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/img/logo.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/img/logo.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
