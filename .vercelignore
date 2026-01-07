@@ -1,29 +1,27 @@
 # Ignorar Git
 .git
 
-# Ignorar Dependências de Frontend (Já foram compiladas para public/build)
+# Ignorar Dependências do Frontend (Não suba a pasta, a Vercel cria a dela)
 node_modules
-package.json
-package-lock.json
 
-# Ignorar Testes e Arquivos de Desenvolvimento
+# Ignorar Testes
 tests
 phpunit.xml
 README.md
 .editorconfig
 .styleci.yml
 
-# Ignorar Arquivos de Fonte do Frontend (Já compilados)
+# Ignorar Arquivos Fonte do Frontend (Pois eles serão compilados para public/build)
 resources/js
 resources/css
 
-# Ignorar Storage (Logs e Cache local não servem na Vercel)
+# Ignorar Storage (Logs e Cache local)
 storage/logs
 storage/framework/sessions
 storage/framework/views
 storage/framework/cache
 
-# Ignorar Arquivos Docker/Env locais
+# Ignorar Arquivos de Ambiente Local
 docker-compose.yml
 Dockerfile
 .env.example
