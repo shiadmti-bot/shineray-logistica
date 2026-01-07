@@ -1,3 +1,6 @@
+# Ignorar Git
+.git
+
 # Ignorar Dependências (A Vercel instala as dela)
 node_modules
 
