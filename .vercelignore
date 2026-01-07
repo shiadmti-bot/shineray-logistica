@@ -1,26 +1,29 @@
+# --- OBRIGATÓRIO: Ignorar Dependências Locais ---
+node_modules
+vendor
+
 # Ignorar Git
 .git
 
-# Ignorar Dependências (A Vercel instala as dela)
-node_modules
-
-# Ignorar Testes
+# Ignorar Testes e Documentação
 tests
 phpunit.xml
 README.md
 .editorconfig
 .styleci.yml
 
-# --- CORREÇÃO AQUI: REMOVI resources/js E resources/css DAQUI ---
-# A Vercel precisa deles para compilar o site!
+# Ignorar Arquivos Fonte do Frontend (Já que a Vercel vai compilar)
+# Se der erro de "vite not found", comente as duas linhas abaixo:
+# resources/js
+# resources/css
 
-# Ignorar Storage (Logs e Cache local)
+# Ignorar Storage (Logs e Cache local não servem na Vercel)
 storage/logs
 storage/framework/sessions
 storage/framework/views
 storage/framework/cache
 
-# Ignorar Arquivos de Ambiente Local
+# Ignorar Arquivos Docker/Env locais
 docker-compose.yml
 Dockerfile
 .env.example
