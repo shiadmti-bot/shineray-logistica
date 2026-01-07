@@ -4,17 +4,20 @@
     "outputDirectory": "public",
     "name": "shineray-logistica",
     "functions": {
-        "api/index.php": { "runtime": "vercel-php@0.7.1" } 
+        "api/index.php": { "runtime": "vercel-php@0.7.1" }
     },
     "routes": [
         { "src": "/build/(.*)", "dest": "/public/build/$1" },
         { "src": "/img/(.*)", "dest": "/public/img/$1" },
         { "src": "/favicon.ico", "dest": "/public/favicon.ico" },
+        
+        { "src": "/manifest.json", "dest": "/public/manifest.json" }, 
+
         { "src": "/(.*)", "dest": "/api/index.php" }
     ],
     "env": {
         "APP_ENV": "production",
-        "APP_DEBUG": "false",
+        "APP_DEBUG": "true", 
         "APP_URL": "https://${VERCEL_URL}",
         "APP_CONFIG_CACHE": "/tmp/config.php",
         "APP_EVENTS_CACHE": "/tmp/events.php",
