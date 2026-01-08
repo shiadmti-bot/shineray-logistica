@@ -1,15 +1,53 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 import Swal from 'sweetalert2';
+import imageCompression from 'browser-image-compression';
 
 export default function PedidoShow({ auth, pedido }) {
     // 1. Configuração dos formulários
     // Importante: O nome do campo aqui deve ser 'arquivo_romaneio' para bater com o Controller
     const formUpload = useForm({ arquivo_romaneio: null });
+    const [compressing, setCompressing] = useState(false);
     const formRejeicao = useForm({ motivo: '' });
     const formAcoes = useForm({}); 
 
     // --- FUNÇÕES DE AÇÃO (TODAS COM SWEETALERT) ---
+
+    // --- NOVA FUNÇÃO PARA COMPRIMIR IMAGEM ---
+    const handleFileSelect = async (event) => {
+        const imageFile = event.target.files[0];
+        if (!imageFile) return;
+
+        // Se não for imagem (ex: PDF), não comprime
+        if (!imageFile.type.startsWith('image/')) {
+            formUpload.setData('arquivo_romaneio', imageFile);
+            return;
+        }
+
+        setCompressing(true); // Ativa loading
+
+        const options = {
+            maxSizeMB: 1,          // Tenta deixar com no máximo 1MB
+            maxWidthOrHeight: 1920, // Redimensiona se for muito gigante (4K)
+            useWebWorker: true,    // Usa thread separada para não travar a tela
+            fileType: 'image/jpeg' // Força JPEG para melhor compressão
+        };
+
+        try {
+            const compressedFile = await imageCompression(imageFile, options);
+            
+            // Truque: A biblioteca retorna um 'Blob', precisamos converter de volta para 'File' para o Laravel aceitar o nome original
+            const finalFile = new File([compressedFile], imageFile.name, { type: compressedFile.type });
+
+            formUpload.setData('arquivo_romaneio', finalFile);
+        } catch (error) {
+            console.error("Erro na compressão:", error);
+            Swal.fire('Erro', 'Não foi possível processar esta imagem. Tente outra.', 'error');
+        } finally {
+            setCompressing(false); // Desativa loading
+        }
+    };
 
     // 1. FINALIZAR ENTREGA (UPLOAD)
     const submitUpload = (e) => { 
@@ -265,17 +303,22 @@ export default function PedidoShow({ auth, pedido }) {
                                     <p className="text-sm text-gray-500 mb-2 font-bold">Anexar Comprovante de Entrega:</p>
                                     <form onSubmit={submitUpload} className="flex flex-col md:flex-row gap-4 items-center bg-green-50 p-4 rounded border border-green-200">
                                         
-                                        {/* INPUT DE ARQUIVO (Setando 'arquivo_romaneio') */}
+                                        {/* INPUT DE ARQUIVO MODIFICADO (Com compressão) */}
                                         <input 
                                             type="file" 
-                                            onChange={e => formUpload.setData('arquivo_romaneio', e.target.files[0])} 
+                                            onChange={handleFileSelect} // <--- CHAMA A FUNÇÃO DE COMPRESSÃO
                                             className="text-sm w-full bg-white p-2 rounded border" 
-                                            accept="image/*,application/pdf" 
+                                            accept="image/*,application/pdf"
+                                            disabled={compressing} // Trava se estiver comprimindo
                                             required 
                                         />
                                         
-                                        <button disabled={formUpload.processing} className="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 shadow disabled:opacity-50">
-                                            {formUpload.processing ? 'Enviando...' : 'Finalizar Entrega'}
+                                        <button 
+                                            disabled={formUpload.processing || compressing} 
+                                            className="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 shadow disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {/* Texto Dinâmico */}
+                                            {compressing ? 'Processando Imagem...' : (formUpload.processing ? 'Enviando...' : 'Finalizar Entrega')}
                                         </button>
                                     </form>
                                     {formUpload.progress && (
