@@ -138,29 +138,38 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__.'/auth.php';
 
-// --- ROTA DE TESTE DO GOOGLE DRIVE ---
+// --- ROTA DE DIAGNÓSTICO DO GOOGLE DRIVE ---
 Route::get('/teste-drive', function () {
-    try {
-        // 1. Tenta listar arquivos (testa leitura e permissão)
-        $arquivos = Storage::disk('google')->files();
-        
-        // 2. Tenta criar um arquivo de teste (testa escrita)
-        Storage::disk('google')->put('teste_conexao.txt', 'Funcionou! O Laravel conectou no Google Drive.');
-        
-        return response()->json([
-            'status' => 'SUCESSO TOTAL 🚀',
-            'mensagem' => 'Conexão, Leitura e Escrita funcionaram!',
-            'arquivos_na_pasta' => $arquivos
-        ]);
+    // 1. Pega a configuração que o Laravel carregou
+    $config = config('filesystems.disks.google');
+    
+    // 2. Verifica se a chave JSON foi lida corretamente
+    $credenciais = $config['serviceAccountCredentials'] ?? null;
+    $temCredenciais = is_array($credenciais) && !empty($credenciais);
+    
+    // 3. Mascara a chave para mostrar na tela com segurança
+    $chaveMascarada = $temCredenciais 
+        ? substr($credenciais['private_key_id'] ?? 'ERRO', 0, 10) . '...' 
+        : 'NENHUMA (NULL)';
 
-    } catch (\Exception $e) {
-        // Mostra o erro exato na tela
-        return response()->json([
-            'status' => 'ERRO ❌',
-            'tipo_erro' => get_class($e),
-            'mensagem' => $e->getMessage(),
-            'arquivo' => $e->getFile(),
-            'linha' => $e->getLine()
-        ], 500);
+    // 4. Teste de Permissão da Pasta (Só se tiver credenciais)
+    $testeConexao = 'Não testado (Falta credencial)';
+    if ($temCredenciais) {
+        try {
+            $testeConexao = 'Tentando listar arquivos... ';
+            $arquivos = Storage::disk('google')->files();
+            $testeConexao .= 'SUCESSO! Encontrei ' . count($arquivos) . ' arquivos.';
+        } catch (\Exception $e) {
+            $testeConexao = 'FALHA: ' . $e->getMessage();
+        }
     }
+
+    return response()->json([
+        'diagnostico' => [
+            'folder_id' => $config['folder'] ?? 'VAZIO',
+            'leu_credenciais' => $temCredenciais ? 'SIM' : 'NÃO (O problema está aqui)',
+            'chave_id_lida' => $chaveMascarada,
+            'teste_conexao' => $testeConexao,
+        ]
+    ]);
 });
