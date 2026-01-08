@@ -214,11 +214,15 @@ public function exportar(Request $request)
         return redirect()->back();
     }
 
-    public function finalizarEntrega(Request $request, $id)
+    // Mantenha os imports no topo:
+use Google\Client;
+use Google\Service\Drive;
+use Google\Service\Drive\DriveFile;
+
+public function finalizarEntrega(Request $request, $id)
 {
-    // 1. Validação
     $request->validate([
-        'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120', // 5MB
+        'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
     ]);
 
     try {
@@ -227,31 +231,27 @@ public function exportar(Request $request)
         if ($request->hasFile('arquivo_romaneio')) {
             $uploadedFile = $request->file('arquivo_romaneio');
             
-            // --- INÍCIO DA SOLUÇÃO NUCLEAR (Upload Direto) ---
+            // --- NOVA AUTENTICAÇÃO OAUTH (Bypass Quota 0) ---
             
-            // A. Preparar o Cliente Google
             $client = new Client();
-            // Lê o JSON direto da variável, sem intermediários
-            $credenciais = json_decode(env('GOOGLE_CREDENTIALS'), true);
-            if (!$credenciais) {
-                throw new \Exception("Credenciais do Google inválidas ou não encontradas.");
-            }
-            $client->setAuthConfig($credenciais);
-            $client->addScope(Drive::DRIVE);
-
-            // B. Conectar no Serviço de Drive
+            $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
+            $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
+            $client->refreshToken(env('GOOGLE_DRIVE_REFRESH_TOKEN'));
+            
+            // O sistema se atualiza automaticamente se o token vencer
+            
             $service = new Drive($client);
 
-            // C. Preparar os dados do arquivo
+            // Preparar arquivo
             $fileMetadata = new DriveFile([
                 'name' => 'pedido_' . $pedido->id . '_romaneio.' . $uploadedFile->getClientOriginalExtension(),
-                'parents' => [env('GOOGLE_DRIVE_FOLDER')] // O ID da pasta
+                'parents' => [env('GOOGLE_DRIVE_FOLDER')]
             ]);
 
-            // D. Ler o conteúdo do arquivo temporário
+            // Ler conteúdo
             $content = file_get_contents($uploadedFile->getRealPath());
 
-            // E. Enviar o arquivo (Foguete não tem ré! 🚀)
+            // Enviar (Agora usando SEU espaço de 15GB)
             $arquivoGoogle = $service->files->create($fileMetadata, [
                 'data' => $content,
                 'mimeType' => $uploadedFile->getMimeType(),
@@ -259,23 +259,21 @@ public function exportar(Request $request)
                 'fields' => 'id, webViewLink'
             ]);
 
-            // Salva o link no banco
-            // 'webViewLink' é o link para visualizar no navegador
             $pedido->comprovante_url = $arquivoGoogle->webViewLink;
-            
-            // --- FIM DA SOLUÇÃO NUCLEAR ---
         }
 
-        // 3. Atualiza Status
         $pedido->status = 'concluido';
         $pedido->save();
 
-        return redirect()->back()->with('message', 'Pedido finalizado e arquivo salvo com sucesso!');
+        return redirect()->back()->with('message', 'Sucesso!');
 
     } catch (\Exception $e) {
-        // Retorna o erro exato para o SweetAlert mostrar
+        // Pega o erro detalhado do Google se falhar
+        $erroMsg = json_decode($e->getMessage(), true);
+        $msgFinal = $erroMsg['error']['message'] ?? $e->getMessage();
+
         return redirect()->back()->withErrors([
-            'erro_upload' => 'Erro Google Direto: ' . $e->getMessage()
+            'erro_upload' => 'Erro Google: ' . $msgFinal
         ]);
     }
 }
