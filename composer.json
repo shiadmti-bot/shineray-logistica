@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "google/apiclient": "*",
         "guzzlehttp/guzzle": "^7.8",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^11.0",
@@ -40,21 +41,11 @@
     "scripts": {
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
-            "@php artisan package:discover --ansi",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/YouTube*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Analytics*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/AdSense*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Compute*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Container*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Android*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Bigquery*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Apigee*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Cloud*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/Maps*",
-            "rm -rf vendor/google/apiclient-services/src/Google/Service/ShoppingContent*"
+            "@php artisan package:discover --ansi"
         ],
         "post-update-cmd": [
-            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
+            "Google\\Task\\Composer::cleanup"
         ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
@@ -76,7 +67,10 @@
     "extra": {
         "laravel": {
             "dont-discover": []
-        }
+        },
+        "google/apiclient-services": [
+            "Drive"
+        ]
     },
     "config": {
         "optimize-autoloader": false,
