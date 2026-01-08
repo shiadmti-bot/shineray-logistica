@@ -9,6 +9,7 @@ use App\Models\Pedido;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage; // <--- ADICIONADO AQUI NO TOPO (Correto)
 use Inertia\Inertia;
 
 /*
@@ -83,7 +84,7 @@ Route::middleware('auth')->group(function () {
     // 2. PEDIDOS (CORE)
     // ==============================
     
-    // Listagem e Exportação (Exportar DEVE vir antes de {id})
+    // Listagem e Exportação
     Route::get('/pedidos', [PedidoController::class, 'index'])->name('pedidos.index');
     Route::get('/pedidos/exportar', [PedidoController::class, 'exportar'])->name('pedidos.exportar');
     
@@ -102,11 +103,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/pedidos/{id}/rejeitar', [PedidoController::class, 'rejeitar'])->name('pedidos.rejeitar');
     Route::post('/pedidos/{id}/finalizar', [PedidoController::class, 'finalizarEntrega'])->name('pedidos.finalizar');
     
-    // Obs: Esta rota abaixo é usada caso a saída seja dada pelo Pedido individualmente, 
-    // mas o padrão agora é via Romaneio. Mantida para compatibilidade.
+    // Rotas de Legado/Compatibilidade
     Route::post('/pedidos/{id}/saida', [PedidoController::class, 'confirmarSaida'])->name('pedidos.saida');
-    // Obs: A rota antiga gerarRomaneio via PedidoController foi substituída pelo RomaneioController,
-    // mas se ainda houver botões antigos, mantemos:
     Route::post('/pedidos/{id}/romaneio', [PedidoController::class, 'gerarRomaneio'])->name('pedidos.gerarRomaneio');
 
 
@@ -138,5 +136,31 @@ Route::middleware('auth')->group(function () {
 });
 
 
-
 require __DIR__.'/auth.php';
+
+// --- ROTA DE TESTE DO GOOGLE DRIVE ---
+Route::get('/teste-drive', function () {
+    try {
+        // 1. Tenta listar arquivos (testa leitura e permissão)
+        $arquivos = Storage::disk('google')->files();
+        
+        // 2. Tenta criar um arquivo de teste (testa escrita)
+        Storage::disk('google')->put('teste_conexao.txt', 'Funcionou! O Laravel conectou no Google Drive.');
+        
+        return response()->json([
+            'status' => 'SUCESSO TOTAL 🚀',
+            'mensagem' => 'Conexão, Leitura e Escrita funcionaram!',
+            'arquivos_na_pasta' => $arquivos
+        ]);
+
+    } catch (\Exception $e) {
+        // Mostra o erro exato na tela
+        return response()->json([
+            'status' => 'ERRO ❌',
+            'tipo_erro' => get_class($e),
+            'mensagem' => $e->getMessage(),
+            'arquivo' => $e->getFile(),
+            'linha' => $e->getLine()
+        ], 500);
+    }
+});
