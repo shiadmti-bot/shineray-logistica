@@ -10,6 +10,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Google\Client;
+use Google\Service\Drive;
+use Google\Service\Drive\DriveFile;
 
 class PedidoController extends Controller
 {
@@ -212,45 +215,67 @@ public function exportar(Request $request)
     }
 
     public function finalizarEntrega(Request $request, $id)
-    {
-    // 1. Validação Básica
+{
+    // 1. Validação
     $request->validate([
-        'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:4096', // Max 4MB para não estourar a Vercel
+        'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120', // 5MB
     ]);
 
     try {
         $pedido = Pedido::findOrFail($id);
-
-        // 2. Tenta fazer o Upload
+        
         if ($request->hasFile('arquivo_romaneio')) {
-            $file = $request->file('arquivo_romaneio');
+            $uploadedFile = $request->file('arquivo_romaneio');
             
-            // Define o nome do arquivo
-            $filename = 'romaneio_pedido_' . $pedido->id . '_' . time() . '.' . $file->getClientOriginalExtension();
-
-            // TENTA SALVAR NO GOOGLE DRIVE
-            // Atenção: Usamos 'google' explicitamente aqui
-            $path = $file->storeAs('', $filename, 'google');
-
-            if (!$path) {
-                throw new \Exception("O arquivo não retornou um caminho válido. Verifique permissões da pasta.");
+            // --- INÍCIO DA SOLUÇÃO NUCLEAR (Upload Direto) ---
+            
+            // A. Preparar o Cliente Google
+            $client = new Client();
+            // Lê o JSON direto da variável, sem intermediários
+            $credenciais = json_decode(env('GOOGLE_CREDENTIALS'), true);
+            if (!$credenciais) {
+                throw new \Exception("Credenciais do Google inválidas ou não encontradas.");
             }
+            $client->setAuthConfig($credenciais);
+            $client->addScope(Drive::DRIVE);
 
-            // Salva o link no banco (opcional, pode salvar só o ID)
-            $pedido->comprovante_url = $path; // ou monte a URL completa se preferir
+            // B. Conectar no Serviço de Drive
+            $service = new Drive($client);
+
+            // C. Preparar os dados do arquivo
+            $fileMetadata = new DriveFile([
+                'name' => 'pedido_' . $pedido->id . '_romaneio.' . $uploadedFile->getClientOriginalExtension(),
+                'parents' => [env('GOOGLE_DRIVE_FOLDER')] // O ID da pasta
+            ]);
+
+            // D. Ler o conteúdo do arquivo temporário
+            $content = file_get_contents($uploadedFile->getRealPath());
+
+            // E. Enviar o arquivo (Foguete não tem ré! 🚀)
+            $arquivoGoogle = $service->files->create($fileMetadata, [
+                'data' => $content,
+                'mimeType' => $uploadedFile->getMimeType(),
+                'uploadType' => 'multipart',
+                'fields' => 'id, webViewLink'
+            ]);
+
+            // Salva o link no banco
+            // 'webViewLink' é o link para visualizar no navegador
+            $pedido->comprovante_url = $arquivoGoogle->webViewLink;
+            
+            // --- FIM DA SOLUÇÃO NUCLEAR ---
         }
 
         // 3. Atualiza Status
         $pedido->status = 'concluido';
         $pedido->save();
 
-        // 4. Sucesso
-        return redirect()->back()->with('message', 'Pedido finalizado e arquivo salvo no Drive com sucesso!');
+        return redirect()->back()->with('message', 'Pedido finalizado e arquivo salvo com sucesso!');
 
     } catch (\Exception $e) {
-        // 5. SE DER ERRO, MOSTRA NA TELA (SweetAlert vai pegar isso se configurado, ou aparecerá no topo)
+        // Retorna o erro exato para o SweetAlert mostrar
         return redirect()->back()->withErrors([
-            'erro_upload' => 'Falha ao enviar para o Drive: ' . $e->getMessage()
+            'erro_upload' => 'Erro Google Direto: ' . $e->getMessage()
         ]);
     }
 }
