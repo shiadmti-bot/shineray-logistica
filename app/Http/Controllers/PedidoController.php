@@ -214,12 +214,7 @@ public function exportar(Request $request)
         return redirect()->back();
     }
 
-    // Mantenha os imports no topo:
-use Google\Client;
-use Google\Service\Drive;
-use Google\Service\Drive\DriveFile;
-
-public function finalizarEntrega(Request $request, $id)
+    public function finalizarEntrega(Request $request, $id)
 {
     $request->validate([
         'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
