@@ -5,11 +5,9 @@ use App\Http\Controllers\MotoController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\RomaneioController;
 use App\Http\Controllers\UserController;
-use App\Models\Pedido;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage; // <--- ADICIONADO AQUI NO TOPO (Correto)
 use Inertia\Inertia;
 
 /*
@@ -18,12 +16,19 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
-// Tela Inicial (Login)
+Route::get('/limpar-tudo', function() {
+    Artisan::call('optimize:clear');
+    Artisan::call('config:clear');
+    Artisan::call('cache:clear');
+    return "Cache limpo! Tente acessar o dashboard agora.";
+});
+
+// Tela Inicial (Redireciona para Login)
 Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Dashboard com Lógica de Negócio
+// Dashboard com Lógica de Negócio (Contadores)
 Route::get('/dashboard', function () {
     $user = Auth::user();
     $stats = [];
@@ -135,35 +140,4 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-
 require __DIR__.'/auth.php';
-
-// --- ROTA DE DIAGNÓSTICO DE VARIÁVEIS ---
-Route::get('/teste-drive', function () {
-    // 1. Lê a variável crua (texto)
-    $rawJson = env('GOOGLE_CREDENTIALS');
-    
-    // 2. Tenta decodificar
-    $jsonDecoded = json_decode($rawJson, true);
-    $jsonError = json_last_error_msg();
-    
-    // 3. Verifica o ID da pasta
-    $folderId = env('GOOGLE_DRIVE_FOLDER');
-
-    return response()->json([
-        'status_site' => 'ONLINE (O AppServiceProvider foi limpo)',
-        'analise_credenciais' => [
-            'tem_conteudo' => !empty($rawJson) ? 'SIM' : 'NÃO (Variável Vazia)',
-            'tamanho_texto' => strlen($rawJson ?? ''),
-            'json_valido' => ($jsonDecoded !== null) ? 'SIM, JSON VÁLIDO ✅' : 'NÃO, JSON QUEBRADO ❌',
-            'erro_json' => ($jsonDecoded === null) ? $jsonError : 'Nenhum',
-            'email_robo' => $jsonDecoded['client_email'] ?? 'Não encontrado no JSON',
-            'inicio_chave' => substr($rawJson ?? '', 0, 10) . '...',
-            'fim_chave' => '...' . substr($rawJson ?? '', -10),
-        ],
-        'analise_pasta' => [
-            'folder_id' => $folderId,
-            'parece_valido' => (strlen($folderId) > 20 && !str_contains($folderId, 'http')) ? 'SIM' : 'NÃO (Verifique se colou link)',
-        ]
-    ]);
-});
