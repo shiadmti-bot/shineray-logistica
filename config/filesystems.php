@@ -66,7 +66,10 @@ return [
             'clientSecret' => env('GOOGLE_DRIVE_CLIENT_SECRET'),
             'refreshToken' => env('GOOGLE_DRIVE_REFRESH_TOKEN'),
             'folder' => env('GOOGLE_DRIVE_FOLDER'),
-            'serviceAccountCredentials' => json_decode(env('GOOGLE_CREDENTIALS') ?? '{}', true),
+            // CORREÇÃO: Verifica se tem valor antes de tentar decodificar
+            'serviceAccountCredentials' => env('GOOGLE_CREDENTIALS') 
+                ? json_decode(env('GOOGLE_CREDENTIALS'), true) 
+                : [],
         ],
 
     ],
