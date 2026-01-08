@@ -1,22 +1,107 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
+import Swal from 'sweetalert2'; // <--- IMPORTANTE
 
 export default function PedidoShow({ auth, pedido }) {
+    // Configuração dos formulários
     const formUpload = useForm({ arquivo: null });
     const formRejeicao = useForm({ motivo: '' });
     const formAcoes = useForm({}); 
 
-    const avancarSeparacao = () => { if(confirm('Motos conferidas e separadas?')) formAcoes.post(route('pedidos.separar', pedido.id)); };
-    const avancarSaida = () => { if(confirm('Liberar para trânsito?')) formAcoes.post(route('pedidos.saida', pedido.id)); };
-    const submitUpload = (e) => { e.preventDefault(); if(confirm('Confirmar entrega?')) formUpload.post(route('pedidos.finalizar', pedido.id)); };
+    // --- FUNÇÕES DE AÇÃO COM SWEETALERT ---
 
-    const handleRejeitar = () => {
-        const motivo = prompt("Motivo da rejeição:");
-        if (motivo) {
-            formRejeicao.setData('motivo', motivo);
-            formRejeicao.transform((data) => ({ ...data, motivo: motivo }));
-            formRejeicao.post(route('pedidos.rejeitar', pedido.id));
+    // 1. Finalizar (Upload do Romaneio)
+    const submitUpload = (e) => { 
+        e.preventDefault();
+        
+        // Verifica se selecionou o arquivo antes de perguntar
+        if (!formUpload.data.arquivo) {
+            Swal.fire('Atenção', 'Por favor, selecione o arquivo ou tire a foto do romaneio.', 'warning');
+            return;
         }
+
+        Swal.fire({
+            title: 'Confirmar entrega?',
+            text: "O pedido será finalizado e o arquivo enviado para o Google Drive.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#16a34a',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sim, finalizar!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Mostra loading enquanto envia
+                Swal.fire({ title: 'Enviando...', text: 'Aguarde o upload para o Drive', didOpen: () => Swal.showLoading() });
+
+                formUpload.post(route('pedidos.finalizar', pedido.id), {
+                    forceFormData: true, // <--- OBRIGATÓRIO PARA ARQUIVOS
+                    onSuccess: () => {
+                        Swal.fire('Sucesso!', 'Pedido finalizado com sucesso.', 'success');
+                    },
+                    onError: (errors) => {
+                        console.error(errors);
+                        // Fecha o loading
+                        Swal.close();
+                        
+                        // Pega a mensagem de erro (do Laravel ou Genérica)
+                        let msg = 'Ocorreu um erro desconhecido.';
+                        if (errors.arquivo_romaneio) msg = errors.arquivo_romaneio;
+                        if (errors.erro_upload) msg = errors.erro_upload; // Nossa mensagem customizada do Controller
+                        
+                        Swal.fire('Erro no Envio', msg, 'error');
+                    },
+                    onFinish: () => formUpload.reset('arquivo'),
+                });
+            }
+        });
+    };
+
+    // 2. Avançar para Separação
+    const avancarSeparacao = () => { 
+        Swal.fire({
+            title: 'Confirmar Separação?',
+            text: "As motos foram conferidas fisicamente?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, confirmar!'
+        }).then((res) => {
+            if(res.isConfirmed) formAcoes.post(route('pedidos.separar', pedido.id));
+        });
+    };
+
+    // 3. Confirmar Saída
+    const avancarSaida = () => { 
+        Swal.fire({
+            title: 'Liberar para Trânsito?',
+            text: "O motorista já está com a nota e carregado?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, liberar!'
+        }).then((res) => {
+            if(res.isConfirmed) formAcoes.post(route('pedidos.saida', pedido.id));
+        });
+    };
+
+    // 4. Rejeitar Pedido
+    const handleRejeitar = () => {
+        Swal.fire({
+            title: 'Rejeitar Pedido',
+            input: 'text',
+            inputLabel: 'Motivo da rejeição',
+            inputPlaceholder: 'Ex: Falta de estoque...',
+            showCancelButton: true,
+            confirmButtonText: 'Rejeitar',
+            confirmButtonColor: '#d33',
+            inputValidator: (value) => {
+                if (!value) return 'Você precisa escrever um motivo!'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                formRejeicao.setData('motivo', result.value);
+                // Usa uma função auxiliar para garantir que o estado atualizou antes de enviar
+                router.post(route('pedidos.rejeitar', pedido.id), { motivo: result.value });
+            }
+        });
     };
 
     return (
@@ -37,7 +122,6 @@ export default function PedidoShow({ auth, pedido }) {
                             <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Status Atual</span>
                             <BadgeStatus status={pedido.status} />
                             
-                            {/* Mostra qual Romaneio de Carga este pedido pegou (se houver) */}
                             {pedido.romaneio_id && (
                                 <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200">
                                     Carga/Romaneio #{String(pedido.romaneio_id).padStart(6, '0')}
@@ -53,13 +137,12 @@ export default function PedidoShow({ auth, pedido }) {
                             <p className="text-red-700 mt-1">{pedido.motivo_rejeicao}</p>
                         </div>
                     )}
-{/* --- NOVO: BOTÃO DE CANCELAR (Visível só para Loja e se Solicitado) --- */}
+
+                    {/* BOTÃO CANCELAR SOLICITAÇÃO (LOJA) */}
                     {auth.user.perfil === 'loja' && pedido.status === 'solicitado' && (
                         <div className="mx-2 md:mx-0 mt-6 bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">
-                                    ⚠️
-                                </div>
+                                <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">⚠️</div>
                                 <div>
                                     <h4 className="font-bold text-yellow-800 text-sm">Precisa corrigir ou desistir?</h4>
                                     <p className="text-xs text-yellow-700">Enquanto o pedido não for separado pelo CD, você pode cancelá-lo aqui.</p>
@@ -67,11 +150,16 @@ export default function PedidoShow({ auth, pedido }) {
                             </div>
                             <button 
                                 onClick={() => {
-                                    if(confirm('Tem certeza? Isso cancelará a solicitação imediatamente e liberará o chassi.')) {
-                                        // Usa o router do Inertia (importado no topo)
-                                        // Certifique-se de ter importado: import { router } from '@inertiajs/react';
-                                        router.post(route('pedidos.cancelarProprio', pedido.id));
-                                    }
+                                    Swal.fire({
+                                        title: 'Cancelar Solicitação?',
+                                        text: "Isso liberará o chassi imediatamente.",
+                                        icon: 'warning',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#d33',
+                                        confirmButtonText: 'Sim, cancelar'
+                                    }).then((res) => {
+                                        if(res.isConfirmed) router.post(route('pedidos.cancelarProprio', pedido.id));
+                                    })
                                 }}
                                 className="whitespace-nowrap text-red-700 font-bold border border-red-200 bg-white px-4 py-2 rounded hover:bg-red-50 hover:border-red-300 text-sm shadow-sm transition flex items-center gap-2"
                             >
@@ -80,7 +168,7 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* TIMELINE DE 5 ETAPAS */}
+                    {/* TIMELINE */}
                     <div className="px-2 md:px-8">
                         <Timeline status={pedido.status} />
                     </div>
@@ -91,30 +179,30 @@ export default function PedidoShow({ auth, pedido }) {
                             <span>📦 Itens Solicitados</span>
                             <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">{pedido.motos.length}</span>
                         </h3>
-                        <table className="min-w-full">
-                            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                                <tr>
-                                    <th className="px-4 py-2 text-left">Modelo</th>
-                                    <th className="px-4 py-2 text-left">Chassi (11 Dígitos)</th>
-                                    <th className="px-4 py-2 text-left">Carga/Romaneio</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pedido.motos.map((moto) => (
-                                    <tr key={moto.id} className="border-b hover:bg-gray-50">
-                                        <td className="px-4 py-3 font-bold text-sm">{moto.modelo}</td>
-                                        <td className="px-4 py-3 font-mono text-gray-600 text-sm">{moto.chassi}</td>
-                                        <td className="px-4 py-3 text-sm">
-                                            {moto.romaneio_id ? (
-                                                <span className="text-indigo-600 font-bold text-xs">Carga #{String(moto.romaneio_id).padStart(6,'0')}</span>
-                                            ) : (
-                                                <span className="text-gray-400 text-xs">-</span>
-                                            )}
-                                        </td>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left">Modelo</th>
+                                        <th className="px-4 py-2 text-left">Chassi (11 Dígitos)</th>
+                                        <th className="px-4 py-2 text-left">Carga/Romaneio</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {pedido.motos.map((moto) => (
+                                        <tr key={moto.id} className="border-b hover:bg-gray-50">
+                                            <td className="px-4 py-3 font-bold text-sm">{moto.modelo}</td>
+                                            <td className="px-4 py-3 font-mono text-gray-600 text-sm">{moto.chassi}</td>
+                                            <td className="px-4 py-3 text-sm">
+                                                {moto.romaneio_id ? (
+                                                    <span className="text-indigo-600 font-bold text-xs">Carga #{String(moto.romaneio_id).padStart(6,'0')}</span>
+                                                ) : <span className="text-gray-400 text-xs">-</span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* --- ZONA DE AÇÃO DO CD --- */}
@@ -124,9 +212,9 @@ export default function PedidoShow({ auth, pedido }) {
                             
                             {/* 1. SEPARAR */}
                             {pedido.status === 'solicitado' && (
-                                <div className="flex gap-4">
+                                <div className="flex flex-col md:flex-row gap-4">
                                     <button onClick={avancarSeparacao} className="bg-blue-600 text-white px-6 py-3 rounded font-bold hover:bg-blue-700 shadow flex-1">
-                                        ✅ Confirmar Separação (Mover para Pátio)
+                                        ✅ Confirmar Separação
                                     </button>
                                     <button onClick={handleRejeitar} className="border border-red-500 text-red-600 px-6 py-3 rounded font-bold hover:bg-red-50">
                                         Rejeitar
@@ -134,12 +222,12 @@ export default function PedidoShow({ auth, pedido }) {
                                 </div>
                             )}
 
-                            {/* 2. EXPEDIR (AGORA MANDA PARA OUTRA TELA) */}
+                            {/* 2. EXPEDIR */}
                             {pedido.status === 'separado' && (
-                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex justify-between items-center">
+                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
                                     <div>
                                         <p className="font-bold text-indigo-900">Motos separadas no pátio.</p>
-                                        <p className="text-sm text-indigo-700">Para gerar o transporte, vá para o menu "Nova Carga".</p>
+                                        <p className="text-sm text-indigo-700">Vá para "Nova Carga" para gerar o transporte.</p>
                                     </div>
                                     <Link href={route('romaneios.create')} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-indigo-700">
                                         Ir para Montagem de Carga &rarr;
@@ -152,28 +240,48 @@ export default function PedidoShow({ auth, pedido }) {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="font-bold text-indigo-700">Carga montada!</p>
-                                        <p className="text-sm text-gray-500">Veículo aguardando liberação na portaria.</p>
+                                        <p className="text-sm text-gray-500">Veículo aguardando liberação.</p>
                                     </div>
                                     <button onClick={avancarSaida} className="bg-orange-500 text-white px-6 py-3 rounded font-bold hover:bg-orange-600 shadow">
-                                        🚛 Confirmar Saída (Em Trânsito)
+                                        🚛 Confirmar Saída
                                     </button>
                                 </div>
                             )}
 
-                            {/* 4. BAIXA */}
+                            {/* 4. BAIXA / FINALIZAR */}
                             {pedido.status === 'em_transito' && (
                                 <div>
-                                    <p className="text-sm text-gray-500 mb-2">Aguardando retorno do comprovante.</p>
-                                    <form onSubmit={submitUpload} className="flex gap-4 items-center bg-green-50 p-3 rounded border border-green-200">
-                                        <input type="file" onChange={e => formUpload.setData('arquivo', e.target.files[0])} className="text-sm w-full" accept="image/*,application/pdf" required />
-                                        <button disabled={formUpload.processing} className="bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700 shadow">
-                                            Finalizar
+                                    <p className="text-sm text-gray-500 mb-2 font-bold">Anexar Comprovante de Entrega:</p>
+                                    <form onSubmit={submitUpload} className="flex flex-col md:flex-row gap-4 items-center bg-green-50 p-4 rounded border border-green-200">
+                                        <input 
+                                            type="file" 
+                                            onChange={e => formUpload.setData('arquivo', e.target.files[0])} 
+                                            className="text-sm w-full bg-white p-2 rounded border" 
+                                            accept="image/*,application/pdf" 
+                                            required 
+                                        />
+                                        <button disabled={formUpload.processing} className="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 shadow disabled:opacity-50">
+                                            {formUpload.processing ? 'Enviando...' : 'Finalizar Entrega'}
                                         </button>
                                     </form>
+                                    {formUpload.progress && (
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                                            <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${formUpload.progress.percentage}%` }}></div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
-                            {pedido.status === 'concluido' && <p className="text-green-600 font-bold bg-green-50 p-2 rounded text-center">Processo finalizado.</p>}
+                            {pedido.status === 'concluido' && (
+                                <div className="text-center">
+                                    <p className="text-green-600 font-bold bg-green-100 p-3 rounded inline-block">Processo Finalizado com Sucesso 🎉</p>
+                                    {pedido.comprovante_url && (
+                                        <div className="mt-2">
+                                            <a href={pedido.comprovante_url} target="_blank" className="text-blue-600 underline text-sm">Ver Comprovante</a>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -201,7 +309,7 @@ export default function PedidoShow({ auth, pedido }) {
     );
 }
 
-// Manter componentes BadgeStatus e Timeline no final...
+// Subcomponentes (mantidos)
 function BadgeStatus({ status }) {
     const config = {
         solicitado:  { label: 'Solicitado',  bg: 'bg-yellow-100 text-yellow-800' },

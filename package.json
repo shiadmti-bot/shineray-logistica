@@ -23,6 +23,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
-        "nprogress": "^0.2.0"
+        "nprogress": "^0.2.0",
+        "sweetalert2": "^11.26.17"
     }
 }
