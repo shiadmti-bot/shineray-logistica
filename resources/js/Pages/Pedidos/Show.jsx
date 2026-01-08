@@ -6,54 +6,48 @@ import imageCompression from 'browser-image-compression';
 
 export default function PedidoShow({ auth, pedido }) {
     // 1. Configuração dos formulários
-    // Importante: O nome do campo aqui deve ser 'arquivo_romaneio' para bater com o Controller
     const formUpload = useForm({ arquivo_romaneio: null });
     const [compressing, setCompressing] = useState(false);
     const formRejeicao = useForm({ motivo: '' });
     const formAcoes = useForm({}); 
 
-    // --- FUNÇÕES DE AÇÃO (TODAS COM SWEETALERT) ---
+    // --- FUNÇÕES DE AÇÃO ---
 
-    // --- NOVA FUNÇÃO PARA COMPRIMIR IMAGEM ---
+    // COMPRIMIR IMAGEM ANTES DO UPLOAD
     const handleFileSelect = async (event) => {
         const imageFile = event.target.files[0];
         if (!imageFile) return;
 
-        // Se não for imagem (ex: PDF), não comprime
         if (!imageFile.type.startsWith('image/')) {
             formUpload.setData('arquivo_romaneio', imageFile);
             return;
         }
 
-        setCompressing(true); // Ativa loading
+        setCompressing(true);
 
         const options = {
-            maxSizeMB: 1,          // Tenta deixar com no máximo 1MB
-            maxWidthOrHeight: 1920, // Redimensiona se for muito gigante (4K)
-            useWebWorker: true,    // Usa thread separada para não travar a tela
-            fileType: 'image/jpeg' // Força JPEG para melhor compressão
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+            fileType: 'image/jpeg'
         };
 
         try {
             const compressedFile = await imageCompression(imageFile, options);
-            
-            // Truque: A biblioteca retorna um 'Blob', precisamos converter de volta para 'File' para o Laravel aceitar o nome original
             const finalFile = new File([compressedFile], imageFile.name, { type: compressedFile.type });
-
             formUpload.setData('arquivo_romaneio', finalFile);
         } catch (error) {
             console.error("Erro na compressão:", error);
-            Swal.fire('Erro', 'Não foi possível processar esta imagem. Tente outra.', 'error');
+            Swal.fire('Erro', 'Não foi possível processar esta imagem.', 'error');
         } finally {
-            setCompressing(false); // Desativa loading
+            setCompressing(false);
         }
     };
 
-    // 1. FINALIZAR ENTREGA (UPLOAD)
+    // FINALIZAR ENTREGA
     const submitUpload = (e) => { 
         e.preventDefault();
         
-        // Verifica se o arquivo foi selecionado
         if (!formUpload.data.arquivo_romaneio) {
             Swal.fire('Atenção', 'Por favor, selecione o arquivo ou tire a foto do romaneio.', 'warning');
             return;
@@ -64,12 +58,11 @@ export default function PedidoShow({ auth, pedido }) {
             text: "O pedido será finalizado e o arquivo enviado para o Google Drive.",
             icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: '#16a34a', // Verde
-            cancelButtonColor: '#d33',    // Vermelho
+            confirmButtonColor: '#16a34a',
+            cancelButtonColor: '#d33',
             confirmButtonText: 'Sim, finalizar!'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Loading enquanto envia
                 Swal.fire({ 
                     title: 'Enviando...', 
                     text: 'Aguarde o upload para o Drive', 
@@ -78,19 +71,16 @@ export default function PedidoShow({ auth, pedido }) {
                 });
 
                 formUpload.post(route('pedidos.finalizar', pedido.id), {
-                    forceFormData: true, // OBRIGATÓRIO PARA ARQUIVOS
+                    forceFormData: true,
                     onSuccess: () => {
                         Swal.fire('Sucesso!', 'Pedido finalizado com sucesso.', 'success');
                     },
                     onError: (errors) => {
                         console.error(errors);
-                        Swal.close(); // Fecha o loading
-                        
-                        // Tratamento de mensagens de erro
+                        Swal.close();
                         let msg = 'Ocorreu um erro desconhecido.';
                         if (errors.arquivo_romaneio) msg = errors.arquivo_romaneio;
-                        if (errors.erro_upload) msg = errors.erro_upload; // Erro vindo do Try-Catch do Controller
-                        
+                        if (errors.erro_upload) msg = errors.erro_upload;
                         Swal.fire('Erro no Envio', msg, 'error');
                     },
                     onFinish: () => formUpload.reset('arquivo_romaneio'),
@@ -99,7 +89,7 @@ export default function PedidoShow({ auth, pedido }) {
         });
     };
 
-    // 2. AVANÇAR PARA SEPARAÇÃO
+    // OPERAÇÕES DO CD
     const avancarSeparacao = () => { 
         Swal.fire({
             title: 'Confirmar Separação?',
@@ -107,15 +97,12 @@ export default function PedidoShow({ auth, pedido }) {
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Sim, confirmar!',
-            confirmButtonColor: '#2563eb' // Azul
+            confirmButtonColor: '#2563eb'
         }).then((res) => {
-            if(res.isConfirmed) {
-                formAcoes.post(route('pedidos.separar', pedido.id));
-            }
+            if(res.isConfirmed) formAcoes.post(route('pedidos.separar', pedido.id));
         });
     };
 
-    // 3. CONFIRMAR SAÍDA (EM TRÂNSITO)
     const avancarSaida = () => { 
         Swal.fire({
             title: 'Liberar para Trânsito?',
@@ -123,31 +110,24 @@ export default function PedidoShow({ auth, pedido }) {
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Sim, liberar!',
-            confirmButtonColor: '#f97316' // Laranja
+            confirmButtonColor: '#f97316'
         }).then((res) => {
-            if(res.isConfirmed) {
-                formAcoes.post(route('pedidos.saida', pedido.id));
-            }
+            if(res.isConfirmed) formAcoes.post(route('pedidos.saida', pedido.id));
         });
     };
 
-    // 4. REJEITAR PEDIDO
     const handleRejeitar = () => {
         Swal.fire({
             title: 'Rejeitar Pedido',
             input: 'text',
             inputLabel: 'Motivo da rejeição',
-            inputPlaceholder: 'Ex: Falta de estoque, Chassi não localizado...',
             showCancelButton: true,
             confirmButtonText: 'Rejeitar',
             confirmButtonColor: '#d33',
-            inputValidator: (value) => {
-                if (!value) return 'Você precisa escrever um motivo!'
-            }
+            inputValidator: (value) => { if (!value) return 'Escreva o motivo!'; }
         }).then((result) => {
             if (result.isConfirmed) {
                 formRejeicao.setData('motivo', result.value);
-                // Usa router.post direto para garantir envio do dado
                 router.post(route('pedidos.rejeitar', pedido.id), { motivo: result.value });
             }
         });
@@ -170,7 +150,6 @@ export default function PedidoShow({ auth, pedido }) {
                         <div className="text-right">
                             <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Status Atual</span>
                             <BadgeStatus status={pedido.status} />
-                            
                             {pedido.romaneio_id && (
                                 <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200">
                                     Carga/Romaneio #{String(pedido.romaneio_id).padStart(6, '0')}
@@ -179,7 +158,7 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     </div>
 
-                    {/* ALERTA DE CANCELAMENTO */}
+                    {/* ALERTA CANCELADO */}
                     {pedido.status === 'cancelado' && (
                         <div className="bg-red-100 border-l-4 border-red-600 p-4 shadow-sm">
                             <h3 className="font-bold text-red-800">🚫 PEDIDO CANCELADO</h3>
@@ -187,14 +166,14 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* BOTÃO CANCELAR SOLICITAÇÃO (VISÍVEL SÓ PARA LOJA) */}
+                    {/* CANCELAR SOLICITAÇÃO (LOJA) */}
                     {auth.user.perfil === 'loja' && pedido.status === 'solicitado' && (
-                        <div className="mx-2 md:mx-0 mt-6 bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                        <div className="mx-2 md:mx-0 mt-6 bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex justify-between items-center gap-4 shadow-sm">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">⚠️</div>
                                 <div>
-                                    <h4 className="font-bold text-yellow-800 text-sm">Precisa corrigir ou desistir?</h4>
-                                    <p className="text-xs text-yellow-700">Enquanto o pedido não for separado pelo CD, você pode cancelá-lo aqui.</p>
+                                    <h4 className="font-bold text-yellow-800 text-sm">Precisa corrigir?</h4>
+                                    <p className="text-xs text-yellow-700">Enquanto não for separado, você pode cancelar.</p>
                                 </div>
                             </div>
                             <button 
@@ -217,12 +196,12 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* TIMELINE VISUAL */}
+                    {/* TIMELINE */}
                     <div className="px-2 md:px-8">
                         <Timeline status={pedido.status} />
                     </div>
                     
-                    {/* LISTA DE ITENS/MOTOS */}
+                    {/* LISTA DE MOTOS */}
                     <div className="bg-white p-6 shadow-sm sm:rounded-lg">
                         <h3 className="font-bold mb-4 border-b pb-2 flex items-center gap-2">
                             <span>📦 Itens Solicitados</span>
@@ -254,14 +233,14 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     </div>
 
-                    {/* --- PAINEL DE OPERAÇÕES (CD) --- */}
+                    {/* --- PAINEL DE OPERAÇÕES DO CD (EXCLUSIVO) --- */}
                     {auth.user.perfil === 'cd' && pedido.status !== 'cancelado' && (
                         <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-blue-600">
-                            <h3 className="font-bold text-lg mb-4 text-gray-800">⚙️ Painel de Operações</h3>
+                            <h3 className="font-bold text-lg mb-4 text-gray-800">⚙️ Painel de Operações (CD)</h3>
                             
                             {/* 1. SEPARAR */}
                             {pedido.status === 'solicitado' && (
-                                <div className="flex flex-col md:flex-row gap-4">
+                                <div className="flex gap-4">
                                     <button onClick={avancarSeparacao} className="bg-blue-600 text-white px-6 py-3 rounded font-bold hover:bg-blue-700 shadow flex-1">
                                         ✅ Confirmar Separação
                                     </button>
@@ -271,9 +250,9 @@ export default function PedidoShow({ auth, pedido }) {
                                 </div>
                             )}
 
-                            {/* 2. EXPEDIR (MANDA PARA TELA DE CARGA) */}
+                            {/* 2. EXPEDIR */}
                             {pedido.status === 'separado' && (
-                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
+                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex justify-between items-center gap-4">
                                     <div>
                                         <p className="font-bold text-indigo-900">Motos separadas no pátio.</p>
                                         <p className="text-sm text-indigo-700">Vá para "Nova Carga" para gerar o transporte.</p>
@@ -296,54 +275,68 @@ export default function PedidoShow({ auth, pedido }) {
                                     </button>
                                 </div>
                             )}
-
-                            {/* 4. BAIXA / FINALIZAR ENTREGA */}
-                            {pedido.status === 'em_transito' && (
-                                <div>
-                                    <p className="text-sm text-gray-500 mb-2 font-bold">Anexar Comprovante de Entrega:</p>
-                                    <form onSubmit={submitUpload} className="flex flex-col md:flex-row gap-4 items-center bg-green-50 p-4 rounded border border-green-200">
-                                        
-                                        {/* INPUT DE ARQUIVO MODIFICADO (Com compressão) */}
-                                        <input 
-                                            type="file" 
-                                            onChange={handleFileSelect} // <--- CHAMA A FUNÇÃO DE COMPRESSÃO
-                                            className="text-sm w-full bg-white p-2 rounded border" 
-                                            accept="image/*,application/pdf"
-                                            disabled={compressing} // Trava se estiver comprimindo
-                                            required 
-                                        />
-                                        
-                                        <button 
-                                            disabled={formUpload.processing || compressing} 
-                                            className="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 shadow disabled:opacity-50 flex items-center justify-center gap-2"
-                                        >
-                                            {/* Texto Dinâmico */}
-                                            {compressing ? 'Processando Imagem...' : (formUpload.processing ? 'Enviando...' : 'Finalizar Entrega')}
-                                        </button>
-                                    </form>
-                                    {formUpload.progress && (
-                                        <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
-                                            <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${formUpload.progress.percentage}%` }}></div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {pedido.status === 'concluido' && (
-                                <div className="text-center">
-                                    <p className="text-green-600 font-bold bg-green-100 p-3 rounded inline-block">Processo Finalizado com Sucesso 🎉</p>
-                                    {pedido.comprovante_url && (
-                                        <div className="mt-2">
-                                            <a href={pedido.comprovante_url} target="_blank" className="text-blue-600 underline text-sm">Ver Comprovante</a>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </div>
                     )}
 
-                    {/* LOGS DE HISTÓRICO */}
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg border-t border-gray-200">
+                    {/* --- ÁREA DE FINALIZAÇÃO (COMPARTILHADA: LOJA E CD) --- */}
+                    {/* Aparece se estiver 'em_transito' E (for CD OU for o Dono do Pedido) */}
+                    {pedido.status === 'em_transito' && (auth.user.perfil === 'cd' || auth.user.id === pedido.user_id) && (
+                        <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-green-500 mt-6">
+                            <h3 className="font-bold text-lg mb-4 text-green-800">✅ Confirmar Recebimento</h3>
+                            
+                            <div>
+                                <p className="text-sm text-gray-600 mb-3">
+                                    O veículo chegou e as motos foram conferidas? Anexe o canhoto assinado para concluir.
+                                </p>
+                                
+                                <form onSubmit={submitUpload} className="flex flex-col md:flex-row gap-4 items-center bg-green-50 p-4 rounded border border-green-200">
+                                    
+                                    {/* INPUT COM COMPRESSÃO */}
+                                    <input 
+                                        type="file" 
+                                        onChange={handleFileSelect} 
+                                        className="text-sm w-full bg-white p-2 rounded border" 
+                                        accept="image/*,application/pdf"
+                                        disabled={compressing} 
+                                        required 
+                                    />
+                                    
+                                    <button 
+                                        disabled={formUpload.processing || compressing} 
+                                        className="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 shadow disabled:opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
+                                    >
+                                        {compressing ? 'Processando...' : (formUpload.processing ? 'Enviando...' : 'Finalizar Entrega')}
+                                    </button>
+                                </form>
+
+                                {formUpload.progress && (
+                                    <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                                        <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${formUpload.progress.percentage}%` }}></div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MENSAGEM DE SUCESSO (COMPARTILHADA) */}
+                    {pedido.status === 'concluido' && (
+                        <div className="text-center mt-6">
+                            <div className="bg-green-100 p-6 rounded-lg border border-green-200 inline-block shadow-sm">
+                                <h3 className="text-green-800 font-bold text-xl mb-2">Pedido Concluído! 🎉</h3>
+                                <p className="text-green-700 text-sm">A entrega foi registrada e o comprovante arquivado.</p>
+                                {pedido.comprovante_url && (
+                                    <div className="mt-4">
+                                        <a href={pedido.comprovante_url} target="_blank" className="bg-white text-green-700 px-4 py-2 rounded border border-green-300 font-bold hover:bg-green-50">
+                                            📄 Ver Comprovante
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* LOGS */}
+                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg border-t border-gray-200 mt-6">
                         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                             <h3 className="font-bold text-gray-700">📜 Histórico de Eventos</h3>
                         </div>
@@ -366,7 +359,6 @@ export default function PedidoShow({ auth, pedido }) {
     );
 }
 
-// Subcomponente: Badge de Status
 function BadgeStatus({ status }) {
     const config = {
         solicitado:  { label: 'Solicitado',  bg: 'bg-yellow-100 text-yellow-800' },
@@ -379,7 +371,6 @@ function BadgeStatus({ status }) {
     return <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.bg}`}>{config.label}</span>;
 }
 
-// Subcomponente: Linha do Tempo
 function Timeline({ status }) {
     const steps = [
         { id: 'solicitado',  label: 'Solicitado',  icon: '📝' },
