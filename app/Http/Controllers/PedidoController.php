@@ -213,17 +213,47 @@ public function exportar(Request $request)
 
     public function finalizarEntrega(Request $request, $id)
     {
-        $pedido = Pedido::findOrFail($id);
-        $request->validate(['arquivo' => 'required|file|max:10240']);
+    // 1. Validação Básica
+    $request->validate([
+        'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:4096', // Max 4MB para não estourar a Vercel
+    ]);
 
-        if ($request->hasFile('arquivo')) {
-            $caminho = $request->file('arquivo')->store('comprovantes', 'public');
-            $pedido->update(['status' => 'concluido', 'arquivo_assinado' => $caminho]);
-            foreach ($pedido->motos as $moto) { $moto->update(['status' => 'concluido']); }
-            $this->registrarLog($pedido, 'Entrega Confirmada', 'Comprovante anexado.');
+    try {
+        $pedido = Pedido::findOrFail($id);
+
+        // 2. Tenta fazer o Upload
+        if ($request->hasFile('arquivo_romaneio')) {
+            $file = $request->file('arquivo_romaneio');
+            
+            // Define o nome do arquivo
+            $filename = 'romaneio_pedido_' . $pedido->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+
+            // TENTA SALVAR NO GOOGLE DRIVE
+            // Atenção: Usamos 'google' explicitamente aqui
+            $path = $file->storeAs('', $filename, 'google');
+
+            if (!$path) {
+                throw new \Exception("O arquivo não retornou um caminho válido. Verifique permissões da pasta.");
+            }
+
+            // Salva o link no banco (opcional, pode salvar só o ID)
+            $pedido->comprovante_url = $path; // ou monte a URL completa se preferir
         }
-        return redirect()->back();
+
+        // 3. Atualiza Status
+        $pedido->status = 'concluido';
+        $pedido->save();
+
+        // 4. Sucesso
+        return redirect()->back()->with('message', 'Pedido finalizado e arquivo salvo no Drive com sucesso!');
+
+    } catch (\Exception $e) {
+        // 5. SE DER ERRO, MOSTRA NA TELA (SweetAlert vai pegar isso se configurado, ou aparecerá no topo)
+        return redirect()->back()->withErrors([
+            'erro_upload' => 'Falha ao enviar para o Drive: ' . $e->getMessage()
+        ]);
     }
+}
 
     public function rejeitar(Request $request, $id)
     {
