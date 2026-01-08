@@ -3,16 +3,19 @@ import { Head, useForm, Link, router } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 
 export default function PedidoShow({ auth, pedido }) {
-    // 1. CORREÇÃO AQUI: Mudamos de 'arquivo' para 'arquivo_romaneio'
+    // 1. Configuração dos formulários
+    // Importante: O nome do campo aqui deve ser 'arquivo_romaneio' para bater com o Controller
     const formUpload = useForm({ arquivo_romaneio: null });
-    
     const formRejeicao = useForm({ motivo: '' });
     const formAcoes = useForm({}); 
 
+    // --- FUNÇÕES DE AÇÃO (TODAS COM SWEETALERT) ---
+
+    // 1. FINALIZAR ENTREGA (UPLOAD)
     const submitUpload = (e) => { 
         e.preventDefault();
         
-        // 2. CORREÇÃO AQUI: Verifica o campo com o nome certo
+        // Verifica se o arquivo foi selecionado
         if (!formUpload.data.arquivo_romaneio) {
             Swal.fire('Atenção', 'Por favor, selecione o arquivo ou tire a foto do romaneio.', 'warning');
             return;
@@ -23,39 +26,94 @@ export default function PedidoShow({ auth, pedido }) {
             text: "O pedido será finalizado e o arquivo enviado para o Google Drive.",
             icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: '#16a34a',
-            cancelButtonColor: '#d33',
+            confirmButtonColor: '#16a34a', // Verde
+            cancelButtonColor: '#d33',    // Vermelho
             confirmButtonText: 'Sim, finalizar!'
         }).then((result) => {
             if (result.isConfirmed) {
-                Swal.fire({ title: 'Enviando...', text: 'Aguarde o upload para o Drive', didOpen: () => Swal.showLoading() });
+                // Loading enquanto envia
+                Swal.fire({ 
+                    title: 'Enviando...', 
+                    text: 'Aguarde o upload para o Drive', 
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading() 
+                });
 
                 formUpload.post(route('pedidos.finalizar', pedido.id), {
-                    forceFormData: true,
+                    forceFormData: true, // OBRIGATÓRIO PARA ARQUIVOS
                     onSuccess: () => {
                         Swal.fire('Sucesso!', 'Pedido finalizado com sucesso.', 'success');
                     },
                     onError: (errors) => {
                         console.error(errors);
-                        Swal.close();
+                        Swal.close(); // Fecha o loading
                         
+                        // Tratamento de mensagens de erro
                         let msg = 'Ocorreu um erro desconhecido.';
                         if (errors.arquivo_romaneio) msg = errors.arquivo_romaneio;
-                        if (errors.erro_upload) msg = errors.erro_upload;
+                        if (errors.erro_upload) msg = errors.erro_upload; // Erro vindo do Try-Catch do Controller
                         
                         Swal.fire('Erro no Envio', msg, 'error');
                     },
-                    // 3. CORREÇÃO AQUI: Reseta o campo com o nome certo
                     onFinish: () => formUpload.reset('arquivo_romaneio'),
                 });
             }
         });
     };
 
-    // ... (Mantenha as funções avancarSeparacao, avancarSaida, handleRejeitar iguais) ...
-    const avancarSeparacao = () => { /* ... */ };
-    const avancarSaida = () => { /* ... */ };
-    const handleRejeitar = () => { /* ... */ };
+    // 2. AVANÇAR PARA SEPARAÇÃO
+    const avancarSeparacao = () => { 
+        Swal.fire({
+            title: 'Confirmar Separação?',
+            text: "As motos foram conferidas fisicamente no pátio?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, confirmar!',
+            confirmButtonColor: '#2563eb' // Azul
+        }).then((res) => {
+            if(res.isConfirmed) {
+                formAcoes.post(route('pedidos.separar', pedido.id));
+            }
+        });
+    };
+
+    // 3. CONFIRMAR SAÍDA (EM TRÂNSITO)
+    const avancarSaida = () => { 
+        Swal.fire({
+            title: 'Liberar para Trânsito?',
+            text: "O motorista já está com a nota e o veículo carregado?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, liberar!',
+            confirmButtonColor: '#f97316' // Laranja
+        }).then((res) => {
+            if(res.isConfirmed) {
+                formAcoes.post(route('pedidos.saida', pedido.id));
+            }
+        });
+    };
+
+    // 4. REJEITAR PEDIDO
+    const handleRejeitar = () => {
+        Swal.fire({
+            title: 'Rejeitar Pedido',
+            input: 'text',
+            inputLabel: 'Motivo da rejeição',
+            inputPlaceholder: 'Ex: Falta de estoque, Chassi não localizado...',
+            showCancelButton: true,
+            confirmButtonText: 'Rejeitar',
+            confirmButtonColor: '#d33',
+            inputValidator: (value) => {
+                if (!value) return 'Você precisa escrever um motivo!'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                formRejeicao.setData('motivo', result.value);
+                // Usa router.post direto para garantir envio do dado
+                router.post(route('pedidos.rejeitar', pedido.id), { motivo: result.value });
+            }
+        });
+    };
 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-red-700">Acompanhamento #{pedido.id}</h2>}>
@@ -64,21 +122,150 @@ export default function PedidoShow({ auth, pedido }) {
             <div className="py-12 bg-gray-100 min-h-screen">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* ... (Todo o cabeçalho, timeline e tabela de motos continua IGUAL) ... */}
+                    {/* CABEÇALHO */}
+                    <div className="bg-white p-6 shadow-sm sm:rounded-lg border-l-4 border-gray-800 flex justify-between flex-wrap gap-4">
+                        <div>
+                            <h3 className="font-bold text-gray-700 text-lg">{pedido.user.name}</h3>
+                            <p className="text-gray-500 text-sm">Filial: {pedido.user.filial || 'Matriz'}</p>
+                            <p className="text-gray-400 text-xs mt-1">Data: {new Date(pedido.created_at).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Status Atual</span>
+                            <BadgeStatus status={pedido.status} />
+                            
+                            {pedido.romaneio_id && (
+                                <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200">
+                                    Carga/Romaneio #{String(pedido.romaneio_id).padStart(6, '0')}
+                                </div>
+                            )}
+                        </div>
+                    </div>
 
-                    {/* --- ZONA DE AÇÃO DO CD (FINAL DO ARQUIVO) --- */}
+                    {/* ALERTA DE CANCELAMENTO */}
+                    {pedido.status === 'cancelado' && (
+                        <div className="bg-red-100 border-l-4 border-red-600 p-4 shadow-sm">
+                            <h3 className="font-bold text-red-800">🚫 PEDIDO CANCELADO</h3>
+                            <p className="text-red-700 mt-1">{pedido.motivo_rejeicao}</p>
+                        </div>
+                    )}
+
+                    {/* BOTÃO CANCELAR SOLICITAÇÃO (VISÍVEL SÓ PARA LOJA) */}
+                    {auth.user.perfil === 'loja' && pedido.status === 'solicitado' && (
+                        <div className="mx-2 md:mx-0 mt-6 bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">⚠️</div>
+                                <div>
+                                    <h4 className="font-bold text-yellow-800 text-sm">Precisa corrigir ou desistir?</h4>
+                                    <p className="text-xs text-yellow-700">Enquanto o pedido não for separado pelo CD, você pode cancelá-lo aqui.</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => {
+                                    Swal.fire({
+                                        title: 'Cancelar Solicitação?',
+                                        text: "Isso liberará o chassi imediatamente.",
+                                        icon: 'warning',
+                                        showCancelButton: true,
+                                        confirmButtonColor: '#d33',
+                                        confirmButtonText: 'Sim, cancelar'
+                                    }).then((res) => {
+                                        if(res.isConfirmed) router.post(route('pedidos.cancelarProprio', pedido.id));
+                                    })
+                                }}
+                                className="whitespace-nowrap text-red-700 font-bold border border-red-200 bg-white px-4 py-2 rounded hover:bg-red-50 hover:border-red-300 text-sm shadow-sm transition flex items-center gap-2"
+                            >
+                                🗑️ Cancelar Solicitação
+                            </button>
+                        </div>
+                    )}
+
+                    {/* TIMELINE VISUAL */}
+                    <div className="px-2 md:px-8">
+                        <Timeline status={pedido.status} />
+                    </div>
+                    
+                    {/* LISTA DE ITENS/MOTOS */}
+                    <div className="bg-white p-6 shadow-sm sm:rounded-lg">
+                        <h3 className="font-bold mb-4 border-b pb-2 flex items-center gap-2">
+                            <span>📦 Itens Solicitados</span>
+                            <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">{pedido.motos.length}</span>
+                        </h3>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left">Modelo</th>
+                                        <th className="px-4 py-2 text-left">Chassi (11 Dígitos)</th>
+                                        <th className="px-4 py-2 text-left">Carga/Romaneio</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {pedido.motos.map((moto) => (
+                                        <tr key={moto.id} className="border-b hover:bg-gray-50">
+                                            <td className="px-4 py-3 font-bold text-sm">{moto.modelo}</td>
+                                            <td className="px-4 py-3 font-mono text-gray-600 text-sm">{moto.chassi}</td>
+                                            <td className="px-4 py-3 text-sm">
+                                                {moto.romaneio_id ? (
+                                                    <span className="text-indigo-600 font-bold text-xs">Carga #{String(moto.romaneio_id).padStart(6,'0')}</span>
+                                                ) : <span className="text-gray-400 text-xs">-</span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* --- PAINEL DE OPERAÇÕES (CD) --- */}
                     {auth.user.perfil === 'cd' && pedido.status !== 'cancelado' && (
                         <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-blue-600">
+                            <h3 className="font-bold text-lg mb-4 text-gray-800">⚙️ Painel de Operações</h3>
                             
-                            {/* ... (Botões de Separar, Expedir, Saída continuam IGUAIS) ... */}
+                            {/* 1. SEPARAR */}
+                            {pedido.status === 'solicitado' && (
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    <button onClick={avancarSeparacao} className="bg-blue-600 text-white px-6 py-3 rounded font-bold hover:bg-blue-700 shadow flex-1">
+                                        ✅ Confirmar Separação
+                                    </button>
+                                    <button onClick={handleRejeitar} className="border border-red-500 text-red-600 px-6 py-3 rounded font-bold hover:bg-red-50">
+                                        Rejeitar
+                                    </button>
+                                </div>
+                            )}
 
-                            {/* 4. BAIXA / FINALIZAR (AQUI ESTÁ A MUDANÇA NO INPUT) */}
+                            {/* 2. EXPEDIR (MANDA PARA TELA DE CARGA) */}
+                            {pedido.status === 'separado' && (
+                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
+                                    <div>
+                                        <p className="font-bold text-indigo-900">Motos separadas no pátio.</p>
+                                        <p className="text-sm text-indigo-700">Vá para "Nova Carga" para gerar o transporte.</p>
+                                    </div>
+                                    <Link href={route('romaneios.create')} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-indigo-700">
+                                        Ir para Montagem de Carga &rarr;
+                                    </Link>
+                                </div>
+                            )}
+
+                            {/* 3. SAÍDA */}
+                            {pedido.status === 'expedido' && (
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-bold text-indigo-700">Carga montada!</p>
+                                        <p className="text-sm text-gray-500">Veículo aguardando liberação na portaria.</p>
+                                    </div>
+                                    <button onClick={avancarSaida} className="bg-orange-500 text-white px-6 py-3 rounded font-bold hover:bg-orange-600 shadow">
+                                        🚛 Confirmar Saída
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* 4. BAIXA / FINALIZAR ENTREGA */}
                             {pedido.status === 'em_transito' && (
                                 <div>
                                     <p className="text-sm text-gray-500 mb-2 font-bold">Anexar Comprovante de Entrega:</p>
                                     <form onSubmit={submitUpload} className="flex flex-col md:flex-row gap-4 items-center bg-green-50 p-4 rounded border border-green-200">
                                         
-                                        {/* CORREÇÃO AQUI: Mudamos o setData para 'arquivo_romaneio' */}
+                                        {/* INPUT DE ARQUIVO (Setando 'arquivo_romaneio') */}
                                         <input 
                                             type="file" 
                                             onChange={e => formUpload.setData('arquivo_romaneio', e.target.files[0])} 
@@ -102,17 +289,41 @@ export default function PedidoShow({ auth, pedido }) {
                             {pedido.status === 'concluido' && (
                                 <div className="text-center">
                                     <p className="text-green-600 font-bold bg-green-100 p-3 rounded inline-block">Processo Finalizado com Sucesso 🎉</p>
+                                    {pedido.comprovante_url && (
+                                        <div className="mt-2">
+                                            <a href={pedido.comprovante_url} target="_blank" className="text-blue-600 underline text-sm">Ver Comprovante</a>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
                     )}
+
+                    {/* LOGS DE HISTÓRICO */}
+                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg border-t border-gray-200">
+                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                            <h3 className="font-bold text-gray-700">📜 Histórico de Eventos</h3>
+                        </div>
+                        <ul className="divide-y divide-gray-100">
+                            {pedido.logs?.map((log) => (
+                                <li key={log.id} className="p-4 hover:bg-gray-50 flex gap-4 items-start">
+                                    <div className="w-2 h-2 mt-1 bg-blue-400 rounded-full ring-4 ring-blue-50"></div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold text-gray-800">{log.titulo}</p>
+                                        <p className="text-xs text-gray-500">{log.descricao}</p>
+                                    </div>
+                                    <div className="text-[10px] text-gray-400">{new Date(log.created_at).toLocaleString('pt-BR')}</div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 </div>
             </div>
         </AuthenticatedLayout>
     );
 }
 
-// Subcomponentes (mantidos)
+// Subcomponente: Badge de Status
 function BadgeStatus({ status }) {
     const config = {
         solicitado:  { label: 'Solicitado',  bg: 'bg-yellow-100 text-yellow-800' },
@@ -125,6 +336,7 @@ function BadgeStatus({ status }) {
     return <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.bg}`}>{config.label}</span>;
 }
 
+// Subcomponente: Linha do Tempo
 function Timeline({ status }) {
     const steps = [
         { id: 'solicitado',  label: 'Solicitado',  icon: '📝' },
