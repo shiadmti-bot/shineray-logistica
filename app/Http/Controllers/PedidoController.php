@@ -214,9 +214,10 @@ class PedidoController extends Controller
         return redirect()->back();
     }
 
-    // --- FUNÇÃO DE FINALIZAÇÃO ATUALIZADA (NOME DO ARQUIVO PERSONALIZADO) ---
+    // --- FUNÇÃO DE FINALIZAÇÃO COMPLETA (UPLOAD + NOME + AUTOMAÇÃO) ---
     public function finalizarEntrega(Request $request, $id)
     {
+        // 1. Validação do Arquivo
         $request->validate([
             'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:6144', // Max 6MB
         ]);
@@ -225,10 +226,11 @@ class PedidoController extends Controller
             // Carrega o pedido junto com o usuário para pegar a filial
             $pedido = Pedido::with('user')->findOrFail($id);
             
+            // --- ETAPA DE UPLOAD ---
             if ($request->hasFile('arquivo_romaneio')) {
                 $uploadedFile = $request->file('arquivo_romaneio');
                 
-                // 1. Configura Cliente Google com OAuth
+                // A. Configura Cliente Google com OAuth
                 $client = new Client();
                 $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
                 $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
@@ -236,32 +238,28 @@ class PedidoController extends Controller
                 
                 $service = new Drive($client);
 
-                // --- 2. MONTAGEM DO NOME DO ARQUIVO ---
-                // Pega os dados para o nome
-                $romaneio = $pedido->romaneio_id ?? 'AVULSO'; // Se não tiver romaneio, chama de AVULSO
-                $data = now()->format('d-m-Y'); // Data de hoje (Upload)
+                // B. Montagem do Nome Personalizado
+                $romaneioId = $pedido->romaneio_id ?? 'AVULSO'; 
+                $data = now()->format('d-m-Y'); 
                 
-                // Trata o nome da filial para não ter acentos ou espaços (ex: "São Paulo" vira "Sao-Paulo")
+                // Trata o nome da filial (remove acentos e espaços)
                 $filialNome = $pedido->user->filial ?? 'Matriz';
                 $filial = \Illuminate\Support\Str::slug($filialNome);
                 
-                // Extensão original do arquivo (jpg, pdf, etc)
                 $ext = $uploadedFile->getClientOriginalExtension();
 
-                // NOME FINAL: Romaneio_123_08-01-2026_Recife_ID-555.jpg
-                $novoNomeArquivo = "Romaneio-{$romaneio}_{$data}_{$filial}_ID-{$pedido->id}.{$ext}";
+                // Nome Final: Romaneio-123_08-01-2026_Recife_ID-555.jpg
+                $novoNomeArquivo = "Romaneio-{$romaneioId}_{$data}_{$filial}_ID-{$pedido->id}.{$ext}";
 
-                // --------------------------------------
-
+                // C. Metadados do Google Drive
                 $fileMetadata = new DriveFile([
-                    'name' => $novoNomeArquivo, // <--- Usamos o novo nome aqui
+                    'name' => $novoNomeArquivo,
                     'parents' => [env('GOOGLE_DRIVE_FOLDER')]
                 ]);
 
-                // 3. Lê o arquivo
+                // D. Lê e Envia o Arquivo
                 $content = file_get_contents($uploadedFile->getRealPath());
 
-                // 4. Envia
                 $arquivoGoogle = $service->files->create($fileMetadata, [
                     'data' => $content,
                     'mimeType' => $uploadedFile->getMimeType(),
@@ -269,21 +267,45 @@ class PedidoController extends Controller
                     'fields' => 'id, webViewLink'
                 ]);
 
+                // Salva o link no pedido
                 $pedido->comprovante_url = $arquivoGoogle->webViewLink;
             }
 
+            // 2. Atualiza Status do Pedido
             $pedido->status = 'concluido';
             $pedido->save();
 
+            // 3. Gera Log do Pedido
             $pedido->logs()->create([
                 'titulo' => 'Entrega Finalizada',
                 'descricao' => 'Comprovante anexado e pedido concluído.'
             ]);
 
-            return redirect()->back()->with('message', 'Sucesso!');
+            // --- 4. AUTOMAÇÃO DA CARGA (ROMANEIO) ---
+            // Verifica se este pedido faz parte de uma carga
+            if ($pedido->romaneio_id) {
+                
+                // Conta quantos pedidos DESTE romaneio ainda NÃO foram concluídos
+                // (Ignora os cancelados)
+                $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
+                    ->whereNotIn('status', ['concluido', 'cancelado'])
+                    ->count();
+
+                // Se pendentes for 0, significa que este era o último pedido da carga!
+                if ($pendentes === 0) {
+                    $romaneio = Romaneio::find($pedido->romaneio_id);
+                    if ($romaneio) {
+                        $romaneio->status = 'finalizado'; // Fecha a carga automaticamente
+                        $romaneio->save();
+                    }
+                }
+            }
+            // ----------------------------------------------
+
+            return redirect()->back()->with('message', 'Sucesso! Entrega registrada.');
 
         } catch (\Exception $e) {
-            // Tratamento de erro (Google ou Outros)
+            // Tratamento de erro detalhado do Google
             $msg = $e->getMessage();
             $jsonError = json_decode($msg, true);
             if (isset($jsonError['error']['message'])) {
