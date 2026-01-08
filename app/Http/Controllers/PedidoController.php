@@ -50,7 +50,7 @@ class PedidoController extends Controller
     }
 
     // --- EXPORTAR PARA EXCEL (CSV) ---
-public function exportar(Request $request)
+    public function exportar(Request $request)
     {
         // 1. (O código de busca continua igual...)
         $termo = $request->input('search');
@@ -214,64 +214,87 @@ public function exportar(Request $request)
         return redirect()->back();
     }
 
+    // --- FUNÇÃO DE FINALIZAÇÃO ATUALIZADA (NOME DO ARQUIVO PERSONALIZADO) ---
     public function finalizarEntrega(Request $request, $id)
-{
-    $request->validate([
-        'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
-    ]);
-
-    try {
-        $pedido = Pedido::findOrFail($id);
-        
-        if ($request->hasFile('arquivo_romaneio')) {
-            $uploadedFile = $request->file('arquivo_romaneio');
-            
-            // --- NOVA AUTENTICAÇÃO OAUTH (Bypass Quota 0) ---
-            
-            $client = new Client();
-            $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
-            $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
-            $client->refreshToken(env('GOOGLE_DRIVE_REFRESH_TOKEN'));
-            
-            // O sistema se atualiza automaticamente se o token vencer
-            
-            $service = new Drive($client);
-
-            // Preparar arquivo
-            $fileMetadata = new DriveFile([
-                'name' => 'pedido_' . $pedido->id . '_romaneio.' . $uploadedFile->getClientOriginalExtension(),
-                'parents' => [env('GOOGLE_DRIVE_FOLDER')]
-            ]);
-
-            // Ler conteúdo
-            $content = file_get_contents($uploadedFile->getRealPath());
-
-            // Enviar (Agora usando SEU espaço de 15GB)
-            $arquivoGoogle = $service->files->create($fileMetadata, [
-                'data' => $content,
-                'mimeType' => $uploadedFile->getMimeType(),
-                'uploadType' => 'multipart',
-                'fields' => 'id, webViewLink'
-            ]);
-
-            $pedido->comprovante_url = $arquivoGoogle->webViewLink;
-        }
-
-        $pedido->status = 'concluido';
-        $pedido->save();
-
-        return redirect()->back()->with('message', 'Sucesso!');
-
-    } catch (\Exception $e) {
-        // Pega o erro detalhado do Google se falhar
-        $erroMsg = json_decode($e->getMessage(), true);
-        $msgFinal = $erroMsg['error']['message'] ?? $e->getMessage();
-
-        return redirect()->back()->withErrors([
-            'erro_upload' => 'Erro Google: ' . $msgFinal
+    {
+        $request->validate([
+            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:6144', // Max 6MB
         ]);
+
+        try {
+            // Carrega o pedido junto com o usuário para pegar a filial
+            $pedido = Pedido::with('user')->findOrFail($id);
+            
+            if ($request->hasFile('arquivo_romaneio')) {
+                $uploadedFile = $request->file('arquivo_romaneio');
+                
+                // 1. Configura Cliente Google com OAuth
+                $client = new Client();
+                $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
+                $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
+                $client->refreshToken(env('GOOGLE_DRIVE_REFRESH_TOKEN'));
+                
+                $service = new Drive($client);
+
+                // --- 2. MONTAGEM DO NOME DO ARQUIVO ---
+                // Pega os dados para o nome
+                $romaneio = $pedido->romaneio_id ?? 'AVULSO'; // Se não tiver romaneio, chama de AVULSO
+                $data = now()->format('d-m-Y'); // Data de hoje (Upload)
+                
+                // Trata o nome da filial para não ter acentos ou espaços (ex: "São Paulo" vira "Sao-Paulo")
+                $filialNome = $pedido->user->filial ?? 'Matriz';
+                $filial = \Illuminate\Support\Str::slug($filialNome);
+                
+                // Extensão original do arquivo (jpg, pdf, etc)
+                $ext = $uploadedFile->getClientOriginalExtension();
+
+                // NOME FINAL: Romaneio_123_08-01-2026_Recife_ID-555.jpg
+                $novoNomeArquivo = "Romaneio-{$romaneio}_{$data}_{$filial}_ID-{$pedido->id}.{$ext}";
+
+                // --------------------------------------
+
+                $fileMetadata = new DriveFile([
+                    'name' => $novoNomeArquivo, // <--- Usamos o novo nome aqui
+                    'parents' => [env('GOOGLE_DRIVE_FOLDER')]
+                ]);
+
+                // 3. Lê o arquivo
+                $content = file_get_contents($uploadedFile->getRealPath());
+
+                // 4. Envia
+                $arquivoGoogle = $service->files->create($fileMetadata, [
+                    'data' => $content,
+                    'mimeType' => $uploadedFile->getMimeType(),
+                    'uploadType' => 'multipart',
+                    'fields' => 'id, webViewLink'
+                ]);
+
+                $pedido->comprovante_url = $arquivoGoogle->webViewLink;
+            }
+
+            $pedido->status = 'concluido';
+            $pedido->save();
+
+            $pedido->logs()->create([
+                'titulo' => 'Entrega Finalizada',
+                'descricao' => 'Comprovante anexado e pedido concluído.'
+            ]);
+
+            return redirect()->back()->with('message', 'Sucesso!');
+
+        } catch (\Exception $e) {
+            // Tratamento de erro (Google ou Outros)
+            $msg = $e->getMessage();
+            $jsonError = json_decode($msg, true);
+            if (isset($jsonError['error']['message'])) {
+                $msg = $jsonError['error']['message'];
+            }
+
+            return redirect()->back()->withErrors([
+                'erro_upload' => 'Erro ao salvar no Drive: ' . $msg
+            ]);
+        }
     }
-}
 
     public function rejeitar(Request $request, $id)
     {
