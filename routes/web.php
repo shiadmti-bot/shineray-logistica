@@ -138,38 +138,32 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__.'/auth.php';
 
-// --- ROTA DE DIAGNÓSTICO DO GOOGLE DRIVE ---
+// --- ROTA DE DIAGNÓSTICO DE VARIÁVEIS ---
 Route::get('/teste-drive', function () {
-    // 1. Pega a configuração que o Laravel carregou
-    $config = config('filesystems.disks.google');
+    // 1. Lê a variável crua (texto)
+    $rawJson = env('GOOGLE_CREDENTIALS');
     
-    // 2. Verifica se a chave JSON foi lida corretamente
-    $credenciais = $config['serviceAccountCredentials'] ?? null;
-    $temCredenciais = is_array($credenciais) && !empty($credenciais);
+    // 2. Tenta decodificar
+    $jsonDecoded = json_decode($rawJson, true);
+    $jsonError = json_last_error_msg();
     
-    // 3. Mascara a chave para mostrar na tela com segurança
-    $chaveMascarada = $temCredenciais 
-        ? substr($credenciais['private_key_id'] ?? 'ERRO', 0, 10) . '...' 
-        : 'NENHUMA (NULL)';
-
-    // 4. Teste de Permissão da Pasta (Só se tiver credenciais)
-    $testeConexao = 'Não testado (Falta credencial)';
-    if ($temCredenciais) {
-        try {
-            $testeConexao = 'Tentando listar arquivos... ';
-            $arquivos = Storage::disk('google')->files();
-            $testeConexao .= 'SUCESSO! Encontrei ' . count($arquivos) . ' arquivos.';
-        } catch (\Exception $e) {
-            $testeConexao = 'FALHA: ' . $e->getMessage();
-        }
-    }
+    // 3. Verifica o ID da pasta
+    $folderId = env('GOOGLE_DRIVE_FOLDER');
 
     return response()->json([
-        'diagnostico' => [
-            'folder_id' => $config['folder'] ?? 'VAZIO',
-            'leu_credenciais' => $temCredenciais ? 'SIM' : 'NÃO (O problema está aqui)',
-            'chave_id_lida' => $chaveMascarada,
-            'teste_conexao' => $testeConexao,
+        'status_site' => 'ONLINE (O AppServiceProvider foi limpo)',
+        'analise_credenciais' => [
+            'tem_conteudo' => !empty($rawJson) ? 'SIM' : 'NÃO (Variável Vazia)',
+            'tamanho_texto' => strlen($rawJson ?? ''),
+            'json_valido' => ($jsonDecoded !== null) ? 'SIM, JSON VÁLIDO ✅' : 'NÃO, JSON QUEBRADO ❌',
+            'erro_json' => ($jsonDecoded === null) ? $jsonError : 'Nenhum',
+            'email_robo' => $jsonDecoded['client_email'] ?? 'Não encontrado no JSON',
+            'inicio_chave' => substr($rawJson ?? '', 0, 10) . '...',
+            'fim_chave' => '...' . substr($rawJson ?? '', -10),
+        ],
+        'analise_pasta' => [
+            'folder_id' => $folderId,
+            'parece_valido' => (strlen($folderId) > 20 && !str_contains($folderId, 'http')) ? 'SIM' : 'NÃO (Verifique se colou link)',
         ]
     ]);
 });
