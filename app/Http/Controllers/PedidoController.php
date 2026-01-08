@@ -192,6 +192,12 @@ class PedidoController extends Controller
 
         try {
             $pedido = Pedido::with('user')->findOrFail($id);
+
+            // --- TRAVA DE SEGURANÇA NOVA ---
+            // Se for Loja, só pode finalizar se o pedido for dela
+            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
+                abort(403, 'Você não tem permissão para finalizar pedidos de outra loja.');
+            }
             
             if ($request->hasFile('arquivo_romaneio')) {
                 $uploadedFile = $request->file('arquivo_romaneio');
