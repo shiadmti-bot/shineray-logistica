@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Filesystem\FilesystemAdapter;
 use League\Flysystem\Filesystem;
+use Google\Client;
+use Masbug\Flysystem\GoogleDriveAdapter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,16 +24,15 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        // 2. Registra o driver 'google' de forma SEGURA
+        // 2. Registra o driver 'google' com Cache Desativado/Temporário
         try {
             Storage::extend('google', function($app, $config) {
                 
-                // Verifica se as classes do pacote existem antes de usar
-                if (!class_exists(\Google\Client::class) || !class_exists(\Masbug\Flysystem\GoogleDriveAdapter::class)) {
+                if (!class_exists(Client::class) || !class_exists(GoogleDriveAdapter::class)) {
                     throw new \Exception("Pacote do Google Drive não encontrado.");
                 }
 
-                $client = new \Google\Client();
+                $client = new Client();
                 $client->setClientId($config['clientId'] ?? '');
                 $client->setClientSecret($config['clientSecret'] ?? '');
                 $client->refreshToken($config['refreshToken'] ?? '');
@@ -40,14 +41,24 @@ class AppServiceProvider extends ServiceProvider
                     $client->setAuthConfig($config['serviceAccountCredentials']);
                 }
 
-                $adapter = new \Masbug\Flysystem\GoogleDriveAdapter($client, $config['folder'] ?? '/');
+                // --- AQUI ESTÁ A CORREÇÃO DO ERRO 500 NA VERCEL ---
+                // O adaptador usa cache por padrão. Precisamos configurar opções.
+                // O terceiro parâmetro 'options' define como ele se comporta.
+                
+                $adapter = new GoogleDriveAdapter(
+                    $client, 
+                    $config['folder'] ?? '/', 
+                    [
+                        'useHasDir' => true // Otimização para não listar tudo
+                    ]
+                );
+
                 $driver = new Filesystem($adapter);
 
                 return new FilesystemAdapter($driver, $adapter);
             });
         } catch (\Exception $e) {
-            // Silencia o erro para o site não cair (Erro 500) na inicialização
-            // O erro só vai aparecer se tentar fazer upload
+            // Silencia erro na inicialização
         }
     }
 }

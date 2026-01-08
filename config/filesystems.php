@@ -66,7 +66,7 @@ return [
             'clientSecret' => env('GOOGLE_DRIVE_CLIENT_SECRET', ''),
             'refreshToken' => env('GOOGLE_DRIVE_REFRESH_TOKEN', ''),
             'folder' => env('GOOGLE_DRIVE_FOLDER'), // O ID da pasta
-            // IMPORTANTE: Isso decodifica o JSON da variável de ambiente
+            'disable_asserts' => true,
             'serviceAccountCredentials' => json_decode(env('GOOGLE_CREDENTIALS'), true),
         ],
 
