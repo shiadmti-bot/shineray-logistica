@@ -60,13 +60,13 @@ return [
             'report' => false,
         ],
 
-        'google' => [
+       'google' => [
             'driver' => 'google',
-            'clientId' => '',
-            'clientSecret' => '',
-            'refreshToken' => '',
-            'folder' => env('GOOGLE_DRIVE_FOLDER'),
-            // O truque: Decodifica o JSON que estará na variável de ambiente da Vercel
+            'clientId' => env('GOOGLE_DRIVE_CLIENT_ID', ''),
+            'clientSecret' => env('GOOGLE_DRIVE_CLIENT_SECRET', ''),
+            'refreshToken' => env('GOOGLE_DRIVE_REFRESH_TOKEN', ''),
+            'folder' => env('GOOGLE_DRIVE_FOLDER'), // O ID da pasta
+            // IMPORTANTE: Isso decodifica o JSON da variável de ambiente
             'serviceAccountCredentials' => json_decode(env('GOOGLE_CREDENTIALS'), true),
         ],
 
