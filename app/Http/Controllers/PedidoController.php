@@ -10,26 +10,26 @@ use App\Models\Modelo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache; // Importante para o cache de pastas
-use Illuminate\Support\Str; // Importante para formatar nomes
-use Carbon\Carbon; // Importante para datas
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
-
-// --- BIBLIOTECAS DO GOOGLE (Obrigatório ficar aqui fora) ---
 use Google\Client;
 use Google\Service\Drive;
 use Google\Service\Drive\DriveFile;
 
 class PedidoController extends Controller
 {
-    // Helper privado para registrar logs
     private function registrarLog($pedido, $titulo, $desc = '') {
-        PedidoLog::create([
-            'pedido_id' => $pedido->id,
-            'titulo' => $titulo,
-            'descricao' => $desc . ' (Usuário: ' . Auth::user()->name . ')'
-        ]);
+        // Verifica se o pedido ainda existe antes de logar
+        if ($pedido && $pedido->exists) {
+            PedidoLog::create([
+                'pedido_id' => $pedido->id,
+                'titulo' => $titulo,
+                'descricao' => $desc . ' (Usuário: ' . Auth::user()->name . ')'
+            ]);
+        }
     }
 
     public function index(Request $request)
@@ -57,7 +57,6 @@ class PedidoController extends Controller
         ]);
     }
 
-    // --- EXPORTAR PARA EXCEL (CSV) ---
     public function exportar(Request $request)
     {
         $termo = $request->input('search');
@@ -78,7 +77,7 @@ class PedidoController extends Controller
         
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
-        fputs($handle, "\xEF\xBB\xBF"); // BOM para acentos
+        fputs($handle, "\xEF\xBB\xBF");
 
         fputcsv($handle, ['ID', 'Data Solicitação', 'Loja', 'Status', 'Qtd', 'Modelos', 'Chassis', 'Carga', 'Motorista', 'Conclusão'], ';');
 
@@ -119,10 +118,15 @@ class PedidoController extends Controller
         ]);
 
         $chassis = array_column($request->itens, 'chassi');
-        $duplicados = Moto::whereIn('chassi', $chassis)->whereNotIn('status', ['cancelado'])->pluck('chassi')->toArray();
+        
+        // Verifica se chassi já está em uso (exceto se foi excluído/liberado)
+        $duplicados = Moto::whereIn('chassi', $chassis)
+            ->whereNotNull('pedido_id') // Só conta como duplicado se estiver preso a um pedido
+            ->pluck('chassi')
+            ->toArray();
         
         if (!empty($duplicados)) {
-            throw ValidationException::withMessages(['itens' => 'Chassis já cadastrados: ' . implode(', ', $duplicados)]);
+            throw ValidationException::withMessages(['itens' => 'Chassis já em uso em outros pedidos: ' . implode(', ', $duplicados)]);
         }
 
         $pedido = Pedido::create([
@@ -177,15 +181,11 @@ class PedidoController extends Controller
     {
         $pedido = Pedido::with('motos')->findOrFail($id);
         
-        // 1. Atualiza Status do Pedido e das Motos
         $pedido->update(['status' => 'em_transito']);
         foreach ($pedido->motos as $moto) {
             $moto->update(['status' => 'em_transito']);
         }
 
-        // 2. LÓGICA DO ROMANEIO (Início do Ciclo)
-        // Se este pedido pertence a uma carga, muda o status da carga para 'em_transito'
-        // Isso impede que adicionem mais motos nela e trava a edição
         if ($pedido->romaneio_id) {
             $romaneio = Romaneio::find($pedido->romaneio_id);
             if ($romaneio && $romaneio->status === 'aberto') {
@@ -198,10 +198,8 @@ class PedidoController extends Controller
         return redirect()->back();
     }
 
-    // --- FUNÇÃO DE FINALIZAÇÃO ATUALIZADA (UPLOAD + ORGANIZAÇÃO DE PASTAS + FECHAMENTO DO CICLO) ---
     public function finalizarEntrega(Request $request, $id)
     {
-        // 1. Validação (15MB)
         $request->validate([
             'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360',
         ]);
@@ -209,8 +207,6 @@ class PedidoController extends Controller
         try {
             $pedido = Pedido::with('user')->findOrFail($id);
 
-            // --- TRAVA DE SEGURANÇA (Híbrido) ---
-            // Se for Loja, só pode finalizar se o pedido for dela
             if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
                 abort(403, 'Você não tem permissão para finalizar pedidos de outra loja.');
             }
@@ -218,29 +214,24 @@ class PedidoController extends Controller
             if ($request->hasFile('arquivo_romaneio')) {
                 $uploadedFile = $request->file('arquivo_romaneio');
                 
-                // A. Configura Cliente Google
                 $client = new Client();
                 $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
                 $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
                 $client->refreshToken(env('GOOGLE_DRIVE_REFRESH_TOKEN'));
                 $service = new Drive($client);
 
-                // --- B. LÓGICA DE PASTAS (ANO/MÊS) COM CACHE ---
                 $rootFolderId = env('GOOGLE_DRIVE_FOLDER'); 
                 $now = Carbon::now();
-                $yearFolder = $now->format('Y'); // Ex: 2026
-                $monthFolder = $now->format('m') . ' - ' . Str::ucfirst($now->translatedFormat('F')); // Ex: 01 - Janeiro
+                $yearFolder = $now->format('Y'); 
+                $monthFolder = $now->format('m') . ' - ' . Str::ucfirst($now->translatedFormat('F')); 
                 
                 $cacheKey = "gdrive_folder_{$yearFolder}_{$monthFolder}";
 
-                // Pega ID da pasta do cache ou cria se não existir
                 $targetFolderId = Cache::remember($cacheKey, 60 * 60 * 24, function () use ($service, $rootFolderId, $yearFolder, $monthFolder) {
                     $yearId = $this->findOrCreateFolder($service, $yearFolder, $rootFolderId);
                     return $this->findOrCreateFolder($service, $monthFolder, $yearId);
                 });
-                // ------------------------------------------------
 
-                // C. Montagem do Nome do Arquivo
                 $romaneioId = $pedido->romaneio_id ?? 'AVULSO'; 
                 $dataDia = $now->format('d-m-Y'); 
                 $filial = Str::slug($pedido->user->filial ?? 'Matriz');
@@ -248,10 +239,9 @@ class PedidoController extends Controller
                 
                 $novoNomeArquivo = "Romaneio-{$romaneioId}_{$dataDia}_{$filial}_ID-{$pedido->id}.{$ext}";
 
-                // D. Upload
                 $fileMetadata = new DriveFile([
                     'name' => $novoNomeArquivo,
-                    'parents' => [$targetFolderId] // Salva na pasta do Mês
+                    'parents' => [$targetFolderId] 
                 ]);
 
                 $content = file_get_contents($uploadedFile->getRealPath());
@@ -266,7 +256,6 @@ class PedidoController extends Controller
                 $pedido->comprovante_url = $arquivoGoogle->webViewLink;
             }
 
-            // 2. Atualiza Status
             $pedido->status = 'concluido';
             $pedido->save();
 
@@ -275,15 +264,11 @@ class PedidoController extends Controller
                 'descricao' => 'Comprovante anexado e pedido concluído.'
             ]);
 
-            // --- 3. AUTOMAÇÃO DA CARGA (Fim do Ciclo) ---
             if ($pedido->romaneio_id) {
-                // Conta quantos pedidos DESTE romaneio ainda NÃO foram concluídos
-                // (Ignora os cancelados)
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                     ->whereNotIn('status', ['concluido', 'cancelado'])
                     ->count();
 
-                // Se não sobrou nenhum pendente, fecha a carga
                 if ($pendentes === 0) {
                     $romaneio = Romaneio::find($pedido->romaneio_id);
                     if ($romaneio) {
@@ -305,14 +290,28 @@ class PedidoController extends Controller
         }
     }
 
+    // --- CORREÇÃO AQUI: REJEIÇÃO EXCLUI O PEDIDO ---
     public function rejeitar(Request $request, $id)
     {
-        $pedido = Pedido::findOrFail($id);
+        $pedido = Pedido::with('motos')->findOrFail($id);
         $request->validate(['motivo' => 'required']);
-        $pedido->update(['status' => 'cancelado', 'motivo_rejeicao' => $request->motivo]);
-        foreach ($pedido->motos as $moto) { $moto->update(['status' => 'cancelado']); }
-        $this->registrarLog($pedido, 'Pedido Rejeitado', "Motivo: {$request->motivo}");
-        return redirect()->back();
+
+        // 1. Libera as motos (Reseta para estoque inicial)
+        foreach ($pedido->motos as $moto) {
+            $moto->update([
+                'status' => 'estoque_fabrica', // Volta a ser disponível para qualquer um
+                'pedido_id' => null,           // Remove vínculo
+                'romaneio_id' => null,
+                'localizacao_atual' => 'Estoque (Liberado após Rejeição)'
+            ]);
+            // Desvincula relacionamento ManyToMany
+            $pedido->motos()->detach($moto->id);
+        }
+
+        // 2. Exclui o Pedido Permanentemente
+        $pedido->delete();
+
+        return redirect()->route('dashboard')->with('warning', 'Pedido rejeitado e excluído. Motos foram liberadas.');
     }
 
     public function imprimir($id) {
@@ -320,9 +319,10 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Romaneio', ['pedido' => $pedido]);
     }
 
+    // --- CORREÇÃO AQUI: CANCELAMENTO EXCLUI O PEDIDO ---
     public function cancelarSolicitacao($id)
     {
-        $pedido = Pedido::findOrFail($id);
+        $pedido = Pedido::with('motos')->findOrFail($id);
 
         if ($pedido->status !== 'solicitado') {
             return redirect()->back()->with('error', 'Pedido já em processamento pelo CD. Não pode ser cancelado.');
@@ -332,15 +332,23 @@ class PedidoController extends Controller
             abort(403);
         }
 
-        $pedido->update(['status' => 'cancelado', 'motivo_rejeicao' => 'Cancelado pelo solicitante (Erro de digitação/Desistência)']);
+        // 1. Libera as motos
         foreach ($pedido->motos as $moto) {
-            $moto->update(['status' => 'cancelado']);
+            $moto->update([
+                'status' => 'estoque_fabrica',
+                'pedido_id' => null,
+                'romaneio_id' => null,
+                'localizacao_atual' => 'Estoque (Liberado após Cancelamento)'
+            ]);
+            $pedido->motos()->detach($moto->id);
         }
 
-        return redirect()->back()->with('warning', 'Solicitação cancelada com sucesso.');
+        // 2. Exclui o Pedido Permanentemente
+        $pedido->delete();
+
+        return redirect()->route('dashboard')->with('warning', 'Solicitação excluída e motos liberadas com sucesso.');
     }
 
-    // --- FUNÇÃO AUXILIAR PARA O GOOGLE DRIVE (Acha ou Cria Pastas) ---
     private function findOrCreateFolder(Drive $service, string $folderName, string $parentId): string
     {
         $pageToken = null;
@@ -352,12 +360,11 @@ class PedidoController extends Controller
             ]);
 
             foreach ($response->files as $file) {
-                return $file->id; // Achou!
+                return $file->id; 
             }
             $pageToken = $response->nextPageToken;
         } while ($pageToken != null);
 
-        // Não achou, cria
         $folderMetadata = new DriveFile([
             'name' => $folderName,
             'mimeType' => 'application/vnd.google-apps.folder',
