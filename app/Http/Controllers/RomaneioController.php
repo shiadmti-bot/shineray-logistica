@@ -62,40 +62,20 @@ class RomaneioController extends Controller
 
     // 2. TELA DE MONTAGEM (NOVA CARGA)
     public function create()
-    {
-        // Motos disponíveis (Separadas e sem romaneio)
-        $motosDisponiveis = Moto::where('status', 'separado')
-            ->whereNull('romaneio_id')
-            ->with(['pedidos.user'])
-            ->get()
-            ->map(function ($moto) {
-                $pedido = $moto->pedidos->first();
-                return [
-                    'id' => $moto->id,
-                    'modelo' => $moto->modelo,
-                    'chassi' => $moto->chassi,
-                    'cor' => $moto->cor,
-                    'loja' => $pedido ? $pedido->user->name : 'Desconhecido',
-                    'pedido_id' => $pedido ? $pedido->id : null,
-                ];
-            });
+{
+    // Motos prontas para sair (Status Separado)
+    $motosDisponiveis = Moto::with(['pedido.user'])
+        ->where('status', 'separado')
+        ->get();
 
-        // --- FILTRO INTELIGENTE ---
-        // Busca apenas romaneios que estão "NO PÁTIO"
-        // Exclui qualquer romaneio que já saiu (em_transito) ou finalizou
-        $romaneiosAbertos = Romaneio::withCount('motos')
-            ->whereDoesntHave('motos', function($q) {
-                $q->whereIn('status', ['em_transito', 'concluido', 'entregue']);
-            })
-            ->orderBy('id', 'desc')
-            ->take(10)
-            ->get();
+    // Cargas que ainda não foram finalizadas (para adicionar mais motos)
+    $romaneiosAbertos = \App\Models\Romaneio::where('status', '!=', 'finalizado')->get();
 
-        return Inertia::render('Romaneios/Create', [
-            'motosDisponiveis' => $motosDisponiveis,
-            'romaneiosAbertos' => $romaneiosAbertos
-        ]);
-    }
+    return Inertia::render('Romaneios/Create', [
+        'motosDisponiveis' => $motosDisponiveis,
+        'romaneiosAbertos' => $romaneiosAbertos // <--- ADICIONE ISSO
+    ]);
+}
 
     // 3. SALVAR CARGA (NOVA OU EXISTENTE)
     public function store(Request $request)

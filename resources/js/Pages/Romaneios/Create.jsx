@@ -1,20 +1,25 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useEffect, useRef } from 'react';
+import { Head, useForm } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { Html5QrcodeScanner } from 'html5-qrcode'; // <--- IMPORTANTE
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
-export default function RomaneioCreate({ auth, motosDisponiveis }) { // motosDisponiveis vem do Controller
-    // Estado da seleção
+export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAbertos = [] }) {
+    // Estado da seleção e modo
     const [selectedIds, setSelectedIds] = useState([]);
     const [leituraInput, setLeituraInput] = useState('');
-    const [showScanner, setShowScanner] = useState(false); // Controla a câmera
+    const [showScanner, setShowScanner] = useState(false);
+    const [modo, setModo] = useState('novo'); // 'novo' ou 'existente'
     
-    // Formulário do Romaneio
-    const { data, setData, post, processing, errors } = useForm({
+    // Formulário
+    const { data, setData, post, processing, errors, reset } = useForm({
+        // Dados para Nova Carga
         motorista: '',
         placa: '',
         transportadora: '',
+        // Dados para Carga Existente
+        romaneio_id: '', 
+        // Dados Comuns
         motos_ids: []
     });
 
@@ -23,48 +28,42 @@ export default function RomaneioCreate({ auth, motosDisponiveis }) { // motosDis
         setData('motos_ids', selectedIds);
     }, [selectedIds]);
 
-    // --- LÓGICA DO LEITOR DE CÂMERA ---
+    // --- LÓGICA DO LEITOR DE CÂMERA (CORRIGIDA) ---
     useEffect(() => {
         let scanner = null;
 
         if (showScanner) {
-            // Configurações do Scanner
-            scanner = new Html5QrcodeScanner(
-                "reader", 
-                { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-                /* verbose= */ false
-            );
-            
-            scanner.render(onScanSuccess, onScanFailure);
+            // Pequeno delay para garantir que a DIV existe no DOM
+            setTimeout(() => {
+                const config = { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    disableFlip: false 
+                };
+                
+                scanner = new Html5QrcodeScanner("reader", config, false);
+                
+                scanner.render((decodedText) => {
+                    // SUCESSO NA LEITURA
+                    const audio = new Audio('/plim.mp3'); 
+                    audio.play().catch(() => {});
+                    handleBip(decodedText);
+                }, (error) => {
+                    // Erro de leitura (ignorar console log excessivo)
+                });
+            }, 100);
         }
 
-        // Função de Limpeza (Quando fecha a câmera)
+        // Limpeza ao desmontar ou fechar
         return () => {
             if (scanner) {
-                scanner.clear().catch(error => console.error("Falha ao limpar scanner", error));
+                scanner.clear().catch(e => console.error("Erro ao limpar scanner", e));
             }
         };
     }, [showScanner]);
 
-    // Quando a câmera detecta um código
-    const onScanSuccess = (decodedText, decodedResult) => {
-        // Toca um som de "Bip"
-        const audio = new Audio('/plim.mp3'); // Certifique-se de ter esse som ou remova
-        audio.play().catch(() => {});
-
-        handleBip(decodedText); // Reusa a mesma lógica do leitor USB
-        
-        // Opcional: Fechar a câmera após ler um? 
-        // Eu prefiro NÃO fechar para permitir leitura em sequência (estilo caixa de mercado)
-        // Se quiser fechar, descomente abaixo:
-        // setShowScanner(false); 
-    };
-
-    const onScanFailure = (error) => {
-        // Ignora erros de "não encontrou código neste frame" para não poluir o console
-    };
-
-    // --- LÓGICA DE PROCESSAMENTO DO CHASSI (USB OU CÂMERA) ---
+    // --- PROCESSAMENTO DO CHASSI ---
     const handleBip = (codigo) => {
         const chassiLimpo = codigo.trim().toUpperCase();
 
@@ -74,7 +73,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis }) { // motosDis
         if (!motoEncontrada) {
             Swal.fire({
                 title: 'Não Encontrado',
-                text: `O chassi ${chassiLimpo} não está na lista de "Separados" para expedição.`,
+                text: `O chassi ${chassiLimpo} não está disponível para expedição.`,
                 icon: 'error',
                 timer: 2000,
                 showConfirmButton: false
@@ -86,19 +85,19 @@ export default function RomaneioCreate({ auth, motosDisponiveis }) { // motosDis
         if (selectedIds.includes(motoEncontrada.id)) {
             Swal.fire({
                 title: 'Já Adicionado',
-                text: `O chassi ${chassiLimpo} já está na carga.`,
+                text: `O chassi ${chassiLimpo} já está na lista.`,
                 icon: 'warning',
                 timer: 1000,
                 showConfirmButton: false,
-                position: 'top-end'
+                position: 'top-end',
+                toast: true
             });
             return;
         }
 
-        // 3. Sucesso: Adiciona na lista
+        // 3. Sucesso
         setSelectedIds(prev => [...prev, motoEncontrada.id]);
         
-        // Feedback Visual (Toast)
         const Toast = Swal.mixin({
             toast: true,
             position: 'top-end',
@@ -112,15 +111,13 @@ export default function RomaneioCreate({ auth, motosDisponiveis }) { // motosDis
         });
     };
 
-    // Input Manual (USB ou Digitação)
     const handleManualSubmit = (e) => {
         e.preventDefault();
         if(!leituraInput) return;
         handleBip(leituraInput);
-        setLeituraInput(''); // Limpa o campo para o próximo
+        setLeituraInput('');
     };
 
-    // Alternar seleção manual (clique no card)
     const toggleSelection = (id) => {
         if (selectedIds.includes(id)) {
             setSelectedIds(selectedIds.filter(itemId => itemId !== id));
@@ -131,166 +128,227 @@ export default function RomaneioCreate({ auth, motosDisponiveis }) { // motosDis
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        
         if (selectedIds.length === 0) {
-            Swal.fire('Atenção', 'Selecione pelo menos uma moto para a carga.', 'warning');
+            Swal.fire('Atenção', 'Selecione pelo menos uma moto.', 'warning');
             return;
         }
 
+        // Validação Específica por Modo
+        if (modo === 'novo' && (!data.motorista || !data.placa)) {
+            Swal.fire('Atenção', 'Preencha Motorista e Placa para nova carga.', 'warning');
+            return;
+        }
+        if (modo === 'existente' && !data.romaneio_id) {
+            Swal.fire('Atenção', 'Selecione qual Romaneio você quer complementar.', 'warning');
+            return;
+        }
+
+        const textoConfirmacao = modo === 'novo' 
+            ? `Gerar nova carga com ${selectedIds.length} motos?`
+            : `Adicionar ${selectedIds.length} motos ao Romaneio #${data.romaneio_id}?`;
+
         Swal.fire({
-            title: 'Gerar Romaneio?',
-            text: `Confirmar carga com ${selectedIds.length} motos?`,
+            title: 'Confirmar Expedição?',
+            text: textoConfirmacao,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Sim, Gerar',
+            confirmButtonText: 'Sim, Confirmar',
             confirmButtonColor: '#16a34a'
         }).then((res) => {
             if (res.isConfirmed) {
+                // Envia para o controller. O Controller deve verificar:
+                // Se tiver romaneio_id -> Adiciona as motos nele.
+                // Se não tiver -> Cria um novo.
                 post(route('romaneios.store'));
             }
         });
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-gray-800">Nova Carga / Expedição</h2>}>
+        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-gray-800">Expedição e Carga</h2>}>
             <Head title="Nova Carga" />
 
             <div className="py-12 bg-gray-100 min-h-screen">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* ÁREA DE LEITURA */}
-                    <div className="bg-white p-6 shadow-sm sm:rounded-lg border-b-4 border-indigo-500">
-                        <div className="flex flex-col md:flex-row gap-6 items-start">
+                    {/* ÁREA SUPERIOR: CONFIGURAÇÃO DA CARGA */}
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        
+                        {/* Abas de Seleção */}
+                        <div className="flex border-b border-gray-200">
+                            <button 
+                                onClick={() => { setModo('novo'); reset(); }}
+                                className={`flex-1 py-4 text-center font-bold text-sm uppercase tracking-wide transition-colors ${modo === 'novo' ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-500' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                ✨ Criar Nova Carga
+                            </button>
+                            <button 
+                                onClick={() => { setModo('existente'); reset(); }}
+                                className={`flex-1 py-4 text-center font-bold text-sm uppercase tracking-wide transition-colors ${modo === 'existente' ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-500' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                ➕ Adicionar a Carga Existente
+                            </button>
+                        </div>
+
+                        <div className="p-6 flex flex-col md:flex-row gap-8">
                             
-                            {/* Lado Esquerdo: Inputs */}
-                            <div className="flex-1 w-full">
-                                <h3 className="font-bold text-lg text-gray-700 mb-4 flex items-center gap-2">
+                            {/* COLUNA ESQUERDA: LEITOR */}
+                            <div className="flex-1 border-r border-gray-100 pr-0 md:pr-8">
+                                <h3 className="font-bold text-gray-700 mb-4 flex items-center justify-between">
                                     <span>🔍 Adicionar Motos</span>
-                                    {/* Botão para ativar Câmera */}
                                     <button 
                                         type="button"
                                         onClick={() => setShowScanner(!showScanner)}
-                                        className={`text-xs px-3 py-1 rounded-full border flex items-center gap-1 ${showScanner ? 'bg-red-100 text-red-700 border-red-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}
+                                        className={`text-xs px-3 py-1 rounded-full border font-bold ${showScanner ? 'bg-red-100 text-red-700 border-red-200' : 'bg-gray-800 text-white border-gray-800'}`}
                                     >
-                                        {showScanner ? '❌ Fechar Câmera' : '📷 Ler com Câmera'}
+                                        {showScanner ? 'Parar Câmera' : '📷 Abrir Câmera'}
                                     </button>
                                 </h3>
 
-                                {/* ÁREA DA CÂMERA (Só aparece se ativo) */}
+                                {/* CONTAINER DA CÂMERA (CORRIGIDO) */}
                                 {showScanner && (
-                                    <div className="mb-4 p-2 bg-black rounded-lg">
-                                        <div id="reader" className="w-full"></div>
-                                        <p className="text-center text-white text-xs mt-1">Aponte para o código de barras do Chassi</p>
+                                    <div className="mb-4 bg-black rounded overflow-hidden relative">
+                                        <div id="reader" style={{ width: '100%', minHeight: '300px' }}></div>
+                                        <p className="text-white text-center text-xs py-1">Aponte para o código de barras</p>
                                     </div>
                                 )}
 
-                                {/* Input Manual / USB */}
                                 <form onSubmit={handleManualSubmit} className="flex gap-2">
                                     <input 
                                         type="text" 
                                         value={leituraInput}
                                         onChange={e => setLeituraInput(e.target.value)}
-                                        placeholder="Clique aqui e bipe o chassi (Leitor USB)..."
-                                        className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono"
+                                        placeholder="Bipe o chassi ou digite..."
+                                        className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm uppercase"
                                         autoFocus
                                     />
-                                    <button type="submit" className="bg-gray-800 text-white px-4 py-2 rounded-md font-bold hover:bg-gray-700">
-                                        Adicionar
+                                    <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-md font-bold hover:bg-indigo-700">
+                                        OK
                                     </button>
                                 </form>
 
-                                <div className="mt-4 p-3 bg-blue-50 text-blue-800 text-sm rounded border border-blue-100">
-                                    <strong>Motos Selecionadas: {selectedIds.length}</strong>
-                                    <p className="text-xs mt-1">Total disponível para carga: {motosDisponiveis.length}</p>
+                                <div className="mt-4 flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100 text-blue-800 text-sm">
+                                    <span>Selecionadas:</span>
+                                    <span className="font-bold text-xl">{selectedIds.length}</span>
                                 </div>
                             </div>
 
-                            {/* Lado Direito: Dados da Carga */}
-                            <div className="flex-1 w-full bg-gray-50 p-4 rounded border border-gray-200">
-                                <h3 className="font-bold text-gray-700 mb-4">🚛 Dados do Transporte</h3>
-                                <form id="form-romaneio" onSubmit={handleSubmit} className="space-y-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Motorista</label>
-                                        <input 
-                                            type="text" 
-                                            value={data.motorista}
-                                            onChange={e => setData('motorista', e.target.value)}
-                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                            required
-                                        />
-                                        {errors.motorista && <div className="text-red-500 text-xs">{errors.motorista}</div>}
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <div className="flex-1">
-                                            <label className="block text-sm font-medium text-gray-700">Placa</label>
-                                            <input 
-                                                type="text" 
-                                                value={data.placa}
-                                                onChange={e => setData('placa', e.target.value.toUpperCase())}
-                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm uppercase"
-                                                required
-                                            />
-                                            {errors.placa && <div className="text-red-500 text-xs">{errors.placa}</div>}
-                                        </div>
-                                        <div className="flex-1">
-                                            <label className="block text-sm font-medium text-gray-700">Transportadora</label>
-                                            <input 
-                                                type="text" 
-                                                value={data.transportadora}
-                                                onChange={e => setData('transportadora', e.target.value)}
-                                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                            />
-                                        </div>
-                                    </div>
+                            {/* COLUNA DIREITA: FORMULÁRIO DINÂMICO */}
+                            <div className="flex-1 pl-0 md:pl-2">
+                                <form onSubmit={handleSubmit} className="space-y-4">
                                     
+                                    {/* MODO NOVO */}
+                                    {modo === 'novo' && (
+                                        <>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Motorista</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={data.motorista}
+                                                    onChange={e => setData('motorista', e.target.value)}
+                                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                    placeholder="Nome do motorista"
+                                                />
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <div className="flex-1">
+                                                    <label className="block text-sm font-medium text-gray-700">Placa</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={data.placa}
+                                                        onChange={e => setData('placa', e.target.value.toUpperCase())}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 uppercase"
+                                                        placeholder="ABC-1234"
+                                                    />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="block text-sm font-medium text-gray-700">Transportadora</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={data.transportadora}
+                                                        onChange={e => setData('transportadora', e.target.value)}
+                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* MODO EXISTENTE */}
+                                    {modo === 'existente' && (
+                                        <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
+                                            <label className="block text-sm font-bold text-yellow-800 mb-2">Selecione o Romaneio Aberto:</label>
+                                            
+                                            {romaneiosAbertos.length > 0 ? (
+                                                <select
+                                                    value={data.romaneio_id}
+                                                    onChange={e => setData('romaneio_id', e.target.value)}
+                                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                >
+                                                    <option value="">-- Selecione --</option>
+                                                    {romaneiosAbertos.map(r => (
+                                                        <option key={r.id} value={r.id}>
+                                                            #{r.id} - {r.motorista} ({r.placa}) - {new Date(r.created_at).toLocaleDateString()}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <p className="text-sm text-red-600">Não há cargas abertas no momento.</p>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <button 
                                         disabled={processing}
-                                        className="w-full bg-green-600 text-white py-3 rounded-md font-bold text-lg hover:bg-green-700 shadow-lg mt-4 disabled:opacity-50"
+                                        className={`w-full py-3 rounded-md font-bold text-lg text-white shadow-lg mt-2 transition-all disabled:opacity-50
+                                            ${modo === 'novo' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                                     >
-                                        {processing ? 'Gerando...' : 'Gerar Romaneio'}
+                                        {processing ? 'Processando...' : (modo === 'novo' ? 'Gerar Romaneio' : 'Atualizar Carga')}
                                     </button>
                                 </form>
                             </div>
+
                         </div>
                     </div>
 
                     {/* LISTA DE MOTOS DISPONÍVEIS */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {motosDisponiveis.map((moto) => {
-                            const isSelected = selectedIds.includes(moto.id);
-                            return (
-                                <div 
-                                    key={moto.id} 
-                                    onClick={() => toggleSelection(moto.id)}
-                                    className={`cursor-pointer p-4 rounded-lg border-2 transition-all shadow-sm flex flex-col justify-between relative overflow-hidden
-                                        ${isSelected 
-                                            ? 'border-green-500 bg-green-50 scale-[1.02]' 
-                                            : 'border-white bg-white hover:border-indigo-200'}`}
-                                >
-                                    {isSelected && (
-                                        <div className="absolute top-0 right-0 bg-green-500 text-white px-2 py-1 text-xs font-bold rounded-bl">
-                                            SELECIONADO
+                    <div>
+                        <h3 className="font-bold text-gray-700 mb-4 ml-1">Motos Disponíveis para Carga</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {motosDisponiveis.map((moto) => {
+                                const isSelected = selectedIds.includes(moto.id);
+                                return (
+                                    <div 
+                                        key={moto.id} 
+                                        onClick={() => toggleSelection(moto.id)}
+                                        className={`cursor-pointer p-4 rounded-lg border-2 transition-all shadow-sm flex flex-col justify-between relative overflow-hidden bg-white
+                                            ${isSelected ? 'border-green-500 ring-1 ring-green-500 bg-green-50' : 'border-transparent hover:border-gray-300'}`}
+                                    >
+                                        {isSelected && (
+                                            <div className="absolute top-0 right-0 bg-green-500 text-white px-2 py-1 text-xs font-bold rounded-bl">
+                                                ✓
+                                            </div>
+                                        )}
+                                        
+                                        <div>
+                                            <h4 className="font-bold text-gray-800">{moto.modelo}</h4>
+                                            <p className="font-mono text-gray-600 text-sm mt-1">{moto.chassi}</p>
+                                            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                                                <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                                                Pedido #{moto.pedido_id} • {moto.pedido?.user?.filial || 'Filial'}
+                                            </p>
                                         </div>
-                                    )}
-                                    
-                                    <div>
-                                        <h4 className="font-bold text-gray-800">{moto.modelo}</h4>
-                                        <p className="font-mono text-gray-600 text-sm mt-1">{moto.chassi}</p>
-                                        <p className="text-xs text-gray-400 mt-2">
-                                            Pedido #{moto.pedido_id} • {moto.pedido?.user?.filial || 'Filial'}
-                                        </p>
                                     </div>
-                                    
-                                    <div className={`mt-3 h-1 w-full rounded ${isSelected ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+                                );
+                            })}
+                            
+                            {motosDisponiveis.length === 0 && (
+                                <div className="col-span-full text-center py-12 text-gray-400 bg-white rounded-lg border border-dashed border-gray-300">
+                                    <p className="text-xl">Nenhuma moto separada no pátio.</p>
                                 </div>
-                            );
-                        })}
-                        
-                        {motosDisponiveis.length === 0 && (
-                            <div className="col-span-full text-center py-12 text-gray-500">
-                                <p className="text-xl">Nenhuma moto separada no pátio.</p>
-                                <p className="text-sm">Vá em "Pedidos" e confirme a separação primeiro.</p>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
 
                 </div>
