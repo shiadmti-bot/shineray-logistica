@@ -18,7 +18,7 @@ class Romaneio extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['motorista', 'placa', 'status']) // Vigia estes campos
+            ->logOnly(['motorista', 'placa', 'transportadora', 'status']) // Vigia estes campos
             ->logOnlyDirty() // Só grava se houver mudança
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Romaneio foi {$eventName}"); // Ex: Romaneio foi updated
