@@ -16,11 +16,24 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/limpar-tudo', function() {
-    Artisan::call('optimize:clear');
-    Artisan::call('config:clear');
-    Artisan::call('cache:clear');
-    return "Cache limpo! Tente acessar o dashboard agora.";
+// --- ROTA TEMPORÁRIA DE LIMPEZA (USAR E APAGAR DEPOIS) ---
+Route::get('/limpar-dados-teste', function () {
+    
+    // Desativa verificação de chave estrangeira para poder limpar tudo sem erro
+    \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+
+    // 1. Limpa o Chat e Logs
+    \App\Models\Message::truncate();
+    \App\Models\PedidoLog::truncate();
+
+    // 2. Limpa Pedidos e Romaneios
+    \App\Models\Pedido::truncate();
+    \App\Models\Romaneio::truncate();
+
+    // Reativa a segurança do banco
+    \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
+
+    return 'Limpeza concluída! Pedidos, Romaneios, Chats e Logs foram apagados. Motos foram resetadas/apagadas.';
 });
 
 // Tela Inicial (Redireciona para Login)
