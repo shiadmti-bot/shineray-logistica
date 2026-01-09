@@ -175,17 +175,33 @@ class PedidoController extends Controller
 
     public function confirmarSaida($id)
     {
-        $pedido = Pedido::findOrFail($id);
+        $pedido = Pedido::with('motos')->findOrFail($id);
+        
+        // 1. Atualiza Status do Pedido e das Motos
         $pedido->update(['status' => 'em_transito']);
-        foreach ($pedido->motos as $moto) { $moto->update(['status' => 'em_transito']); }
-        $this->registrarLog($pedido, 'Saída Confirmada', 'Veículo em trânsito.');
+        foreach ($pedido->motos as $moto) {
+            $moto->update(['status' => 'em_transito']);
+        }
+
+        // 2. LÓGICA DO ROMANEIO (Início do Ciclo)
+        // Se este pedido pertence a uma carga, muda o status da carga para 'em_transito'
+        // Isso impede que adicionem mais motos nela e trava a edição
+        if ($pedido->romaneio_id) {
+            $romaneio = Romaneio::find($pedido->romaneio_id);
+            if ($romaneio && $romaneio->status === 'aberto') {
+                $romaneio->update(['status' => 'em_transito']);
+            }
+        }
+
+        $this->registrarLog($pedido, 'Saída Confirmada', 'Veículo saiu do CD e está em trânsito.');
+        
         return redirect()->back();
     }
 
-    // --- FUNÇÃO DE FINALIZAÇÃO ATUALIZADA (UPLOAD + ORGANIZAÇÃO DE PASTAS + AUTOMAÇÃO) ---
+    // --- FUNÇÃO DE FINALIZAÇÃO ATUALIZADA (UPLOAD + ORGANIZAÇÃO DE PASTAS + FECHAMENTO DO CICLO) ---
     public function finalizarEntrega(Request $request, $id)
     {
-        // 1. Validação (Aumentada para 15MB para garantir)
+        // 1. Validação (15MB)
         $request->validate([
             'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360',
         ]);
@@ -193,7 +209,7 @@ class PedidoController extends Controller
         try {
             $pedido = Pedido::with('user')->findOrFail($id);
 
-            // --- TRAVA DE SEGURANÇA NOVA ---
+            // --- TRAVA DE SEGURANÇA (Híbrido) ---
             // Se for Loja, só pode finalizar se o pedido for dela
             if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
                 abort(403, 'Você não tem permissão para finalizar pedidos de outra loja.');
@@ -259,12 +275,15 @@ class PedidoController extends Controller
                 'descricao' => 'Comprovante anexado e pedido concluído.'
             ]);
 
-            // --- 3. AUTOMAÇÃO DA CARGA (Fecha Romaneio se for o último) ---
+            // --- 3. AUTOMAÇÃO DA CARGA (Fim do Ciclo) ---
             if ($pedido->romaneio_id) {
+                // Conta quantos pedidos DESTE romaneio ainda NÃO foram concluídos
+                // (Ignora os cancelados)
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                     ->whereNotIn('status', ['concluido', 'cancelado'])
                     ->count();
 
+                // Se não sobrou nenhum pendente, fecha a carga
                 if ($pendentes === 0) {
                     $romaneio = Romaneio::find($pedido->romaneio_id);
                     if ($romaneio) {
