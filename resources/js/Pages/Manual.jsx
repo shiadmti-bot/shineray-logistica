@@ -10,8 +10,8 @@ export default function Manual({ auth }) {
     const tabs = [
         { id: 'loja', label: '🏪 Para Lojas', color: 'red' },
         { id: 'cd', label: '🏭 Para CD/Expedição', color: 'blue' },
-        { id: 'admin', label: '🛡️ Para Admin', color: 'black' },
-        { id: 'faq', label: '❓ Dúvidas Frequentes', color: 'green' },
+        { id: 'comprovantes', label: '📄 Entrega & Drive', color: 'green' }, // NOVA ABA
+        { id: 'faq', label: '❓ Dúvidas Frequentes', color: 'gray' },
     ];
 
     return (
@@ -30,11 +30,19 @@ export default function Manual({ auth }) {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-6 py-3 rounded-full font-bold transition shadow-sm text-sm uppercase tracking-wide
+                                className={`px-6 py-3 rounded-full font-bold transition shadow-sm text-sm uppercase tracking-wide flex items-center gap-2
                                     ${activeTab === tab.id 
-                                        ? `bg-${tab.color}-600 text-white shadow-lg scale-105` 
+                                        ? `bg-${tab.color}-600 text-white shadow-lg scale-105 border-transparent` 
                                         : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
                                     }`}
+                                style={{
+                                    backgroundColor: activeTab === tab.id ? undefined : 'white',
+                                    // Hack para cores dinâmicas no Tailwind JIT se não estiverem no safelist
+                                    ...(activeTab === tab.id && tab.color === 'red' ? { backgroundColor: '#dc2626' } : {}),
+                                    ...(activeTab === tab.id && tab.color === 'blue' ? { backgroundColor: '#2563eb' } : {}),
+                                    ...(activeTab === tab.id && tab.color === 'green' ? { backgroundColor: '#16a34a' } : {}),
+                                    ...(activeTab === tab.id && tab.color === 'gray' ? { backgroundColor: '#4b5563' } : {}),
+                                }}
                             >
                                 {tab.label}
                             </button>
@@ -47,7 +55,7 @@ export default function Manual({ auth }) {
                             {/* --- CONTEÚDO: LOJA --- */}
                             {activeTab === 'loja' && (
                                 <div className="space-y-8 animate-fade-in">
-                                    <HeaderSection icon="🏪" title="Manual da Loja / Revenda" desc="Como solicitar motos e acompanhar seus pedidos." />
+                                    <HeaderSection icon="🏪" title="Manual da Loja / Revenda" desc="Como solicitar motos, usar o chat e acompanhar entregas." />
                                     
                                     <Step number="1" title="Criar Nova Solicitação">
                                         <p>No menu superior ou Dashboard, clique em <strong>"Nova Solicitação"</strong>.</p>
@@ -57,16 +65,40 @@ export default function Manual({ auth }) {
                                             <li><strong>Chassi:</strong> Digite os 11 dígitos (apenas letras e números).</li>
                                             <li><strong>Cor:</strong> Obrigatório.</li>
                                         </ul>
-                                        <div className="mt-3 bg-yellow-50 p-3 rounded border border-yellow-200 text-yellow-800 text-sm">
-                                            ⚠️ <strong>Atenção:</strong> O envio com a tecla "Enter" é bloqueado para evitar erros. Clique no botão azul "Finalizar Solicitação".
+                                    </Step>
+
+                                    <Step number="2" title="Cancelar ou Corrigir (Antes da Separação)">
+                                        <p>Se você errou um chassi ou desistiu do pedido, você pode cancelar sozinho <strong>enquanto o CD ainda não começou a trabalhar</strong>.</p>
+                                        <ol className="list-decimal ml-6 mt-2 text-sm text-gray-700">
+                                            <li>Entre no pedido com status <span className="text-yellow-600 font-bold bg-yellow-50 px-1 rounded">SOLICITADO</span>.</li>
+                                            <li>Procure o quadro amarelo de aviso no topo.</li>
+                                            <li>Clique no botão vermelho <strong>🗑️ Cancelar Solicitação</strong>.</li>
+                                        </ol>
+                                        <p className="mt-2 text-xs text-gray-500 italic">Isso libera o chassi imediatamente para ser pedido de novo.</p>
+                                    </Step>
+
+                                    <Step number="3" title="Conversar com o CD (Chat em Tempo Real)">
+                                        <p>Precisa avisar algo urgente sobre um pedido específico?</p>
+                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
+                                            <li>Abra o pedido desejado.</li>
+                                            <li>No canto inferior direito, clique no botão flutuante <strong>🔵 Chat do Pedido</strong>.</li>
+                                            <li>Envie sua mensagem. O CD receberá uma notificação sonora na hora! 🔔</li>
+                                        </ul>
+                                        <div className="mt-2 flex gap-2 text-xs font-bold text-gray-400">
+                                            <span>✓ Enviado</span>
+                                            <span className="text-blue-500">✓✓ Lido</span>
                                         </div>
                                     </Step>
 
-                                    <Step number="2" title="Acompanhar Status">
-                                        <p>Acesse <strong>"Meus Pedidos"</strong> para ver o andamento:</p>
-                                        <StatusBadge status="solicitado" desc="Aguardando o CD ver seu pedido. Você ainda pode cancelar." />
-                                        <StatusBadge status="separado" desc="O CD já reservou as motos. Não é possível mais cancelar." />
-                                        <StatusBadge status="em_transito" desc="O caminhão saiu do CD. Aguarde a chegada." />
+                                    <Step number="4" title="Confirmar Recebimento (Finalizar)">
+                                        <p>Quando o caminhão chegar na sua loja:</p>
+                                        <ol className="list-decimal ml-6 mt-2 text-sm text-gray-700">
+                                            <li>Confira as motos físicas.</li>
+                                            <li>Assine o canhoto do romaneio.</li>
+                                            <li>No sistema, abra o pedido (que estará "Em Trânsito").</li>
+                                            <li>No quadro verde <strong>"Confirmar Recebimento"</strong>, tire uma foto do canhoto assinado.</li>
+                                            <li>O sistema vai comprimir a foto automaticamente e enviar. <strong>Pronto! Pedido Concluído. 🎉</strong></li>
+                                        </ol>
                                     </Step>
                                 </div>
                             )}
@@ -74,85 +106,75 @@ export default function Manual({ auth }) {
                             {/* --- CONTEÚDO: CD --- */}
                             {activeTab === 'cd' && (
                                 <div className="space-y-8 animate-fade-in">
-                                    <HeaderSection icon="🏭" title="Manual do Operador Logístico (CD)" desc="Conferência, Separação e Expedição de Cargas." />
+                                    <HeaderSection icon="🏭" title="Manual do Operador Logístico (CD)" desc="Gestão total: Separação, Carga e Finalização." />
 
-                                    <Step number="1" title="Painel de Controle (Dashboard)">
-                                        <p>Mantenha o Dashboard aberto. Ele atualiza automaticamente a cada <strong>10 segundos</strong>.</p>
-                                        <p>Fique atento ao cartão amarelo <strong>"Novas Solicitações"</strong>.</p>
+                                    <Step number="1" title="Dashboard e Alertas">
+                                        <p>Mantenha o Dashboard aberto. Ele atualiza sozinho.</p>
+                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
+                                            <li><strong>Cartão Amarelo:</strong> Novos pedidos para separar.</li>
+                                            <li><strong>Cartão Azul:</strong> Motos separadas aguardando carga.</li>
+                                        </ul>
                                     </Step>
 
                                     <Step number="2" title="Conferência e Separação">
+                                        <p>Ao abrir um pedido "Solicitado":</p>
                                         <ol className="list-decimal ml-6 text-gray-700 space-y-2">
-                                            <li>Acesse o menu <strong>"Conferência"</strong>.</li>
-                                            <li>Entre em um pedido com status <strong>"Solicitado"</strong>.</li>
-                                            <li>Verifique se as motos existem no estoque físico.</li>
-                                            <li>Clique em <span className="text-green-600 font-bold">✅ Confirmar Separação</span>.</li>
+                                            <li>Verifique se as motos existem no estoque.</li>
+                                            <li>Se tudo estiver ok, clique em <span className="text-blue-600 font-bold">✅ Confirmar Separação</span>.</li>
+                                            <li><strong>Se houver problema:</strong> Use o botão "Rejeitar" e escreva o motivo (ex: "Chassi não localizado"). O pedido volta para a loja corrigir.</li>
                                         </ol>
-                                        <p className="mt-2 text-sm text-gray-500">Isso envia as motos para o "Pool" (Pátio Virtual), prontas para serem carregadas.</p>
                                     </Step>
 
                                     <Step number="3" title="Montagem de Carga (Expedição)">
                                         <p>Vá em <strong>Expedição {'>'} Nova Carga</strong>.</p>
-                                        <div className="flex flex-col md:flex-row gap-4 mt-3">
-                                            <div className="flex-1 bg-gray-50 p-4 rounded border">
-                                                <h4 className="font-bold text-gray-800 mb-2">Opção A: Leitor de Código de Barras (Recomendado)</h4>
-                                                <p className="text-sm">1. Clique no campo preto "Leitura".</p>
-                                                <p className="text-sm">2. Bipe o chassi da moto física.</p>
-                                                <p className="text-sm">3. O sistema marcará a moto em <span className="text-green-600 font-bold">VERDE</span> automaticamente.</p>
-                                            </div>
-                                            <div className="flex-1 bg-gray-50 p-4 rounded border">
-                                                <h4 className="font-bold text-gray-800 mb-2">Opção B: Manual</h4>
-                                                <p className="text-sm">Clique nos cartões das motos na lista para selecionar.</p>
-                                            </div>
+                                        <div className="bg-blue-50 p-4 rounded border border-blue-100 mt-2">
+                                            <h4 className="font-bold text-blue-900 mb-2">💡 Dica de Ouro: Leitor de Código de Barras</h4>
+                                            <p className="text-sm text-blue-800">Clique no campo preto "Leitura" e bipe o chassi das motos. O sistema marca em verde automaticamente e evita erros de digitação.</p>
                                         </div>
-                                        <p className="mt-4">Ao final, clique em <strong>"Gerar Romaneio"</strong>.</p>
                                     </Step>
 
-                                    <Step number="4" title="Saída do Caminhão">
-                                        <p>Na tela do Romaneio:</p>
+                                    <Step number="4" title="Saída e Trânsito">
+                                        <p>Depois de gerar o Romaneio:</p>
                                         <ul className="list-disc ml-6 mt-1 text-gray-600">
-                                            <li>Imprima o <strong>Manifesto</strong> (Botão Imprimir).</li>
-                                            <li>Quando o motorista estiver saindo, clique em <span className="bg-green-600 text-white px-2 py-0.5 rounded text-xs font-bold">🚛 Liberar Saída</span>.</li>
+                                            <li>Imprima o Manifesto para o motorista.</li>
+                                            <li>Quando o caminhão sair, clique em <strong>🚛 Confirmar Saída</strong>.</li>
+                                            <li>Isso dispara um aviso para a Loja que o pedido está a caminho.</li>
                                         </ul>
-                                        <div className="mt-3 bg-red-50 p-3 rounded border border-red-200 text-red-800 text-sm">
-                                            🛑 <strong>Importante:</strong> Se montou a carga errada, clique em <strong>"Desfazer"</strong> ANTES de liberar a saída. Isso devolve as motos para o pátio.
-                                        </div>
+                                    </Step>
+
+                                    <Step number="5" title="Baixa Manual (Se a Loja não fizer)">
+                                        <p>A Loja deve dar baixa no pedido, mas se ela estiver sem internet:</p>
+                                        <p className="text-sm mt-1">O motorista trará o papel assinado de volta. Você pode entrar no pedido e usar o mesmo quadro verde <strong>"Confirmar Recebimento"</strong> para digitalizar o papel e encerrar o processo.</p>
                                     </Step>
                                 </div>
                             )}
 
-                            {/* --- CONTEÚDO: ADMIN --- */}
-                            {activeTab === 'admin' && (
+                            {/* --- CONTEÚDO: COMPROVANTES E DRIVE --- */}
+                            {activeTab === 'comprovantes' && (
                                 <div className="space-y-8 animate-fade-in">
-                                    <HeaderSection icon="🛡️" title="Manual do Administrador" desc="Gestão de usuários, auditoria e relatórios." />
+                                    <HeaderSection icon="📂" title="Arquivamento Digital (Google Drive)" desc="Como o sistema organiza seus documentos automaticamente." />
 
-                                    <Step number="1" title="Gestão de Usuários">
-                                        <p>Acesse o menu <strong>Usuários</strong>.</p>
-                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
-                                            <li>Crie contas para novas Lojas ou funcionários do CD.</li>
-                                            <li>Use o botão "Remover" para revogar acesso de ex-funcionários imediatamente.</li>
-                                            <li><strong>Monitoramento:</strong> A bolinha <span className="text-green-500 font-bold">verde pulsante</span> indica que o usuário está online agora.</li>
-                                        </ul>
+                                    <Step number="1" title="Organização Automática de Pastas">
+                                        <p>Você não precisa criar pastas no Google Drive. O sistema faz isso sozinho!</p>
+                                        <div className="mt-4 bg-gray-50 p-4 rounded border border-gray-200 font-mono text-sm">
+                                            📂 Shineray Logistica (Raiz)<br/>
+                                            &nbsp;&nbsp;📂 2026<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;📂 01 - Janeiro<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📄 Romaneio-150_09-01-2026_Recife.jpg<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📄 Romaneio-151_09-01-2026_Belem.pdf
+                                        </div>
+                                        <p className="mt-2 text-sm text-gray-500">O sistema cria a pasta do Ano e do Mês automaticamente no primeiro upload do dia.</p>
                                     </Step>
 
-                                    <Step number="2" title="Auditoria (Rastreabilidade)">
-                                        <p>O sistema grava logs de todas as ações críticas.</p>
-                                        <p>Acesse o menu <strong>Auditoria</strong> para investigar:</p>
-                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
-                                            <li>Quem alterou a placa de um romaneio?</li>
-                                            <li>Quem editou o perfil de um usuário?</li>
-                                            <li>O sistema mostra o valor <strong>ANTIGO</strong> e o <strong>NOVO</strong>.</li>
-                                        </ul>
+                                    <Step number="2" title="Nomenclatura Padrão">
+                                        <p>Para facilitar a busca futura, todos os arquivos são renomeados para:</p>
+                                        <p className="font-bold text-gray-800 mt-1">Romaneio-[NUMERO]_[DATA]_[FILIAL]_ID-[PEDIDO].ext</p>
+                                        <p className="text-xs text-gray-500 mt-2">Exemplo: Romaneio-123_09-01-2026_Filial-Centro_ID-555.jpg</p>
                                     </Step>
 
-                                    <Step number="3" title="Relatórios e Excel">
-                                        <p>Para baixar dados para reuniões:</p>
-                                        <ol className="list-decimal ml-6 text-gray-600">
-                                            <li>Vá em <strong>Auditoria de Pedidos</strong>.</li>
-                                            <li>Use a busca para filtrar (Ex: "Loja Centro" ou "2025").</li>
-                                            <li>Clique no botão <strong>"📊 Excel"</strong>.</li>
-                                        </ol>
-                                        <p className="text-sm text-gray-500 mt-2">O arquivo CSV gerado já possui formatação para evitar a quebra dos números de chassi no Excel.</p>
+                                    <Step number="3" title="Fechamento Automático de Carga">
+                                        <p>Uma carga (Romaneio) pode ter 10 pedidos diferentes.</p>
+                                        <p>O sistema monitora cada entrega. Quando o <strong>último</strong> pedido daquela carga é entregue, o status do Romaneio muda para <span className="text-green-600 font-bold">FINALIZADO</span> automaticamente.</p>
                                     </Step>
                                 </div>
                             )}
@@ -160,25 +182,28 @@ export default function Manual({ auth }) {
                             {/* --- CONTEÚDO: FAQ --- */}
                             {activeTab === 'faq' && (
                                 <div className="space-y-6 animate-fade-in">
-                                    <HeaderSection icon="❓" title="Solução de Problemas (Troubleshooting)" desc="Respostas rápidas para erros comuns." />
+                                    <HeaderSection icon="❓" title="Solução de Problemas" desc="Respostas rápidas para erros comuns." />
 
-                                    <FaqItem question="Apareceu uma tela vermelha com 'Server Error' (500). O que eu faço?">
-                                        Isso indica uma falha de conexão momentânea ou erro no servidor. <strong>Tire um print</strong> da tela (se houver detalhes), aguarde 5 minutos e tente novamente. Se persistir, envie o print para o suporte de TI.
+                                    <FaqItem question="O Chat não toca som quando chega mensagem.">
+                                        Os navegadores bloqueiam sons automáticos se você não interagiu com a página. Clique em qualquer lugar da tela pelo menos uma vez. Verifique também se o volume da aba não está mudo.
                                     </FaqItem>
 
-                                    <FaqItem question="O Leitor de Código de Barras não está 'bipando' na tela.">
-                                        O leitor funciona como um teclado. Para ele funcionar, o cursor do mouse precisa estar piscando dentro do campo preto <strong>"Leitura"</strong>. Clique no campo e tente novamente.
+                                    <FaqItem question="A foto do comprovante está demorando muito para enviar.">
+                                        O sistema possui um <strong>Compressor Inteligente</strong>. Se a foto for muito grande (4K), o botão ficará como "Processando..." por alguns segundos antes de enviar. Isso é normal e economiza seus dados móveis.
                                     </FaqItem>
 
-                                    <FaqItem question="No Excel, o chassi aparece como '9.9E+10' (Número Científico).">
-                                        O sistema tenta evitar isso automaticamente, mas se ocorrer: Selecione a coluna do Chassi no Excel, clique com o botão direito &gt; Formatar Células &gt; Escolha <strong>"Texto"</strong>.
+                                    <FaqItem question="Errei o chassi no pedido e já foi separado. Como corrigir?">
+                                        Neste estágio (Separado), você não pode mais cancelar sozinho. Use o <strong>Chat do Pedido</strong> para pedir ao CD que rejeite o pedido. Assim ele volta para você editar.
+                                    </FaqItem>
+
+                                    <FaqItem question="Erro 500 / Tela Vermelha ao tentar enviar arquivo.">
+                                        Geralmente isso é uma instabilidade momentânea do Google Drive. Aguarde 1 minuto e tente de novo. Se persistir, contate o suporte.
                                     </FaqItem>
 
                                     <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-                                        <h4 className="font-bold text-gray-800 mb-2">📞 Contatos de Suporte (SLA 4h)</h4>
+                                        <h4 className="font-bold text-gray-800 mb-2">📞 Suporte Técnico</h4>
                                         <p><strong>E-mail:</strong> shiadmti@gmail.com</p>
-                                        <p><strong>Ramal TI:</strong> 1000</p>
-                                        <p className="text-xs text-gray-500 mt-2">Horário de Atendimento: Seg-Sex, 08:00 às 18:00.</p>
+                                        <p className="text-xs text-gray-500 mt-2">O sistema roda em ambiente seguro com backups diários.</p>
                                     </div>
                                 </div>
                             )}
@@ -191,12 +216,12 @@ export default function Manual({ auth }) {
     );
 }
 
-// --- SUBCOMPONENTES PARA ORGANIZAÇÃO ---
+// --- SUBCOMPONENTES ---
 
 function HeaderSection({ icon, title, desc }) {
     return (
         <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
-            <div className="text-5xl">{icon}</div>
+            <div className="text-4xl md:text-5xl bg-white p-3 rounded-full shadow-sm border border-gray-100">{icon}</div>
             <div>
                 <h3 className="text-2xl font-black text-gray-800">{title}</h3>
                 <p className="text-gray-500">{desc}</p>
@@ -207,11 +232,11 @@ function HeaderSection({ icon, title, desc }) {
 
 function Step({ number, title, children }) {
     return (
-        <div className="flex gap-4">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
+        <div className="flex gap-4 group">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-lg shadow-md group-hover:bg-red-600 transition-colors duration-300">
                 {number}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 bg-white p-4 rounded-lg border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all">
                 <h4 className="text-lg font-bold text-gray-800 mb-2">{title}</h4>
                 <div className="text-gray-600 leading-relaxed text-sm md:text-base">
                     {children}
@@ -221,29 +246,18 @@ function Step({ number, title, children }) {
     );
 }
 
-function StatusBadge({ status, desc }) {
-    const colors = {
-        solicitado: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-        separado: 'bg-blue-100 text-blue-800 border-blue-200',
-        em_transito: 'bg-orange-100 text-orange-800 border-orange-200',
-    };
-    return (
-        <div className="flex items-center gap-3 mt-3 p-2 rounded bg-gray-50 border border-gray-100">
-            <span className={`px-2 py-1 rounded text-xs font-bold uppercase border ${colors[status] || 'bg-gray-100'}`}>
-                {status.replace('_', ' ')}
-            </span>
-            <span className="text-sm text-gray-600">{desc}</span>
-        </div>
-    );
-}
-
 function FaqItem({ question, children }) {
     return (
-        <div className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition bg-white">
-            <h5 className="font-bold text-red-600 mb-2 flex items-center gap-2">
-                <span>❓</span> {question}
-            </h5>
-            <p className="text-gray-600 text-sm ml-6">{children}</p>
-        </div>
+        <details className="group border border-gray-200 rounded-lg bg-white overflow-hidden transition-all duration-300 open:shadow-md">
+            <summary className="font-bold text-gray-700 p-4 cursor-pointer flex items-center justify-between hover:bg-gray-50">
+                <div className="flex items-center gap-2">
+                    <span className="text-red-500">❓</span> {question}
+                </div>
+                <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="p-4 pt-0 text-gray-600 text-sm ml-8 leading-relaxed border-t border-transparent group-open:border-gray-100">
+                {children}
+            </div>
+        </details>
     );
 }
