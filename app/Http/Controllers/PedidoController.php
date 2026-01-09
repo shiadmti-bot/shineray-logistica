@@ -22,7 +22,6 @@ use Google\Service\Drive\DriveFile;
 class PedidoController extends Controller
 {
     private function registrarLog($pedido, $titulo, $desc = '') {
-        // Verifica se o pedido ainda existe antes de logar
         if ($pedido && $pedido->exists) {
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
@@ -119,14 +118,16 @@ class PedidoController extends Controller
 
         $chassis = array_column($request->itens, 'chassi');
         
-        // Verifica se chassi já está em uso (exceto se foi excluído/liberado)
+        // --- CORREÇÃO DO ERRO SQL ---
+        // Em vez de checar 'pedido_id' (que não existe), checamos o STATUS.
+        // Se o status NÃO for 'estoque_fabrica' e nem 'cancelado', a moto está ocupada.
         $duplicados = Moto::whereIn('chassi', $chassis)
-            ->whereNotNull('pedido_id') // Só conta como duplicado se estiver preso a um pedido
+            ->whereNotIn('status', ['estoque_fabrica', 'cancelado']) 
             ->pluck('chassi')
             ->toArray();
         
         if (!empty($duplicados)) {
-            throw ValidationException::withMessages(['itens' => 'Chassis já em uso em outros pedidos: ' . implode(', ', $duplicados)]);
+            throw ValidationException::withMessages(['itens' => 'Chassis já em uso/reservados: ' . implode(', ', $duplicados)]);
         }
 
         $pedido = Pedido::create([
@@ -290,7 +291,6 @@ class PedidoController extends Controller
         }
     }
 
-    // --- CORREÇÃO AQUI: REJEIÇÃO EXCLUI O PEDIDO ---
     public function rejeitar(Request $request, $id)
     {
         $pedido = Pedido::with('motos')->findOrFail($id);
@@ -299,12 +299,11 @@ class PedidoController extends Controller
         // 1. Libera as motos (Reseta para estoque inicial)
         foreach ($pedido->motos as $moto) {
             $moto->update([
-                'status' => 'estoque_fabrica', // Volta a ser disponível para qualquer um
-                'pedido_id' => null,           // Remove vínculo
+                'status' => 'estoque_fabrica',
+                // 'pedido_id' => null,  <-- REMOVIDO: Coluna não existe
                 'romaneio_id' => null,
                 'localizacao_atual' => 'Estoque (Liberado após Rejeição)'
             ]);
-            // Desvincula relacionamento ManyToMany
             $pedido->motos()->detach($moto->id);
         }
 
@@ -319,7 +318,6 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Romaneio', ['pedido' => $pedido]);
     }
 
-    // --- CORREÇÃO AQUI: CANCELAMENTO EXCLUI O PEDIDO ---
     public function cancelarSolicitacao($id)
     {
         $pedido = Pedido::with('motos')->findOrFail($id);
@@ -336,7 +334,7 @@ class PedidoController extends Controller
         foreach ($pedido->motos as $moto) {
             $moto->update([
                 'status' => 'estoque_fabrica',
-                'pedido_id' => null,
+                // 'pedido_id' => null, <-- REMOVIDO: Coluna não existe
                 'romaneio_id' => null,
                 'localizacao_atual' => 'Estoque (Liberado após Cancelamento)'
             ]);
