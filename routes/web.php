@@ -16,24 +16,16 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
-// --- ROTA TEMPORÁRIA DE LIMPEZA (USAR E APAGAR DEPOIS) ---
-Route::get('/limpar-dados-teste', function () {
-    
-    // Desativa verificação de chave estrangeira para poder limpar tudo sem erro
-    \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
-
-    // 1. Limpa o Chat e Logs
-    \App\Models\Message::truncate();
-    \App\Models\PedidoLog::truncate();
-
-    // 2. Limpa Pedidos e Romaneios
-    \App\Models\Pedido::truncate();
-    \App\Models\Romaneio::truncate();
-
-    // Reativa a segurança do banco
-    \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
-
-    return 'Limpeza concluída! Pedidos, Romaneios, Chats e Logs foram apagados. Motos foram resetadas/apagadas.';
+// --- ROTA PARA POPULAR O BANCO (RODAR NA VERCEL) ---
+Route::get('/popular-banco', function () {
+    try {
+        // Roda o comando db:seed forçando a execução (necessário em produção)
+        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
+        
+        return "Sucesso! O banco de produção foi populado com Modelos, Usuários e Filiais.";
+    } catch (\Exception $e) {
+        return "Erro ao popular: " . $e->getMessage();
+    }
 });
 
 // Tela Inicial (Redireciona para Login)
