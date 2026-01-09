@@ -30,27 +30,31 @@ export default function ChatBox({ pedidoId }) {
     }, [isOpen]);
 
     // 2. Conexão WebSocket (Laravel Reverb)
+    // 2. Conexão WebSocket (Pusher)
     useEffect(() => {
-        // Escuta o canal privado do pedido
         const channel = window.Echo.private(`chat.pedido.${pedidoId}`);
 
         channel.listen('MessageSent', (e) => {
-            // Adiciona a mensagem recebida na lista
+            // --- CORREÇÃO AQUI ---
+            // Se o ID de quem mandou for IGUAL ao meu ID, eu ignoro.
+            // (Porque o meu React já mostrou essa mensagem antes de enviar)
+            if (e.user_id === auth.user.id) {
+                return; 
+            }
+            // ---------------------
+
             setMessages(prev => [...prev, { ...e, is_me: false }]);
             
-            // Se o chat estiver fechado ou minimizado
             if (!isOpen) {
                 setHasUnread(true);
                 playSound();
             } else {
-                // Se estiver aberto, marca como lido e rola a tela
                 scrollToBottom();
                 markAsRead();
-                playSound(); // Toca som mesmo aberto (opcional)
+                playSound(); 
             }
         });
 
-        // Cleanup ao desmontar
         return () => {
             window.Echo.leave(`chat.pedido.${pedidoId}`);
         };
