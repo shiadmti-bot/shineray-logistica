@@ -5,57 +5,49 @@ import Swal from 'sweetalert2';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAbertos = [] }) {
-    // Estado da seleção e modo
     const [selectedIds, setSelectedIds] = useState([]);
     const [leituraInput, setLeituraInput] = useState('');
     const [showScanner, setShowScanner] = useState(false);
-    const [modo, setModo] = useState('novo'); // 'novo' ou 'existente'
+    const [modo, setModo] = useState('novo'); 
     
-    // Formulário
     const { data, setData, post, processing, errors, reset } = useForm({
-        // Dados para Nova Carga
         motorista: '',
         placa: '',
         transportadora: '',
-        // Dados para Carga Existente
         romaneio_id: '', 
-        // Dados Comuns
         motos_ids: []
     });
 
-    // Atualiza o form sempre que a seleção mudar
     useEffect(() => {
         setData('motos_ids', selectedIds);
     }, [selectedIds]);
 
-    // --- LÓGICA DO LEITOR DE CÂMERA (CORRIGIDA) ---
+    // --- LÓGICA DA CÂMERA (CORRIGIDA: TRASEIRA + DELAY) ---
     useEffect(() => {
         let scanner = null;
 
         if (showScanner) {
-            // Pequeno delay para garantir que a DIV existe no DOM
             setTimeout(() => {
                 const config = { 
                     fps: 10, 
                     qrbox: { width: 250, height: 250 },
                     aspectRatio: 1.0,
-                    disableFlip: false 
+                    // CORREÇÃO: Força a câmera traseira
+                    videoConstraints: {
+                        facingMode: "environment" 
+                    }
                 };
                 
                 scanner = new Html5QrcodeScanner("reader", config, false);
                 
                 scanner.render((decodedText) => {
-                    // SUCESSO NA LEITURA
                     const audio = new Audio('/plim.mp3'); 
                     audio.play().catch(() => {});
                     handleBip(decodedText);
-                }, (error) => {
-                    // Erro de leitura (ignorar console log excessivo)
-                });
-            }, 100);
+                }, (error) => {});
+            }, 300); // Aumentei um pouco o delay para dar tempo do elemento renderizar no celular
         }
 
-        // Limpeza ao desmontar ou fechar
         return () => {
             if (scanner) {
                 scanner.clear().catch(e => console.error("Erro ao limpar scanner", e));
@@ -63,11 +55,8 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         };
     }, [showScanner]);
 
-    // --- PROCESSAMENTO DO CHASSI ---
     const handleBip = (codigo) => {
         const chassiLimpo = codigo.trim().toUpperCase();
-
-        // 1. Procura na lista de disponíveis
         const motoEncontrada = motosDisponiveis.find(m => m.chassi.toUpperCase() === chassiLimpo);
 
         if (!motoEncontrada) {
@@ -81,7 +70,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             return;
         }
 
-        // 2. Verifica se já foi bipado
         if (selectedIds.includes(motoEncontrada.id)) {
             Swal.fire({
                 title: 'Já Adicionado',
@@ -95,7 +83,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             return;
         }
 
-        // 3. Sucesso
         setSelectedIds(prev => [...prev, motoEncontrada.id]);
         
         const Toast = Swal.mixin({
@@ -134,7 +121,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             return;
         }
 
-        // Validação Específica por Modo
         if (modo === 'novo' && (!data.motorista || !data.placa)) {
             Swal.fire('Atenção', 'Preencha Motorista e Placa para nova carga.', 'warning');
             return;
@@ -157,9 +143,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             confirmButtonColor: '#16a34a'
         }).then((res) => {
             if (res.isConfirmed) {
-                // Envia para o controller. O Controller deve verificar:
-                // Se tiver romaneio_id -> Adiciona as motos nele.
-                // Se não tiver -> Cria um novo.
                 post(route('romaneios.store'));
             }
         });
@@ -172,10 +155,8 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             <div className="py-12 bg-gray-100 min-h-screen">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* ÁREA SUPERIOR: CONFIGURAÇÃO DA CARGA */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         
-                        {/* Abas de Seleção */}
                         <div className="flex border-b border-gray-200">
                             <button 
                                 onClick={() => { setModo('novo'); reset(); }}
@@ -193,7 +174,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
 
                         <div className="p-6 flex flex-col md:flex-row gap-8">
                             
-                            {/* COLUNA ESQUERDA: LEITOR */}
                             <div className="flex-1 border-r border-gray-100 pr-0 md:pr-8">
                                 <h3 className="font-bold text-gray-700 mb-4 flex items-center justify-between">
                                     <span>🔍 Adicionar Motos</span>
@@ -206,7 +186,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                     </button>
                                 </h3>
 
-                                {/* CONTAINER DA CÂMERA (CORRIGIDO) */}
                                 {showScanner && (
                                     <div className="mb-4 bg-black rounded overflow-hidden relative">
                                         <div id="reader" style={{ width: '100%', minHeight: '300px' }}></div>
@@ -234,11 +213,9 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                 </div>
                             </div>
 
-                            {/* COLUNA DIREITA: FORMULÁRIO DINÂMICO */}
                             <div className="flex-1 pl-0 md:pl-2">
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     
-                                    {/* MODO NOVO */}
                                     {modo === 'novo' && (
                                         <>
                                             <div>
@@ -275,7 +252,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                         </>
                                     )}
 
-                                    {/* MODO EXISTENTE */}
                                     {modo === 'existente' && (
                                         <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
                                             <label className="block text-sm font-bold text-yellow-800 mb-2">Selecione o Romaneio Aberto:</label>
@@ -312,7 +288,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         </div>
                     </div>
 
-                    {/* LISTA DE MOTOS DISPONÍVEIS */}
                     <div>
                         <h3 className="font-bold text-gray-700 mb-4 ml-1">Motos Disponíveis para Carga</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
