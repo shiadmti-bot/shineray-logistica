@@ -77,6 +77,11 @@ Route::get('/manual', function () {
 // --- GRUPO DE ROTAS AUTENTICADAS ---
 Route::middleware('auth')->group(function () {
 
+    // --- CHAT EM TEMPO REAL ---
+    Route::get('/chat/{pedidoId}/messages', [App\Http\Controllers\ChatController::class, 'index'])->name('chat.index');
+    Route::post('/chat/{pedidoId}/messages', [App\Http\Controllers\ChatController::class, 'store'])->name('chat.store');
+    Route::post('/chat/{pedidoId}/read', [App\Http\Controllers\ChatController::class, 'markAsRead'])->name('chat.read');
+
     // ==============================
     // 1. GESTÃO DE USUÁRIOS (ADMIN)
     // ==============================

@@ -1,3 +1,4 @@
+import ChatBox from '@/Components/ChatBox';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
@@ -355,6 +356,11 @@ export default function PedidoShow({ auth, pedido }) {
                     </div>
                 </div>
             </div>
+
+            {pedido.status !== 'cancelado' && (
+                <ChatBox pedidoId={pedido.id} />
+            )}
+            
         </AuthenticatedLayout>
     );
 }
