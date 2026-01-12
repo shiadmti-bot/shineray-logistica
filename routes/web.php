@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Pedido;
+use App\Models\Moto;
+use App\Models\Romaneio;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\MotoController;
 use App\Http\Controllers\PedidoController;
