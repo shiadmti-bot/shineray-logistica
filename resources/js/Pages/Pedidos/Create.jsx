@@ -84,7 +84,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                         <div className="hidden md:grid grid-cols-12 gap-4 mb-2 font-bold text-xs uppercase text-gray-500 px-2">
                             <div className="col-span-1 text-center">#</div>
                             <div className="col-span-4">Modelo (Sugestão/Livre) *</div>
-                            <div className="col-span-3">Chassi (11 Dígitos) *</div>
+                            <div className="col-span-3">Chassi (11 - 17 Dígitos) *</div>
                             <div className="col-span-2">Cor</div>
                             <div className="col-span-1">Ano</div>
                             <div className="col-span-1 text-center">Ação</div>
@@ -118,17 +118,24 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                             type="text" 
                                             placeholder="17 DÍGITOS"
                                             value={item.chassi}
-                                            minLength={11}
-                                            maxLength={17} 
+                                            minLength={11} // Mínimo 11
+                                            maxLength={17} // Máximo 17 (Padrão Mundial VIN)
                                             onChange={(e) => {
+                                                // Remove tudo que não for letra ou número
                                                 const valorLimpo = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
                                                 updateItem(index, 'chassi', valorLimpo);
                                             }}
-                                            className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length === 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
+                                            className={`w-full rounded font-mono tracking-widest text-sm 
+                                                ${item.chassi.length >= 11 && item.chassi.length <= 17 
+                                                    ? 'border-green-400 bg-green-50' // Verde se estiver no intervalo correto
+                                                    : 'border-gray-300 focus:border-red-500'}`}
                                             required
                                         />
-                                        <div className="flex justify-between mt-1">
-                                            <span className={`text-[10px] ml-auto ${item.chassi.length === 11 ? 'text-green-600 font-bold' : 'text-gray-400'}`}>{item.chassi.length}/11</span>
+                                        <div className="flex justify-between mt-1 px-1">
+                                            <span className="text-[10px] text-gray-400">Min: 11</span>
+                                            <span className={`text-[10px] font-bold ${item.chassi.length === 17 ? 'text-green-600' : 'text-gray-400'}`}>
+                                                {item.chassi.length}/17
+                                            </span>
                                         </div>
                                     </div>
 

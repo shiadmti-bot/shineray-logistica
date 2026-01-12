@@ -127,7 +127,7 @@ class PedidoController extends Controller
         $request->validate([
             'itens' => 'required|array|min:1',
             'itens.*.modelo' => 'required|string',
-            'itens.*.chassi' => 'required|string|size:11|distinct',
+            'itens.*.chassi' => 'required|string|between:11,17|distinct', 
             'itens.*.cor' => 'required|string|min:3', 
         ]);
 
