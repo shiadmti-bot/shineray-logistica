@@ -38,18 +38,31 @@ class PedidoController extends Controller
         $user = Auth::user();
         $termo = $request->input('search');
 
+        // Carrega relacionamentos para evitar N+1 queries
         $query = Pedido::with(['user', 'romaneio'])->withCount('motos');
 
-        if ($user->perfil === 'loja') $query->where('user_id', $user->id);
+        // Filtra se for Loja
+        if ($user->perfil === 'loja') {
+            $query->where('user_id', $user->id);
+        }
 
+        // Filtra por busca
         if ($termo) {
             $query->where(function($q) use ($termo) {
                 $q->where('id', 'like', "%{$termo}%")
-                  ->orWhereHas('motos', function($m) use ($termo) { $m->where('chassi', 'like', "%{$termo}%"); });
+                  ->orWhereHas('motos', function($m) use ($termo) { 
+                      $m->where('chassi', 'like', "%{$termo}%"); 
+                  })
+                  ->orWhereHas('user', function($u) use ($termo) {
+                      $u->where('filial', 'like', "%{$termo}%"); // Permite buscar por nome da filial
+                  });
             });
         }
 
-        $pedidos = $query->orderByRaw("FIELD(status, 'solicitado') DESC")->orderBy('created_at', 'desc')->get();
+        // Ordenação e Paginação (AQUI ESTAVA O ERRO)
+        $pedidos = $query->orderByRaw("FIELD(status, 'solicitado') DESC")
+                         ->orderBy('created_at', 'desc')
+                         ->paginate(15); // Usa paginação para funcionar com pedidos.data.map
 
         return Inertia::render('Pedidos/Index', [
             'pedidos' => $pedidos,
