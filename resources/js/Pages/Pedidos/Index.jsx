@@ -1,36 +1,48 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm, router } from '@inertiajs/react'; // Importe router
-import { useEffect } from 'react'; // Importe useEffect
-import Swal from 'sweetalert2'; // Importe Swal
+import { Head, Link, useForm, router } from '@inertiajs/react';
+import { useEffect } from 'react';
+import Swal from 'sweetalert2';
 
 export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
     const { data, setData, get, processing } = useForm({
         search: filters.search || '',
     });
 
-    // --- ATUALIZAÇÃO EM TEMPO REAL ---
+    // --- ATUALIZAÇÃO EM TEMPO REAL (CORRIGIDO) ---
     useEffect(() => {
-        // Escuta atualizações específicas DESTE pedido ou do usuário geral
-        // Como o Laravel notifica o User, vamos ouvir o User
+        // Escuta o canal privado do usuário logado
         const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
 
         channel.notification((notification) => {
-            // Verifica se a notificação é sobre ESTE pedido que está aberto
-            // O link da notificação geralmente contém o ID, ou podemos passar o ID no data
-            if (notification.link && notification.link.includes(`/pedidos/${pedido.id}`)) {
-                
-                const Toast = Swal.mixin({
-                    toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
-                });
-                Toast.fire({ icon: 'success', title: 'Status Atualizado!', text: notification.mensagem });
+            // 1. Toca o som
+            const audio = new Audio('/plim.mp3');
+            audio.play().catch(() => {});
 
-                // Recarrega os dados do pedido (motos, status, logs)
-                router.reload({ only: ['pedido'] });
-            }
+            // 2. Mostra o Toast flutuante
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true
+            });
+
+            Toast.fire({
+                icon: 'info',
+                title: 'Atualização',
+                text: notification.mensagem
+            });
+
+            // 3. Recarrega a lista de pedidos silenciosamente (Inertia)
+            // Isso atualiza as cores e status na tabela sem F5
+            router.reload({ only: ['pedidos'] });
         });
 
-        return () => channel.stopListening('Notification');
-    }, [pedido.id]);
+        // Limpeza ao sair da página
+        return () => {
+            channel.stopListening('Notification');
+        };
+    }, [auth.user.id]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -223,7 +235,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
     );
 }
 
-// --- LÓGICA DE CORES E ETAPAS ---
+// --- FUNÇÕES AUXILIARES ---
 
 function getStepNumber(status) {
     switch(status) {
