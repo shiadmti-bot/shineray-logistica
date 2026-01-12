@@ -11,6 +11,8 @@ use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 /*
@@ -19,23 +21,34 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
-// --- ROTA PARA CORRIGIR NUMERAÇÃO DOS ROMANEIOS ---
-Route::get('/corrigir-numeracao', function () {
-    try {
-        // 1. Descobre qual é o último ID usado (Ex: 1)
-        $ultimoId = \App\Models\Romaneio::max('id') ?? 0;
-        
-        // 2. Define o próximo número como Último + 1 (Ex: 2)
-        $proximoId = $ultimoId + 1;
+// --- ROTA DE LIMPEZA DE DADOS DE TESTE ---
+Route::get('/limpar-transacoes', function () {
+    
+    // 1. Desativa a proteção de Chave Estrangeira (para poder apagar sem ordem específica)
+    Schema::disableForeignKeyConstraints();
 
-        // 3. Força o banco de dados a reiniciar a contagem
-        // Nota: Funciona para MySQL/MariaDB/TiDB
-        \Illuminate\Support\Facades\DB::statement("ALTER TABLE romaneios AUTO_INCREMENT = {$proximoId};");
+    // 2. Limpa tabelas de LOGS e CHAT
+    DB::table('pedido_logs')->truncate();
+    DB::table('messages')->truncate();
+    DB::table('notifications')->truncate();
 
-        return "Numeração corrigida! O último romaneio foi #{$ultimoId}. O próximo será #{$proximoId}.";
-    } catch (\Exception $e) {
-        return "Erro ao corrigir: " . $e->getMessage();
-    }
+    // 3. Limpa tabelas de RELACIONAMENTO (Pivô)
+    // Se você usa tabela pivo 'pedido_moto', limpe-a. 
+    // Se usa apenas 'pedido_moto' no banco, o comando abaixo garante.
+    Schema::hasTable('pedido_moto') ? DB::table('pedido_moto')->truncate() : null;
+
+    // 4. Limpa as tabelas PRINCIPAIS
+    \App\Models\Romaneio::truncate();
+    \App\Models\Pedido::truncate();
+    
+    // 5. O que fazer com as MOTOS (Chassis)?
+    // OPÇÃO A: Apagar todos os chassis cadastrados (Começar do zero)
+    \App\Models\Moto::truncate(); 
+
+    // 6. Reativa a proteção do banco
+    Schema::enableForeignKeyConstraints();
+
+    return "Limpeza Concluída! Pedidos, Cargas e Logs foram apagados. Usuários e Modelos foram mantidos.";
 });
 
 Route::post('/notificacoes/ler', function () {
