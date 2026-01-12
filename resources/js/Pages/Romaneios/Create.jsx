@@ -22,17 +22,17 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         setData('motos_ids', selectedIds);
     }, [selectedIds]);
 
-    // --- LÓGICA DA CÂMERA (CORRIGIDA: TRASEIRA + DELAY) ---
+    // --- LÓGICA DA CÂMERA (ATUALIZADA: FECHA AO LER CORRETO) ---
     useEffect(() => {
         let scanner = null;
 
         if (showScanner) {
             setTimeout(() => {
                 const config = { 
-                    fps: 10, 
+                    fps: 10, // Quadros por segundo
                     qrbox: { width: 250, height: 250 },
                     aspectRatio: 1.0,
-                    // CORREÇÃO: Força a câmera traseira
+                    // Garante câmera traseira no celular
                     videoConstraints: {
                         facingMode: "environment" 
                     }
@@ -41,48 +41,69 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                 scanner = new Html5QrcodeScanner("reader", config, false);
                 
                 scanner.render((decodedText) => {
-                    const audio = new Audio('/plim.mp3'); 
-                    audio.play().catch(() => {});
-                    handleBip(decodedText);
-                }, (error) => {});
-            }, 300); // Aumentei um pouco o delay para dar tempo do elemento renderizar no celular
+                    // Tenta processar o chassi
+                    const sucesso = handleBip(decodedText);
+                    
+                    // SE DEU CERTO (Chassi válido e novo):
+                    if (sucesso) {
+                        const audio = new Audio('/plim.mp3'); 
+                        audio.play().catch(() => {});
+                        
+                        // Fecha a câmera imediatamente para evitar duplicação
+                        setShowScanner(false); 
+                    }
+                    // Se deu erro (duplicado ou não encontrado), a câmera continua aberta
+                    
+                }, (error) => {
+                    // Ignora erros de frame vazio
+                });
+            }, 300);
         }
 
+        // Limpeza ao fechar
         return () => {
             if (scanner) {
-                scanner.clear().catch(e => console.error("Erro ao limpar scanner", e));
+                scanner.clear().catch(e => console.error("Scanner clean error", e));
             }
         };
-    }, [showScanner]);
+    }, [showScanner, selectedIds]); // Adicionei selectedIds na dependência para o handleBip ter o estado atualizado
 
+    // --- PROCESSAMENTO DO CHASSI ---
+    // Agora retorna TRUE se adicionou com sucesso, FALSE se deu erro
     const handleBip = (codigo) => {
         const chassiLimpo = codigo.trim().toUpperCase();
+        
+        // 1. Validação: Existe na lista?
         const motoEncontrada = motosDisponiveis.find(m => m.chassi.toUpperCase() === chassiLimpo);
 
         if (!motoEncontrada) {
             Swal.fire({
                 title: 'Não Encontrado',
-                text: `O chassi ${chassiLimpo} não está disponível para expedição.`,
+                text: `O chassi ${chassiLimpo} não está disponível.`,
                 icon: 'error',
                 timer: 2000,
-                showConfirmButton: false
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
             });
-            return;
+            return false; // Não fecha a câmera
         }
 
+        // 2. Validação: Já foi bipado?
         if (selectedIds.includes(motoEncontrada.id)) {
             Swal.fire({
                 title: 'Já Adicionado',
                 text: `O chassi ${chassiLimpo} já está na lista.`,
                 icon: 'warning',
-                timer: 1000,
+                timer: 2000,
                 showConfirmButton: false,
                 position: 'top-end',
                 toast: true
             });
-            return;
+            return false; // Não fecha a câmera
         }
 
+        // 3. Sucesso: Adiciona
         setSelectedIds(prev => [...prev, motoEncontrada.id]);
         
         const Toast = Swal.mixin({
@@ -96,12 +117,14 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             icon: 'success',
             title: `${motoEncontrada.modelo} Adicionada!`
         });
+
+        return true; // SINAL VERDE PARA FECHAR A CÂMERA
     };
 
     const handleManualSubmit = (e) => {
         e.preventDefault();
         if(!leituraInput) return;
-        handleBip(leituraInput);
+        handleBip(leituraInput); // Aqui não precisamos fechar câmera pois é input manual
         setLeituraInput('');
     };
 
@@ -157,6 +180,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                     
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         
+                        {/* Abas */}
                         <div className="flex border-b border-gray-200">
                             <button 
                                 onClick={() => { setModo('novo'); reset(); }}
@@ -174,25 +198,35 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
 
                         <div className="p-6 flex flex-col md:flex-row gap-8">
                             
+                            {/* LADO ESQUERDO: SCANNER */}
                             <div className="flex-1 border-r border-gray-100 pr-0 md:pr-8">
                                 <h3 className="font-bold text-gray-700 mb-4 flex items-center justify-between">
                                     <span>🔍 Adicionar Motos</span>
+                                    
+                                    {/* Botão da Câmera (Muda cor se ativo) */}
                                     <button 
                                         type="button"
                                         onClick={() => setShowScanner(!showScanner)}
-                                        className={`text-xs px-3 py-1 rounded-full border font-bold ${showScanner ? 'bg-red-100 text-red-700 border-red-200' : 'bg-gray-800 text-white border-gray-800'}`}
+                                        className={`text-xs px-3 py-1 rounded-full border font-bold flex items-center gap-2 transition-all
+                                            ${showScanner 
+                                                ? 'bg-red-600 text-white border-red-600 hover:bg-red-700 shadow-md animate-pulse' 
+                                                : 'bg-gray-800 text-white border-gray-800 hover:bg-gray-700'}`}
                                     >
-                                        {showScanner ? 'Parar Câmera' : '📷 Abrir Câmera'}
+                                        {showScanner ? '❌ FECHAR CÂMERA' : '📷 ABRIR CÂMERA'}
                                     </button>
                                 </h3>
 
+                                {/* Container do Scanner */}
                                 {showScanner && (
-                                    <div className="mb-4 bg-black rounded overflow-hidden relative">
+                                    <div className="mb-4 bg-black rounded-lg overflow-hidden relative border-4 border-indigo-500">
                                         <div id="reader" style={{ width: '100%', minHeight: '300px' }}></div>
-                                        <p className="text-white text-center text-xs py-1">Aponte para o código de barras</p>
+                                        <div className="absolute bottom-0 w-full bg-black/70 text-white text-center text-xs py-2">
+                                            Aponte para o código de barras do Chassi
+                                        </div>
                                     </div>
                                 )}
 
+                                {/* Input Manual */}
                                 <form onSubmit={handleManualSubmit} className="flex gap-2">
                                     <input 
                                         type="text" 
@@ -201,6 +235,8 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                         placeholder="Bipe o chassi ou digite..."
                                         className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm uppercase"
                                         autoFocus
+                                        // Se a câmera estiver fechada, foca no input
+                                        ref={input => !showScanner && input && input.focus()}
                                     />
                                     <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-md font-bold hover:bg-indigo-700">
                                         OK
@@ -213,6 +249,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                 </div>
                             </div>
 
+                            {/* LADO DIREITO: FORMULÁRIO */}
                             <div className="flex-1 pl-0 md:pl-2">
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     
@@ -288,6 +325,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         </div>
                     </div>
 
+                    {/* LISTA DE MOTOS DISPONÍVEIS */}
                     <div>
                         <h3 className="font-bold text-gray-700 mb-4 ml-1">Motos Disponíveis para Carga</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -311,7 +349,8 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                             <p className="font-mono text-gray-600 text-sm mt-1">{moto.chassi}</p>
                                             <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
                                                 <span className="w-2 h-2 rounded-full bg-blue-400"></span>
-                                                Pedido #{moto.pedido_id} • {moto.pedido?.user?.filial || 'Filial'}
+                                                {/* Proteção caso pedido seja nulo */}
+                                                Pedido #{moto.pedido_id ?? 'N/A'} • {moto.pedido?.user?.filial || 'Filial'}
                                             </p>
                                         </div>
                                     </div>

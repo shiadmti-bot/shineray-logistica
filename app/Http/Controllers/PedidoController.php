@@ -265,19 +265,23 @@ class PedidoController extends Controller
                 'descricao' => 'Comprovante anexado e pedido concluído.'
             ]);
 
+            // --- 3. AUTOMAÇÃO DA CARGA (Fim do Ciclo - REFORÇADA) ---
             if ($pedido->romaneio_id) {
+                // Conta quantos pedidos DESTE romaneio ainda NÃO foram concluídos/cancelados
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                     ->whereNotIn('status', ['concluido', 'cancelado'])
                     ->count();
 
+                // Debug: Se quiser ver no log do laravel (storage/logs/laravel.log)
+                // \Illuminate\Support\Facades\Log::info("Romaneio {$pedido->romaneio_id}: Pendentes = {$pendentes}");
+
+                // Se não sobrou nada pendente, fecha a carga AGORA
                 if ($pendentes === 0) {
-                    $romaneio = Romaneio::find($pedido->romaneio_id);
-                    if ($romaneio) {
-                        $romaneio->status = 'finalizado';
-                        $romaneio->save();
-                    }
+                    Romaneio::where('id', $pedido->romaneio_id)
+                        ->update(['status' => 'finalizado']);
                 }
             }
+            // --------------------------------------------------------
 
             return redirect()->back()->with('message', 'Sucesso! Entrega registrada.');
 

@@ -16,15 +16,22 @@ use Inertia\Inertia;
 |--------------------------------------------------------------------------
 */
 
-// --- ROTA PARA POPULAR O BANCO (RODAR NA VERCEL) ---
-Route::get('/popular-banco', function () {
+// --- ROTA PARA CORRIGIR NUMERAÇÃO DOS ROMANEIOS ---
+Route::get('/corrigir-numeracao', function () {
     try {
-        // Roda o comando db:seed forçando a execução (necessário em produção)
-        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
+        // 1. Descobre qual é o último ID usado (Ex: 1)
+        $ultimoId = \App\Models\Romaneio::max('id') ?? 0;
         
-        return "Sucesso! O banco de produção foi populado com Modelos, Usuários e Filiais.";
+        // 2. Define o próximo número como Último + 1 (Ex: 2)
+        $proximoId = $ultimoId + 1;
+
+        // 3. Força o banco de dados a reiniciar a contagem
+        // Nota: Funciona para MySQL/MariaDB/TiDB
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE romaneios AUTO_INCREMENT = {$proximoId};");
+
+        return "Numeração corrigida! O último romaneio foi #{$ultimoId}. O próximo será #{$proximoId}.";
     } catch (\Exception $e) {
-        return "Erro ao popular: " . $e->getMessage();
+        return "Erro ao corrigir: " . $e->getMessage();
     }
 });
 

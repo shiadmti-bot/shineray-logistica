@@ -1,151 +1,131 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, Link, useForm } from '@inertiajs/react';
 
-export default function RomaneiosIndex({ auth, romaneios, filters }) {
-    const [term, setTerm] = useState(filters.search || '');
+export default function RomaneioIndex({ auth, romaneios, filters }) {
+    const { data, setData, get, processing } = useForm({
+        search: filters.search || '',
+    });
 
     const handleSearch = (e) => {
         e.preventDefault();
-        router.get(route('romaneios.index'), { search: term }, { preserveState: true, replace: true });
+        get(route('romaneios.index'));
     };
 
-    // Paginação simples
-    const links = romaneios.links;
-
     return (
-        <AuthenticatedLayout 
-            user={auth.user} 
-            header={<h2 className="font-bold text-2xl text-gray-800">Histórico de Cargas e Expedição</h2>}
-        >
-            <Head title="Cargas" />
+        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Histórico de Cargas</h2>}>
+            <Head title="Cargas e Romaneios" />
 
             <div className="py-12 bg-gray-100 min-h-screen">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* BARRA DE FERRAMENTAS */}
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                        <form onSubmit={handleSearch} className="w-full md:w-1/2 relative">
+                    {/* BARRA DE AÇÕES */}
+                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                        <Link href={route('romaneios.create')} className="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-gray-700 text-center">
+                            + Nova Carga / Expedição
+                        </Link>
+
+                        <form onSubmit={handleSearch} className="flex gap-2">
                             <input 
                                 type="text" 
-                                placeholder="🔍 Buscar por Nº Carga, Motorista ou Placa..." 
-                                value={term}
-                                onChange={(e) => setTerm(e.target.value)}
-                                className="w-full border-gray-300 rounded-full pl-5 pr-12 shadow-sm focus:border-red-500 focus:ring-red-500"
+                                placeholder="Buscar placa, motorista..." 
+                                className="border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                value={data.search}
+                                onChange={e => setData('search', e.target.value)}
                             />
-                            <button type="submit" className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-600">
-                                ➜
+                            <button type="submit" className="bg-white border border-gray-300 px-4 rounded-lg font-bold text-gray-600 hover:bg-gray-50" disabled={processing}>
+                                🔍
                             </button>
                         </form>
-
-                        <Link href={route('romaneios.create')} className="w-full md:w-auto bg-gray-800 text-white px-6 py-2 rounded-full font-bold hover:bg-gray-700 shadow-md transition text-center flex items-center justify-center gap-2">
-                            <span>🚛</span> Nova Carga
-                        </Link>
                     </div>
 
-                    {/* TABELA DE CARGAS */}
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg border-t-4 border-gray-800">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Nº Carga</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Transporte</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Data Saída</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase">Volumes</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase">Status</th>
-                                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Ação</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {romaneios.data.map((romaneio) => (
-                                        <tr key={romaneio.id} className="hover:bg-gray-50 transition">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="font-mono font-bold text-lg text-gray-800">#{String(romaneio.id).padStart(6, '0')}</span>
-                                            </td>
-                                            
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-sm text-gray-700">{romaneio.motorista}</span>
-                                                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded w-fit mt-1 border border-gray-200 uppercase font-mono">
-                                                        {romaneio.placa}
-                                                    </span>
-                                                </div>
-                                            </td>
-
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {/* LISTAGEM */}
+                    <div className="bg-white shadow-sm sm:rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transporte</th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Motos</th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {romaneios.data.map((romaneio) => (
+                                    <tr key={romaneio.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-700">
+                                            #{String(romaneio.id).padStart(6, '0')}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-sm font-bold text-gray-900">{romaneio.motorista}</div>
+                                            <div className="text-sm text-gray-500">
+                                                {romaneio.placa} {romaneio.transportadora ? `• ${romaneio.transportadora}` : ''}
+                                            </div>
+                                            <div className="text-xs text-gray-400 mt-1">
                                                 {new Date(romaneio.created_at).toLocaleDateString('pt-BR')}
-                                                <span className="text-xs block text-gray-400">{new Date(romaneio.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
-                                            </td>
-
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200">
-                                                    {romaneio.motos_count} Motos
-                                                </span>
-                                            </td>
-                                            
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                <BadgeCarga status={romaneio.status_geral} />
-                                            </td>
-                                            
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <Link 
-                                                    href={route('romaneios.show', romaneio.id)} 
-                                                    className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-blue-600 hover:border-blue-400 px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex items-center justify-end gap-2 ml-auto w-fit"
-                                                >
-                                                    👁‍🗨 Inspecionar
-                                                </Link>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    
-                                    {romaneios.data.length === 0 && (
-                                        <tr>
-                                            <td colSpan="6" className="text-center py-16 text-gray-500">
-                                                Nenhuma carga encontrada no histórico.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Paginação */}
-                        {romaneios.links.length > 3 && (
-                            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-center">
-                                {romaneios.links.map((link, key) => (
-                                    link.url ? (
-                                        <Link 
-                                            key={key} 
-                                            href={link.url} 
-                                            className={`px-3 py-1 mx-1 rounded border text-sm ${link.active ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'}`}
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
-                                    ) : (
-                                        <span key={key} className="px-3 py-1 mx-1 text-sm text-gray-400" dangerouslySetInnerHTML={{ __html: link.label }} />
-                                    )
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-bold">
+                                                {romaneio.motos_count}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <BadgeStatus status={romaneio.status} />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <Link href={route('romaneios.show', romaneio.id)} className="text-indigo-600 hover:text-indigo-900 font-bold border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-50">
+                                                Inspecionar
+                                            </Link>
+                                        </td>
+                                    </tr>
                                 ))}
-                            </div>
-                        )}
+                                
+                                {romaneios.data.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                                            Nenhum romaneio encontrado.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
 
+                    {/* PAGINAÇÃO */}
+                    {romaneios.links && romaneios.links.length > 3 && (
+                        <div className="flex justify-center mt-4">
+                            {romaneios.links.map((link, k) => (
+                                <Link
+                                    key={k}
+                                    href={link.url}
+                                    className={`px-4 py-2 border rounded mx-1 text-sm ${link.active ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'} ${!link.url ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </AuthenticatedLayout>
     );
 }
 
-// Componente Visual de Status da Carga
-function BadgeCarga({ status }) {
+// COMPONENTE DE STATUS CORRIGIDO
+function BadgeStatus({ status }) {
     const config = {
-        expedido:    { label: '🏢 PÁTIO / CARREGANDO', class: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-        em_transito: { label: '🚛 EM TRÂNSITO',       class: 'bg-orange-100 text-orange-800 border-orange-200' },
-        concluido:   { label: '✅ FINALIZADA',        class: 'bg-green-100 text-green-800 border-green-200' },
-    }[status] || { label: 'DESCONHECIDO', class: 'bg-gray-100' };
+        'aberto':      { label: 'Em Aberto',    bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+        'expedido':    { label: 'Carregando',   bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+        'em_transito': { label: 'Em Trânsito',  bg: 'bg-orange-100 text-orange-800 border-orange-200' },
+        'finalizado':  { label: 'Finalizado',   bg: 'bg-green-100 text-green-800 border-green-200' },
+    };
+
+    // Fallback para status desconhecido
+    const current = config[status] || { label: status || 'Desconhecido', bg: 'bg-gray-100 text-gray-600 border-gray-200' };
 
     return (
-        <span className={`px-3 py-1 inline-flex text-[10px] md:text-xs leading-5 font-bold rounded-full border ${config.class}`}>
-            {config.label}
+        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${current.bg}`}>
+            {current.label}
         </span>
     );
 }

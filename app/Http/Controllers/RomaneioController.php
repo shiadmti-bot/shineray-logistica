@@ -18,9 +18,7 @@ class RomaneioController extends Controller
         $termo = $request->input('search');
 
         $query = Romaneio::withCount('motos')
-            ->with(['motos' => function($q) {
-                $q->select('id', 'romaneio_id', 'status');
-            }])
+            ->with(['motos.pedidos']) // Carrega pedidos para ver o status real
             ->orderBy('created_at', 'desc');
 
         if ($termo) {
@@ -33,19 +31,28 @@ class RomaneioController extends Controller
         }
 
         $romaneios = $query->paginate(10)->through(function ($romaneio) {
-            $statusGeral = $romaneio->status; 
             
-            if (!$statusGeral) {
-                $total = $romaneio->motos->count();
-                $entregues = $romaneio->motos->whereIn('status', ['entregue', 'concluido'])->count();
-                
-                if ($total > 0 && $entregues == $total) {
-                    $statusGeral = 'finalizado';
-                } elseif ($romaneio->motos->contains('status', 'em_transito')) {
-                    $statusGeral = 'em_transito';
-                } else {
-                    $statusGeral = 'aberto';
-                }
+            // --- CÁLCULO DINÂMICO DO STATUS REAL ---
+            // Ignoramos o $romaneio->status do banco para a visualização, 
+            // calculando com base na situação real dos pedidos.
+            
+            $motos = $romaneio->motos;
+            $totalMotos = $motos->count();
+            
+            // Conta quantas motos já foram concluídas ou canceladas
+            $concluidas = $motos->filter(function ($moto) {
+                // Verifica o status do pedido vinculado à moto
+                $pedido = $moto->pedidos->first();
+                return $pedido && in_array($pedido->status, ['concluido', 'cancelado']);
+            })->count();
+
+            // Lógica de Status Visual
+            if ($totalMotos > 0 && $concluidas === $totalMotos) {
+                $statusVisual = 'finalizado';
+            } elseif ($romaneio->status === 'aberto') {
+                $statusVisual = 'aberto';
+            } else {
+                $statusVisual = 'em_transito';
             }
 
             return [
@@ -55,7 +62,7 @@ class RomaneioController extends Controller
                 'transportadora' => $romaneio->transportadora,
                 'created_at' => $romaneio->created_at,
                 'motos_count' => $romaneio->motos_count,
-                'status' => $statusGeral
+                'status' => $statusVisual // Envia o status calculado
             ];
         });
 
