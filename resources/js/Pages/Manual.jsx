@@ -3,15 +3,16 @@ import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 
 export default function Manual({ auth }) {
-    // Define qual aba abrir por padrão baseado no perfil do usuário logado
-    const perfilInicial = auth.user.perfil === 'admin' ? 'admin' : auth.user.perfil === 'cd' ? 'cd' : 'loja';
+    // Lógica inteligente para abrir a aba certa conforme o usuário
+    const perfilInicial = auth.user.perfil === 'admin' ? 'faq' : auth.user.perfil === 'cd' ? 'cd' : 'loja';
     const [activeTab, setActiveTab] = useState(perfilInicial);
 
+    // Configuração das Abas
     const tabs = [
-        { id: 'loja', label: '🏪 Para Lojas', color: 'red' },
-        { id: 'cd', label: '🏭 Para CD/Expedição', color: 'blue' },
-        { id: 'comprovantes', label: '📄 Entrega & Drive', color: 'green' }, // NOVA ABA
-        { id: 'faq', label: '❓ Dúvidas Frequentes', color: 'gray' },
+        { id: 'loja', label: '🏪 Para Lojas', color: 'red', icon: '🛍️' },
+        { id: 'cd', label: '🏭 Para CD/Expedição', color: 'blue', icon: '📦' },
+        { id: 'comprovantes', label: '📄 Drive & Entregas', color: 'green', icon: '☁️' },
+        { id: 'faq', label: '❓ Dúvidas & Suporte', color: 'gray', icon: '🆘' },
     ];
 
     return (
@@ -21,189 +22,222 @@ export default function Manual({ auth }) {
         >
             <Head title="Manual do Sistema" />
 
-            <div className="py-12 bg-gray-100 min-h-screen">
+            <div className="py-10 bg-gray-50 min-h-screen">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     
-                    {/* NAVEGAÇÃO ENTRE ABAS */}
-                    <div className="flex flex-wrap gap-2 mb-6 justify-center md:justify-start">
+                    {/* NAVEGAÇÃO SUPERIOR (ABAS) */}
+                    <div className="flex flex-wrap gap-3 mb-8 justify-center md:justify-start px-2">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-6 py-3 rounded-full font-bold transition shadow-sm text-sm uppercase tracking-wide flex items-center gap-2
+                                className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 shadow-sm text-sm uppercase tracking-wide flex items-center gap-2 border-2
                                     ${activeTab === tab.id 
-                                        ? `bg-${tab.color}-600 text-white shadow-lg scale-105 border-transparent` 
-                                        : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
+                                        ? `bg-white border-${tab.color}-600 text-${tab.color}-700 shadow-md transform -translate-y-1` 
+                                        : 'bg-white text-gray-400 border-transparent hover:bg-gray-50'
                                     }`}
-                                style={{
-                                    backgroundColor: activeTab === tab.id ? undefined : 'white',
-                                    // Hack para cores dinâmicas no Tailwind JIT se não estiverem no safelist
-                                    ...(activeTab === tab.id && tab.color === 'red' ? { backgroundColor: '#dc2626' } : {}),
-                                    ...(activeTab === tab.id && tab.color === 'blue' ? { backgroundColor: '#2563eb' } : {}),
-                                    ...(activeTab === tab.id && tab.color === 'green' ? { backgroundColor: '#16a34a' } : {}),
-                                    ...(activeTab === tab.id && tab.color === 'gray' ? { backgroundColor: '#4b5563' } : {}),
-                                }}
                             >
-                                {tab.label}
+                                <span className="text-xl">{tab.icon}</span> {tab.label}
                             </button>
                         ))}
                     </div>
 
-                    <div className="bg-white overflow-hidden shadow-xl sm:rounded-2xl border-t-4 border-gray-800">
-                        <div className="p-8">
+                    <div className="bg-white overflow-hidden shadow-xl rounded-2xl border-t-4 border-gray-800 animate-fade-in-up">
+                        <div className="p-8 md:p-12">
                             
-                            {/* --- CONTEÚDO: LOJA --- */}
+                            {/* =======================================================
+                                ABA 1: LOJA / REVENDA
+                               ======================================================= */}
                             {activeTab === 'loja' && (
-                                <div className="space-y-8 animate-fade-in">
-                                    <HeaderSection icon="🏪" title="Manual da Loja / Revenda" desc="Como solicitar motos, usar o chat e acompanhar entregas." />
+                                <div className="space-y-10">
+                                    <HeaderSection 
+                                        title="Manual da Loja" 
+                                        subtitle="Fluxo completo: Da solicitação até a entrega na sua porta."
+                                        color="red"
+                                    />
                                     
-                                    <Step number="1" title="Criar Nova Solicitação">
-                                        <p>No menu superior ou Dashboard, clique em <strong>"Nova Solicitação"</strong>.</p>
-                                        <p className="mt-2">Preencha a lista de motos desejadas:</p>
-                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
-                                            <li><strong>Modelo:</strong> Selecione na lista ou digite.</li>
-                                            <li><strong>Chassi:</strong> Digite no mínimos os 11 dígitos (apenas letras e números).</li>
-                                            <li><strong>Cor:</strong> Obrigatório.</li>
+                                    <Step number="1" title="Criando um Pedido">
+                                        <p>No menu, clique em <strong className="text-red-600">Nova Solicitação</strong>. O sistema permite pedir várias motos de uma vez.</p>
+                                        <ul className="mt-2 space-y-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                            <li>✅ <strong>Modelo:</strong> Obrigatório. Escolha na lista.</li>
+                                            <li>✅ <strong>Chassi:</strong> Digite pelo menos os últimos 6 dígitos ou o chassi completo.</li>
+                                            <li>✅ <strong>Cor:</strong> Informe a cor exata para evitar erros de separação.</li>
                                         </ul>
                                     </Step>
 
-                                    <Step number="2" title="Cancelar ou Corrigir (Antes da Separação)">
-                                        <p>Se você errou um chassi ou desistiu do pedido, você pode cancelar sozinho <strong>enquanto o CD ainda não começou a trabalhar</strong>.</p>
-                                        <ol className="list-decimal ml-6 mt-2 text-sm text-gray-700">
-                                            <li>Entre no pedido com status <span className="text-yellow-600 font-bold bg-yellow-50 px-1 rounded">SOLICITADO</span>.</li>
-                                            <li>Procure o quadro amarelo de aviso no topo.</li>
-                                            <li>Clique no botão vermelho <strong>🗑️ Cancelar Solicitação</strong>.</li>
-                                        </ol>
-                                        <p className="mt-2 text-xs text-gray-500 italic">Isso libera o chassi imediatamente para ser pedido de novo.</p>
-                                    </Step>
-
-                                    <Step number="3" title="Conversar com o CD (Chat em Tempo Real)">
-                                        <p>Precisa avisar algo urgente sobre um pedido específico?</p>
-                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
-                                            <li>Abra o pedido desejado.</li>
-                                            <li>No canto inferior direito, clique no botão flutuante <strong>🔵 Chat do Pedido</strong>.</li>
-                                            <li>Envie sua mensagem. O CD receberá uma notificação sonora na hora! 🔔</li>
-                                        </ul>
-                                        <div className="mt-2 flex gap-2 text-xs font-bold text-gray-400">
-                                            <span>✓ Enviado</span>
-                                            <span className="text-blue-500">✓✓ Lido</span>
+                                    <Step number="2" title="Monitoramento em Tempo Real">
+                                        <p>Não precisa ligar para o CD. Acompanhe a barra de progresso no menu <strong>"Meus Pedidos"</strong>:</p>
+                                        <div className="flex gap-2 mt-3 text-xs font-bold uppercase text-white">
+                                            <span className="bg-yellow-500 px-2 py-1 rounded">1. Solicitado</span>
+                                            <span className="text-gray-400 py-1">→</span>
+                                            <span className="bg-blue-500 px-2 py-1 rounded">2. Separado</span>
+                                            <span className="text-gray-400 py-1">→</span>
+                                            <span className="bg-orange-500 px-2 py-1 rounded">3. Em Trânsito</span>
                                         </div>
                                     </Step>
 
-                                    <Step number="4" title="Confirmar Recebimento (Finalizar)">
-                                        <p>Quando o caminhão chegar na sua loja:</p>
-                                        <ol className="list-decimal ml-6 mt-2 text-sm text-gray-700">
-                                            <li>Confira as motos físicas.</li>
-                                            <li>Assine o canhoto do romaneio.</li>
-                                            <li>No sistema, abra o pedido (que estará "Em Trânsito").</li>
-                                            <li>No quadro verde <strong>"Confirmar Recebimento"</strong>, tire uma foto do canhoto assinado.</li>
-                                            <li>O sistema vai comprimir a foto automaticamente e enviar. <strong>Pronto! Pedido Concluído. 🎉</strong></li>
+                                    <Step number="3" title="Chat Integrado (Novo!)">
+                                        <p>Precisa avisar que a cor mudou? Ou que o pedido é urgente?</p>
+                                        <p className="mt-1 text-sm text-gray-600">
+                                            Entre no detalhe do pedido e use o chat no canto inferior direito. 
+                                            O CD recebe um alerta sonoro ("Plim") instantaneamente.
+                                        </p>
+                                    </Step>
+
+                                    <Step number="4" title="Confirmar Recebimento (Baixa)">
+                                        <p>Quando o caminhão chegar:</p>
+                                        <ol className="list-decimal ml-6 mt-2 text-sm text-gray-700 space-y-1">
+                                            <li>Confira as motos fisicamente.</li>
+                                            <li>Assine o documento (Romaneio) do motorista.</li>
+                                            <li>No sistema, abra o pedido e vá até a área verde <strong>"Finalizar Entrega"</strong>.</li>
+                                            <li>Tire uma foto do papel assinado e envie. O sistema arquiva automaticamente no Google Drive.</li>
                                         </ol>
                                     </Step>
                                 </div>
                             )}
 
-                            {/* --- CONTEÚDO: CD --- */}
+                            {/* =======================================================
+                                ABA 2: CD / EXPEDIÇÃO
+                               ======================================================= */}
                             {activeTab === 'cd' && (
-                                <div className="space-y-8 animate-fade-in">
-                                    <HeaderSection icon="🏭" title="Manual do Operador Logístico (CD)" desc="Gestão total: Separação, Carga e Finalização." />
+                                <div className="space-y-10">
+                                    <HeaderSection 
+                                        title="Manual do Centro de Distribuição" 
+                                        subtitle="Gestão de Estoque, Separação e Logística de Cargas."
+                                        color="blue"
+                                    />
 
-                                    <Step number="1" title="Dashboard e Alertas">
-                                        <p>Mantenha o Dashboard aberto. Ele atualiza sozinho.</p>
-                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
-                                            <li><strong>Cartão Amarelo:</strong> Novos pedidos para separar.</li>
-                                            <li><strong>Cartão Azul:</strong> Motos separadas aguardando carga.</li>
-                                        </ul>
+                                    <Step number="1" title="Dashboard Operacional">
+                                        <p>Seu painel atualiza a cada 10 segundos automaticamente.</p>
+                                        <div className="grid grid-cols-2 gap-4 mt-3 max-w-lg">
+                                            <div className="bg-yellow-50 p-2 rounded border border-yellow-200 text-xs">
+                                                <strong>Pendentes:</strong> Pedidos novos que precisam de atenção.
+                                            </div>
+                                            <div className="bg-indigo-50 p-2 rounded border border-indigo-200 text-xs">
+                                                <strong>No Pátio:</strong> Motos já separadas aguardando caminhão.
+                                            </div>
+                                        </div>
                                     </Step>
 
-                                    <Step number="2" title="Conferência e Separação">
-                                        <p>Ao abrir um pedido "Solicitado":</p>
-                                        <ol className="list-decimal ml-6 text-gray-700 space-y-2">
-                                            <li>Verifique se as motos existem no estoque.</li>
-                                            <li>Se tudo estiver ok, clique em <span className="text-blue-600 font-bold">✅ Confirmar Separação</span>.</li>
-                                            <li><strong>Se houver problema:</strong> Use o botão "Rejeitar" e escreva o motivo (ex: "Chassi não localizado"). O pedido volta para a loja corrigir.</li>
+                                    <Step number="2" title="Separação de Pedidos">
+                                        <p>Ao receber um pedido:</p>
+                                        <ol className="list-decimal ml-6 text-sm text-gray-600 space-y-1 mt-2">
+                                            <li>Valide se os chassis solicitados estão no pátio.</li>
+                                            <li>Clique em <strong className="text-blue-600">Marcar como Separado</strong>.</li>
+                                            <li>Isso reserva a moto e avisa a loja que o pedido foi aceito.</li>
+                                            <li><em>Se não tiver a moto:</em> Clique em "Rejeitar" e informe o motivo no chat.</li>
                                         </ol>
                                     </Step>
 
-                                    <Step number="3" title="Montagem de Carga (Expedição)">
-                                        <p>Vá em <strong>Expedição {'>'} Nova Carga</strong>.</p>
-                                        <div className="bg-blue-50 p-4 rounded border border-blue-100 mt-2">
-                                            <h4 className="font-bold text-blue-900 mb-2">💡 Dica de Ouro: Leitor de Código de Barras</h4>
-                                            <p className="text-sm text-blue-800">Clique no campo preto "Leitura" e bipe o chassi das motos. O sistema marca em verde automaticamente e evita erros de digitação.</p>
+                                    <Step number="3" title="Criar Carga (Romaneio) com Scanner">
+                                        <p>Vá em <strong>Expedição</strong> para montar a carga do caminhão.</p>
+                                        <div className="mt-3 p-4 bg-gray-800 text-white rounded-lg shadow-lg">
+                                            <h4 className="font-bold flex items-center gap-2">🔫 Uso do Leitor de Código de Barras</h4>
+                                            <p className="text-sm mt-1 text-gray-300">
+                                                O sistema possui proteção inteligente. Ao bipar um chassi:
+                                            </p>
+                                            <ul className="text-xs mt-2 list-disc ml-4 text-gray-400">
+                                                <li>Se a moto for válida e estiver "Separada": <span className="text-green-400">Bip Verde (Adiciona)</span>.</li>
+                                                <li>Se for duplicada ou de outro pedido: <span className="text-red-400">Erro Sonoro (Bloqueia)</span>.</li>
+                                            </ul>
                                         </div>
                                     </Step>
 
-                                    <Step number="4" title="Saída e Trânsito">
-                                        <p>Depois de gerar o Romaneio:</p>
-                                        <ul className="list-disc ml-6 mt-1 text-gray-600">
-                                            <li>Imprima o Manifesto para o motorista.</li>
-                                            <li>Quando o caminhão sair, clique em <strong>🚛 Confirmar Saída</strong>.</li>
-                                            <li>Isso dispara um aviso para a Loja que o pedido está a caminho.</li>
+                                    <Step number="4" title="Saída e Documentação">
+                                        <p>Após adicionar todas as motos:</p>
+                                        <ul className="list-disc ml-6 mt-1 text-gray-600 text-sm">
+                                            <li>Clique em <strong>Gerar Romaneio</strong>.</li>
+                                            <li>Imprima o Manifesto (Layout Oficial) para o motorista.</li>
+                                            <li>Clique em <strong>Liberar Saída</strong> para mudar o status para "Em Trânsito".</li>
                                         </ul>
                                     </Step>
-
-                                    <Step number="5" title="Baixa Manual (Se a Loja não fizer)">
-                                        <p>A Loja deve dar baixa no pedido, mas se ela estiver sem internet:</p>
-                                        <p className="text-sm mt-1">O motorista trará o papel assinado de volta. Você pode entrar no pedido e usar o mesmo quadro verde <strong>"Confirmar Recebimento"</strong> para digitalizar o papel e encerrar o processo.</p>
-                                    </Step>
                                 </div>
                             )}
 
-                            {/* --- CONTEÚDO: COMPROVANTES E DRIVE --- */}
+                            {/* =======================================================
+                                ABA 3: COMPROVANTES & DRIVE
+                               ======================================================= */}
                             {activeTab === 'comprovantes' && (
-                                <div className="space-y-8 animate-fade-in">
-                                    <HeaderSection icon="📂" title="Arquivamento Digital (Google Drive)" desc="Como o sistema organiza seus documentos automaticamente." />
+                                <div className="space-y-10">
+                                    <HeaderSection 
+                                        title="Arquivamento Digital Inteligente" 
+                                        subtitle="Como o sistema organiza os comprovantes na nuvem (Google Drive)."
+                                        color="green"
+                                    />
 
-                                    <Step number="1" title="Organização Automática de Pastas">
-                                        <p>Você não precisa criar pastas no Google Drive. O sistema faz isso sozinho!</p>
-                                        <div className="mt-4 bg-gray-50 p-4 rounded border border-gray-200 font-mono text-sm">
-                                            📂 Shineray Logistica (Raiz)<br/>
-                                            &nbsp;&nbsp;📂 2026<br/>
-                                            &nbsp;&nbsp;&nbsp;&nbsp;📂 01 - Janeiro<br/>
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📄 Romaneio-150_09-01-2026_Recife.jpg<br/>
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;📄 Romaneio-151_09-01-2026_Belem.pdf
+                                    <div className="bg-green-50 p-6 rounded-xl border border-green-100">
+                                        <h4 className="font-bold text-green-900 mb-2">☁️ Integração Google Drive API v3</h4>
+                                        <p className="text-sm text-green-800">
+                                            O sistema não salva arquivos no servidor local. Tudo vai direto para a nuvem segura da Shineray.
+                                            Isso garante backup eterno e acesso fácil para a auditoria.
+                                        </p>
+                                    </div>
+
+                                    <Step number="1" title="Árvore de Pastas Automática">
+                                        <p>O sistema organiza os arquivos por data sozinho. Você não precisa criar pastas.</p>
+                                        <div className="mt-4 font-mono text-xs md:text-sm bg-gray-900 text-green-400 p-4 rounded-lg shadow-inner overflow-x-auto">
+                                            📁 Google Drive (Raiz)<br/>
+                                            │<br/>
+                                            ├── 📂 2025<br/>
+                                            │<br/>
+                                            └── 📂 2026<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;├── 📂 01 - Janeiro<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;│<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📄 Romaneio-105_12-01-2026_Belem_ID-550.jpg<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📄 Romaneio-105_12-01-2026_Ananindeua_ID-551.pdf<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+                                            &nbsp;&nbsp;&nbsp;&nbsp;└── 📂 02 - Fevereiro...
                                         </div>
-                                        <p className="mt-2 text-sm text-gray-500">O sistema cria a pasta do Ano e do Mês automaticamente no primeiro upload do dia.</p>
                                     </Step>
 
-                                    <Step number="2" title="Nomenclatura Padrão">
-                                        <p>Para facilitar a busca futura, todos os arquivos são renomeados para:</p>
-                                        <p className="font-bold text-gray-800 mt-1">Romaneio-[NUMERO]_[DATA]_[FILIAL]_ID-[PEDIDO].ext</p>
-                                        <p className="text-xs text-gray-500 mt-2">Exemplo: Romaneio-123_09-01-2026_Filial-Centro_ID-555.jpg</p>
-                                    </Step>
-
-                                    <Step number="3" title="Fechamento Automático de Carga">
-                                        <p>Uma carga (Romaneio) pode ter 10 pedidos diferentes.</p>
-                                        <p>O sistema monitora cada entrega. Quando o <strong>último</strong> pedido daquela carga é entregue, o status do Romaneio muda para <span className="text-green-600 font-bold">FINALIZADO</span> automaticamente.</p>
+                                    <Step number="2" title="Fechamento de Carga">
+                                        <p>O Romaneio (Carga) permanece com status <span className="text-orange-500 font-bold">EM TRÂNSITO</span> enquanto houver pedidos pendentes.</p>
+                                        <p className="mt-2 text-sm text-gray-600">
+                                            Assim que o <strong>último pedido</strong> daquela carga tiver o comprovante enviado, o sistema fecha o Romaneio para <span className="text-green-600 font-bold">FINALIZADO</span> automaticamente.
+                                        </p>
                                     </Step>
                                 </div>
                             )}
 
-                            {/* --- CONTEÚDO: FAQ --- */}
+                            {/* =======================================================
+                                ABA 4: FAQ / SUPORTE
+                               ======================================================= */}
                             {activeTab === 'faq' && (
-                                <div className="space-y-6 animate-fade-in">
-                                    <HeaderSection icon="❓" title="Solução de Problemas" desc="Respostas rápidas para erros comuns." />
+                                <div className="space-y-8">
+                                    <HeaderSection 
+                                        title="Dúvidas Frequentes" 
+                                        subtitle="Soluções rápidas para o dia a dia."
+                                        color="gray"
+                                    />
 
-                                    <FaqItem question="O Chat não toca som quando chega mensagem.">
-                                        Os navegadores bloqueiam sons automáticos se você não interagiu com a página. Clique em qualquer lugar da tela pelo menos uma vez. Verifique também se o volume da aba não está mudo.
-                                    </FaqItem>
+                                    <div className="grid gap-4">
+                                        <FaqItem question="O botão 'Nova Carga' sumiu no celular.">
+                                            No celular, o layout muda para facilitar o uso. Role a página para baixo ou verifique se você está na aba "Expedição". O sistema é 100% compatível com Android e iOS.
+                                        </FaqItem>
 
-                                    <FaqItem question="A foto do comprovante está demorando muito para enviar.">
-                                        O sistema possui um <strong>Compressor Inteligente</strong>. Se a foto for muito grande (4K), o botão ficará como "Processando..." por alguns segundos antes de enviar. Isso é normal e economiza seus dados móveis.
-                                    </FaqItem>
+                                        <FaqItem question="Errei o chassi no pedido. Posso editar?">
+                                            Por segurança, pedidos não podem ser editados após criados. Você deve <strong>Cancelar</strong> o pedido (se ainda não foi separado) e criar um novo. Se já foi separado, peça no Chat para o CD rejeitar.
+                                        </FaqItem>
 
-                                    <FaqItem question="Errei o chassi no pedido e já foi separado. Como corrigir?">
-                                        Neste estágio (Separado), você não pode mais cancelar sozinho. Use o <strong>Chat do Pedido</strong> para pedir ao CD que rejeite o pedido. Assim ele volta para você editar.
-                                    </FaqItem>
+                                        <FaqItem question="Erro: 'A pasta do Google Drive não foi encontrada'.">
+                                            Isso acontece se a pasta do ano/mês foi apagada manualmente no Drive. O sistema tentará recriá-la automaticamente na próxima tentativa. Apenas tente enviar de novo.
+                                        </FaqItem>
 
-                                    <FaqItem question="Erro 500 / Tela Vermelha ao tentar enviar arquivo.">
-                                        Geralmente isso é uma instabilidade momentânea do Google Drive. Aguarde 1 minuto e tente de novo. Se persistir, contate o suporte.
-                                    </FaqItem>
+                                        <FaqItem question="Como instalo o sistema no meu celular? (PWA)">
+                                            No Android (Chrome), clique nos 3 pontinhos e selecione <strong>"Adicionar à Tela Inicial"</strong>. O ícone da Shineray aparecerá como um aplicativo nativo.
+                                        </FaqItem>
+                                    </div>
 
-                                    <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-                                        <h4 className="font-bold text-gray-800 mb-2">📞 Suporte Técnico</h4>
-                                        <p><strong>E-mail:</strong> shiadmti@gmail.com</p>
-                                        <p className="text-xs text-gray-500 mt-2">O sistema roda em ambiente seguro com backups diários.</p>
+                                    <div className="mt-10 p-6 bg-gray-50 rounded-xl border border-gray-200 flex flex-col md:flex-row items-center justify-between gap-6">
+                                        <div>
+                                            <h4 className="font-bold text-gray-800 text-lg">📞 Suporte TI Sabel</h4>
+                                            <p className="text-gray-500 text-sm mt-1">Horário de atendimento: Seg-Sex, 08h às 18h.</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm font-bold text-gray-700">Ramal Interno: 8535</p>
+                                            <p className="text-sm text-blue-600">shiadmti@gmail.com</p>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -216,29 +250,36 @@ export default function Manual({ auth }) {
     );
 }
 
-// --- SUBCOMPONENTES ---
+// --- COMPONENTES AUXILIARES DE DESIGN ---
 
-function HeaderSection({ icon, title, desc }) {
+function HeaderSection({ title, subtitle, color }) {
+    const colors = {
+        red: 'text-red-700 border-red-500',
+        blue: 'text-blue-700 border-blue-500',
+        green: 'text-green-700 border-green-500',
+        gray: 'text-gray-700 border-gray-500',
+    };
+
     return (
-        <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
-            <div className="text-4xl md:text-5xl bg-white p-3 rounded-full shadow-sm border border-gray-100">{icon}</div>
-            <div>
-                <h3 className="text-2xl font-black text-gray-800">{title}</h3>
-                <p className="text-gray-500">{desc}</p>
-            </div>
+        <div className={`border-l-4 ${colors[color].split(' ')[1]} pl-6 mb-8`}>
+            <h3 className={`text-3xl font-black ${colors[color].split(' ')[0]} tracking-tight`}>{title}</h3>
+            <p className="text-gray-500 text-lg mt-1">{subtitle}</p>
         </div>
     );
 }
 
 function Step({ number, title, children }) {
     return (
-        <div className="flex gap-4 group">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-lg shadow-md group-hover:bg-red-600 transition-colors duration-300">
-                {number}
+        <div className="flex gap-4 md:gap-6 group">
+            <div className="flex-shrink-0">
+                <div className="w-12 h-12 rounded-full bg-gray-900 text-white flex items-center justify-center font-bold text-xl shadow-lg group-hover:bg-red-600 transition-colors duration-300 ring-4 ring-gray-100">
+                    {number}
+                </div>
+                <div className="h-full w-0.5 bg-gray-200 mx-auto my-2 group-last:hidden"></div>
             </div>
-            <div className="flex-1 bg-white p-4 rounded-lg border border-gray-100 hover:border-gray-200 hover:shadow-md transition-all">
-                <h4 className="text-lg font-bold text-gray-800 mb-2">{title}</h4>
-                <div className="text-gray-600 leading-relaxed text-sm md:text-base">
+            <div className="flex-1 pb-8 border-b border-gray-100 last:border-0">
+                <h4 className="text-xl font-bold text-gray-800 mb-3 group-hover:text-red-700 transition-colors">{title}</h4>
+                <div className="text-gray-600 leading-relaxed">
                     {children}
                 </div>
             </div>
@@ -248,14 +289,15 @@ function Step({ number, title, children }) {
 
 function FaqItem({ question, children }) {
     return (
-        <details className="group border border-gray-200 rounded-lg bg-white overflow-hidden transition-all duration-300 open:shadow-md">
-            <summary className="font-bold text-gray-700 p-4 cursor-pointer flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-2">
-                    <span className="text-red-500">❓</span> {question}
+        <details className="group bg-white border border-gray-200 rounded-lg overflow-hidden transition-all duration-300 open:shadow-md open:border-red-200">
+            <summary className="font-bold text-gray-700 p-5 cursor-pointer flex items-center justify-between hover:bg-gray-50 select-none">
+                <div className="flex items-center gap-3">
+                    <span className="text-red-500 bg-red-50 p-1 rounded">❓</span> 
+                    {question}
                 </div>
-                <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                <span className="text-gray-400 group-open:rotate-180 transition-transform transform duration-300">▼</span>
             </summary>
-            <div className="p-4 pt-0 text-gray-600 text-sm ml-8 leading-relaxed border-t border-transparent group-open:border-gray-100">
+            <div className="p-5 pt-0 text-gray-600 text-sm ml-10 leading-relaxed border-t border-transparent group-open:border-gray-100 animate-fade-in">
                 {children}
             </div>
         </details>
