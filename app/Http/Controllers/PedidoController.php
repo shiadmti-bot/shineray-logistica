@@ -294,6 +294,13 @@ class PedidoController extends Controller
             $pedido->status = 'concluido';
             $pedido->save();
 
+            foreach ($pedido->motos as $moto) {
+                $moto->update([
+                    'status' => 'entregue',
+                    'localizacao_atual' => 'Entregue na Loja: ' . ($pedido->user->filial ?? 'Cliente Final')
+                ]);
+            }
+
             $pedido->logs()->create([
                 'titulo' => 'Entrega Finalizada',
                 'descricao' => 'Comprovante anexado e pedido concluído.'
