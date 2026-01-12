@@ -1,68 +1,80 @@
-# 🏍️ Shineray By Sabel - Sistema Integrado de Logística (SIL)
+# Shineray Logística Integrada
 
-![Status](https://img.shields.io/badge/Status-Production-green)
-![Version](https://img.shields.io/badge/Version-1.0.0-blue)
-![Stack](https://img.shields.io/badge/Stack-TALL-red)
+## Visão Geral
 
-Sistema corporativo desenvolvido para orquestrar o fluxo de distribuição de motocicletas entre o Centro de Distribuição (CD) e as Filiais (Lojas), garantindo rastreabilidade, auditoria e prevenção de erros de estoque.
+O sistema **Shineray Logística Integrada** centraliza, digitaliza e rastreia o fluxo de distribuição de motocicletas entre o Centro de Distribuição (CD) e as Lojas/Revendas. Ele elimina controles manuais, garante a integridade do estoque e fornece KPIs em tempo real para a diretoria.
 
----
+## Stack Tecnológica
 
-## 🚀 Tecnologias & Arquitetura
+Este projeto utiliza uma arquitetura Monolítica Modular com Inertia.js, combinando as seguintes tecnologias:
 
-Este projeto utiliza uma arquitetura **Monolito Modular Moderno**, otimizada para baixo custo de infraestrutura (Serverless) e alta performance.
+*   **Backend:** Laravel 11 (PHP 8.3)
+*   **Frontend:** React.js 18 (via Inertia.js)
+*   **Estilização:** Tailwind CSS (Design System "Red Shineray")
+*   **Banco de Dados:** MySQL / TiDB (Cloud)
+*   **Servidor Web:** Nginx / Apache (Compatível com Vercel Serverless)
 
-### Stack Principal
-* **Backend:** [Laravel 11](https://laravel.com) (PHP 8.2+)
-* **Frontend:** [React.js 18](https://react.dev)
-* **Comunicação:** [Inertia.js](https://inertiajs.com) (Server-side Routing)
-* **Estilização:** [Tailwind CSS](https://tailwindcss.com)
-* **Banco de Dados:** MySQL 8.0 (Compatível com TiDB Cloud / MariaDB)
+## Funcionalidades Principais
 
-### Bibliotecas Chave
-* `spatie/laravel-activitylog`: Auditoria forense de alterações.
-* `masbug/flysystem-google-drive-ext`: Armazenamento de arquivos via Google Drive API.
-* `nprogress`: Feedback visual de carregamento.
-* `headlessui/react`: Componentes acessíveis.
+*   **Gestão de Pedidos:** Criação, acompanhamento de status e confirmação de recebimento por Lojas.
+*   **Gestão de Romaneios:** Separação, expedição e geração de manifestos de carga pelo CD.
+*   **Rastreamento em Tempo Real:** Acompanhamento do status de pedidos e cargas.
+*   **Dashboard Interativo:** KPIs em tempo real com auto-refresh para o perfil CD.
+*   **Scanner de Chassi:** Leitura via câmera ou leitor USB com validação de estoque.
+*   **Central de Notificações:** Avisos sonoros, toasts e histórico de eventos.
+*   **Integração Google Drive API:** Armazenamento de comprovantes de entrega.
 
-### Infraestrutura (Deploy Sugerido)
-* **App:** Vercel (Serverless)
-* **DB:** TiDB Cloud ou Aiven (MySQL Remoto)
-* **Storage:** Google Drive (via Service Account)
+## Instalação Local
 
----
+Para configurar o ambiente de desenvolvimento local, siga os passos abaixo:
 
-## 🛠️ Instalação e Configuração (Local)
-
-Siga estes passos para rodar o projeto em ambiente de desenvolvimento:
-
-### 1. Pré-requisitos
-* PHP 8.2+
-* Composer
-* Node.js & NPM
-* MySQL Local
-
-### 2. Passo a Passo
 ```bash
-# 1. Clonar o repositório
-git clone [https://github.com/seu-usuario/shineray-logistica.git](https://github.com/seu-usuario/shineray-logistica.git)
-cd shineray-logistica
+# 1. Clonar repositório
+git clone https://github.com/seu-repo/shineray-logistica.git
 
-# 2. Instalar dependências de Backend e Frontend
+# 2. Instalar dependências
 composer install
 npm install
 
-# 3. Configurar Ambiente
+# 3. Configurar ambiente
 cp .env.example .env
 php artisan key:generate
 
-# 4. Configurar Banco de Dados
-# Abra o arquivo .env e configure DB_DATABASE, DB_USERNAME, etc.
+# 4. Configurar Banco de Dados (no .env) e rodar migrations
+php artisan migrate --seed 
+# (Nota: O seed cria usuários padrão: admin@shineray.com / 12345678)
 
-# 5. Migrar Banco de Dados
-php artisan migrate --seed
-
-# 6. Rodar o servidor
+# 5. Rodar
 npm run dev
-# (Em outro terminal)
 php artisan serve
+```
+
+## Configuração Google Drive API
+
+Para o funcionamento do upload de comprovantes, configure a Google Drive API:
+
+1.  Crie uma **Service Account** no Google Cloud Console.
+2.  Baixe o arquivo JSON de credenciais.
+3.  Compartilhe a pasta do Google Drive com o e-mail da Service Account (permissão Editor).
+4.  Preencha as variáveis no `.env`:
+    *   `GOOGLE_DRIVE_CLIENT_ID`
+    *   `GOOGLE_DRIVE_CLIENT_SECRET`
+    *   `GOOGLE_DRIVE_REFRESH_TOKEN`
+    *   `GOOGLE_DRIVE_FOLDER` (ID da pasta raiz)
+
+## Troubleshooting Comum
+
+| Problema | Causa Provável | Solução |
+|---|---|---|
+| **Tela Branca após Deploy** | Cache antigo ou build falho. | Rodar `/limpar-cache` ou `php artisan optimize:clear`. |
+| **Erro "File not found" (Google Drive)** | Pasta do Drive apagada/ID incorreto/permissão insuficiente. | Verificar ID no `.env` e permissões do e-mail robô na pasta. |
+| **Scanner não abre câmera** | Permissão do navegador ou ambiente não HTTPS. | Site em HTTPS; conceder acesso à câmera no celular. |
+| **Numeração de Carga (ID 3000+)** | Salto de ID do TiDB/Cloud. | Rodar `/corrigir-numeracao` para resetar `AUTO_INCREMENT`. |
+| **Erro 401 manifest.json** | Arquivo `public/manifest.json` faltando ou com permissões incorretas. | Garantir que o arquivo exista e tenha permissão de leitura. |
+
+## Autor
+
+Délcio Farias Dias Neto
+
+**Shineray By Sabel Logística**
+**Tecnologia movendo o seu negócio.**

@@ -1,10 +1,36 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react'; // Importe router
+import { useEffect } from 'react'; // Importe useEffect
+import Swal from 'sweetalert2'; // Importe Swal
 
 export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
     const { data, setData, get, processing } = useForm({
         search: filters.search || '',
     });
+
+    // --- ATUALIZAÇÃO EM TEMPO REAL ---
+    useEffect(() => {
+        // Escuta atualizações específicas DESTE pedido ou do usuário geral
+        // Como o Laravel notifica o User, vamos ouvir o User
+        const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
+
+        channel.notification((notification) => {
+            // Verifica se a notificação é sobre ESTE pedido que está aberto
+            // O link da notificação geralmente contém o ID, ou podemos passar o ID no data
+            if (notification.link && notification.link.includes(`/pedidos/${pedido.id}`)) {
+                
+                const Toast = Swal.mixin({
+                    toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
+                });
+                Toast.fire({ icon: 'success', title: 'Status Atualizado!', text: notification.mensagem });
+
+                // Recarrega os dados do pedido (motos, status, logs)
+                router.reload({ only: ['pedido'] });
+            }
+        });
+
+        return () => channel.stopListening('Notification');
+    }, [pedido.id]);
 
     const handleSearch = (e) => {
         e.preventDefault();

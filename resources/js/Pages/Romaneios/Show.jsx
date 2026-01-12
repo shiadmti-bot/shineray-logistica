@@ -123,7 +123,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                         <img src="/img/logo.png" className="h-16 w-auto object-contain grayscale" alt="Shineray Logo" />
                         <div>
                             <h1 className="text-2xl font-black uppercase tracking-tight">Manifesto de Carga</h1>
-                            <p className="text-sm font-bold">SHINERAY DO BRASIL - CD BENEVIDES</p>
+                            <p className="text-sm font-bold">SHINERAY DO BRASIL - CD ANANINDEUA</p>
                             <p className="text-xs">Rodovia BR-316, KM 12 - Pará</p>
                         </div>
                     </div>
