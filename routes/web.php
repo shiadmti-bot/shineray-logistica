@@ -45,47 +45,54 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-// Dashboard com Lógica de Negócio (Contadores)
+// --- DASHBOARD (LÓGICA RESPONSIVA CENTRALIZADA) ---
 Route::get('/dashboard', function () {
     $user = Auth::user();
     $stats = [];
 
-    // --- VISÃO DE DIRETORIA / ADMIN ---
+    // 1. VISÃO DE DIRETORIA / ADMIN
     if ($user->perfil === 'admin') {
         $stats = [
-            'total_pedidos' => \App\Models\Pedido::count(),
-            'em_andamento' => \App\Models\Pedido::whereIn('status', ['solicitado', 'separado', 'expedido', 'em_transito'])->count(),
-            'concluidos' => \App\Models\Pedido::where('status', 'concluido')->count(),
-            'cancelados' => \App\Models\Pedido::where('status', 'cancelado')->count(),
-            'total_motos' => \App\Models\Moto::count(),
-            'cargas_transito' => \App\Models\Romaneio::whereHas('motos', function($q) {
-                $q->where('status', 'em_transito');
-            })->count()
+            'total_pedidos'   => Pedido::count(),
+            // Conta pedidos que não estão nem cancelados nem concluídos (fila ativa)
+            'em_andamento'    => Pedido::whereNotIn('status', ['concluido', 'cancelado'])->count(),
+            // Conta cargas que saíram (Romaneios em trânsito)
+            'cargas_transito' => Romaneio::where('status', 'em_transito')->count(),
+            'cancelados'      => Pedido::where('status', 'cancelado')->count(),
         ];
     } 
-    // --- VISÃO DO CD ---
+    // 2. VISÃO DO CD (FÁBRICA/OPERACIONAL)
     elseif ($user->perfil === 'cd') {
         $stats = [
-            'pendentes' => \App\Models\Pedido::where('status', 'solicitado')->count(),
-            'no_patio' => \App\Models\Moto::where('status', 'separado')->whereNull('romaneio_id')->count(),
-            'cargas_total' => \App\Models\Romaneio::count(),
-            'hoje' => \App\Models\Pedido::whereDate('updated_at', today())->where('status', 'concluido')->count(),
+            // O cartão amarelo "Novas Solicitações"
+            'pendentes'    => Pedido::where('status', 'solicitado')->count(),
+            // Motos separadas mas ainda sem romaneio (Pool)
+            'no_patio'     => Moto::where('status', 'separado')->count(), 
+            // Total de cargas expedidas na história
+            'cargas_total' => Romaneio::count(),
+            // Meta diária (entregas finalizadas hoje)
+            'hoje'         => Pedido::where('status', 'concluido')
+                                    ->whereDate('updated_at', now())
+                                    ->count(),
         ];
     } 
-    // --- VISÃO DA LOJA ---
+    // 3. VISÃO DA LOJA (REVENDEDOR)
     else {
         $stats = [
-            'meus_pedidos' => \App\Models\Pedido::where('user_id', $user->id)->count(),
-            'receber' => \App\Models\Pedido::where('user_id', $user->id)->whereIn('status', ['expedido', 'em_transito'])->count(),
+            // Histórico total daquela loja
+            'meus_pedidos' => Pedido::where('user_id', $user->id)->count(),
+            // O que está para chegar (Motos em trânsito ou expedidas)
+            'receber'      => Pedido::where('user_id', $user->id)
+                                    ->whereIn('status', ['em_transito', 'expedido'])
+                                    ->count(),
         ];
     }
 
     return Inertia::render('Dashboard', [
-        'stats' => $stats,
+        'stats'  => $stats,
         'perfil' => $user->perfil
     ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
-
 // Rota da Central de Ajuda
 Route::get('/manual', function () {
     return Inertia::render('Manual');

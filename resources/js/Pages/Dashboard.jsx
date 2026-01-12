@@ -8,25 +8,19 @@ export default function Dashboard({ auth, stats, perfil }) {
     const hora = new Date().getHours();
     const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
 
-    // --- LÓGICA DO AUTO-REFRESH (O CORAÇÃO DA MUDANÇA) ---
+    // --- LÓGICA DO AUTO-REFRESH (Mantida) ---
     useEffect(() => {
-        // Só ativa se for o perfil CD (quem precisa monitorar em tempo real)
         if (perfil === 'cd') {
             const timer = setInterval(() => {
-                // Recarrega APENAS os dados de 'stats' do servidor
-                // preserveScroll: true -> Não mexe na barra de rolagem
-                // preserveState: true -> Mantém o que estiver digitado ou aberto
                 router.reload({ 
                     only: ['stats'], 
                     preserveScroll: true, 
                     preserveState: true 
                 });
-            }, 10000); // 10000 ms = 10 segundos
-
-            // Limpa o relógio quando sair da página para não travar o navegador
+            }, 10000); 
             return () => clearInterval(timer);
         }
-    }, [perfil]); // Roda sempre que o perfil mudar (ou no carregamento inicial)
+    }, [perfil]);
 
     return (
         <AuthenticatedLayout
@@ -35,8 +29,8 @@ export default function Dashboard({ auth, stats, perfil }) {
                 <div className="flex justify-between items-center">
                     <h2 className="font-bold text-xl text-gray-800 leading-tight">Painel de Controle</h2>
                     {perfil === 'cd' && (
-                        <span className="text-xs font-mono text-gray-400 flex items-center gap-1 animate-pulse">
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        <span className="text-xs font-mono text-gray-400 flex items-center gap-1 animate-pulse bg-white px-2 py-1 rounded shadow-sm border border-gray-100">
+                            <span className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
                             Ao Vivo
                         </span>
                     )}
@@ -45,118 +39,85 @@ export default function Dashboard({ auth, stats, perfil }) {
         >
             <Head title="Dashboard" />
 
-            <div className="py-10 bg-gray-50 min-h-screen">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div className="py-6 md:py-10 bg-gray-50 min-h-screen">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     
-                    {/* CABEÇALHO DE BOAS VINDAS */}
-                    <div className="bg-white rounded-2xl shadow-sm p-8 mb-8 border-l-8 border-red-600 flex flex-col md:flex-row justify-between items-center transition-all duration-500">
+                    {/* CABEÇALHO DE BOAS VINDAS (Responsivo) */}
+                    <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8 mb-8 border-l-8 border-red-600 flex flex-col md:flex-row justify-between items-start md:items-center transition-all duration-500 gap-4">
                         <div>
-                            <h3 className="text-3xl font-black text-gray-800 tracking-tight">
-                                {saudacao}, {auth.user.name.split(' ')[0]}!
+                            <h3 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight leading-tight">
+                                {saudacao}, <span className="text-red-700">{auth.user.name.split(' ')[0]}</span>!
                             </h3>
-                            <p className="text-gray-500 mt-2 font-medium">
+                            <p className="text-gray-500 mt-2 font-medium text-sm md:text-base">
                                 Sistema de Logística Integrada <span className="text-red-600 font-bold">Shineray By Sabel</span>.
                             </p>
                         </div>
-                        <div className="mt-4 md:mt-0 text-right">
-                            <span className={`px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wider border ${
+                        <div className="w-full md:w-auto text-left md:text-right">
+                            <span className={`inline-block px-4 py-2 rounded-full text-xs md:text-sm font-bold uppercase tracking-wider border shadow-sm ${
                                 perfil === 'cd' ? 'bg-gray-800 text-white border-gray-800' : 
                                 perfil === 'admin' ? 'bg-black text-white border-black' : 
-                                'bg-red-100 text-red-700 border-red-200'
+                                'bg-red-50 text-red-700 border-red-200'
                             }`}>
-                                {perfil === 'cd' ? '🏭 Perfil: CD / Expedição' : 
-                                 perfil === 'admin' ? '🕵️ Perfil: Auditoria / Admin' : 
-                                 '🏪 Perfil: Loja / Revenda'}
+                                {perfil === 'cd' ? '🏭 CD / Expedição' : 
+                                 perfil === 'admin' ? '🕵️ Auditoria / Admin' : 
+                                 '🏪 Loja / Revenda'}
                             </span>
-                            <p className="text-xs text-gray-400 mt-2">
+                            <p className="text-xs text-gray-400 mt-2 font-mono">
                                 {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </p>
                         </div>
                     </div>
 
-                    {/* --- VISÃO ADMIN / DIRETORIA (PRETO & VERMELHO) --- */}
+                    {/* --- VISÃO ADMIN / DIRETORIA --- */}
                     {perfil === 'admin' && (
                         <>
-                            <div className="mb-8">
-                                <h3 className="text-xl font-bold text-gray-800 border-l-4 border-black pl-3">
-                                    Visão Geral da Operação
+                            <div className="mb-6">
+                                <h3 className="text-lg md:text-xl font-bold text-gray-800 border-l-4 border-black pl-3 flex items-center gap-2">
+                                    <span>📊</span> Visão Geral da Operação
                                 </h3>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-                                <CardStat titulo="Total Histórico" valor={stats.total_pedidos} icon="📊" color="text-gray-600" bg="bg-white border-gray-200" desc="Pedidos processados" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
+                                <CardStat titulo="Total Histórico" valor={stats.total_pedidos} icon="📊" color="text-gray-600" bg="bg-white border-gray-200" desc="Pedidos totais" />
                                 <CardStat titulo="Em Operação" valor={stats.em_andamento} icon="⚙️" color="text-blue-600" bg="bg-blue-50 border-blue-200" desc="Fluxo ativo agora" />
-                                <CardStat titulo="Cargas na Estrada" valor={stats.cargas_transito} icon="🚛" color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Romaneios em trânsito" />
-                                <CardStat titulo="Devoluções / Erros" valor={stats.cancelados} icon="🚨" color="text-red-600" bg="bg-red-50 border-red-200" desc="Atenção requerida" link={route('pedidos.index')} />
+                                <CardStat titulo="Em Trânsito" valor={stats.cargas_transito} icon="🚛" color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Cargas na estrada" />
+                                <CardStat titulo="Cancelados" valor={stats.cancelados} icon="🚨" color="text-red-600" bg="bg-red-50 border-red-200" desc="Devoluções/Erros" link={route('pedidos.index')} />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <Link href={route('pedidos.index')} className="group bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition border border-gray-200 relative overflow-hidden">
-                                    <div className="flex justify-between items-center relative z-10">
-                                        <div>
-                                            <h4 className="text-2xl font-black text-gray-800 mb-2">Auditoria de Pedidos</h4>
-                                            <p className="text-gray-500">Inspecionar solicitações, conferir tempos de separação e analisar motivos de cancelamento.</p>
-                                        </div>
-                                        <div className="h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center text-3xl group-hover:bg-red-600 group-hover:text-white transition">🔍</div>
-                                    </div>
-                                    <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-gray-200 to-gray-400 group-hover:from-red-600 group-hover:to-black transition-all"></div>
-                                </Link>
-
-                                <Link href={route('romaneios.index')} className="group bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition border border-gray-200 relative overflow-hidden">
-                                    <div className="flex justify-between items-center relative z-10">
-                                        <div>
-                                            <h4 className="text-2xl font-black text-gray-800 mb-2">Monitoramento de Cargas</h4>
-                                            <p className="text-gray-500">Visualizar manifestos, conferir motoristas e rastrear status de entrega das lojas.</p>
-                                        </div>
-                                        <div className="h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center text-3xl group-hover:bg-black group-hover:text-white transition">🗺️</div>
-                                    </div>
-                                    <div className="absolute bottom-0 left-0 right-0 h-2 bg-gradient-to-r from-gray-200 to-gray-400 group-hover:from-black group-hover:to-gray-600 transition-all"></div>
-                                </Link>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <ActionCard 
+                                    href={route('pedidos.index')}
+                                    title="Auditoria de Pedidos"
+                                    desc="Inspecionar solicitações, conferir tempos e analisar cancelamentos."
+                                    icon="🔍"
+                                    color="red"
+                                />
+                                <ActionCard 
+                                    href={route('romaneios.index')}
+                                    title="Monitoramento de Cargas"
+                                    desc="Visualizar manifestos, conferir motoristas e rastrear entregas."
+                                    icon="🗺️"
+                                    color="black"
+                                />
                             </div>
                         </>
                     )}
 
-                    {/* --- VISÃO DO CD (FÁBRICA) - COM AUTO REFRESH --- */}
+                    {/* --- VISÃO DO CD (FÁBRICA) --- */}
                     {perfil === 'cd' && (
                         <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                                {/* Adicionei uma animaçãozinha no número para mostrar que atualizou */}
-                                <CardStat 
-                                    titulo="Novas Solicitações" 
-                                    valor={stats.pendentes} 
-                                    icon="📝" 
-                                    color="text-yellow-600" 
-                                    bg="bg-yellow-50 border-yellow-200" 
-                                    link={route('pedidos.index')} 
-                                    animate={true} // Nova prop
-                                />
-                                <CardStat titulo="Motos no Pátio (Pool)" valor={stats.no_patio} icon="🏍" color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" desc="Prontas p/ Carga" link={route('romaneios.create')} animate={true} />
-                                <CardStat titulo="Cargas Expedidas" valor={stats.cargas_total} icon="🚛" color="text-blue-600" bg="bg-blue-50 border-blue-200" link={route('romaneios.index')} />
-                                <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon="✅" color="text-green-600" bg="bg-green-50 border-green-200" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
+                                <CardStat titulo="Novas Solicitações" valor={stats.pendentes} icon="📝" color="text-yellow-600" bg="bg-yellow-50 border-yellow-200" link={route('pedidos.index')} animate={true} desc="Aguardando Ação" />
+                                <CardStat titulo="Motos no Pátio" valor={stats.no_patio} icon="🏍" color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" desc="Pool de Expedição" link={route('romaneios.create')} animate={true} />
+                                <CardStat titulo="Cargas Expedidas" valor={stats.cargas_total} icon="🚛" color="text-blue-600" bg="bg-blue-50 border-blue-200" link={route('romaneios.index')} desc="Total Geral" />
+                                <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon="✅" color="text-green-600" bg="bg-green-50 border-green-200" desc="Meta Diária" />
                             </div>
 
-                            <h3 className="text-lg font-bold text-gray-700 mb-4 px-1">Operações Logísticas</h3>
+                            <h3 className="text-lg font-bold text-gray-700 mb-4 px-1 flex items-center gap-2"><span>🏭</span> Operações Logísticas</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <Link href={route('pedidos.index')} className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition border border-gray-100 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition text-6xl">📋</div>
-                                    <h4 className="text-xl font-bold text-gray-800 mb-2">1. Conferência</h4>
-                                    <p className="text-sm text-gray-500 mb-4">Verificar novos pedidos das lojas e separar motos.</p>
-                                    <span className="text-blue-600 font-bold text-sm group-hover:translate-x-2 transition inline-block">Acessar Pedidos &rarr;</span>
-                                </Link>
-
-                                <Link href={route('romaneios.create')} className="group bg-gray-800 p-6 rounded-2xl shadow-md hover:shadow-2xl hover:bg-gray-900 transition border border-gray-700 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition text-6xl text-white">🚛</div>
-                                    <h4 className="text-xl font-bold text-white mb-2">2. Expedição (Cargas)</h4>
-                                    <p className="text-sm text-gray-300 mb-4">Agrupar motos separadas e gerar romaneio de transporte.</p>
-                                    <span className="text-red-400 font-bold text-sm group-hover:translate-x-2 transition inline-block">Nova Carga &rarr;</span>
-                                </Link>
-
-                                <Link href={route('romaneios.index')} className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition border border-gray-100 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition text-6xl">🗂</div>
-                                    <h4 className="text-xl font-bold text-gray-800 mb-2">3. Histórico de Cargas</h4>
-                                    <p className="text-sm text-gray-500 mb-4">Consultar romaneios antigos e reimprimir documentos.</p>
-                                    <span className="text-gray-600 font-bold text-sm group-hover:translate-x-2 transition inline-block">Ver Histórico &rarr;</span>
-                                </Link>
+                                <ActionCard href={route('pedidos.index')} title="1. Conferência" desc="Verificar novos pedidos e separar motos." icon="📋" color="blue" btnText="Acessar Pedidos" />
+                                <ActionCard href={route('romaneios.create')} title="2. Expedição (Cargas)" desc="Agrupar motos e gerar romaneio." icon="🚛" color="gray" btnText="Nova Carga" />
+                                <ActionCard href={route('romaneios.index')} title="3. Histórico" desc="Consultar cargas antigas e documentos." icon="🗂" color="white" btnText="Ver Histórico" />
                             </div>
                         </>
                     )}
@@ -164,42 +125,51 @@ export default function Dashboard({ auth, stats, perfil }) {
                     {/* --- VISÃO DA LOJA --- */}
                     {perfil === 'loja' && (
                         <>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                <Link href={route('solicitar')} className="md:col-span-2 group relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-700 to-red-600 p-8 text-white shadow-lg hover:shadow-2xl hover:to-red-800 transition transform hover:-translate-y-1">
-                                    <div className="relative z-10">
-                                        <div className="text-sm font-bold uppercase tracking-wider text-red-100 mb-1">Ação Rápida</div>
-                                        <h3 className="text-3xl font-extrabold mb-2">Nova Solicitação</h3>
-                                        <p className="text-red-100 max-w-md">Cadastre manualmente os chassis e modelos que deseja solicitar ao CD.</p>
-                                        <div className="mt-8 inline-flex items-center bg-white text-red-700 px-6 py-3 rounded-full font-bold shadow-sm group-hover:bg-gray-100 transition"><span className="mr-2 text-xl">➕</span> Criar Pedido Agora</div>
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+                                {/* CARD DESTAQUE (Nova Solicitação) */}
+                                <Link href={route('solicitar')} className="lg:col-span-2 group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-700 to-red-600 p-6 md:p-8 text-white shadow-lg hover:shadow-2xl hover:to-red-800 transition transform hover:-translate-y-1">
+                                    <div className="relative z-10 flex flex-col h-full justify-between">
+                                        <div>
+                                            <div className="text-xs font-bold uppercase tracking-wider text-red-200 mb-2">Ação Rápida</div>
+                                            <h3 className="text-2xl md:text-3xl font-extrabold mb-2">Nova Solicitação</h3>
+                                            <p className="text-red-100 max-w-md text-sm md:text-base">Cadastre manualmente os chassis e modelos que deseja solicitar ao CD.</p>
+                                        </div>
+                                        <div className="mt-6 md:mt-8 inline-flex items-center bg-white text-red-700 px-6 py-3 rounded-full font-bold shadow-sm group-hover:bg-gray-100 transition w-max">
+                                            <span className="mr-2 text-xl">➕</span> Criar Pedido Agora
+                                        </div>
                                     </div>
-                                    <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10"><svg className="w-64 h-64" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></div>
+                                    {/* Ícone de Fundo Decorativo */}
+                                    <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10">
+                                        <svg className="w-48 h-48 md:w-64 md:h-64" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                                    </div>
                                 </Link>
 
-                                <div className="grid grid-rows-2 gap-6">
-                                    <Link href={route('pedidos.index')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition border-l-4 border-blue-500 flex items-center justify-between">
+                                {/* COLUNA LATERAL DE STATUS */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 md:gap-6">
+                                    <Link href={route('pedidos.index')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition border-l-4 border-blue-500 flex items-center justify-between group">
                                         <div>
-                                            <p className="text-gray-500 text-xs font-bold uppercase">A Chegar</p>
-                                            <p className="text-3xl font-bold text-gray-800">{stats.receber}</p>
+                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">A Chegar</p>
+                                            <p className="text-3xl font-black text-gray-800 group-hover:text-blue-600 transition">{stats.receber}</p>
                                             <p className="text-xs text-blue-600 font-bold mt-1">Motos em trânsito</p>
                                         </div>
-                                        <div className="text-4xl">🚛</div>
+                                        <div className="text-4xl opacity-80 group-hover:scale-110 transition">🚛</div>
                                     </Link>
 
-                                    <Link href={route('pedidos.index')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition border-l-4 border-gray-500 flex items-center justify-between">
+                                    <Link href={route('pedidos.index')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition border-l-4 border-gray-500 flex items-center justify-between group">
                                         <div>
-                                            <p className="text-gray-500 text-xs font-bold uppercase">Total Pedidos</p>
-                                            <p className="text-3xl font-bold text-gray-800">{stats.meus_pedidos}</p>
+                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1">Total Pedidos</p>
+                                            <p className="text-3xl font-black text-gray-800 group-hover:text-gray-600 transition">{stats.meus_pedidos}</p>
                                             <p className="text-xs text-gray-600 font-bold mt-1">Histórico completo</p>
                                         </div>
-                                        <div className="text-4xl">📦</div>
+                                        <div className="text-4xl opacity-80 group-hover:scale-110 transition">📦</div>
                                     </Link>
                                 </div>
                             </div>
 
-                            <div className="mt-10">
-                                <h3 className="text-lg font-bold text-gray-700 mb-4 px-1">Últimas Atualizações</h3>
-                                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 text-center text-gray-500">
-                                    <p>Acesse "Meus Pedidos" para ver o rastreamento detalhado.</p>
+                            <div className="mt-8 md:mt-10">
+                                <h3 className="text-lg font-bold text-gray-700 mb-4 px-1 flex items-center gap-2"><span>📢</span> Central de Avisos</h3>
+                                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 text-center text-gray-500 hover:bg-gray-50 transition">
+                                    <p>Acesse <strong>"Meus Pedidos"</strong> para ver o rastreamento detalhado de cada solicitação.</p>
                                     <Link href={route('pedidos.index')} className="mt-4 inline-block text-red-600 font-bold hover:underline">Ir para Rastreamento &rarr;</Link>
                                 </div>
                             </div>
@@ -212,23 +182,62 @@ export default function Dashboard({ auth, stats, perfil }) {
     );
 }
 
-// Componente Card com Animação Opcional
+// --- SUBCOMPONENTES REUTILIZÁVEIS ---
+
 function CardStat({ titulo, valor, icon, color, bg, desc, link, animate = false }) {
     const CardContent = () => (
-        <div className={`p-6 rounded-2xl shadow-sm border transition hover:shadow-md ${bg}`}>
-            <div className="flex justify-between items-start">
-                <div>
-                    <p className={`text-xs font-bold uppercase tracking-wide ${color}`}>{titulo}</p>
-                    {/* A key={valor} força o React a refazer a animação quando o número mudar */}
-                    <h4 key={valor} className={`text-3xl font-extrabold text-gray-800 mt-2 ${animate ? 'animate-pulse-once' : ''}`}>
-                        {valor}
-                    </h4>
-                    {desc && <p className="text-xs text-gray-400 mt-1">{desc}</p>}
-                </div>
-                <div className="text-3xl opacity-80">{icon}</div>
+        <div className={`p-5 md:p-6 rounded-2xl shadow-sm border transition hover:shadow-md h-full flex flex-col justify-between ${bg} cursor-default hover:-translate-y-1 transform duration-200`}>
+            <div className="flex justify-between items-start mb-2">
+                <p className={`text-xs font-bold uppercase tracking-wide ${color}`}>{titulo}</p>
+                <div className="text-2xl md:text-3xl opacity-80">{icon}</div>
+            </div>
+            <div>
+                <h4 key={valor} className={`text-3xl md:text-4xl font-black text-gray-800 tracking-tight ${animate ? 'animate-pulse-once' : ''}`}>
+                    {valor}
+                </h4>
+                {desc && <p className="text-xs text-gray-500 mt-1 font-medium">{desc}</p>}
             </div>
         </div>
     );
 
-    return link ? <Link href={link}><CardContent /></Link> : <CardContent />;
+    return link ? <Link href={link} className="block h-full"><CardContent /></Link> : <CardContent />;
+}
+
+function ActionCard({ href, title, desc, icon, color, btnText }) {
+    // Configurações de cores dinâmicas
+    const colors = {
+        red: 'hover:border-red-500 hover:shadow-red-100',
+        blue: 'hover:border-blue-500 hover:shadow-blue-100',
+        gray: 'hover:border-gray-600 hover:shadow-gray-200',
+        black: 'hover:border-black hover:shadow-gray-300',
+        white: 'hover:border-gray-400 hover:shadow-gray-100'
+    };
+    
+    // Cores do ícone de fundo
+    const bgIcon = color === 'gray' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600';
+
+    return (
+        <Link href={href} className={`group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition border border-gray-100 relative overflow-hidden flex flex-col h-full ${colors[color] || ''}`}>
+            <div className="flex justify-between items-start relative z-10 mb-4">
+                <div>
+                    <h4 className={`text-xl font-bold mb-2 group-hover:text-${color === 'gray' ? 'gray-900' : 'red-600'} transition text-gray-800`}>{title}</h4>
+                    <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+                </div>
+                <div className={`h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center text-2xl md:text-3xl transition transform group-hover:scale-110 ${bgIcon}`}>
+                    {icon}
+                </div>
+            </div>
+            
+            {btnText && (
+                <div className="mt-auto pt-4">
+                    <span className="text-sm font-bold text-gray-400 group-hover:text-gray-900 transition flex items-center gap-1">
+                        {btnText} <span className="transform group-hover:translate-x-1 transition">&rarr;</span>
+                    </span>
+                </div>
+            )}
+            
+            {/* Barra Inferior Decorativa */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-gray-100 to-gray-200 group-hover:from-red-500 group-hover:to-red-700 transition-all duration-300"></div>
+        </Link>
+    );
 }
