@@ -62,7 +62,7 @@ export default function Manual({ auth }) {
                                         <p className="mt-2">Preencha a lista de motos desejadas:</p>
                                         <ul className="list-disc ml-6 mt-1 text-gray-600">
                                             <li><strong>Modelo:</strong> Selecione na lista ou digite.</li>
-                                            <li><strong>Chassi:</strong> Digite os 11 dígitos (apenas letras e números).</li>
+                                            <li><strong>Chassi:</strong> Digite no mínimos os 11 dígitos (apenas letras e números).</li>
                                             <li><strong>Cor:</strong> Obrigatório.</li>
                                         </ul>
                                     </Step>

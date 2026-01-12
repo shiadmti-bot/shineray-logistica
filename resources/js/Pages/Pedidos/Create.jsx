@@ -116,9 +116,10 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                         <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Chassi</label>
                                         <input 
                                             type="text" 
-                                            placeholder="11 DÍGITOS"
+                                            placeholder="17 DÍGITOS"
                                             value={item.chassi}
-                                            maxLength={11} 
+                                            minLength={11}
+                                            maxLength={17} 
                                             onChange={(e) => {
                                                 const valorLimpo = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
                                                 updateItem(index, 'chassi', valorLimpo);
