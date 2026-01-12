@@ -1,28 +1,29 @@
 <?php
 
-namespace App\Providers;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Middleware;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\URL;
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
+        channels: __DIR__.'/../routes/channels.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware): void {
+        
+        // --- ADICIONE ESTA LINHA AQUI ---
+        // Isso diz ao Laravel: "Confie que a Vercel está me mandando HTTPS"
+        $middleware->trustProxies(at: '*'); 
+        // --------------------------------
 
-class AppServiceProvider extends ServiceProvider
-{
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
+        $middleware->web(append: [
+            \App\Http\Middleware\UserActivity::class,
+            \App\Http\Middleware\HandleInertiaRequests::class,
+            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+        ]);
+    })
+    ->withExceptions(function (Exceptions $exceptions): void {
         //
-    }
-
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
-    {
-        // Apenas força HTTPS em Produção
-        if($this->app->environment('production')) {
-            URL::forceScheme('https');
-        }
-    }
-}
+    })->create();
