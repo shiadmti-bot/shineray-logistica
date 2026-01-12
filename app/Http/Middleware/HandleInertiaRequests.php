@@ -31,6 +31,8 @@ public function share(Request $request): array
     {
         return [
             ...parent::share($request),
+            
+            // 1. DADOS DE AUTENTICAÇÃO E NOTIFICAÇÕES
             'auth' => [
                 'user' => $request->user() ? [
                     'id' => $request->user()->id,
@@ -38,11 +40,16 @@ public function share(Request $request): array
                     'email' => $request->user()->email,
                     'perfil' => $request->user()->perfil,
                     'filial' => $request->user()->filial,
-                    // --- ADICIONE ISTO ---
                     'notifications' => $request->user()->notifications()->take(10)->get(),
                     'unread_count' => $request->user()->unreadNotifications()->count(),
-                    // ---------------------
                 ] : null,
+            ],
+
+            // 2. MENSAGENS FLASH (Sucesso/Erro) - ISSO DEVIA ESTAR FALTANDO
+            'flash' => [
+                'success' => fn () => $request->session()->get('success') ?? $request->session()->get('message'),
+                'error' => fn () => $request->session()->get('error'),
+                'warning' => fn () => $request->session()->get('warning'),
             ],
         ];
     }
