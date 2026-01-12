@@ -7,6 +7,8 @@ use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\Romaneio;
 use App\Models\Modelo;
+use App\Models\User; // Importante para achar os usuários do CD
+use App\Notifications\PedidoAtualizado; // Importante para as notificações
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -118,9 +120,7 @@ class PedidoController extends Controller
 
         $chassis = array_column($request->itens, 'chassi');
         
-        // --- CORREÇÃO DO ERRO SQL ---
-        // Em vez de checar 'pedido_id' (que não existe), checamos o STATUS.
-        // Se o status NÃO for 'estoque_fabrica' e nem 'cancelado', a moto está ocupada.
+        // Validação de Duplicidade (Blindada)
         $duplicados = Moto::whereIn('chassi', $chassis)
             ->whereNotIn('status', ['estoque_fabrica', 'cancelado']) 
             ->pluck('chassi')
@@ -151,6 +151,18 @@ class PedidoController extends Controller
         }
 
         $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido enviado pela loja.');
+
+        // --- NOTIFICAÇÃO 1: Avisar o CD que chegou pedido novo ---
+        $cds = User::where('perfil', 'cd')->get();
+        foreach ($cds as $cd) {
+            $cd->notify(new PedidoAtualizado(
+                'Novo Pedido #' . $pedido->id,
+                'A loja ' . Auth::user()->name . ' criou uma solicitação.',
+                route('pedidos.show', $pedido->id)
+            ));
+        }
+        // --------------------------------------------------------
+
         return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para o CD!');
     }
 
@@ -175,6 +187,15 @@ class PedidoController extends Controller
         }
 
         $this->registrarLog($pedido, 'Separação Concluída', 'Motos conferidas e enviadas para o Pool de Expedição.');
+
+        // --- NOTIFICAÇÃO 2: Avisar a Loja que foi separado ---
+        $pedido->user->notify(new PedidoAtualizado(
+            'Pedido #' . $pedido->id . ' Separado',
+            'Suas motos foram conferidas e estão aguardando carga.',
+            route('pedidos.show', $pedido->id)
+        ));
+        // -----------------------------------------------------
+
         return redirect()->back()->with('success', 'Pedido separado com sucesso!');
     }
 
@@ -195,6 +216,14 @@ class PedidoController extends Controller
         }
 
         $this->registrarLog($pedido, 'Saída Confirmada', 'Veículo saiu do CD e está em trânsito.');
+
+        // --- NOTIFICAÇÃO 3: Avisar a Loja que está a caminho ---
+        $pedido->user->notify(new PedidoAtualizado(
+            'Pedido #' . $pedido->id . ' Em Trânsito',
+            'O caminhão saiu do CD! Prepare o recebimento.',
+            route('pedidos.show', $pedido->id)
+        ));
+        // -------------------------------------------------------
         
         return redirect()->back();
     }
@@ -213,48 +242,40 @@ class PedidoController extends Controller
             }
             
             if ($request->hasFile('arquivo_romaneio')) {
+                // ... (Lógica do Upload Google Drive - Mantida igual) ...
                 $uploadedFile = $request->file('arquivo_romaneio');
-                
                 $client = new Client();
                 $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
                 $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
                 $client->refreshToken(env('GOOGLE_DRIVE_REFRESH_TOKEN'));
                 $service = new Drive($client);
-
                 $rootFolderId = env('GOOGLE_DRIVE_FOLDER'); 
                 $now = Carbon::now();
                 $yearFolder = $now->format('Y'); 
                 $monthFolder = $now->format('m') . ' - ' . Str::ucfirst($now->translatedFormat('F')); 
-                
                 $cacheKey = "gdrive_folder_{$yearFolder}_{$monthFolder}";
-
                 $targetFolderId = Cache::remember($cacheKey, 60 * 60 * 24, function () use ($service, $rootFolderId, $yearFolder, $monthFolder) {
                     $yearId = $this->findOrCreateFolder($service, $yearFolder, $rootFolderId);
                     return $this->findOrCreateFolder($service, $monthFolder, $yearId);
                 });
-
                 $romaneioId = $pedido->romaneio_id ?? 'AVULSO'; 
                 $dataDia = $now->format('d-m-Y'); 
                 $filial = Str::slug($pedido->user->filial ?? 'Matriz');
                 $ext = $uploadedFile->getClientOriginalExtension();
-                
                 $novoNomeArquivo = "Romaneio-{$romaneioId}_{$dataDia}_{$filial}_ID-{$pedido->id}.{$ext}";
-
                 $fileMetadata = new DriveFile([
                     'name' => $novoNomeArquivo,
                     'parents' => [$targetFolderId] 
                 ]);
-
                 $content = file_get_contents($uploadedFile->getRealPath());
-
                 $arquivoGoogle = $service->files->create($fileMetadata, [
                     'data' => $content,
                     'mimeType' => $uploadedFile->getMimeType(),
                     'uploadType' => 'multipart',
                     'fields' => 'id, webViewLink'
                 ]);
-
                 $pedido->comprovante_url = $arquivoGoogle->webViewLink;
+                // ... (Fim Upload) ...
             }
 
             $pedido->status = 'concluido';
@@ -265,23 +286,17 @@ class PedidoController extends Controller
                 'descricao' => 'Comprovante anexado e pedido concluído.'
             ]);
 
-            // --- 3. AUTOMAÇÃO DA CARGA (Fim do Ciclo - REFORÇADA) ---
+            // Fechamento de Carga
             if ($pedido->romaneio_id) {
-                // Conta quantos pedidos DESTE romaneio ainda NÃO foram concluídos/cancelados
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                     ->whereNotIn('status', ['concluido', 'cancelado'])
                     ->count();
 
-                // Debug: Se quiser ver no log do laravel (storage/logs/laravel.log)
-                // \Illuminate\Support\Facades\Log::info("Romaneio {$pedido->romaneio_id}: Pendentes = {$pendentes}");
-
-                // Se não sobrou nada pendente, fecha a carga AGORA
                 if ($pendentes === 0) {
                     Romaneio::where('id', $pedido->romaneio_id)
                         ->update(['status' => 'finalizado']);
                 }
             }
-            // --------------------------------------------------------
 
             return redirect()->back()->with('message', 'Sucesso! Entrega registrada.');
 
@@ -300,18 +315,24 @@ class PedidoController extends Controller
         $pedido = Pedido::with('motos')->findOrFail($id);
         $request->validate(['motivo' => 'required']);
 
-        // 1. Libera as motos (Reseta para estoque inicial)
+        // --- NOTIFICAÇÃO 4: Avisar a Loja ANTES de excluir ---
+        // Linkamos para o Dashboard pois o pedido vai deixar de existir
+        $pedido->user->notify(new PedidoAtualizado(
+            'Pedido #' . $pedido->id . ' Rejeitado pelo CD',
+            'Motivo: ' . $request->motivo . '. As motos foram liberadas.',
+            route('dashboard') 
+        ));
+        // -----------------------------------------------------
+
         foreach ($pedido->motos as $moto) {
             $moto->update([
                 'status' => 'estoque_fabrica',
-                // 'pedido_id' => null,  <-- REMOVIDO: Coluna não existe
                 'romaneio_id' => null,
                 'localizacao_atual' => 'Estoque (Liberado após Rejeição)'
             ]);
             $pedido->motos()->detach($moto->id);
         }
 
-        // 2. Exclui o Pedido Permanentemente
         $pedido->delete();
 
         return redirect()->route('dashboard')->with('warning', 'Pedido rejeitado e excluído. Motos foram liberadas.');
@@ -338,7 +359,6 @@ class PedidoController extends Controller
         foreach ($pedido->motos as $moto) {
             $moto->update([
                 'status' => 'estoque_fabrica',
-                // 'pedido_id' => null, <-- REMOVIDO: Coluna não existe
                 'romaneio_id' => null,
                 'localizacao_atual' => 'Estoque (Liberado após Cancelamento)'
             ]);

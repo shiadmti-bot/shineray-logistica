@@ -35,6 +35,11 @@ Route::get('/corrigir-numeracao', function () {
     }
 });
 
+Route::post('/notificacoes/ler', function () {
+    auth()->user()->unreadNotifications->markAsRead();
+    return back();
+})->name('notificacoes.ler');
+
 // Tela Inicial (Redireciona para Login)
 Route::get('/', function () {
     return redirect()->route('login');

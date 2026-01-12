@@ -2,6 +2,7 @@ import { useState } from 'react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
+import NotificationBell from '@/Components/NotificationBell';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import Toast from '@/Components/Toast';
 import { Link, usePage } from '@inertiajs/react'; // Importação do usePage
@@ -212,6 +213,15 @@ export default function Authenticated({ user, header, children }) {
             {header && (
                 <header className="bg-white shadow z-30 relative print:hidden">
                     <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                        <button 
+                                onClick={() => window.history.back()}
+                                className="p-2 rounded-full bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-all shadow-sm group"
+                                title="Voltar para página anterior"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5 group-hover:-translate-x-1 transition-transform">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                                </svg>
+                            </button>
                         {header}
                     </div>
                 </header>

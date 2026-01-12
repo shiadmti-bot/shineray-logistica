@@ -32,15 +32,18 @@ public function share(Request $request): array
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $request->user() ? [
+                    'id' => $request->user()->id,
+                    'name' => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'perfil' => $request->user()->perfil,
+                    'filial' => $request->user()->filial,
+                    // --- ADICIONE ISTO ---
+                    'notifications' => $request->user()->notifications()->take(10)->get(),
+                    'unread_count' => $request->user()->unreadNotifications()->count(),
+                    // ---------------------
+                ] : null,
             ],
-            // --- ADICIONE ISTO ---
-            'flash' => [
-                'success' => fn () => $request->session()->get('success') ?? $request->session()->get('message'),
-                'error' => fn () => $request->session()->get('error'),
-                'warning' => fn () => $request->session()->get('warning'),
-            ],
-            // ---------------------
         ];
     }
 }
