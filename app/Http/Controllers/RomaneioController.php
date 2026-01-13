@@ -75,10 +75,14 @@ class RomaneioController extends Controller
     // 2. TELA DE MONTAGEM (NOVA CARGA)
     public function create()
     {
-        // CORREÇÃO: Usamos 'pedidos.user' (plural)
-        $motosDisponiveis = Moto::with(['pedidos.user'])
-            ->where('status', 'separado')
+        // Carrega as motos separadas E TRAZ JUNTO o pedido e o usuário (loja)
+        $motosDisponiveis = Moto::where('status', 'separado')
+            ->with(['pedido.user']) // <--- O SEGREDO ESTÁ AQUI
             ->get();
+
+        return Inertia::render('Romaneios/Create', [
+            'motosDisponiveis' => $motosDisponiveis
+        ]);
 
         $romaneiosAbertos = \App\Models\Romaneio::where('status', 'aberto')
             ->orderBy('created_at', 'desc')

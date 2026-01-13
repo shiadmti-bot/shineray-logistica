@@ -291,8 +291,10 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-8">
                         {motosDisponiveis.map((moto) => {
                             const isSelected = selectedIds.includes(moto.id);
-                            // Correção do Destino: Pega a Filial ou o Nome do Usuário do Pedido
-                            const destino = moto.pedido?.user?.filial || moto.pedido?.user?.name || 'Destino N/D';
+                            // Lógica de Destino mais robusta
+                            const destino = moto.pedido?.user?.filial // Tenta pegar a Filial
+                                        || moto.pedido?.user?.name   // Se não tiver, pega o Nome
+                                        || 'Destino Desconhecido';   // Último caso
                             
                             return (
                                 <div 
@@ -313,10 +315,10 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                         </div>
                                         <p className="font-mono text-gray-600 text-xs mt-1 tracking-wider">{moto.chassi}</p>
                                         
-                                        {/* AQUI ESTÁ A CORREÇÃO DO DESTINO */}
+                                        {/* Exibição do Destino */}
                                         <div className="mt-3 flex items-center gap-1 text-xs text-blue-700 font-bold bg-blue-50 p-2 rounded border border-blue-100">
                                             <span>📍</span>
-                                            <span className="truncate">{destino}</span>
+                                            <span className="truncate" title={destino}>{destino}</span>
                                         </div>
                                     </div>
                                 </div>
