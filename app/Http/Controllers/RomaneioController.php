@@ -75,22 +75,21 @@ class RomaneioController extends Controller
     // 2. TELA DE MONTAGEM (NOVA CARGA)
     public function create()
     {
-        // Carrega as motos separadas E TRAZ JUNTO o pedido e o usuário (loja)
+        // 1. Busca as motos com status 'separado'
+        // 2. Carrega a relação 'pedidos' e o 'user' (dono do pedido)
         $motosDisponiveis = Moto::where('status', 'separado')
-            ->with(['pedido.user']) // <--- O SEGREDO ESTÁ AQUI
-            ->get();
+            ->with(['pedidos.user']) 
+            ->get()
+            ->map(function ($moto) {
+                // TRUQUE: O Frontend espera 'moto.pedido.user'.
+                // Como 'pedidos' é uma lista, pegamos o ÚLTIMO pedido vinculado (o atual)
+                // e criamos um atributo virtual 'pedido' só para facilitar a vida do React.
+                $moto->pedido = $moto->pedidos->last(); 
+                return $moto;
+            });
 
         return Inertia::render('Romaneios/Create', [
             'motosDisponiveis' => $motosDisponiveis
-        ]);
-
-        $romaneiosAbertos = \App\Models\Romaneio::where('status', 'aberto')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return Inertia::render('Romaneios/Create', [
-            'motosDisponiveis' => $motosDisponiveis,
-            'romaneiosAbertos' => $romaneiosAbertos
         ]);
     }
 
