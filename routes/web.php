@@ -79,9 +79,9 @@ Route::get('/dashboard', function () {
     // 3. GESTOR COMERCIAL (APROVAÇÃO)
     Route::prefix('gestor')->name('gestor.')->group(function () {
         Route::get('/', [GestorController::class, 'index'])->name('index');
+        Route::get('/historico', [GestorController::class, 'historico'])->name('historico');
         Route::get('/{id}', [GestorController::class, 'show'])->name('show');
         Route::post('/aprovar/{id}', [GestorController::class, 'aprovar'])->name('aprovar');
-        Route::get('/historico', [GestorController::class, 'historico'])->name('historico');
     });
 
     // 4. CHAT
