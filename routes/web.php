@@ -127,6 +127,21 @@ Route::get('/dashboard', function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // --- ROTA DE EMERGÊNCIA: CORRIGIR TABELA MOTOS ---
+    Route::get('/corrigir-motos-db', function () {
+    
+    // Atualiza a coluna status da tabela MOTOS para aceitar 'estoque_fabrica'
+    // E já garantimos espaço para nomes maiores no futuro se precisar
+    \Illuminate\Support\Facades\DB::statement("
+        ALTER TABLE motos 
+        MODIFY COLUMN status 
+        ENUM('estoque_fabrica', 'reservado', 'separado', 'em_transito', 'entregue', 'vendida') 
+        NOT NULL DEFAULT 'estoque_fabrica'
+    ");
+
+    return "Tabela de Motos corrigida! Agora aceita 'estoque_fabrica'.";
+});
+
     // ⚠️ ROTA DE EMERGÊNCIA (Descomente se precisar limpar, mas mantenha protegida)
 
     // --- ROTA DE LIMPEZA E RESET TOTAL (CORRIGIDA) ---
