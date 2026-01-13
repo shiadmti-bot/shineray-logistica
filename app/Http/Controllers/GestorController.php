@@ -30,61 +30,55 @@ class GestorController extends Controller
         return Inertia::render('Gestor/Show', ['pedido' => $pedido]);
     }
 
-    // --- CORREÇÃO DA LÓGICA DE APROVAÇÃO ---
+    // --- LÓGICA DE APROVAÇÃO ---
     public function aprovar(Request $request, $id)
     {
         $pedido = Pedido::with('motos')->findOrFail($id);
         
-        // Recebe os dados do Frontend
         $motosRejeitadasIds = $request->input('rejeitadas', []);
-        $justificativa = $request->input('justificativa'); // Novo campo opcional
+        $justificativa = $request->input('justificativa');
         
         $userGestor = Auth::user();
-        $detalhesAuditoria = []; 
+        $detalhesCortes = []; 
 
         // 1. PROCESSAMENTO DOS CORTES (REJEIÇÕES)
         if (!empty($motosRejeitadasIds)) {
-            // Busca as motos que serão removidas
+            // Busca as motos antes de excluir para pegar os nomes
             $motosParaRemover = Moto::whereIn('id', $motosRejeitadasIds)->get();
 
             foreach ($motosParaRemover as $moto) {
-                // Guarda info para auditoria
-                $detalhesAuditoria[] = "Chassi {$moto->chassi} removido";
-
-                // A. Reseta status da moto para livre no estoque
-                $moto->update([
-                    'status' => 'estoque_fabrica',
-                    'localizacao_atual' => 'Estoque (Devolvido pela Gestão)'
-                ]);
+                // Guarda info formatada para o Log da Loja
+                $detalhesCortes[] = "🚫 {$moto->modelo} (Chassi: {$moto->chassi})";
             }
 
-            // B. CRÍTICO: Remove a relação da tabela pivô (pedido_moto)
-            // Passamos o array inteiro de IDs para garantir que todos saiam
+            // A. Remove vínculo com o pedido
             $pedido->motos()->detach($motosRejeitadasIds);
+
+            // B. EXCLUI DO BANCO (Limpeza de dados incorretos)
+            Moto::destroy($motosRejeitadasIds);
         }
 
         // 2. VERIFICAÇÃO PÓS-CORTE
-        // Recarrega a relação do banco para ter certeza do que sobrou
-        $pedido->load('motos'); 
+        $pedido->refresh(); // Recarrega do banco
         
         if ($pedido->motos->count() > 0) {
-            // Se sobrou moto, avança para o CD
+            // Avança para o CD
             $pedido->update(['status' => 'solicitado']); 
 
-            // Monta o texto do Log
-            $textoLog = "Aprovado por {$userGestor->name}.";
+            // Monta Texto do Log (Formatado para leitura fácil)
+            $textoLog = "✅ Autorizado por {$userGestor->name}.";
             
             if ($justificativa) {
-                $textoLog .= " Obs do Gestor: \"{$justificativa}\".";
+                $textoLog .= "\n💬 Obs: \"{$justificativa}\"";
             }
             
-            if (!empty($detalhesAuditoria)) {
-                $textoLog .= " Cortes realizados: " . implode(", ", $detalhesAuditoria) . ".";
+            if (!empty($detalhesCortes)) {
+                $textoLog .= "\n\nITENS REJEITADOS E EXCLUÍDOS:\n" . implode("\n", $detalhesCortes);
             }
 
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
-                'titulo' => 'Autorização Comercial',
+                'titulo' => 'Auditoria Comercial (Gestor)',
                 'descricao' => $textoLog
             ]);
 
@@ -98,16 +92,11 @@ class GestorController extends Controller
                 ));
             }
 
-            return redirect()->route('gestor.index')->with('success', 'Pedido processado e enviado ao CD.');
+            return redirect()->route('gestor.index')->with('success', 'Pedido auditado e enviado ao CD.');
         } else {
-            // Se o gestor cortou tudo, o pedido é cancelado/excluído
-            $motivoCancelamento = "Cancelado pelo Gestor. ";
-            if ($justificativa) $motivoCancelamento .= "Motivo: " . $justificativa;
-            else $motivoCancelamento .= "Todos os itens foram rejeitados.";
-
-            $pedido->SoftDeletes(); 
-            
-            return redirect()->route('gestor.index')->with('warning', $motivoCancelamento);
+            // Se tudo foi rejeitado, o pedido é cancelado
+            $pedido->delete();
+            return redirect()->route('gestor.index')->with('warning', 'Todos os itens foram rejeitados e excluídos. Pedido cancelado.');
         }
     }
 

@@ -398,7 +398,9 @@ export default function PedidoShow({ auth, pedido }) {
                                     <div className="w-2 h-2 mt-1 bg-blue-400 rounded-full ring-4 ring-blue-50"></div>
                                     <div className="flex-1">
                                         <p className="text-sm font-bold text-gray-800">{log.titulo}</p>
-                                        <p className="text-xs text-gray-500">{log.descricao}</p>
+                                        <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap leading-relaxed bg-gray-50 p-2 rounded border border-gray-100">
+                                            {log.descricao}
+                                        </p>
                                     </div>
                                     <div className="text-[10px] text-gray-400">{new Date(log.created_at).toLocaleString('pt-BR')}</div>
                                 </li>
