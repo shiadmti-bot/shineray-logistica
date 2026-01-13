@@ -145,7 +145,7 @@ class PedidoController extends Controller
 
         $pedido = Pedido::create([
             'user_id' => Auth::id(),
-            'status' => 'solicitado',
+            'status' => 'em_analise',
             'observacao' => $request->observacao
         ]);
 
@@ -163,15 +163,15 @@ class PedidoController extends Controller
             $pedido->motos()->attach($moto->id);
         }
 
-        $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido enviado pela loja.');
+        $this->registrarLog($pedido, 'Aguardando Aprovação', 'Pedido enviado para análise do Gestor Comercial.');
 
-        // --- NOTIFICAÇÃO 1: Avisar o CD que chegou pedido novo ---
-        $cds = User::where('perfil', 'cd')->get();
-        foreach ($cds as $cd) {
-            $cd->notify(new PedidoAtualizado(
-                'Novo Pedido #' . $pedido->id,
-                'A loja ' . Auth::user()->name . ' criou uma solicitação.',
-                route('pedidos.show', $pedido->id)
+       // NOTIFICAR O GESTOR
+        $gestores = User::where('perfil', 'gestor')->get();
+        foreach ($gestores as $gestor) {
+            $gestor->notify(new PedidoAtualizado(
+                'Nova Solicitação #' . $pedido->id,
+                'Loja ' . Auth::user()->filial . ' aguarda sua autorização.',
+                route('gestor.show', $pedido->id)
             ));
         }
         // --------------------------------------------------------

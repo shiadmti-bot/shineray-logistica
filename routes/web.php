@@ -114,6 +114,13 @@ Route::get('/manual', function () {
     return Inertia::render('Manual');
 })->name('manual');
 
+// Grupo do Gestor
+Route::middleware(['auth', 'verified'])->prefix('gestor')->name('gestor.')->group(function () {
+    Route::get('/', [App\Http\Controllers\GestorController::class, 'index'])->name('index');
+    Route::get('/{id}', [App\Http\Controllers\GestorController::class, 'show'])->name('show');
+    Route::post('/aprovar/{id}', [App\Http\Controllers\GestorController::class, 'aprovar'])->name('aprovar');
+});
+
 // --- GRUPO DE ROTAS AUTENTICADAS ---
 Route::middleware('auth')->group(function () {
 

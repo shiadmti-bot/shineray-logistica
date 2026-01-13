@@ -35,6 +35,20 @@ class UserSeeder extends Seeder
             ]
         ];
 
+        // 1. GESTOR DE VENDAS (NOVO PERFIL)
+        $user = \App\Models\User::withTrashed()->where('email', 'diego@shineray.com')->first();
+        if (!$user) {
+            \App\Models\User::create([
+                'name' => 'Diego (Gestor Comercial)',
+                'email' => 'diego@shineray.com',
+                'password' => \Illuminate\Support\Facades\Hash::make('12345678'),
+                'perfil' => 'gestor', // Novo perfil
+                'filial' => 'Matriz Comercial'
+            ]);
+        } else {
+            $user->update(['perfil' => 'gestor']); // Garante que atualiza se já existir
+        }
+
         // 2. LISTA DE LOJAS (Gera usuários automaticamente baseados nas cidades)
         // Adicione ou remova cidades aqui conforme necessário
         $cidadesLojas = [
