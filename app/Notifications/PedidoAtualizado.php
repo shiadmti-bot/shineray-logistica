@@ -3,10 +3,13 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast; // <--- OBRIGATÓRIO
+use Illuminate\Notifications\Messages\BroadcastMessage; // <--- OBRIGATÓRIO
 use Illuminate\Notifications\Notification;
 
-class PedidoAtualizado extends Notification
+// Adicione "implements ShouldBroadcast" aqui
+class PedidoAtualizado extends Notification implements ShouldBroadcast
 {
     use Queueable;
 
@@ -21,14 +24,14 @@ class PedidoAtualizado extends Notification
         $this->link = $link;
     }
 
-    public function via(object $notifiable): array
+    public function via($notifiable)
     {
-        // Salva no banco E manda em tempo real (broadcast)
-        return ['database', 'broadcast'];
+        // Aqui definimos os canais. 'broadcast' é o que envia pro Pusher.
+        return ['database', 'broadcast']; 
     }
 
-    // O que vai para o Banco de Dados
-    public function toArray(object $notifiable): array
+    // O que é salvo no banco (Sininho)
+    public function toDatabase($notifiable)
     {
         return [
             'titulo' => $this->titulo,
@@ -37,14 +40,13 @@ class PedidoAtualizado extends Notification
         ];
     }
 
-    // O que vai para o Pusher (Tempo Real)
-    public function toBroadcast(object $notifiable): BroadcastMessage
+    // O que é enviado ao vivo (Pusher/Socket)
+    public function toBroadcast($notifiable)
     {
         return new BroadcastMessage([
             'titulo' => $this->titulo,
             'mensagem' => $this->mensagem,
             'link' => $this->link,
-            'created_at' => now()->diffForHumans(), // Ex: "há 1 minuto"
         ]);
     }
 }
