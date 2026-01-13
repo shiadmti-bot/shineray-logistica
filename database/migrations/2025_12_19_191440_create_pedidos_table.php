@@ -14,7 +14,7 @@ return new class extends Migration
     Schema::create('pedidos', function (Blueprint $table) {
         $table->id();
         $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Quem pediu
-        $table->enum('status', ['solicitado', 'separado', 'expedido', 'em_transito', 'concluido', 'cancelado'])->default('solicitado');
+        $table->enum('status', ['em_analise', 'solicitado', 'separado', 'em_transito', 'concluido', 'cancelado'])->default('em_analise');
         $table->text('observacao')->nullable();
         $table->timestamps();
     });
