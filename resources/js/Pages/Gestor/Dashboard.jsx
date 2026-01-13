@@ -38,11 +38,17 @@ export default function GestorDashboard({ auth, pedidos }) {
                             <h3 className="text-3xl font-black text-gray-800">Olá, {auth.user.name.split(' ')[0]}!</h3>
                             <p className="text-gray-500">Você tem <strong className="text-purple-600">{pedidos.length} pedidos</strong> aguardando análise.</p>
                         </div>
-                        {/* Indicador de Status "Ao Vivo" */}
-                        <span className="bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-2 border border-purple-200">
-                            <span className="w-2 h-2 bg-purple-600 rounded-full animate-pulse"></span>
-                            Conectado em Tempo Real
-                        </span>
+                        <div className="flex gap-3">
+                            <Link href={route('gestor.historico')} className="bg-white border border-purple-200 text-purple-700 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-purple-50 transition flex items-center gap-2">
+                                📜 Ver Histórico de Auditoria
+                            </Link>
+                            
+                            {/* Indicador ao Vivo (Já existente) */}
+                            <span className="bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-2 border border-purple-200 h-fit self-center">
+                                <span className="w-2 h-2 bg-purple-600 rounded-full animate-pulse"></span>
+                                Ao Vivo
+                            </span>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

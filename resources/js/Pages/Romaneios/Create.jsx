@@ -286,10 +286,14 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         </div>
                     </div>
 
-                    {/* LISTA DE MOTOS DISPONÍVEIS */}
+                    {/* --- LISTA DE MOTOS DISPONÍVEIS --- */}
+                    <h3 className="font-bold text-gray-700 mt-8">Motos Separadas (Prontas para Carga)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-8">
                         {motosDisponiveis.map((moto) => {
                             const isSelected = selectedIds.includes(moto.id);
+                            // Correção do Destino: Pega a Filial ou o Nome do Usuário do Pedido
+                            const destino = moto.pedido?.user?.filial || moto.pedido?.user?.name || 'Destino N/D';
+                            
                             return (
                                 <div 
                                     key={moto.id} 
@@ -301,15 +305,26 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                         <div className="absolute top-0 right-0 bg-green-500 text-white px-2 py-1 text-xs font-bold rounded-bl">✓</div>
                                     )}
                                     <div>
-                                        <h4 className="font-bold text-gray-800 text-sm">{moto.modelo}</h4>
-                                        <p className="font-mono text-gray-600 text-xs mt-1">{moto.chassi}</p>
-                                        <p className="text-[10px] text-gray-400 mt-2">
-                                            {moto.pedido?.user?.filial || 'Filial'}
-                                        </p>
+                                        <div className="flex justify-between items-start">
+                                            <h4 className="font-bold text-gray-800 text-sm">{moto.modelo}</h4>
+                                            <span className="text-[10px] font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">
+                                                Pedido #{moto.pedido?.id}
+                                            </span>
+                                        </div>
+                                        <p className="font-mono text-gray-600 text-xs mt-1 tracking-wider">{moto.chassi}</p>
+                                        
+                                        {/* AQUI ESTÁ A CORREÇÃO DO DESTINO */}
+                                        <div className="mt-3 flex items-center gap-1 text-xs text-blue-700 font-bold bg-blue-50 p-2 rounded border border-blue-100">
+                                            <span>📍</span>
+                                            <span className="truncate">{destino}</span>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
+                        {motosDisponiveis.length === 0 && (
+                            <p className="text-gray-500 col-span-full text-center py-8">Nenhuma moto separada no pátio aguardando carga.</p>
+                        )}
                     </div>
                 </div>
             </div>

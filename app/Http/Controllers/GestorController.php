@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Pedido;
 use App\Models\PedidoLog;
+use App\Models\Moto; // Importante
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,12 +12,11 @@ use Inertia\Inertia;
 
 class GestorController extends Controller
 {
-    // Dashboard do Gestor (Tablet Friendly)
     public function index()
     {
         $pedidos = Pedido::with(['user', 'motos'])
-            ->where('status', 'em_analise') // Só mostra o que precisa aprovar
-            ->orderBy('created_at', 'asc') // FIFO (Primeiro que entra, primeiro que sai)
+            ->where('status', 'em_analise')
+            ->orderBy('created_at', 'asc')
             ->get();
 
         return Inertia::render('Gestor/Dashboard', [
@@ -24,65 +24,99 @@ class GestorController extends Controller
         ]);
     }
 
-    // Tela de Detalhe para Aprovação
     public function show($id)
     {
         $pedido = Pedido::with(['user', 'motos', 'logs'])->findOrFail($id);
         return Inertia::render('Gestor/Show', ['pedido' => $pedido]);
     }
 
-    // Ação de Aprovar (Com lógica de corte de itens)
+    // --- CORREÇÃO DA LÓGICA DE APROVAÇÃO ---
     public function aprovar(Request $request, $id)
     {
         $pedido = Pedido::with('motos')->findOrFail($id);
         
-        // IDs das motos que o gestor DESMARCOU (rejeitou)
+        // IDs que o gestor REJEITOU (Desmarcou na tela)
         $motosRejeitadasIds = $request->input('rejeitadas', []);
         
-        $msgLog = "Pedido conferido e autorizado pelo Gestor " . Auth::user()->name . ".";
+        $userGestor = Auth::user();
+        $detalhesAuditoria = []; // Array para salvar no log
 
-        // Lógica de Aprovação Parcial
+        // 1. Processa Rejeições (Corte de Itens)
         if (count($motosRejeitadasIds) > 0) {
-            foreach ($pedido->motos as $moto) {
-                if (in_array($moto->id, $motosRejeitadasIds)) {
-                    // Devolve para o estoque
+            foreach ($motosRejeitadasIds as $motoId) {
+                $moto = Moto::find($motoId);
+                if ($moto) {
+                    // Guarda info para auditoria
+                    $detalhesAuditoria[] = "Chassi {$moto->chassi} ({$moto->modelo}) removido.";
+
+                    // A. Reseta status da moto para livre
                     $moto->update([
                         'status' => 'estoque_fabrica',
-                        'localizacao_atual' => 'Estoque (Removido pelo Gestor)'
+                        'localizacao_atual' => 'Estoque (Devolvido pela Gestão)'
                     ]);
-                    // Desvincula do pedido
-                    $pedido->motos()->detach($moto->id);
+
+                    // B. CRÍTICO: Remove a relação com este pedido
+                    // Isso impede que a moto apareça para o CD ou na lista do pedido
+                    $pedido->motos()->detach($motoId);
                 }
             }
-            $msgLog .= " Itens removidos/cortados: " . count($motosRejeitadasIds) . ".";
         }
 
-        // Se sobrou alguma moto, avança para o CD
+        // 2. Verifica o que sobrou
+        // Recarrega a relação para ver quantas motos restaram vinculadas
+        $pedido->refresh(); 
+        
         if ($pedido->motos()->count() > 0) {
-            $pedido->update(['status' => 'solicitado']); // AGORA VAI PRO CD
+            // Se sobrou moto, avança para o CD
+            $pedido->update(['status' => 'solicitado']); 
 
-            // Log na Timeline
+            // Cria Log de Auditoria Detalhado
+            $textoLog = "Aprovado por {$userGestor->name}.";
+            if (!empty($detalhesAuditoria)) {
+                $textoLog .= " Cortes: " . implode(" | ", $detalhesAuditoria);
+            }
+
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
-                'titulo' => 'Autorização Comercial',
-                'descricao' => $msgLog
+                'titulo' => 'Auditoria Comercial',
+                'descricao' => $textoLog
             ]);
 
-            // Notifica o CD (Agora sim eles trabalham)
+            // Notifica CD
             $cds = \App\Models\User::where('perfil', 'cd')->get();
             foreach ($cds as $cd) {
                 $cd->notify(new PedidoAtualizado(
-                    'Pedido #' . $pedido->id . ' Autorizado',
+                    'Pedido #' . $pedido->id . ' Aprovado',
                     'Gestão liberou para separação.',
                     route('pedidos.show', $pedido->id)
                 ));
             }
 
-            return redirect()->route('gestor.index')->with('success', 'Pedido autorizado e enviado ao CD!');
+            return redirect()->route('gestor.index')->with('success', 'Pedido processado e enviado ao CD.');
         } else {
-            // Se o gestor rejeitou TUDO, cancela o pedido
-            $pedido->delete();
-            return redirect()->route('gestor.index')->with('warning', 'Todos os itens foram rejeitados. Pedido cancelado.');
+            // Se tudo foi rejeitado, o pedido morre aqui
+            // As motos já foram liberadas no loop acima
+            $pedido->delete(); // Soft delete ou delete real
+            
+            return redirect()->route('gestor.index')->with('warning', 'Todos os itens foram rejeitados. O pedido foi cancelado.');
         }
+    }
+
+    // --- NOVO: HISTÓRICO DE AUDITORIA ---
+    public function historico()
+    {
+        // Busca logs onde o título é 'Auditoria Comercial'
+        // Traz o pedido (mesmo que excluído, se usar softDeletes, ou traz null se hard delete)
+        // O ideal é buscar Logs e carregar user
+        $logs = PedidoLog::where('titulo', 'Auditoria Comercial')
+            ->with(['pedido' => function($q) {
+                $q->withTrashed()->with('user'); // Carrega mesmo se o pedido foi deletado
+            }])
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        return Inertia::render('Gestor/History', [
+            'logs' => $logs
+        ]);
     }
 }

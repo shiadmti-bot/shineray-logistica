@@ -7,8 +7,8 @@ use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\Romaneio;
 use App\Models\Modelo;
-use App\Models\User; // Importante para achar os usuários do CD
-use App\Notifications\PedidoAtualizado; // Importante para as notificações
+use App\Models\User;
+use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -176,7 +176,7 @@ class PedidoController extends Controller
         }
         // --------------------------------------------------------
 
-        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para o CD!');
+        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para aprovação do Gestor!');
     }
 
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }

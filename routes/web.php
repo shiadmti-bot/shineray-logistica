@@ -81,6 +81,7 @@ Route::get('/dashboard', function () {
         Route::get('/', [GestorController::class, 'index'])->name('index');
         Route::get('/{id}', [GestorController::class, 'show'])->name('show');
         Route::post('/aprovar/{id}', [GestorController::class, 'aprovar'])->name('aprovar');
+        Route::get('/historico', [GestorController::class, 'historico'])->name('historico');
     });
 
     // 4. CHAT

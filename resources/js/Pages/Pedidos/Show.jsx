@@ -12,39 +12,53 @@ export default function PedidoShow({ auth, pedido }) {
     const formRejeicao = useForm({ motivo: '' });
     const formAcoes = useForm({}); 
 
-    // --- 2. ATUALIZAÇÃO EM TEMPO REAL (Ouvindo o Socket) ---
+    // --- 2. ATUALIZAÇÃO EM TEMPO REAL (Ouvindo o CD/Gestor) ---
     useEffect(() => {
+        // Ouve o canal privado do usuário logado (A Loja)
         const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
 
         channel.notification((notification) => {
-            // Verifica se a notificação é sobre ESTE pedido
-            if (notification.link && notification.link.endsWith(pedido.id)) {
+            // Verifica se a notificação é sobre ESTE pedido que está aberto na tela
+            // A verificação via string 'includes' é mais segura que endsWith
+            if (notification.link && notification.link.includes(`/pedidos/${pedido.id}`)) {
                 
+                // 1. Som de Alerta (Feedback Sonoro)
+                const audio = new Audio('/plim.mp3');
+                audio.play().catch(() => {}); // Ignora erro se navegador bloquear som
+
+                // 2. Toast Flutuante (Feedback Visual)
                 const Toast = Swal.mixin({
-                    toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
+                    toast: true, 
+                    position: 'top-end', 
+                    showConfirmButton: false, 
+                    timer: 5000, // Fica 5s na tela
+                    timerProgressBar: true
                 });
                 
                 Toast.fire({ 
-                    icon: 'success', 
-                    title: 'Status Atualizado!', 
-                    text: notification.mensagem 
+                    icon: 'info', // Ícone azul informativo
+                    title: 'Atualização do Pedido', 
+                    text: notification.mensagem // Ex: "CD confirmou a separação"
                 });
 
-                // Recarrega os dados do pedido sem recarregar a página
+                // 3. Recarrega os dados do pedido SILENCIOSAMENTE
+                // Isso atualiza a Timeline, o StatusBadge e os Logs sem piscar a tela
                 router.reload({ only: ['pedido'] });
             }
         });
 
+        // Limpeza ao sair da página para não duplicar ouvintes
         return () => channel.stopListening('Notification');
-    }, [pedido.id]);
+    }, [pedido.id, auth.user.id]);
 
-    // --- 3. FUNÇÕES DE AÇÃO ---
+    // --- 3. FUNÇÕES DE AÇÃO (Upload, Compressão, etc) ---
 
     // COMPRIMIR IMAGEM ANTES DO UPLOAD
     const handleFileSelect = async (event) => {
         const imageFile = event.target.files[0];
         if (!imageFile) return;
 
+        // Se for PDF, não comprime
         if (!imageFile.type.startsWith('image/')) {
             formUpload.setData('arquivo_romaneio', imageFile);
             return;
@@ -176,9 +190,10 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                         <div className="text-right">
                             <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Status Atual</span>
+                            {/* O Componente Badge atualiza sozinho quando o status muda via Realtime */}
                             <BadgeStatus status={pedido.status} />
                             {pedido.romaneio_id && (
-                                <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200">
+                                <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200 animate-pulse">
                                     Carga/Romaneio #{String(pedido.romaneio_id).padStart(6, '0')}
                                 </div>
                             )}
@@ -187,7 +202,7 @@ export default function PedidoShow({ auth, pedido }) {
 
                     {/* ALERTA CANCELADO */}
                     {pedido.status === 'cancelado' && (
-                        <div className="bg-red-100 border-l-4 border-red-600 p-4 shadow-sm">
+                        <div className="bg-red-100 border-l-4 border-red-600 p-4 shadow-sm animate-pulse">
                             <h3 className="font-bold text-red-800">🚫 PEDIDO CANCELADO</h3>
                             <p className="text-red-700 mt-1">{pedido.motivo_rejeicao}</p>
                         </div>
@@ -204,7 +219,7 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* CANCELAR SOLICITAÇÃO (LOJA) - Somente antes da separação */}
+                    {/* CANCELAR SOLICITAÇÃO (LOJA) */}
                     {auth.user.perfil === 'loja' && (pedido.status === 'solicitado' || pedido.status === 'em_analise') && (
                         <div className="mx-2 md:mx-0 mt-6 bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex justify-between items-center gap-4 shadow-sm">
                             <div className="flex items-center gap-3">
@@ -250,7 +265,7 @@ export default function PedidoShow({ auth, pedido }) {
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                                     <tr>
                                         <th className="px-4 py-2 text-left">Modelo</th>
-                                        <th className="px-4 py-2 text-left">Chassi (11-17 Dígitos)</th>
+                                        <th className="px-4 py-2 text-left">Chassi</th>
                                         <th className="px-4 py-2 text-left">Carga/Romaneio</th>
                                     </tr>
                                 </thead>
@@ -258,10 +273,10 @@ export default function PedidoShow({ auth, pedido }) {
                                     {pedido.motos.map((moto) => (
                                         <tr key={moto.id} className="border-b hover:bg-gray-50">
                                             <td className="px-4 py-3 font-bold text-sm">{moto.modelo}</td>
-                                            <td className="px-4 py-3 font-mono text-gray-600 text-sm">{moto.chassi}</td>
+                                            <td className="px-4 py-3 font-mono text-gray-600 text-sm tracking-wide">{moto.chassi}</td>
                                             <td className="px-4 py-3 text-sm">
                                                 {moto.romaneio_id ? (
-                                                    <span className="text-indigo-600 font-bold text-xs">Carga #{String(moto.romaneio_id).padStart(6,'0')}</span>
+                                                    <span className="text-indigo-600 font-bold text-xs bg-indigo-50 px-2 py-1 rounded">Carga #{String(moto.romaneio_id).padStart(6,'0')}</span>
                                                 ) : <span className="text-gray-400 text-xs">-</span>}
                                             </td>
                                         </tr>
@@ -276,14 +291,12 @@ export default function PedidoShow({ auth, pedido }) {
                         <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-blue-600">
                             <h3 className="font-bold text-lg mb-4 text-gray-800">⚙️ Painel de Operações (CD)</h3>
                             
-                            {/* AVISO: EM ANÁLISE */}
                             {pedido.status === 'em_analise' && (
                                 <div className="text-center p-4 bg-gray-100 rounded text-gray-500 italic">
                                     Aguardando aprovação do Gestor Comercial para liberar separação.
                                 </div>
                             )}
 
-                            {/* 1. SEPARAR */}
                             {pedido.status === 'solicitado' && (
                                 <div className="flex gap-4">
                                     <button onClick={avancarSeparacao} className="bg-blue-600 text-white px-6 py-3 rounded font-bold hover:bg-blue-700 shadow flex-1">
@@ -295,7 +308,6 @@ export default function PedidoShow({ auth, pedido }) {
                                 </div>
                             )}
 
-                            {/* 2. EXPEDIR */}
                             {pedido.status === 'separado' && (
                                 <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex justify-between items-center gap-4">
                                     <div>
@@ -308,7 +320,6 @@ export default function PedidoShow({ auth, pedido }) {
                                 </div>
                             )}
 
-                            {/* 3. SAÍDA */}
                             {pedido.status === 'expedido' && (
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -334,8 +345,6 @@ export default function PedidoShow({ auth, pedido }) {
                                 </p>
                                 
                                 <form onSubmit={submitUpload} className="flex flex-col md:flex-row gap-4 items-center bg-green-50 p-4 rounded border border-green-200">
-                                    
-                                    {/* INPUT COM COMPRESSÃO */}
                                     <input 
                                         type="file" 
                                         onChange={handleFileSelect} 
@@ -344,7 +353,6 @@ export default function PedidoShow({ auth, pedido }) {
                                         disabled={compressing} 
                                         required 
                                     />
-                                    
                                     <button 
                                         disabled={formUpload.processing || compressing} 
                                         className="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 shadow disabled:opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
@@ -400,26 +408,24 @@ export default function PedidoShow({ auth, pedido }) {
                 </div>
             </div>
 
-            {/* CHAT - SÓ APARECE SE NÃO ESTIVER CANCELADO */}
-            {pedido.status !== 'cancelado' && (
-                <ChatBox pedidoId={pedido.id} />
-            )}
+            {/* CHAT */}
+            {pedido.status !== 'cancelado' && <ChatBox pedidoId={pedido.id} />}
             
         </AuthenticatedLayout>
     );
 }
 
-// --- HELPERS VISUAIS ATUALIZADOS ---
+// --- HELPERS VISUAIS ---
 
 function BadgeStatus({ status }) {
     const config = {
-        'em_analise': { label: 'Em Análise (Gestão)', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
-        'solicitado': { label: 'Aguardando CD',       bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        'separado':   { label: 'Separado / Pátio',    bg: 'bg-blue-100 text-blue-800 border-blue-200' },
-        'expedido':   { label: 'Em Carga',            bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-        'em_transito':{ label: 'Em Trânsito',         bg: 'bg-orange-100 text-orange-800 border-orange-200' },
-        'concluido':  { label: 'Entregue',            bg: 'bg-green-100 text-green-800 border-green-200' },
-        'cancelado':  { label: 'Cancelado',           bg: 'bg-red-100 text-red-800 border-red-200' },
+        'em_analise': { label: 'Em Análise', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
+        'solicitado': { label: 'Aguardando CD', bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+        'separado':   { label: 'Separado', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+        'expedido':   { label: 'Em Carga', bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+        'em_transito':{ label: 'Em Trânsito', bg: 'bg-orange-100 text-orange-800 border-orange-200' },
+        'concluido':  { label: 'Concluído', bg: 'bg-green-100 text-green-800 border-green-200' },
+        'cancelado':  { label: 'Cancelado', bg: 'bg-red-100 text-red-800 border-red-200' },
     }[status] || { label: status, bg: 'bg-gray-100 text-gray-600' };
 
     return <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.bg} border`}>{config.label}</span>;
@@ -427,12 +433,12 @@ function BadgeStatus({ status }) {
 
 function Timeline({ status }) {
     const steps = [
-        { id: 'em_analise',  label: 'Análise',     icon: '🛡️' },
-        { id: 'solicitado',  label: 'Solicitado',  icon: '📝' },
-        { id: 'separado',    label: 'Separado',    icon: '📦' },
-        { id: 'expedido',    label: 'Expedido',    icon: '📄' },
+        { id: 'em_analise', label: 'Análise', icon: '🛡️' },
+        { id: 'solicitado', label: 'Solicitado', icon: '📝' },
+        { id: 'separado', label: 'Separado', icon: '📦' },
+        { id: 'expedido', label: 'Expedido', icon: '📄' },
         { id: 'em_transito', label: 'Em Trânsito', icon: '🚚' },
-        { id: 'concluido',   label: 'Concluído',   icon: '🏁' },
+        { id: 'concluido', label: 'Concluído', icon: '🏁' },
     ];
     
     const map = { em_analise: 0, solicitado: 1, separado: 2, expedido: 3, em_transito: 4, concluido: 5, cancelado: -1 };
