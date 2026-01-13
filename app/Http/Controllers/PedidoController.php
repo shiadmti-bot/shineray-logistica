@@ -255,7 +255,6 @@ class PedidoController extends Controller
             }
             
             if ($request->hasFile('arquivo_romaneio')) {
-                // ... (Lógica do Upload Google Drive - Mantida igual) ...
                 $uploadedFile = $request->file('arquivo_romaneio');
                 $client = new Client();
                 $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
@@ -288,7 +287,6 @@ class PedidoController extends Controller
                     'fields' => 'id, webViewLink'
                 ]);
                 $pedido->comprovante_url = $arquivoGoogle->webViewLink;
-                // ... (Fim Upload) ...
             }
 
             $pedido->status = 'concluido';

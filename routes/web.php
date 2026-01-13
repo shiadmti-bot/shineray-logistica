@@ -25,42 +25,48 @@ Route::get('/', function () {
 // --- TODAS AS ROTAS PROTEGIDAS (LOGIN OBRIGATÓRIO) ---
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // 1. DASHBOARD & GERAL
-    Route::get('/dashboard', function () {
-        $user = Auth::user();
-        $stats = [];
+    // --- DASHBOARD (LÓGICA RESPONSIVA CENTRALIZADA) ---
+Route::get('/dashboard', function () {
+    $user = Auth::user();
 
-        // LÓGICA DE ADMIN / DIRETORIA
-        if ($user->perfil === 'admin') {
-            $stats = [
-                'total_pedidos'   => Pedido::count(),
-                'em_andamento'    => Pedido::whereNotIn('status', ['concluido', 'cancelado'])->count(),
-                'cargas_transito' => Romaneio::where('status', 'em_transito')->count(),
-                'cancelados'      => Pedido::where('status', 'cancelado')->count(),
-            ];
-        } 
-        // LÓGICA DO CD
-        elseif ($user->perfil === 'cd') {
-            $stats = [
-                'pendentes'    => Pedido::where('status', 'solicitado')->count(),
-                'no_patio'     => Moto::where('status', 'separado')->count(), 
-                'cargas_total' => Romaneio::count(),
-                'hoje'         => Pedido::where('status', 'concluido')->whereDate('updated_at', now())->count(),
-            ];
-        } 
-        // LÓGICA DA LOJA
-        else {
-            $stats = [
-                'meus_pedidos' => Pedido::where('user_id', $user->id)->count(),
-                'receber'      => Pedido::where('user_id', $user->id)->whereIn('status', ['em_transito', 'expedido'])->count(),
-            ];
-        }
+    // 1. SE FOR GESTOR -> Redireciona para o Painel de Aprovação
+    if ($user->perfil === 'gestor') {
+        return redirect()->route('gestor.index');
+    }
 
-        return Inertia::render('Dashboard', [
-            'stats'  => $stats,
-            'perfil' => $user->perfil
-        ]);
-    })->name('dashboard');
+    $stats = [];
+
+    // 2. VISÃO DE DIRETORIA / ADMIN
+    if ($user->perfil === 'admin') {
+        $stats = [
+            'total_pedidos'   => Pedido::count(),
+            'em_andamento'    => Pedido::whereNotIn('status', ['concluido', 'cancelado'])->count(),
+            'cargas_transito' => Romaneio::where('status', 'em_transito')->count(),
+            'cancelados'      => Pedido::where('status', 'cancelado')->count(),
+        ];
+    } 
+    // 3. VISÃO DO CD (FÁBRICA/OPERACIONAL)
+    elseif ($user->perfil === 'cd') {
+        $stats = [
+            'pendentes'    => Pedido::where('status', 'solicitado')->count(),
+            'no_patio'     => Moto::where('status', 'separado')->count(), 
+            'cargas_total' => Romaneio::count(),
+            'hoje'         => Pedido::where('status', 'concluido')->whereDate('updated_at', now())->count(),
+        ];
+    } 
+    // 4. VISÃO DA LOJA (REVENDEDOR)
+    else {
+        $stats = [
+            'meus_pedidos' => Pedido::where('user_id', $user->id)->count(),
+            'receber'      => Pedido::where('user_id', $user->id)->whereIn('status', ['em_transito', 'expedido'])->count(),
+        ];
+    }
+
+    return Inertia::render('Dashboard', [
+        'stats'  => $stats,
+        'perfil' => $user->perfil
+    ]);
+})->middleware(['auth', 'verified'])->name('dashboard');
 
     Route::get('/manual', function () { return Inertia::render('Manual'); })->name('manual');
 
