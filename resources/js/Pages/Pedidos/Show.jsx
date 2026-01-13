@@ -1,7 +1,7 @@
 import ChatBox from '@/Components/ChatBox';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import imageCompression from 'browser-image-compression';
 
@@ -12,7 +12,33 @@ export default function PedidoShow({ auth, pedido }) {
     const formRejeicao = useForm({ motivo: '' });
     const formAcoes = useForm({}); 
 
-    // --- FUNÇÕES DE AÇÃO ---
+    // --- 2. ATUALIZAÇÃO EM TEMPO REAL (Ouvindo o Socket) ---
+    useEffect(() => {
+        const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
+
+        channel.notification((notification) => {
+            // Verifica se a notificação é sobre ESTE pedido
+            if (notification.link && notification.link.endsWith(pedido.id)) {
+                
+                const Toast = Swal.mixin({
+                    toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
+                });
+                
+                Toast.fire({ 
+                    icon: 'success', 
+                    title: 'Status Atualizado!', 
+                    text: notification.mensagem 
+                });
+
+                // Recarrega os dados do pedido sem recarregar a página
+                router.reload({ only: ['pedido'] });
+            }
+        });
+
+        return () => channel.stopListening('Notification');
+    }, [pedido.id]);
+
+    // --- 3. FUNÇÕES DE AÇÃO ---
 
     // COMPRIMIR IMAGEM ANTES DO UPLOAD
     const handleFileSelect = async (event) => {
@@ -167,14 +193,25 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* CANCELAR SOLICITAÇÃO (LOJA) */}
-                    {auth.user.perfil === 'loja' && pedido.status === 'solicitado' && (
+                    {/* ALERTA EM ANÁLISE (LOJA) */}
+                    {pedido.status === 'em_analise' && auth.user.perfil === 'loja' && (
+                        <div className="bg-purple-50 border-l-4 border-purple-500 p-4 shadow-sm flex items-center gap-3">
+                            <div className="text-2xl">🛡️</div>
+                            <div>
+                                <h3 className="font-bold text-purple-800">Em Análise Comercial</h3>
+                                <p className="text-purple-700 text-sm">Seu pedido está sendo conferido pelo Gestor. Você será notificado assim que for aprovado.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CANCELAR SOLICITAÇÃO (LOJA) - Somente antes da separação */}
+                    {auth.user.perfil === 'loja' && (pedido.status === 'solicitado' || pedido.status === 'em_analise') && (
                         <div className="mx-2 md:mx-0 mt-6 bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex justify-between items-center gap-4 shadow-sm">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-yellow-100 rounded-full text-yellow-600">⚠️</div>
                                 <div>
                                     <h4 className="font-bold text-yellow-800 text-sm">Precisa corrigir?</h4>
-                                    <p className="text-xs text-yellow-700">Enquanto não for separado, você pode cancelar.</p>
+                                    <p className="text-xs text-yellow-700">Você pode cancelar enquanto o processo não inicia.</p>
                                 </div>
                             </div>
                             <button 
@@ -197,7 +234,7 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* TIMELINE */}
+                    {/* TIMELINE (ATUALIZADA) */}
                     <div className="px-2 md:px-8">
                         <Timeline status={pedido.status} />
                     </div>
@@ -213,7 +250,7 @@ export default function PedidoShow({ auth, pedido }) {
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                                     <tr>
                                         <th className="px-4 py-2 text-left">Modelo</th>
-                                        <th className="px-4 py-2 text-left">Chassi (11 Dígitos)</th>
+                                        <th className="px-4 py-2 text-left">Chassi (11-17 Dígitos)</th>
                                         <th className="px-4 py-2 text-left">Carga/Romaneio</th>
                                     </tr>
                                 </thead>
@@ -239,6 +276,13 @@ export default function PedidoShow({ auth, pedido }) {
                         <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-blue-600">
                             <h3 className="font-bold text-lg mb-4 text-gray-800">⚙️ Painel de Operações (CD)</h3>
                             
+                            {/* AVISO: EM ANÁLISE */}
+                            {pedido.status === 'em_analise' && (
+                                <div className="text-center p-4 bg-gray-100 rounded text-gray-500 italic">
+                                    Aguardando aprovação do Gestor Comercial para liberar separação.
+                                </div>
+                            )}
+
                             {/* 1. SEPARAR */}
                             {pedido.status === 'solicitado' && (
                                 <div className="flex gap-4">
@@ -280,7 +324,6 @@ export default function PedidoShow({ auth, pedido }) {
                     )}
 
                     {/* --- ÁREA DE FINALIZAÇÃO (COMPARTILHADA: LOJA E CD) --- */}
-                    {/* Aparece se estiver 'em_transito' E (for CD OU for o Dono do Pedido) */}
                     {pedido.status === 'em_transito' && (auth.user.perfil === 'cd' || auth.user.id === pedido.user_id) && (
                         <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-green-500 mt-6">
                             <h3 className="font-bold text-lg mb-4 text-green-800">✅ Confirmar Recebimento</h3>
@@ -357,6 +400,7 @@ export default function PedidoShow({ auth, pedido }) {
                 </div>
             </div>
 
+            {/* CHAT - SÓ APARECE SE NÃO ESTIVER CANCELADO */}
             {pedido.status !== 'cancelado' && (
                 <ChatBox pedidoId={pedido.id} />
             )}
@@ -365,27 +409,33 @@ export default function PedidoShow({ auth, pedido }) {
     );
 }
 
+// --- HELPERS VISUAIS ATUALIZADOS ---
+
 function BadgeStatus({ status }) {
     const config = {
-        solicitado:  { label: 'Solicitado',  bg: 'bg-yellow-100 text-yellow-800' },
-        separado:    { label: 'Separado',    bg: 'bg-blue-100 text-blue-800' },
-        expedido:    { label: 'Expedido',    bg: 'bg-indigo-100 text-indigo-800' },
-        em_transito: { label: 'Em Trânsito', bg: 'bg-orange-100 text-orange-800' },
-        concluido:   { label: 'Concluído',   bg: 'bg-green-100 text-green-800' },
-        cancelado:   { label: 'Cancelado',   bg: 'bg-red-100 text-red-800' },
-    }[status] || { label: status, bg: 'bg-gray-100' };
-    return <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.bg}`}>{config.label}</span>;
+        'em_analise': { label: 'Em Análise (Gestão)', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
+        'solicitado': { label: 'Aguardando CD',       bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+        'separado':   { label: 'Separado / Pátio',    bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+        'expedido':   { label: 'Em Carga',            bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+        'em_transito':{ label: 'Em Trânsito',         bg: 'bg-orange-100 text-orange-800 border-orange-200' },
+        'concluido':  { label: 'Entregue',            bg: 'bg-green-100 text-green-800 border-green-200' },
+        'cancelado':  { label: 'Cancelado',           bg: 'bg-red-100 text-red-800 border-red-200' },
+    }[status] || { label: status, bg: 'bg-gray-100 text-gray-600' };
+
+    return <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.bg} border`}>{config.label}</span>;
 }
 
 function Timeline({ status }) {
     const steps = [
+        { id: 'em_analise',  label: 'Análise',     icon: '🛡️' },
         { id: 'solicitado',  label: 'Solicitado',  icon: '📝' },
         { id: 'separado',    label: 'Separado',    icon: '📦' },
         { id: 'expedido',    label: 'Expedido',    icon: '📄' },
         { id: 'em_transito', label: 'Em Trânsito', icon: '🚚' },
         { id: 'concluido',   label: 'Concluído',   icon: '🏁' },
     ];
-    const map = { solicitado: 0, separado: 1, expedido: 2, em_transito: 3, concluido: 4, cancelado: -1 };
+    
+    const map = { em_analise: 0, solicitado: 1, separado: 2, expedido: 3, em_transito: 4, concluido: 5, cancelado: -1 };
     const current = map[status] ?? 0;
 
     return (
@@ -399,15 +449,15 @@ function Timeline({ status }) {
                     const done = status !== 'cancelado' && index <= current;
                     return (
                         <div key={step.id} className="flex flex-col items-center relative bg-white px-1">
-                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-lg md:text-xl border-4 bg-white shadow-sm z-10 ${done ? 'border-green-500 text-green-600 scale-110' : 'border-gray-300 text-gray-300'}`}>
+                            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-xl border-4 bg-white shadow-sm z-10 transition-all ${done ? 'border-green-500 text-green-600 scale-110' : 'border-gray-300 text-gray-300'}`}>
                                 {done ? step.icon : index + 1}
                             </div>
-                            <span className={`mt-3 text-[10px] md:text-xs font-bold uppercase ${done ? 'text-green-700' : 'text-gray-400'}`}>{step.label}</span>
+                            <span className={`mt-2 text-[8px] md:text-xs font-bold uppercase ${done ? 'text-green-700' : 'text-gray-400'}`}>{step.label}</span>
                         </div>
                     );
                 })}
             </div>
-            {status === 'cancelado' && <div className="mt-4 text-center text-red-600 font-bold bg-red-50 p-2 rounded">PROCESSO CANCELADO</div>}
+            {status === 'cancelado' && <div className="mt-4 text-center text-red-600 font-bold bg-red-50 p-2 rounded animate-pulse">PROCESSO CANCELADO</div>}
         </div>
     );
 }

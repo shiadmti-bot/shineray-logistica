@@ -239,17 +239,19 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
 
 function getStepNumber(status) {
     switch(status) {
+        case 'em_analise': return 0.5; // Etapa inicial (antes de chegar no CD)
         case 'solicitado': return 1;
         case 'separado': return 2;
-        case 'expedido': return 2.5; // Intermediário
+        case 'expedido': return 2.5;
         case 'em_transito': return 3;
         case 'concluido': return 4;
-        default: return 4; // Cancelado ou outro
+        default: return 4;
     }
 }
 
 function getStatusColor(status) {
     switch(status) {
+        case 'em_analise': return 'bg-purple-500'; // Roxo para Gestão
         case 'solicitado': return 'bg-yellow-500';
         case 'separado': return 'bg-blue-500';
         case 'expedido': return 'bg-indigo-500';
@@ -262,12 +264,13 @@ function getStatusColor(status) {
 
 function StatusBadge({ status }) {
     const config = {
-        solicitado:  { label: 'Aguardando Conferência', bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        separado:    { label: 'Separado / No Pátio',    bg: 'bg-blue-100 text-blue-800 border-blue-200' },
-        expedido:    { label: 'Em Carga',               bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-        em_transito: { label: 'Em Trânsito',            bg: 'bg-orange-100 text-orange-800 border-orange-200' },
-        concluido:   { label: 'Entregue',               bg: 'bg-green-100 text-green-800 border-green-200' },
-        cancelado:   { label: 'Cancelado',              bg: 'bg-red-100 text-red-800 border-red-200' },
+        'em_analise': { label: 'Em Análise (Gestão)', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
+        'solicitado': { label: 'Aguardando CD',       bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+        'separado':   { label: 'Separado / Pátio',    bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+        'expedido':   { label: 'Em Carga',            bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+        'em_transito':{ label: 'Em Trânsito',         bg: 'bg-orange-100 text-orange-800 border-orange-200' },
+        'concluido':  { label: 'Entregue',            bg: 'bg-green-100 text-green-800 border-green-200' },
+        'cancelado':  { label: 'Cancelado',           bg: 'bg-red-100 text-red-800 border-red-200' },
     }[status] || { label: status, bg: 'bg-gray-100 text-gray-600' };
 
     return (
