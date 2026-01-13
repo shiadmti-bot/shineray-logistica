@@ -103,9 +103,11 @@ class GestorController extends Controller
     // --- HISTÓRICO DE AUDITORIA ---
     public function historico()
     {
-        $logs = PedidoLog::where('titulo', 'Auditoria Comercial')
+        // CORREÇÃO: Usamos 'LIKE' com '%' para pegar "Auditoria Comercial", "Auditoria Comercial (Gestor)", etc.
+        $logs = PedidoLog::where('titulo', 'LIKE', 'Auditoria Comercial%')
             ->with(['pedido' => function($q) {
-                $q->withTrashed()->with('user');
+                // Traz o pedido e o usuário, mesmo que o pedido tenha sido excluído (withTrashed)
+                $q->withTrashed()->with('user'); 
             }])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
