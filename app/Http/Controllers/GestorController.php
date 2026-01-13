@@ -35,50 +35,56 @@ class GestorController extends Controller
     {
         $pedido = Pedido::with('motos')->findOrFail($id);
         
-        // IDs que o gestor REJEITOU (Desmarcou na tela)
+        // Recebe os dados do Frontend
         $motosRejeitadasIds = $request->input('rejeitadas', []);
+        $justificativa = $request->input('justificativa'); // Novo campo opcional
         
         $userGestor = Auth::user();
-        $detalhesAuditoria = []; // Array para salvar no log
+        $detalhesAuditoria = []; 
 
-        // 1. Processa Rejeições (Corte de Itens)
-        if (count($motosRejeitadasIds) > 0) {
-            foreach ($motosRejeitadasIds as $motoId) {
-                $moto = Moto::find($motoId);
-                if ($moto) {
-                    // Guarda info para auditoria
-                    $detalhesAuditoria[] = "Chassi {$moto->chassi} ({$moto->modelo}) removido.";
+        // 1. PROCESSAMENTO DOS CORTES (REJEIÇÕES)
+        if (!empty($motosRejeitadasIds)) {
+            // Busca as motos que serão removidas
+            $motosParaRemover = Moto::whereIn('id', $motosRejeitadasIds)->get();
 
-                    // A. Reseta status da moto para livre
-                    $moto->update([
-                        'status' => 'estoque_fabrica',
-                        'localizacao_atual' => 'Estoque (Devolvido pela Gestão)'
-                    ]);
+            foreach ($motosParaRemover as $moto) {
+                // Guarda info para auditoria
+                $detalhesAuditoria[] = "Chassi {$moto->chassi} removido";
 
-                    // B. CRÍTICO: Remove a relação com este pedido
-                    // Isso impede que a moto apareça para o CD ou na lista do pedido
-                    $pedido->motos()->detach($motoId);
-                }
+                // A. Reseta status da moto para livre no estoque
+                $moto->update([
+                    'status' => 'estoque_fabrica',
+                    'localizacao_atual' => 'Estoque (Devolvido pela Gestão)'
+                ]);
             }
+
+            // B. CRÍTICO: Remove a relação da tabela pivô (pedido_moto)
+            // Passamos o array inteiro de IDs para garantir que todos saiam
+            $pedido->motos()->detach($motosRejeitadasIds);
         }
 
-        // 2. Verifica o que sobrou
-        // Recarrega a relação para ver quantas motos restaram vinculadas
-        $pedido->refresh(); 
+        // 2. VERIFICAÇÃO PÓS-CORTE
+        // Recarrega a relação do banco para ter certeza do que sobrou
+        $pedido->load('motos'); 
         
-        if ($pedido->motos()->count() > 0) {
+        if ($pedido->motos->count() > 0) {
             // Se sobrou moto, avança para o CD
             $pedido->update(['status' => 'solicitado']); 
 
-            // Cria Log de Auditoria Detalhado
+            // Monta o texto do Log
             $textoLog = "Aprovado por {$userGestor->name}.";
+            
+            if ($justificativa) {
+                $textoLog .= " Obs do Gestor: \"{$justificativa}\".";
+            }
+            
             if (!empty($detalhesAuditoria)) {
-                $textoLog .= " Cortes: " . implode(" | ", $detalhesAuditoria);
+                $textoLog .= " Cortes realizados: " . implode(", ", $detalhesAuditoria) . ".";
             }
 
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
-                'titulo' => 'Auditoria Comercial',
+                'titulo' => 'Autorização Comercial',
                 'descricao' => $textoLog
             ]);
 
@@ -94,23 +100,23 @@ class GestorController extends Controller
 
             return redirect()->route('gestor.index')->with('success', 'Pedido processado e enviado ao CD.');
         } else {
-            // Se tudo foi rejeitado, o pedido morre aqui
-            // As motos já foram liberadas no loop acima
-            $pedido->delete(); // Soft delete ou delete real
+            // Se o gestor cortou tudo, o pedido é cancelado/excluído
+            $motivoCancelamento = "Cancelado pelo Gestor. ";
+            if ($justificativa) $motivoCancelamento .= "Motivo: " . $justificativa;
+            else $motivoCancelamento .= "Todos os itens foram rejeitados.";
+
+            $pedido->SoftDeletes(); 
             
-            return redirect()->route('gestor.index')->with('warning', 'Todos os itens foram rejeitados. O pedido foi cancelado.');
+            return redirect()->route('gestor.index')->with('warning', $motivoCancelamento);
         }
     }
 
-    // --- NOVO: HISTÓRICO DE AUDITORIA ---
+    // --- HISTÓRICO DE AUDITORIA ---
     public function historico()
     {
-        // Busca logs onde o título é 'Auditoria Comercial'
-        // Traz o pedido (mesmo que excluído, se usar softDeletes, ou traz null se hard delete)
-        // O ideal é buscar Logs e carregar user
         $logs = PedidoLog::where('titulo', 'Auditoria Comercial')
             ->with(['pedido' => function($q) {
-                $q->withTrashed()->with('user'); // Carrega mesmo se o pedido foi deletado
+                $q->withTrashed()->with('user');
             }])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
