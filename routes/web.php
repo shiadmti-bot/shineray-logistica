@@ -128,11 +128,10 @@ Route::get('/dashboard', function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // ⚠️ ROTA DE EMERGÊNCIA (Descomente se precisar limpar, mas mantenha protegida)
-    
-    // --- ROTA DE LIMPEZA E RESET TOTAL (PEDIDOS + ROMANEIOS) ---
+
+    // --- ROTA DE LIMPEZA E RESET TOTAL (CORRIGIDA) ---
     Route::get('/limpar-transacoes', function () {
     
-    // Proteção básica
     $user = Illuminate\Support\Facades\Auth::user();
     if (!$user || $user->perfil !== 'admin') abort(403, 'Acesso negado');
 
@@ -142,34 +141,37 @@ Route::get('/dashboard', function () {
     Illuminate\Support\Facades\DB::table('pedido_logs')->truncate();
     Illuminate\Support\Facades\DB::table('messages')->truncate();
     Illuminate\Support\Facades\DB::table('notifications')->truncate();
-    Illuminate\Support\Facades\DB::table('pedido_moto')->truncate(); // Tabela pivô importante
     
-    // 2. Limpa e RESETA o ID dos Pedidos e Romaneios
-    // O comando TRUNCATE automaticamente reseta o ID para 1
+    // Limpa a tabela pivô (Isso é o que desvincula a moto do pedido)
+    if (Illuminate\Support\Facades\Schema::hasTable('pedido_moto')) {
+        Illuminate\Support\Facades\DB::table('pedido_moto')->truncate();
+    }
+    
+    // 2. Limpa e RESETA o ID
     \App\Models\Romaneio::truncate(); 
     \App\Models\Pedido::truncate();
     
-    // 3. Reseta status das motos (para você não perder o cadastro dos chassis)
+    // 3. Reseta status das motos (CORRIGIDO: Sem pedido_id)
     \App\Models\Moto::query()->update([
-        'pedido_id' => null,
+        // 'pedido_id' => null, <--- REMOVIDO (Causava o erro)
         'romaneio_id' => null,
         'status' => 'estoque_fabrica',
         'localizacao_atual' => 'Estoque Inicial'
     ]);
 
-    // 4. Comando de força bruta para garantir o reset do contador
+    // 4. Reset do Contador (Auto Increment)
     try {
         Illuminate\Support\Facades\DB::statement("ALTER TABLE pedidos AUTO_INCREMENT = 1;");
         Illuminate\Support\Facades\DB::statement("ALTER TABLE romaneios AUTO_INCREMENT = 1;");
     } catch (\Exception $e) {
-        // Em alguns bancos Cloud isso pode falhar ou não ser necessário, ignoramos o erro se o truncate funcionou
+        // Ignora se o banco não suportar (TiDB gerencia diferente)
     }
 
     Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
 
     return "🧹 Sistema Limpo! Pedidos e Romaneios foram apagados e a numeração reiniciada para #000001.";
 });
-    
+
 });
 
 require __DIR__.'/auth.php';
