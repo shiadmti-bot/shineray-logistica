@@ -142,49 +142,41 @@ Route::get('/dashboard', function () {
     return "Tabela de Motos corrigida! Agora aceita 'estoque_fabrica'.";
 });
 
-    // ⚠️ ROTA DE EMERGÊNCIA (Descomente se precisar limpar, mas mantenha protegida)
-
-    // --- ROTA DE LIMPEZA E RESET TOTAL (CORRIGIDA) ---
-    Route::get('/limpar-transacoes', function () {
+    // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
+Route::get('/zerar-estoque-operacao', function () {
     
+    // Verificação de segurança simples (apenas Admin pode rodar)
     $user = Illuminate\Support\Facades\Auth::user();
-    if (!$user || $user->perfil !== 'admin') abort(403, 'Acesso negado');
+    if (!$user || $user->perfil !== 'admin') {
+        abort(403, 'Acesso Negado. Apenas Admin pode zerar o estoque.');
+    }
 
+    // 1. Desativa travas de segurança do banco (para poder apagar sem ordem)
     Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
 
-    // 1. Limpa tabelas de histórico e vínculos
+    // 2. LIMPEZA DAS TABELAS (A ordem aqui não importa pois desligamos as travas)
+    
+    // A. Apaga todas as Motos (O principal problema)
+    \App\Models\Moto::truncate();
+    
+    // B. Apaga os vínculos de motos com pedidos
+    Illuminate\Support\Facades\DB::table('pedido_moto')->truncate();
+
+    // C. Apaga Pedidos e Histórico
+    \App\Models\Pedido::truncate();
     Illuminate\Support\Facades\DB::table('pedido_logs')->truncate();
+    
+    // D. Apaga Cargas (Romaneios)
+    \App\Models\Romaneio::truncate();
+    
+    // E. Apaga Chat e Notificações antigas
     Illuminate\Support\Facades\DB::table('messages')->truncate();
     Illuminate\Support\Facades\DB::table('notifications')->truncate();
-    
-    // Limpa a tabela pivô (Isso é o que desvincula a moto do pedido)
-    if (Illuminate\Support\Facades\Schema::hasTable('pedido_moto')) {
-        Illuminate\Support\Facades\DB::table('pedido_moto')->truncate();
-    }
-    
-    // 2. Limpa e RESETA o ID
-    \App\Models\Romaneio::truncate(); 
-    \App\Models\Pedido::truncate();
-    
-    // 3. Reseta status das motos (CORRIGIDO: Sem pedido_id)
-    \App\Models\Moto::query()->update([
-        // 'pedido_id' => null, <--- REMOVIDO (Causava o erro)
-        'romaneio_id' => null,
-        'status' => 'estoque_fabrica',
-        'localizacao_atual' => 'Estoque Inicial'
-    ]);
 
-    // 4. Reset do Contador (Auto Increment)
-    try {
-        Illuminate\Support\Facades\DB::statement("ALTER TABLE pedidos AUTO_INCREMENT = 1;");
-        Illuminate\Support\Facades\DB::statement("ALTER TABLE romaneios AUTO_INCREMENT = 1;");
-    } catch (\Exception $e) {
-        // Ignora se o banco não suportar (TiDB gerencia diferente)
-    }
-
+    // 3. Reativa as travas de segurança
     Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
 
-    return "🧹 Sistema Limpo! Pedidos e Romaneios foram apagados e a numeração reiniciada para #000001.";
+    return "🧹 LIMPEZA CONCLUÍDA! O estoque está zerado e pronto para receber a carga real (XML) ou cadastro manual.";
 });
 
 });
