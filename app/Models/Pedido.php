@@ -10,19 +10,26 @@ class Pedido extends Model
 {
     use HasFactory, SoftDeletes;
 
-    // --- AQUI ESTAVA O PROBLEMA ---
-    // Adicionei 'romaneio_id' na lista de permitidos
     protected $fillable = [
         'user_id', 
         'status', 
         'observacao', 
         'romaneio_id', 
-        'arquivo_assinado'
+        
+        // Campos de Upload e Finalização
+        'arquivo_assinado', // Do seu snippet original
+        'comprovante_url',  // Usado na integração com Google Drive
+        
+        // Campo de Cancelamento/Rejeição
+        'motivo_rejeicao'
     ];
+
+    // --- RELAÇÕES ---
 
     public function motos()
     {
-        return $this->belongsToMany(Moto::class, 'pedido_moto');
+        // withTimestamps garante que a data do vínculo seja salva na tabela 'pedido_moto'
+        return $this->belongsToMany(Moto::class, 'pedido_moto')->withTimestamps();
     }
 
     public function user()
@@ -38,5 +45,12 @@ class Pedido extends Model
     public function logs()
     {
         return $this->hasMany(PedidoLog::class)->orderBy('created_at', 'desc');
+    }
+
+    // --- CORREÇÃO DO ERRO NO CHAT ---
+    // Essa função permite usar $pedido->messages() no Controller
+    public function messages()
+    {
+        return $this->hasMany(Message::class);
     }
 }

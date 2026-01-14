@@ -2,24 +2,29 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Message extends Model
 {
-    protected $fillable = ['pedido_id', 'user_id', 'canal', 'content', 'read_at'];
+    use HasFactory;
 
-    protected $casts = [
-        'read_at' => 'datetime',
+    // Garante que podemos salvar nestas colunas
+    protected $fillable = [
+        'pedido_id', 
+        'user_id', 
+        'content', 
+        'canal',  
+        'read_at'
     ];
 
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
-    
-    public function pedido(): BelongsTo
+    public function pedido()
     {
         return $this->belongsTo(Pedido::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }
