@@ -27,7 +27,19 @@ class GestorController extends Controller
     public function show($id)
     {
         $pedido = Pedido::with(['user', 'motos', 'logs'])->findOrFail($id);
-        return Inertia::render('Gestor/Show', ['pedido' => $pedido]);
+
+        // --- NOVO: Busca a última mensagem do chat 'Gestor' enviada pela Loja ---
+        // Filtra msg onde o 'canal' é gestor e o autor NÃO é o usuário atual (ou seja, é a loja)
+        $ultimaMensagemChat = $pedido->messages()
+            ->where('canal', 'gestor')
+            ->where('user_id', '!=', Auth::id()) 
+            ->latest() // Pega a mais recente
+            ->first();
+
+        return Inertia::render('Gestor/Show', [
+            'pedido' => $pedido,
+            'mensagemChat' => $ultimaMensagemChat // Envia para o Frontend
+        ]);
     }
 
     // --- LÓGICA DE APROVAÇÃO ---
