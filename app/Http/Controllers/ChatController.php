@@ -40,21 +40,27 @@ class ChatController extends Controller
     // Envia nova mensagem
     public function store(Request $request, $pedidoId)
     {
-        $request->validate(['content' => 'required|string']);
-
-        $message = Message::create([
-            'pedido_id' => $pedidoId,
-            'user_id' => Auth::id(),
-            'content' => $request->content
+        $request->validate([
+            'content' => 'required|string',
+            'canal' => 'required|string|in:cd,gestor' // Validação nova
         ]);
 
-        // Carrega o usuário para o evento
+        $pedido = Pedido::findOrFail($pedidoId);
+
+        $message = $pedido->messages()->create([
+            'user_id' => Auth::id(),
+            'content' => $request->content,
+            'canal' => $request->canal, // Salva o canal
+            'read_at' => false
+        ]);
+
+        // Carrega o usuário para mostrar nome/foto no chat
         $message->load('user');
 
-        // Dispara o WebSocket
-        broadcast(new MessageSent($message))->toOthers();
+        // Dispara evento (Pusher)
+        broadcast(new \App\Events\NewMessage($message))->toOthers();
 
-        return response()->json(['status' => 'Message Sent!', 'message' => $message]);
+        return $message;
     }
     
     // Marca como lida (Ticks Azuis)

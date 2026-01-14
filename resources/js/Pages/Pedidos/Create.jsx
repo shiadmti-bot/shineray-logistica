@@ -4,12 +4,11 @@ import { Head, useForm } from '@inertiajs/react';
 export default function PedidoCreate({ auth, listaModelos }) {
     const { data, setData, post, processing, errors } = useForm({
         itens: [
-            { modelo: '', chassi: '', cor: '', ano: '', motivo: '' } // Novo campo motivo
+            { modelo: '', chassi: '', cor: '', ano: '', motivo: '' }
         ],
         observacao: ''
     });
 
-    // LISTA DE MOTIVOS PADRONIZADA (Sugestão Enterprise)
     const motivosOpcoes = [
         "Estoque Regular (Giro)",
         "Venda Confirmada (Cliente)",
@@ -50,7 +49,6 @@ export default function PedidoCreate({ auth, listaModelos }) {
             <div className="py-12 bg-gray-100 min-h-screen pb-32">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     
-                    {/* Alerta de Erro Global */}
                     {Object.keys(errors).length > 0 && (
                         <div className="mb-6 bg-red-50 border-l-8 border-red-600 p-6 rounded shadow-lg animate-pulse">
                             <div className="flex items-start">
@@ -58,7 +56,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                 <div className="ml-4">
                                     <h3 className="text-xl font-bold text-red-800">Atenção!</h3>
                                     <div className="mt-2 text-sm text-red-700 font-bold">
-                                        Verifique os campos obrigatórios (marcados em vermelho).
+                                        Verifique os campos obrigatórios em vermelho.
                                     </div>
                                 </div>
                             </div>
@@ -73,7 +71,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                         <div className="mb-6">
                             <h3 className="text-lg font-bold text-gray-800">Preencha os dados das motos</h3>
                             <p className="text-sm text-gray-500">
-                                Informe o motivo de cada moto para agilizar a aprovação do Gestor.
+                                Informe o motivo para agilizar a aprovação.
                             </p>
                         </div>
 
@@ -81,22 +79,24 @@ export default function PedidoCreate({ auth, listaModelos }) {
                             {listaModelos.map((nome, index) => ( <option key={index} value={nome} /> ))}
                         </datalist>
 
-                        {/* CABEÇALHO (Desktop) */}
-                        <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2">
+                        {/* --- CABEÇALHO DA TABELA (AJUSTADO) --- */}
+                        <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
                             <div className="col-span-1 text-center">#</div>
                             <div className="col-span-3">Modelo *</div>
                             <div className="col-span-3">Chassi (11-17) *</div>
                             <div className="col-span-2">Cor *</div>
-                            <div className="col-span-2">Motivo da Solicitação *</div> {/* ATUALIZADO */}
-                            <div className="col-span-1 text-center">Ação</div>
+                            <div className="col-span-1 text-center">Ano</div> {/* VOLTOU O ANO */}
+                            <div className="col-span-2">Motivo da Solicitação *</div>
+                            <div className="col-span-1 text-center"></div> {/* AÇÃO REMOVIDA (EM BRANCO) */}
                         </div>
 
-                        {/* LINHAS */}
+                        {/* --- LINHAS --- */}
                         <div className="space-y-3">
                             {data.itens.map((item, index) => (
-                                <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-start bg-gray-50 p-4 rounded-lg border shadow-sm transition-all ${errors[`itens.${index}.motivo`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all ${errors[`itens.${index}.motivo`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                                     
-                                    <div className="col-span-1 text-center font-bold text-gray-400 pt-3">{index + 1}</div>
+                                    {/* # */}
+                                    <div className="col-span-1 text-center font-bold text-gray-400">{index + 1}</div>
 
                                     {/* Modelo */}
                                     <div className="col-span-3">
@@ -124,31 +124,38 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                             className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
                                             required
                                         />
-                                        <div className="flex justify-end mt-1">
-                                            <span className={`text-[10px] font-bold ${item.chassi.length >= 11 ? 'text-green-600' : 'text-gray-400'}`}>{item.chassi.length}/17</span>
+                                        <div className="flex justify-end mt-1 md:absolute md:bottom-2 md:right-4">
+                                            <span className={`text-[9px] font-bold ${item.chassi.length >= 11 ? 'text-green-600' : 'text-gray-400'}`}>{item.chassi.length}/17</span>
                                         </div>
                                     </div>
 
-                                    {/* Cor e Ano (Compactados) */}
-                                    <div className="col-span-2 flex gap-2">
-                                        <div className="flex-1">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Cor</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="COR"
-                                                value={item.cor}
-                                                onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
-                                                className="w-full border-gray-300 rounded focus:border-red-500 uppercase text-sm"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="w-16">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Ano</label>
-                                            <input type="text" placeholder="24" maxLength={4} value={item.ano} onChange={(e) => updateItem(index, 'ano', e.target.value)} className="w-full border-gray-300 rounded text-center text-sm" />
-                                        </div>
+                                    {/* Cor */}
+                                    <div className="col-span-2">
+                                        <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Cor</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="COR"
+                                            value={item.cor}
+                                            onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
+                                            className="w-full border-gray-300 rounded focus:border-red-500 uppercase text-sm"
+                                            required
+                                        />
                                     </div>
 
-                                    {/* NOVO CAMPO: MOTIVO */}
+                                    {/* Ano (SEPARADO) */}
+                                    <div className="col-span-1">
+                                        <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Ano</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ex: 24" 
+                                            maxLength={4} 
+                                            value={item.ano} 
+                                            onChange={(e) => updateItem(index, 'ano', e.target.value)} 
+                                            className="w-full border-gray-300 rounded text-center text-sm" 
+                                        />
+                                    </div>
+
+                                    {/* Motivo */}
                                     <div className="col-span-2">
                                         <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Motivo</label>
                                         <select 
@@ -162,10 +169,10 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                         </select>
                                     </div>
 
-                                    {/* Botão Remover */}
-                                    <div className="col-span-1 text-center pt-1">
+                                    {/* Botão Remover (Sem Texto no Cabeçalho) */}
+                                    <div className="col-span-1 text-center">
                                         {data.itens.length > 1 && (
-                                            <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 font-bold text-xl p-2 transition" title="Remover item">
+                                            <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 font-bold text-xl p-2 transition rounded-full hover:bg-red-50" title="Remover item">
                                                 🗑️
                                             </button>
                                         )}
@@ -178,9 +185,16 @@ export default function PedidoCreate({ auth, listaModelos }) {
                             <button type="button" onClick={addItem} className="w-full md:w-auto flex items-center justify-center gap-2 text-blue-600 font-bold border-2 border-dashed border-blue-300 rounded-lg px-6 py-4 hover:bg-blue-50 transition">
                                 <span>➕</span> Adicionar Outra Moto
                             </button>
+                            
+                            {/* CAMPO DE OBSERVAÇÃO */}
                             <div className="w-full md:w-1/2">
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Observações Gerais</label>
-                                <textarea value={data.observacao} onChange={e => setData('observacao', e.target.value)} className="w-full border-gray-300 rounded h-24 text-sm" placeholder="Alguma ressalva sobre o lote..."></textarea>
+                                <textarea 
+                                    value={data.observacao} 
+                                    onChange={e => setData('observacao', e.target.value)} 
+                                    className="w-full border-gray-300 rounded h-24 text-sm focus:ring-red-500 focus:border-red-500" 
+                                    placeholder="Alguma ressalva importante para o Gestor..."
+                                ></textarea>
                             </div>
                         </div>
                     </form>
