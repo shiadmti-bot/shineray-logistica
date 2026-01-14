@@ -111,70 +111,93 @@ export default function GestorShow({ auth, pedido }) {
                     <h3 className="font-bold text-gray-700 mb-4 px-2">Itens da Solicitação</h3>
 
                     {/* Lista de Motos */}
+                   {/* LISTA DE MOTOS - VISUAL ENTERPRISE */}
                     <div className="space-y-4 mb-8">
                         {pedido.motos.map((moto) => {
                             const isApproved = aprovacoes[moto.id];
+                            
                             return (
-                                <div key={moto.id} className={`transition-all duration-300 ${!isApproved ? 'scale-100' : 'scale-100'}`}>
+                                <div key={moto.id} className="transition-all duration-300">
+                                    
+                                    {/* CARD PRINCIPAL - CLICÁVEL */}
                                     <div 
                                         onClick={() => toggleAprovacao(moto.id)}
-                                        className={`relative p-4 rounded-xl border-2 cursor-pointer select-none flex justify-between items-center transition-colors
+                                        className={`relative p-5 rounded-xl border-2 cursor-pointer select-none flex flex-col md:flex-row justify-between md:items-center gap-4 transition-all duration-200 group
                                             ${isApproved 
-                                                ? 'bg-white border-green-200 shadow-sm' 
-                                                : 'bg-red-50 border-red-300 shadow-md'
+                                                ? 'bg-white border-gray-100 hover:border-green-200 shadow-sm hover:shadow-md' 
+                                                : 'bg-red-50 border-red-200 shadow-inner'
                                             }`}
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isApproved ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                                        {/* ESQUERDA: STATUS E DADOS */}
+                                        <div className="flex items-start gap-4">
+                                            {/* Ícone de Status (Checkbox Gigante) */}
+                                            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg font-bold transition-transform duration-300 ${isApproved ? 'bg-green-100 text-green-600 group-hover:scale-110' : 'bg-red-100 text-red-600 rotate-180'}`}>
                                                 {isApproved ? '✓' : '✕'}
                                             </div>
+
                                             <div>
-                                                <h4 className={`font-bold ${isApproved ? 'text-gray-800' : 'text-red-800 line-through'}`}>{moto.modelo}</h4>
-                                                <p className="text-xs font-mono text-gray-500">{moto.chassi}</p>
-                                                <p className="text-xs text-gray-400">{moto.cor}</p>
+                                                {/* Chassi em Destaque */}
+                                                <h4 className={`font-mono text-lg font-bold tracking-wide ${isApproved ? 'text-gray-800' : 'text-red-800 line-through decoration-2 opacity-60'}`}>
+                                                    {moto.chassi}
+                                                </h4>
+                                                
+                                                {/* Modelo e Cor */}
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                    <span className="text-sm font-bold text-gray-600">{moto.modelo}</span>
+                                                    <span className="hidden md:inline text-gray-300">•</span>
+                                                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 uppercase">
+                                                        {moto.cor}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                         
-                                        <div className="text-right">
-                                            <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                {isApproved ? 'Aprovado' : 'Rejeitado'}
+                                        {/* DIREITA: MOTIVO E STATUS */}
+                                        <div className="flex flex-col items-end gap-2">
+                                            {/* Badge do Motivo (Venda, Estoque...) */}
+                                            {moto.motivo_solicitacao && (
+                                                <span className="text-[10px] font-bold tracking-wider text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded uppercase">
+                                                    {moto.motivo_solicitacao}
+                                                </span>
+                                            )}
+
+                                            {/* Texto de Status */}
+                                            <span className={`text-xs font-bold uppercase tracking-widest ${isApproved ? 'text-green-600' : 'text-red-600'}`}>
+                                                {isApproved ? 'APROVADO PARA ENVIO' : 'REJEITAR ITEM'}
                                             </span>
                                         </div>
                                     </div>
 
-                                    {/* DROPDOWN DE MOTIVO (Só aparece se rejeitado) */}
+                                    {/* ÁREA DE REJEIÇÃO (DROPDOWN) */}
+                                    {/* Só aparece se o item estiver marcado como rejeitado */}
                                     {!isApproved && (
-                                        <div className="mt-2 ml-4 mr-1 animate-fade-in-down">
-                                            <label className="text-xs font-bold text-red-700 uppercase mb-1 block">Motivo da Rejeição:</label>
-                                            <select 
-                                                className="w-full border-red-300 rounded-lg text-sm focus:border-red-500 focus:ring-red-500 bg-white"
-                                                value={motivosEspecificos[moto.id] || ''}
-                                                onChange={(e) => handleMotivoChange(moto.id, e.target.value)}
-                                            >
-                                                <option value="" disabled>Selecione o motivo...</option>
-                                                {opcoesRejeicao.map((opt, i) => (
-                                                    <option key={i} value={opt}>{opt}</option>
-                                                ))}
-                                            </select>
+                                        <div className="mt-2 mx-2 p-4 bg-white border border-red-100 rounded-lg shadow-sm border-l-4 border-l-red-400 animate-fade-in-down">
+                                            <div className="flex flex-col md:flex-row md:items-center gap-3">
+                                                <div className="flex-1">
+                                                    <label className="text-xs font-bold text-red-700 uppercase mb-1 block flex items-center gap-1">
+                                                        <span>🚫</span> Motivo da Rejeição (Obrigatório)
+                                                    </label>
+                                                    <select 
+                                                        className="w-full border-gray-300 rounded-md text-sm focus:border-red-500 focus:ring-red-500 bg-gray-50 hover:bg-white transition-colors"
+                                                        value={motivosEspecificos[moto.id] || ''}
+                                                        onChange={(e) => handleMotivoChange(moto.id, e.target.value)}
+                                                        autoFocus
+                                                    >
+                                                        <option value="" disabled>Selecione o motivo específico...</option>
+                                                        {opcoesRejeicao.map((opt, i) => (
+                                                            <option key={i} value={opt}>{opt}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="text-xs text-gray-400 italic md:w-1/3">
+                                                    * Este item será excluído do pedido e devolvido ao sistema ou deletado conforme a regra.
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             );
                         })}
-                    </div>
-
-                    {/* OBS GERAL */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">
-                            📝 Observações Gerais (Opcional)
-                        </label>
-                        <textarea
-                            className="w-full border-gray-300 rounded-lg focus:border-purple-500 focus:ring-purple-500 text-sm"
-                            rows="2"
-                            placeholder="Algum recado extra para a loja..."
-                            value={justificativaGeral}
-                            onChange={(e) => setJustificativaGeral(e.target.value)}
-                        ></textarea>
                     </div>
 
                 </div>

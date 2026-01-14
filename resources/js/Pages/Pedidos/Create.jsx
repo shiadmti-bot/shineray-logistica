@@ -1,17 +1,27 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm } from '@inertiajs/react';
 
-// Recebemos 'listaModelos' do controller
 export default function PedidoCreate({ auth, listaModelos }) {
     const { data, setData, post, processing, errors } = useForm({
         itens: [
-            { modelo: '', chassi: '', cor: '', ano: '' }
+            { modelo: '', chassi: '', cor: '', ano: '', motivo: '' } // Novo campo motivo
         ],
         observacao: ''
     });
 
+    // LISTA DE MOTIVOS PADRONIZADA (Sugestão Enterprise)
+    const motivosOpcoes = [
+        "Estoque Regular (Giro)",
+        "Venda Confirmada (Cliente)",
+        "Test Drive / Frota",
+        "Exposição / Showroom",
+        "Reposição de Garantia",
+        "Uso Interno",
+        "Outros"
+    ];
+
     const addItem = () => {
-        setData('itens', [...data.itens, { modelo: '', chassi: '', cor: '', ano: '' }]);
+        setData('itens', [...data.itens, { modelo: '', chassi: '', cor: '', ano: '', motivo: '' }]);
     };
 
     const removeItem = (index) => {
@@ -48,7 +58,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                 <div className="ml-4">
                                     <h3 className="text-xl font-bold text-red-800">Atenção!</h3>
                                     <div className="mt-2 text-sm text-red-700 font-bold">
-                                        {errors.itens || 'Verifique os erros nos campos abaixo.'}
+                                        Verifique os campos obrigatórios (marcados em vermelho).
                                     </div>
                                 </div>
                             </div>
@@ -57,53 +67,44 @@ export default function PedidoCreate({ auth, listaModelos }) {
 
                     <form 
                         onSubmit={submit} 
-                        // --- TRAVA DE ENTER ACIDENTAL ---
-                        onKeyDown={(e) => {
-                            // Se a tecla for ENTER e o foco NÃO estiver no campo de texto grande (textarea)
-                            if (e.key === 'Enter' && e.target.type !== 'textarea') {
-                                e.preventDefault(); // Bloqueia o envio do formulário
-                            }
-                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && e.target.type !== 'textarea') e.preventDefault(); }}
                         className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-t-4 border-red-600"
                     >
                         <div className="mb-6">
                             <h3 className="text-lg font-bold text-gray-800">Preencha os dados das motos</h3>
                             <p className="text-sm text-gray-500">
-                                Selecione um modelo da lista ou digite um novo caso não encontre.
+                                Informe o motivo de cada moto para agilizar a aprovação do Gestor.
                             </p>
                         </div>
 
-                        {/* DATALIST: O Segredo do Autocomplete */}
                         <datalist id="opcoes-modelos">
-                            {listaModelos.map((nome, index) => (
-                                <option key={index} value={nome} />
-                            ))}
+                            {listaModelos.map((nome, index) => ( <option key={index} value={nome} /> ))}
                         </datalist>
 
-                        {/* Cabeçalho Visual */}
-                        <div className="hidden md:grid grid-cols-12 gap-4 mb-2 font-bold text-xs uppercase text-gray-500 px-2">
+                        {/* CABEÇALHO (Desktop) */}
+                        <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2">
                             <div className="col-span-1 text-center">#</div>
-                            <div className="col-span-4">Modelo (Sugestão/Livre) *</div>
-                            <div className="col-span-3">Chassi (11 - 17 Dígitos) *</div>
-                            <div className="col-span-2">Cor</div>
-                            <div className="col-span-1">Ano</div>
+                            <div className="col-span-3">Modelo *</div>
+                            <div className="col-span-3">Chassi (11-17) *</div>
+                            <div className="col-span-2">Cor *</div>
+                            <div className="col-span-2">Motivo da Solicitação *</div> {/* ATUALIZADO */}
                             <div className="col-span-1 text-center">Ação</div>
                         </div>
 
-                        {/* Linhas */}
+                        {/* LINHAS */}
                         <div className="space-y-3">
                             {data.itens.map((item, index) => (
-                                <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-start bg-gray-50 p-4 rounded-lg border shadow-sm transition-all ${errors.itens ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-start bg-gray-50 p-4 rounded-lg border shadow-sm transition-all ${errors[`itens.${index}.motivo`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                                     
-                                    <div className="col-span-1 text-center font-bold text-gray-400 pt-2">{index + 1}</div>
+                                    <div className="col-span-1 text-center font-bold text-gray-400 pt-3">{index + 1}</div>
 
-                                    {/* Campo Modelo com Datalist */}
-                                    <div className="col-span-4">
+                                    {/* Modelo */}
+                                    <div className="col-span-3">
                                         <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Modelo</label>
                                         <input 
                                             type="text" 
-                                            list="opcoes-modelos" // Conecta com a lista criada acima
-                                            placeholder="Digite ou Selecione..."
+                                            list="opcoes-modelos"
+                                            placeholder="MODELO..."
                                             value={item.modelo}
                                             onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
                                             className="w-full border-gray-300 rounded focus:border-red-500 focus:ring-red-500 uppercase font-bold text-sm"
@@ -111,63 +112,62 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                         />
                                     </div>
 
-                                    {/* Campo Chassi */}
+                                    {/* Chassi */}
                                     <div className="col-span-3">
                                         <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Chassi</label>
                                         <input 
                                             type="text" 
-                                            placeholder="17 DÍGITOS"
+                                            placeholder="CHASSI..."
                                             value={item.chassi}
-                                            minLength={11} // Mínimo 11
-                                            maxLength={17} // Máximo 17 (Padrão Mundial VIN)
-                                            onChange={(e) => {
-                                                // Remove tudo que não for letra ou número
-                                                const valorLimpo = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                                                updateItem(index, 'chassi', valorLimpo);
-                                            }}
-                                            className={`w-full rounded font-mono tracking-widest text-sm 
-                                                ${item.chassi.length >= 11 && item.chassi.length <= 17 
-                                                    ? 'border-green-400 bg-green-50' // Verde se estiver no intervalo correto
-                                                    : 'border-gray-300 focus:border-red-500'}`}
+                                            minLength={11} maxLength={17} 
+                                            onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                            className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
                                             required
                                         />
-                                        <div className="flex justify-between mt-1 px-1">
-                                            <span className="text-[10px] text-gray-400">Min: 11</span>
-                                            <span className={`text-[10px] font-bold ${item.chassi.length === 17 ? 'text-green-600' : 'text-gray-400'}`}>
-                                                {item.chassi.length}/17
-                                            </span>
+                                        <div className="flex justify-end mt-1">
+                                            <span className={`text-[10px] font-bold ${item.chassi.length >= 11 ? 'text-green-600' : 'text-gray-400'}`}>{item.chassi.length}/17</span>
                                         </div>
                                     </div>
 
-                                    {/* Campo Cor (Agora Obrigatório) */}
-                                    <div className="col-span-2">
-                                        <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Cor</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Cor *" // Dica visual
-                                            value={item.cor}
-                                            onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
-                                            className={`w-full border-gray-300 rounded focus:border-red-500 focus:ring-red-500 uppercase text-sm ${
-                                                // Se houver erro específico nesta linha, pinta de vermelho
-                                                errors[`itens.${index}.cor`] ? 'border-red-500 bg-red-50' : ''
-                                            }`}
-                                            required // Trava do navegador
-                                        />
-                                        {/* Mensagem de erro específica para a cor */}
-                                        {errors[`itens.${index}.cor`] && (
-                                            <p className="text-[10px] text-red-500 mt-1">Obrigatório</p>
-                                        )}
-                                    </div>
-                                    {/* Ano */}
-                                    <div className="col-span-1">
-                                        <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Ano</label>
-                                        <input type="text" placeholder="Ex: 24" maxLength={4} value={item.ano} onChange={(e) => updateItem(index, 'ano', e.target.value)} className="w-full border-gray-300 rounded focus:border-red-500 text-center text-sm" />
+                                    {/* Cor e Ano (Compactados) */}
+                                    <div className="col-span-2 flex gap-2">
+                                        <div className="flex-1">
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Cor</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="COR"
+                                                value={item.cor}
+                                                onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
+                                                className="w-full border-gray-300 rounded focus:border-red-500 uppercase text-sm"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="w-16">
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Ano</label>
+                                            <input type="text" placeholder="24" maxLength={4} value={item.ano} onChange={(e) => updateItem(index, 'ano', e.target.value)} className="w-full border-gray-300 rounded text-center text-sm" />
+                                        </div>
                                     </div>
 
-                                    {/* Remover */}
+                                    {/* NOVO CAMPO: MOTIVO */}
+                                    <div className="col-span-2">
+                                        <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Motivo</label>
+                                        <select 
+                                            value={item.motivo} 
+                                            onChange={(e) => updateItem(index, 'motivo', e.target.value)}
+                                            className={`w-full rounded text-sm focus:border-red-500 focus:ring-red-500 ${errors[`itens.${index}.motivo`] ? 'border-red-500' : 'border-gray-300'}`}
+                                            required
+                                        >
+                                            <option value="" disabled>Selecione...</option>
+                                            {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+
+                                    {/* Botão Remover */}
                                     <div className="col-span-1 text-center pt-1">
                                         {data.itens.length > 1 && (
-                                            <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 font-bold text-2xl transition">&times;</button>
+                                            <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 font-bold text-xl p-2 transition" title="Remover item">
+                                                🗑️
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -179,8 +179,8 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                 <span>➕</span> Adicionar Outra Moto
                             </button>
                             <div className="w-full md:w-1/2">
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Observações</label>
-                                <textarea value={data.observacao} onChange={e => setData('observacao', e.target.value)} className="w-full border-gray-300 rounded h-24 text-sm" placeholder="Alguma ressalva..."></textarea>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Observações Gerais</label>
+                                <textarea value={data.observacao} onChange={e => setData('observacao', e.target.value)} className="w-full border-gray-300 rounded h-24 text-sm" placeholder="Alguma ressalva sobre o lote..."></textarea>
                             </div>
                         </div>
                     </form>

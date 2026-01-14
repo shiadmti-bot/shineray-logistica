@@ -122,18 +122,22 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Create', ['listaModelos' => $modelos]);
     }
 
-    public function store(Request $request)
+  public function store(Request $request)
     {
+        // 1. Validação
         $request->validate([
             'itens' => 'required|array|min:1',
             'itens.*.modelo' => 'required|string',
-            'itens.*.chassi' => 'required|string|between:11,17|distinct', 
+            'itens.*.chassi' => 'required|string|between:11,17|distinct',
             'itens.*.cor' => 'required|string|min:3', 
+            'itens.*.motivo' => 'required|string', // Validando o motivo
         ]);
 
+        // 2. Verificação de Duplicidade (Blindagem)
+        // Impede pedir motos que já estão em processo (reservado, separado, etc)
+        // Só permite pedir se não existir ou se estiver 'estoque_fabrica' (livre)
         $chassis = array_column($request->itens, 'chassi');
         
-        // Validação de Duplicidade (Blindada)
         $duplicados = Moto::whereIn('chassi', $chassis)
             ->whereNotIn('status', ['estoque_fabrica', 'cancelado']) 
             ->pluck('chassi')
@@ -143,29 +147,39 @@ class PedidoController extends Controller
             throw ValidationException::withMessages(['itens' => 'Chassis já em uso/reservados: ' . implode(', ', $duplicados)]);
         }
 
+        // 3. Criação do Pedido
         $pedido = Pedido::create([
             'user_id' => Auth::id(),
-            'status' => 'em_analise',
+            'status' => 'em_analise', // Começa na mão do Gestor
             'observacao' => $request->observacao
         ]);
 
+        // 4. Vinculação das Motos
         foreach ($request->itens as $item) {
             $moto = Moto::updateOrCreate(
-                ['chassi' => $item['chassi']],
+                ['chassi' => mb_strtoupper($item['chassi'])], // Busca pelo Chassi
                 [
-                    'modelo' => $item['modelo'],
-                    'cor' => $item['cor'] ?? null,
+                    'modelo' => mb_strtoupper($item['modelo']),
+                    'cor' => mb_strtoupper($item['cor']),
                     'ano_fabricacao' => $item['ano'] ?? null,
+                    
+                    // --- AQUI ESTAVA FALTANDO ---
+                    'motivo_solicitacao' => $item['motivo'], 
+                    // ----------------------------
+
                     'status' => 'reservado',
-                    'localizacao_atual' => 'Loja Solicitou'
+                    'localizacao_atual' => 'Solicitado pela Loja'
                 ]
             );
+            
+            // Vincula na tabela pivô
             $pedido->motos()->attach($moto->id);
         }
 
+        // 5. Log e Notificação
         $this->registrarLog($pedido, 'Aguardando Aprovação', 'Pedido enviado para análise do Gestor Comercial.');
 
-       // NOTIFICAR O GESTOR
+        // Notifica APENAS os Gestores (Diego)
         $gestores = User::where('perfil', 'gestor')->get();
         foreach ($gestores as $gestor) {
             $gestor->notify(new PedidoAtualizado(
@@ -174,7 +188,6 @@ class PedidoController extends Controller
                 route('gestor.show', $pedido->id)
             ));
         }
-        // --------------------------------------------------------
 
         return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para aprovação do Gestor!');
     }
