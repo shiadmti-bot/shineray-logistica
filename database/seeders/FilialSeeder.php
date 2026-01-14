@@ -19,11 +19,11 @@ class FilialSeeder extends Seeder
             ['cidade' => 'Capanema', 'uf' => 'PA'],
             ['cidade' => 'Capitão Poço', 'uf' => 'PA'],
             ['cidade' => 'Castanhal', 'uf' => 'PA'],
-            ['cidade' => 'Concórdia do Pará', 'uf' => 'PA'], // Ajustei para nome completo
+            ['cidade' => 'Concórdia do Pará', 'uf' => 'PA'],
             ['cidade' => 'Curuçá', 'uf' => 'PA'],
-            ['cidade' => 'Icoaraci', 'uf' => 'PA'], // Distrito
+            ['cidade' => 'Icoaraci', 'uf' => 'PA'],
             ['cidade' => 'Moju', 'uf' => 'PA'],
-            ['cidade' => 'São Miguel do Guamá', 'uf' => 'PA'], // Ajustei para nome completo
+            ['cidade' => 'São Miguel do Guamá', 'uf' => 'PA'],
             ['cidade' => 'Tailândia', 'uf' => 'PA'],
             ['cidade' => 'Tomé-Açu', 'uf' => 'PA'],
 

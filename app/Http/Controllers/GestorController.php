@@ -36,44 +36,39 @@ class GestorController extends Controller
         $pedido = Pedido::with('motos')->findOrFail($id);
         
         $motosRejeitadasIds = $request->input('rejeitadas', []);
-        $justificativa = $request->input('justificativa');
+        $motivosMap = $request->input('motivos', []); // Novo: Mapa [id => motivo]
+        $justificativaGeral = $request->input('justificativa');
         
         $userGestor = Auth::user();
         $detalhesCortes = []; 
 
-        // 1. PROCESSAMENTO DOS CORTES (REJEIÇÕES)
         if (!empty($motosRejeitadasIds)) {
-            // Busca as motos antes de excluir para pegar os nomes
             $motosParaRemover = Moto::whereIn('id', $motosRejeitadasIds)->get();
 
             foreach ($motosParaRemover as $moto) {
-                // Guarda info formatada para o Log da Loja
-                $detalhesCortes[] = "🚫 {$moto->modelo} (Chassi: {$moto->chassi})";
+                // Pega o motivo específico ou usa um padrão
+                $motivo = $motivosMap[$moto->id] ?? 'Motivo não informado';
+                
+                $detalhesCortes[] = "🚫 {$moto->modelo} ({$moto->chassi})\n   ↳ Motivo: {$motivo}";
+
+                $pedido->motos()->detach($moto->id);
+                $moto->delete(); // Exclui a moto errada
             }
-
-            // A. Remove vínculo com o pedido
-            $pedido->motos()->detach($motosRejeitadasIds);
-
-            // B. EXCLUI DO BANCO (Limpeza de dados incorretos)
-            Moto::destroy($motosRejeitadasIds);
         }
 
-        // 2. VERIFICAÇÃO PÓS-CORTE
-        $pedido->refresh(); // Recarrega do banco
+        $pedido->refresh();
         
         if ($pedido->motos->count() > 0) {
-            // Avança para o CD
             $pedido->update(['status' => 'solicitado']); 
 
-            // Monta Texto do Log (Formatado para leitura fácil)
             $textoLog = "✅ Autorizado por {$userGestor->name}.";
             
-            if ($justificativa) {
-                $textoLog .= "\n💬 Obs: \"{$justificativa}\"";
+            if ($justificativaGeral) {
+                $textoLog .= "\n💬 Obs Geral: \"{$justificativaGeral}\"";
             }
             
             if (!empty($detalhesCortes)) {
-                $textoLog .= "\n\nITENS REJEITADOS E EXCLUÍDOS:\n" . implode("\n", $detalhesCortes);
+                $textoLog .= "\n\n❌ ITENS REJEITADOS:\n" . implode("\n", $detalhesCortes);
             }
 
             PedidoLog::create([
@@ -82,21 +77,16 @@ class GestorController extends Controller
                 'descricao' => $textoLog
             ]);
 
-            // Notifica CD
+            // Notifica
             $cds = \App\Models\User::where('perfil', 'cd')->get();
             foreach ($cds as $cd) {
-                $cd->notify(new PedidoAtualizado(
-                    'Pedido #' . $pedido->id . ' Aprovado',
-                    'Gestão liberou para separação.',
-                    route('pedidos.show', $pedido->id)
-                ));
+                $cd->notify(new PedidoAtualizado('Pedido #' . $pedido->id . ' Aprovado', 'Nova solicitação liberada.', route('pedidos.show', $pedido->id)));
             }
 
-            return redirect()->route('gestor.index')->with('success', 'Pedido auditado e enviado ao CD.');
+            return redirect()->route('gestor.index')->with('success', 'Análise concluída com sucesso.');
         } else {
-            // Se tudo foi rejeitado, o pedido é cancelado
             $pedido->delete();
-            return redirect()->route('gestor.index')->with('warning', 'Todos os itens foram rejeitados e excluídos. Pedido cancelado.');
+            return redirect()->route('gestor.index')->with('warning', 'Pedido cancelado (todos os itens rejeitados).');
         }
     }
 

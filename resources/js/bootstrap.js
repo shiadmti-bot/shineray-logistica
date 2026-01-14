@@ -14,7 +14,7 @@ const cluster = import.meta.env.VITE_PUSHER_APP_CLUSTER || 'sa1';
 
 if (appKey) {
     window.Echo = new Echo({
-        broadcaster: 'pusher', // Mudamos de 'reverb' para 'pusher' pois você tem chaves do Pusher
+        broadcaster: 'pusher',
         key: appKey,
         cluster: cluster,
         forceTLS: true,
@@ -22,10 +22,25 @@ if (appKey) {
         wsPort: 443,
         wssPort: 443,
         disableStats: true,
-        enabledTransports: ['ws', 'wss'],
+        enabledTransports: ['ws', 'wss'], // Força WebSocket puro (mais rápido e estável)
     });
     
     console.log('✅ Pusher conectado com sucesso no cluster:', cluster);
+
+    // --- FIX MOBILE: RECONEXÃO INTELIGENTE 📱 ---
+    // Celulares cortam a conexão WebSocket quando a tela apaga para economizar bateria.
+    // Este código detecta quando o usuário volta para o App e reconecta na hora.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            const state = window.Echo.connector.pusher.connection.state;
+            
+            if (state !== 'connected' && state !== 'connecting') {
+                console.log('📱 App voltou para o primeiro plano. Reconectando socket...');
+                window.Echo.connector.pusher.connect();
+            }
+        }
+    });
+
 } else {
     console.error('❌ Erro: VITE_PUSHER_APP_KEY não encontrada no .env');
 }
