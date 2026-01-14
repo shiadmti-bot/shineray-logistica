@@ -8,24 +8,26 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
     const [selectedIds, setSelectedIds] = useState([]);
     const [leituraInput, setLeituraInput] = useState('');
     const [showScanner, setShowScanner] = useState(false);
+    
+    // --- NOVO: Estado do Modo (Novo ou Existente) ---
     const [modo, setModo] = useState('novo'); 
     
-    // Ref para controlar o foco manualmente (sem roubar)
     const inputLeitorRef = useRef(null);
     
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const { data, setData, post, processing, reset } = useForm({
         motorista: '',
         placa: '',
         transportadora: '',
-        romaneio_id: '', 
+        romaneio_id: '', // ID da carga existente
         motos_ids: []
     });
 
+    // Sincroniza seleção com o form
     useEffect(() => {
         setData('motos_ids', selectedIds);
     }, [selectedIds]);
 
-    // --- LÓGICA DA CÂMERA ---
+    // --- LÓGICA DA CÂMERA (MANTIDA) ---
     useEffect(() => {
         let scanner = null;
         if (showScanner) {
@@ -43,7 +45,8 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         if (sucesso) {
                             const audio = new Audio('/plim.mp3'); 
                             audio.play().catch(() => {});
-                            setShowScanner(false); 
+                            // Não fecha o scanner para permitir bipar vários seguidos (Opcional)
+                            // setShowScanner(false); 
                         }
                     }, (error) => {});
                 } catch (e) {
@@ -54,7 +57,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         return () => {
             if (scanner) scanner.clear().catch(e => console.error(e));
         };
-    }, [showScanner, selectedIds]); // Dependências corrigidas
+    }, [showScanner, motosDisponiveis, selectedIds]); // Dependências ajustadas
 
     const handleBip = (codigo) => {
         const chassiLimpo = codigo.trim().toUpperCase();
@@ -63,7 +66,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         if (!motoEncontrada) {
             Swal.fire({
                 title: 'Não Encontrado',
-                text: `O chassi ${chassiLimpo} não está disponível.`,
+                text: `O chassi ${chassiLimpo} não está disponível para carga.`,
                 icon: 'error',
                 timer: 2000,
                 showConfirmButton: false,
@@ -88,7 +91,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
 
         setSelectedIds(prev => [...prev, motoEncontrada.id]);
         
-        // Feedback visual rápido
         const Toast = Swal.mixin({
             toast: true,
             position: 'top-end',
@@ -106,7 +108,6 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         if(!leituraInput) return;
         handleBip(leituraInput);
         setLeituraInput('');
-        // Mantém o foco SE o usuário estiver usando leitor USB, mas não força se ele clicou fora
         inputLeitorRef.current?.focus(); 
     };
 
@@ -130,19 +131,22 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             Swal.fire('Atenção', 'Preencha Motorista e Placa.', 'warning');
             return;
         }
+        
         if (modo === 'existente' && !data.romaneio_id) {
-            Swal.fire('Atenção', 'Selecione o Romaneio.', 'warning');
+            Swal.fire('Atenção', 'Selecione a carga que deseja atualizar.', 'warning');
             return;
         }
 
+        const textoAcao = modo === 'novo' ? 'Gerar Nova Carga' : 'Adicionar à Carga';
+
         Swal.fire({
             title: 'Confirmar Expedição?',
-            text: `Confirmar carga com ${selectedIds.length} motos?`,
+            text: `Deseja ${textoAcao} com ${selectedIds.length} motos?`,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Sim, Gerar',
+            confirmButtonText: 'Sim, Confirmar',
             confirmButtonColor: '#16a34a',
-            heightAuto: false // Importante para Mobile não quebrar layout
+            heightAuto: false
         }).then((res) => {
             if (res.isConfirmed) {
                 post(route('romaneios.store'));
@@ -159,19 +163,23 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                     
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         
-                        {/* Abas */}
+                        {/* --- ABAS DE MODO (NOVO / EXISTENTE) --- */}
                         <div className="flex border-b border-gray-200">
                             <button 
-                                onClick={() => { setModo('novo'); reset(); }}
-                                className={`flex-1 py-3 text-center font-bold text-xs md:text-sm uppercase tracking-wide transition-colors ${modo === 'novo' ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-500' : 'text-gray-500 hover:bg-gray-50'}`}
+                                onClick={() => { setModo('novo'); setData('romaneio_id', ''); }}
+                                className={`flex-1 py-4 text-center font-bold text-sm uppercase tracking-wide transition-colors 
+                                    ${modo === 'novo' ? 'bg-indigo-50 text-indigo-700 border-b-4 border-indigo-500' : 'text-gray-500 hover:bg-gray-50'}`}
                             >
-                                ✨ Nova Carga
+                                ✨ Criar Nova Carga
                             </button>
                             <button 
-                                onClick={() => { setModo('existente'); reset(); }}
-                                className={`flex-1 py-3 text-center font-bold text-xs md:text-sm uppercase tracking-wide transition-colors ${modo === 'existente' ? 'bg-indigo-50 text-indigo-700 border-b-2 border-indigo-500' : 'text-gray-500 hover:bg-gray-50'}`}
+                                onClick={() => setModo('existente')}
+                                disabled={romaneiosAbertos.length === 0}
+                                className={`flex-1 py-4 text-center font-bold text-sm uppercase tracking-wide transition-colors 
+                                    ${modo === 'existente' ? 'bg-orange-50 text-orange-700 border-b-4 border-orange-500' : 'text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
                             >
-                                ➕ Carga Existente
+                                ➕ Adicionar à Carga Aberta
+                                {romaneiosAbertos.length > 0 && <span className="ml-2 bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full">{romaneiosAbertos.length}</span>}
                             </button>
                         </div>
 
@@ -204,8 +212,8 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                         onChange={e => setLeituraInput(e.target.value)}
                                         placeholder="Bipe ou digite o chassi..."
                                         className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm uppercase"
-                                        ref={inputLeitorRef} // Referência sem auto-focus agressivo
-                                        autoFocus // Foca apenas quando a página abre
+                                        ref={inputLeitorRef}
+                                        autoFocus 
                                     />
                                     <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-md font-bold">OK</button>
                                 </form>
@@ -216,13 +224,14 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                 </div>
                             </div>
 
-                            {/* LADO DIREITO: FORMULÁRIO */}
+                            {/* LADO DIREITO: FORMULÁRIO DINÂMICO */}
                             <div className="flex-1 pl-0 md:pl-2">
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     
+                                    {/* MODO NOVO: CAMPOS DE MOTORISTA */}
                                     {modo === 'novo' && (
-                                        <>
-                                            <div>
+                                        <div className="animate-fade-in">
+                                            <div className="mb-4">
                                                 <label className="block text-sm font-medium text-gray-700">Motorista</label>
                                                 <input 
                                                     type="text" 
@@ -244,7 +253,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                                     />
                                                 </div>
                                             </div>
-                                            <div>
+                                            <div className="mt-4">
                                                 <label className="block text-sm font-medium text-gray-700">Transportadora</label>
                                                 <input 
                                                     type="text" 
@@ -253,12 +262,13 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                                 />
                                             </div>
-                                        </>
+                                        </div>
                                     )}
 
+                                    {/* MODO EXISTENTE: SELECT DE CARGAS */}
                                     {modo === 'existente' && (
-                                        <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
-                                            <label className="block text-sm font-bold text-yellow-800 mb-2">Selecione Carga:</label>
+                                        <div className="bg-orange-50 p-4 rounded border border-orange-200 animate-fade-in">
+                                            <label className="block text-sm font-bold text-orange-800 mb-2">Selecione Carga Aberta:</label>
                                             <select
                                                 value={data.romaneio_id}
                                                 onChange={e => setData('romaneio_id', e.target.value)}
@@ -275,9 +285,9 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                     )}
 
                                     <button 
-                                        disabled={processing}
-                                        className={`w-full py-4 rounded-md font-bold text-lg text-white shadow-lg mt-4 transition-all disabled:opacity-50
-                                            ${modo === 'novo' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                        disabled={processing || selectedIds.length === 0}
+                                        className={`w-full py-4 rounded-md font-bold text-lg text-white shadow-lg mt-6 transition-all disabled:opacity-50 transform hover:-translate-y-1 active:scale-95
+                                            ${modo === 'novo' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'}`}
                                     >
                                         {processing ? 'Processando...' : (modo === 'novo' ? 'GERAR ROMANEIO 🚛' : 'ATUALIZAR CARGA 🔄')}
                                     </button>
@@ -291,10 +301,10 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pb-8">
                         {motosDisponiveis.map((moto) => {
                             const isSelected = selectedIds.includes(moto.id);
-                            // Lógica de Destino mais robusta
-                            const destino = moto.pedido?.user?.filial // Tenta pegar a Filial
-                                        || moto.pedido?.user?.name   // Se não tiver, pega o Nome
-                                        || 'Destino Desconhecido';   // Último caso
+                            // Correção Visual do Destino
+                            const destino = moto.pedido?.user?.filial 
+                                         || moto.pedido?.user?.name 
+                                         || 'Destino N/D';
                             
                             return (
                                 <div 

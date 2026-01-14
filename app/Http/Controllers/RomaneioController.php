@@ -75,83 +75,73 @@ class RomaneioController extends Controller
     // 2. TELA DE MONTAGEM (NOVA CARGA)
     public function create()
     {
-        // 1. Busca as motos com status 'separado'
-        // 2. Carrega a relação 'pedidos' e o 'user' (dono do pedido)
+        // 1. Busca motos separadas (disponíveis para carga)
+        // Usa o 'map' para injetar o objeto 'pedido' facilitado para o frontend
         $motosDisponiveis = Moto::where('status', 'separado')
             ->with(['pedidos.user']) 
             ->get()
             ->map(function ($moto) {
-                // TRUQUE: O Frontend espera 'moto.pedido.user'.
-                // Como 'pedidos' é uma lista, pegamos o ÚLTIMO pedido vinculado (o atual)
-                // e criamos um atributo virtual 'pedido' só para facilitar a vida do React.
                 $moto->pedido = $moto->pedidos->last(); 
                 return $moto;
             });
 
+        // 2. Busca Romaneios que estão ABERTOS (ainda não saíram)
+        // Assumindo que 'aberto' é o status inicial. Se não tiver status, usamos lógica de não estar em trânsito.
+        // Aqui filtro por status diferente de 'em_transito' e 'finalizado'
+        $romaneiosAbertos = Romaneio::whereNotIn('status', ['em_transito', 'finalizado', 'cancelado'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return Inertia::render('Romaneios/Create', [
-            'motosDisponiveis' => $motosDisponiveis
+            'motosDisponiveis' => $motosDisponiveis,
+            'romaneiosAbertos' => $romaneiosAbertos // Enviando para o Frontend
         ]);
     }
 
-    // 3. SALVAR CARGA (NOVA OU EXISTENTE)
     public function store(Request $request)
     {
         $request->validate([
-            'romaneio_id' => 'nullable|exists:romaneios,id',
             'motos_ids' => 'required|array|min:1',
+            // Validações condicionais
             'motorista' => 'required_without:romaneio_id', 
-            'placa' => 'required_without:romaneio_id',
+            'placa'     => 'required_without:romaneio_id',
+            'romaneio_id' => 'nullable|exists:romaneios,id'
         ]);
 
+        // LÓGICA INTELIGENTE: Novo ou Existente?
         if ($request->romaneio_id) {
+            // A. Adicionar a uma Carga Existente
             $romaneio = Romaneio::findOrFail($request->romaneio_id);
-            if ($romaneio->status !== 'aberto') {
-                return redirect()->back()->with('error', 'ERRO: Carga fechada ou em trânsito.');
-            }
         } else {
+            // B. Criar Nova Carga
             $romaneio = Romaneio::create([
-                'motorista' => $request->motorista,
-                'placa' => strtoupper($request->placa),
-                'transportadora' => $request->transportadora,
-                'status' => 'aberto'
+                'motorista' => mb_strtoupper($request->motorista),
+                'placa'     => mb_strtoupper($request->placa),
+                'transportadora' => mb_strtoupper($request->transportadora),
+                'status'    => 'aberto', // Status inicial
+                'user_id'   => Auth::id()
             ]);
         }
 
-        // Atualiza Motos
-        Moto::whereIn('id', $request->motos_ids)->update([
-            'romaneio_id' => $romaneio->id,
-            'status' => 'expedido',
-            'localizacao_atual' => 'Em Carga (Romaneio #' . $romaneio->id . ')'
-        ]);
+        // Vincula as motos ao Romaneio (Seja novo ou velho)
+        foreach ($request->motos_ids as $id) {
+            $moto = Moto::find($id);
+            if ($moto && $moto->status === 'separado') {
+                $moto->update([
+                    'status' => 'expedido', // Muda status para 'Em Carga'
+                    'romaneio_id' => $romaneio->id,
+                    'localizacao_atual' => 'Em Carga (Romaneio #' . $romaneio->id . ')'
+                ]);
 
-        // --- CORREÇÃO AQUI (Relacionamento Plural) ---
-        $pedidosAfetados = Moto::whereIn('id', $request->motos_ids)
-            ->with('pedidos') // Plural
-            ->get()
-            ->pluck('pedidos') // Plural
-            ->flatten() // Junta os arrays de arrays
-            ->unique('id');
-
-        foreach ($pedidosAfetados as $pedido) {
-            if (!$pedido) continue;
-
-            $pendentes = $pedido->motos()->whereNull('romaneio_id')->count();
-            $statusNovo = $pendentes === 0 ? 'expedido' : 'separado';
-            
-            $pedido->update([
-                'status' => $statusNovo,
-                'romaneio_id' => $romaneio->id 
-            ]);
-
-            PedidoLog::create([
-                'pedido_id' => $pedido->id,
-                'titulo' => 'Expedição (Carga)',
-                'descricao' => "Itens adicionados ao Romaneio #{$romaneio->id}. Usuário: " . Auth::user()->name
-            ]);
+                // Atualiza o status do pedido dessa moto para 'expedido' também
+                // (Para a barra de progresso da loja andar)
+                if ($moto->pedidos->isNotEmpty()) {
+                    $moto->pedidos->last()->update(['status' => 'expedido']);
+                }
+            }
         }
 
-        return redirect()->route('romaneios.show', $romaneio->id)
-            ->with('success', 'Carga gerada/atualizada com sucesso!');
+        return redirect()->route('romaneios.index')->with('success', 'Carga atualizada com sucesso!');
     }
 
     // 4. VISUALIZAR ROMANEIO MASTER
