@@ -142,6 +142,40 @@ Route::get('/dashboard', function () {
     return "Tabela de Motos corrigida! Agora aceita 'estoque_fabrica'.";
 });
 
+
+Route::get('/fix-chat-force', function () {
+    $schema = Illuminate\Support\Facades\Schema::connection(null);
+    $table = 'messages';
+
+    if (!$schema->hasTable($table)) {
+        return "Erro: A tabela 'messages' não existe. Rode as migrações iniciais.";
+    }
+
+    Illuminate\Support\Facades\DB::transaction(function () use ($schema, $table) {
+        $schema->table($table, function ($t) use ($schema, $table) {
+            // 1. Adicionar CANAL
+            if (!$schema->hasColumn($table, 'canal')) {
+                $t->string('canal')->default('cd')->after('user_id');
+            }
+            
+            // 2. Renomear BODY para CONTENT
+            if ($schema->hasColumn($table, 'body') && !$schema->hasColumn($table, 'content')) {
+                $t->renameColumn('body', 'content');
+            }
+            
+            // 3. Arrumar READ_AT
+            if ($schema->hasColumn($table, 'is_read')) {
+                $t->dropColumn('is_read');
+            }
+            if (!$schema->hasColumn($table, 'read_at')) {
+                $t->timestamp('read_at')->nullable()->after('content'); // ou after body se a renomeação falhar
+            }
+        });
+    });
+
+    return "✅ SUCESSO! Tabela 'messages' corrigida. Colunas 'content' e 'canal' criadas.";
+});
+
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
 Route::get('/zerar-estoque-operacao', function () {
     
