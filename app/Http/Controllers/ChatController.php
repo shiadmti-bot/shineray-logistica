@@ -58,7 +58,7 @@ class ChatController extends Controller
         $message->load('user');
 
         // Dispara evento (Pusher)
-        broadcast(new \App\Events\NewMessage($message))->toOthers();
+        //broadcast(new \App\Events\NewMessage($message))->toOthers();
 
         return $message;
     }
