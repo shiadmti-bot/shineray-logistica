@@ -127,37 +127,58 @@ Route::get('/dashboard', function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-Route::get('/fix-chat-force', function () {
-    $schema = Illuminate\Support\Facades\Schema::connection(null);
-    $table = 'messages';
+    // --- ROTA DE DIAGNÓSTICO DE ERRO 500 ---
+Route::get('/debug-chat', function () {
+    try {
+        echo "<h1>Diagnóstico do Chat</h1>";
 
-    if (!$schema->hasTable($table)) {
-        return "Erro: A tabela 'messages' não existe. Rode as migrações iniciais.";
+        // 1. Verifica se existe algum pedido
+        $pedido = \App\Models\Pedido::latest()->first();
+        if (!$pedido) return "ERRO: Crie pelo menos um pedido antes de testar.";
+
+        echo "Pedido encontrado: ID {$pedido->id}<br>";
+
+        // 2. Verifica se a função 'messages' existe no Model Pedido
+        if (!method_exists($pedido, 'messages')) {
+            throw new Exception("CRÍTICO: A função 'messages()' NÃO EXISTE no arquivo App\Models\Pedido.php. O arquivo não foi atualizado na Vercel.");
+        }
+        echo "✅ Função 'messages()' encontrada no Model.<br>";
+
+        // 3. Verifica as colunas do banco de dados
+        $colunas = \Illuminate\Support\Facades\Schema::getColumnListing('messages');
+        echo "Colunas na tabela 'messages': " . implode(', ', $colunas) . "<br>";
+
+        if (!in_array('content', $colunas)) {
+            throw new Exception("CRÍTICO: A coluna 'content' NÃO EXISTE no banco. A migração não rodou. Provavelmente ainda chama 'body'.");
+        }
+        if (!in_array('canal', $colunas)) {
+            throw new Exception("CRÍTICO: A coluna 'canal' NÃO EXISTE no banco.");
+        }
+
+        // 4. Tenta criar a mensagem (Simulando o Controller)
+        echo "Tentando salvar mensagem...<br>";
+        
+        $msg = $pedido->messages()->create([
+            'user_id' => \Illuminate\Support\Facades\Auth::id() ?? 1, // Usa ID 1 se não estiver logado
+            'content' => 'Teste de Debug automático',
+            'canal'   => 'cd',
+            'read_at' => null
+        ]);
+
+        echo "<h3 style='color:green'>SUCESSO! Mensagem criada com ID: {$msg->id}</h3>";
+        echo "Se você está vendo isso, o banco e o model estão perfeitos. O erro pode ser alguma validação no Controller.";
+
+    } catch (\Exception $e) {
+        echo "<h2 style='color:red'>ERRO ENCONTRADO:</h2>";
+        echo "<b>Mensagem:</b> " . $e->getMessage() . "<br>";
+        echo "<b>Arquivo:</b> " . $e->getFile() . "<br>";
+        echo "<b>Linha:</b> " . $e->getLine() . "<br>";
+        
+        // Se for erro de SQL, mostra a query
+        if (method_exists($e, 'getSql')) {
+             echo "<b>SQL:</b> " . $e->getSql();
+        }
     }
-
-    Illuminate\Support\Facades\DB::transaction(function () use ($schema, $table) {
-        $schema->table($table, function ($t) use ($schema, $table) {
-            // 1. Adicionar CANAL
-            if (!$schema->hasColumn($table, 'canal')) {
-                $t->string('canal')->default('cd')->after('user_id');
-            }
-            
-            // 2. Renomear BODY para CONTENT
-            if ($schema->hasColumn($table, 'body') && !$schema->hasColumn($table, 'content')) {
-                $t->renameColumn('body', 'content');
-            }
-            
-            // 3. Arrumar READ_AT
-            if ($schema->hasColumn($table, 'is_read')) {
-                $t->dropColumn('is_read');
-            }
-            if (!$schema->hasColumn($table, 'read_at')) {
-                $t->timestamp('read_at')->nullable()->after('content'); // ou after body se a renomeação falhar
-            }
-        });
-    });
-
-    return "✅ SUCESSO! Tabela 'messages' corrigida. Colunas 'content' e 'canal' criadas.";
 });
 
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
