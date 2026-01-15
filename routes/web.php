@@ -127,62 +127,55 @@ Route::get('/dashboard', function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // --- ROTA DE DIAGNÓSTICO DE ERRO 500 ---
-Route::get('/debug-chat', function () {
+    Route::get('/debug-chat-full', function () {
     try {
-        echo "<h1>Diagnóstico do Chat</h1>";
-
-        // 1. Verifica se existe algum pedido
-        $pedido = \App\Models\Pedido::latest()->first();
-        if (!$pedido) return "ERRO: Crie pelo menos um pedido antes de testar.";
-
-        echo "Pedido encontrado: ID {$pedido->id}<br>";
-
-        // 2. Verifica se a função 'messages' existe no Model Pedido
-        if (!method_exists($pedido, 'messages')) {
-            throw new Exception("CRÍTICO: A função 'messages()' NÃO EXISTE no arquivo App\Models\Pedido.php. O arquivo não foi atualizado na Vercel.");
-        }
-        echo "✅ Função 'messages()' encontrada no Model.<br>";
-
-        // 3. Verifica as colunas do banco de dados
-        $colunas = \Illuminate\Support\Facades\Schema::getColumnListing('messages');
-        echo "Colunas na tabela 'messages': " . implode(', ', $colunas) . "<br>";
-
-        if (!in_array('content', $colunas)) {
-            throw new Exception("CRÍTICO: A coluna 'content' NÃO EXISTE no banco. A migração não rodou. Provavelmente ainda chama 'body'.");
-        }
-        if (!in_array('canal', $colunas)) {
-            throw new Exception("CRÍTICO: A coluna 'canal' NÃO EXISTE no banco.");
-        }
-
-        // 4. Tenta criar a mensagem (Simulando o Controller)
-        echo "Tentando salvar mensagem...<br>";
+        echo "<h1>Teste Completo do Controller</h1>";
         
-        $msg = $pedido->messages()->create([
-            'user_id' => \Illuminate\Support\Facades\Auth::id() ?? 1, // Usa ID 1 se não estiver logado
-            'content' => 'Teste de Debug automático',
-            'canal'   => 'cd',
-            'read_at' => null
-        ]);
+        $pedido = \App\Models\Pedido::latest()->first();
+        if (!$pedido) die("Erro: Crie um pedido primeiro.");
 
-        echo "<h3 style='color:green'>SUCESSO! Mensagem criada com ID: {$msg->id}</h3>";
-        echo "Se você está vendo isso, o banco e o model estão perfeitos. O erro pode ser alguma validação no Controller.";
+        // 1. Simula criação (Igual ao Controller)
+        $msg = $pedido->messages()->create([
+            'user_id' => \Illuminate\Support\Facades\Auth::id() ?? 1,
+            'content' => 'Teste Full ' . time(),
+            'canal'   => 'cd'
+        ]);
+        echo "✅ 1. Mensagem salva no banco (ID: {$msg->id})<br>";
+
+        // 2. Testa o relacionamento 'user' (Aqui pode ser o erro 1)
+        try {
+            $msg->load('user');
+            if (!$msg->user) throw new Exception("Usuário veio nulo.");
+            echo "✅ 2. load('user') funcionou. Autor: " . $msg->user->name . "<br>";
+        } catch (\Exception $e) {
+            throw new Exception("FALHA NO load('user'). Verifique se a função public function user() existe em App\Models\Message.php. Erro: " . $e->getMessage());
+        }
+
+        // 3. Testa o Broadcast/Pusher (Aqui pode ser o erro 2)
+        echo "3. Tentando disparar Broadcast...<br>";
+        try {
+            if (!class_exists(\App\Events\NewMessage::class)) {
+                throw new Exception("A classe App\Events\NewMessage NÃO EXISTE. Crie o arquivo.");
+            }
+            
+            // Tenta enviar o evento
+            event(new \App\Events\NewMessage($msg));
+            
+            echo "✅ 3. Broadcast disparado com sucesso!<br>";
+        } catch (\Exception $e) {
+             throw new Exception("FALHA NO PUSHER: " . $e->getMessage() . " <br>Dica: Verifique as chaves PUSHER_ no painel da Vercel.");
+        }
+
+        echo "<h2 style='color:green'>SUCESSO TOTAL! Se você viu isso, o chat ESTÁ funcionando.</h2>";
 
     } catch (\Exception $e) {
-        echo "<h2 style='color:red'>ERRO ENCONTRADO:</h2>";
-        echo "<b>Mensagem:</b> " . $e->getMessage() . "<br>";
-        echo "<b>Arquivo:</b> " . $e->getFile() . "<br>";
-        echo "<b>Linha:</b> " . $e->getLine() . "<br>";
-        
-        // Se for erro de SQL, mostra a query
-        if (method_exists($e, 'getSql')) {
-             echo "<b>SQL:</b> " . $e->getSql();
-        }
+        echo "<h2 style='color:red'>O ERRO É AQUI:</h2>";
+        echo "<b>" . $e->getMessage() . "</b>";
     }
 });
 
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
-Route::get('/zerar-estoque-operacao', function () {
+    Route::get('/zerar-estoque-operacao', function () {
     
     // Verificação de segurança simples (apenas Admin pode rodar)
     $user = Illuminate\Support\Facades\Auth::user();
