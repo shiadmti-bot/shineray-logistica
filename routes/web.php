@@ -127,53 +127,6 @@ Route::get('/dashboard', function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('/debug-chat-full', function () {
-    try {
-        echo "<h1>Teste Completo do Controller</h1>";
-        
-        $pedido = \App\Models\Pedido::latest()->first();
-        if (!$pedido) die("Erro: Crie um pedido primeiro.");
-
-        // 1. Simula criação (Igual ao Controller)
-        $msg = $pedido->messages()->create([
-            'user_id' => \Illuminate\Support\Facades\Auth::id() ?? 1,
-            'content' => 'Teste Full ' . time(),
-            'canal'   => 'cd'
-        ]);
-        echo "✅ 1. Mensagem salva no banco (ID: {$msg->id})<br>";
-
-        // 2. Testa o relacionamento 'user' (Aqui pode ser o erro 1)
-        try {
-            $msg->load('user');
-            if (!$msg->user) throw new Exception("Usuário veio nulo.");
-            echo "✅ 2. load('user') funcionou. Autor: " . $msg->user->name . "<br>";
-        } catch (\Exception $e) {
-            throw new Exception("FALHA NO load('user'). Verifique se a função public function user() existe em App\Models\Message.php. Erro: " . $e->getMessage());
-        }
-
-        // 3. Testa o Broadcast/Pusher (Aqui pode ser o erro 2)
-        echo "3. Tentando disparar Broadcast...<br>";
-        try {
-            if (!class_exists(\App\Events\NewMessage::class)) {
-                throw new Exception("A classe App\Events\NewMessage NÃO EXISTE. Crie o arquivo.");
-            }
-            
-            // Tenta enviar o evento
-            event(new \App\Events\NewMessage($msg));
-            
-            echo "✅ 3. Broadcast disparado com sucesso!<br>";
-        } catch (\Exception $e) {
-             throw new Exception("FALHA NO PUSHER: " . $e->getMessage() . " <br>Dica: Verifique as chaves PUSHER_ no painel da Vercel.");
-        }
-
-        echo "<h2 style='color:green'>SUCESSO TOTAL! Se você viu isso, o chat ESTÁ funcionando.</h2>";
-
-    } catch (\Exception $e) {
-        echo "<h2 style='color:red'>O ERRO É AQUI:</h2>";
-        echo "<b>" . $e->getMessage() . "</b>";
-    }
-});
-
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
     Route::get('/zerar-estoque-operacao', function () {
     

@@ -4,66 +4,61 @@ namespace App\Http\Controllers;
 
 use App\Models\Pedido;
 use App\Models\Message;
+use App\Events\NewMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ChatController extends Controller
 {
+    /**
+     * Lista as mensagens de um pedido.
+     */
     public function index($pedidoId)
     {
         return Message::where('pedido_id', $pedidoId)
-            ->with('user')
+            ->with('user') // Traz o nome e dados do usuário
             ->orderBy('created_at', 'asc')
             ->get();
     }
 
+    /**
+     * Salva uma nova mensagem e dispara o evento.
+     */
     public function store(Request $request, $pedidoId)
     {
-        // BLCO TRY-CATCH PARA REVELAR O ERRO REAL
-        try {
-            // 1. Validação Manual (para garantir que não é isso)
-            if (!$request->content) throw new \Exception("Campo 'content' vazio.");
-            if (!$request->canal) throw new \Exception("Campo 'canal' vazio.");
+        // 1. Validação
+        $request->validate([
+            'content' => 'required|string',
+            'canal'   => 'required|string|in:cd,gestor'
+        ]);
 
-            $pedido = Pedido::findOrFail($pedidoId);
+        $pedido = Pedido::findOrFail($pedidoId);
 
-            // 2. Criação da Mensagem
-            $message = $pedido->messages()->create([
-                'user_id' => Auth::id(),
-                'content' => $request->content,
-                'canal'   => $request->canal,
-                'read_at' => null
-            ]);
+        // 2. Criação da Mensagem
+        $message = $pedido->messages()->create([
+            'user_id' => Auth::id(),
+            'content' => $request->content,
+            'canal'   => $request->canal,
+            'read_at' => null
+        ]);
 
-            $message->load('user');
+        // Carrega o usuário para exibir nome/foto instantaneamente no frontend
+        $message->load('user');
 
-            // 3. ENVIO DO EVENTO (MODO SEGURO)
-            // Usamos 'event()' simples primeiro. Se funcionar, depois voltamos pro toOthers
-            // Usamos o caminho completo \App\Events\NewMessage para evitar erro de "Class not found"
-            try {
-                event(new \App\Events\NewMessage($message));
-            } catch (\Exception $e) {
-                // Se der erro no Pusher, não trava o chat, apenas loga (mas salva a mensagem)
-                // Isso impede o erro 500 de travar a tela
-            }
+        // 3. Dispara o Evento (WebSocket)
+        // Usamos event() que é mais robusto que broadcast()->toOthers() em ambientes serverless
+        event(new NewMessage($message));
 
-            return $message;
-
-        } catch (\Exception $e) {
-            // RETORNA O ERRO REAL COMO JSON (Para você ler no Console do Navegador)
-            return response()->json([
-                'erro_titulo' => 'ERRO NO CONTROLLER',
-                'mensagem' => $e->getMessage(),
-                'arquivo' => $e->getFile(),
-                'linha' => $e->getLine()
-            ], 500);
-        }
+        return $message;
     }
 
+    /**
+     * Marca as mensagens como lidas.
+     */
     public function markAsRead(Request $request, $pedidoId)
     {
         Message::where('pedido_id', $pedidoId)
-            ->where('user_id', '!=', Auth::id())
+            ->where('user_id', '!=', Auth::id()) // Apenas mensagens dos outros
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
 
