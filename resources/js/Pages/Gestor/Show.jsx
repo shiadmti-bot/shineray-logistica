@@ -17,9 +17,8 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
     const opcoesRejeicao = [
         "Chassi Incorreto / Erro Digitação",
         "Moto Não Liberada / Bloqueada",
-        "Sem Limite de Crédito",
+        "Excedente de Estoque",
         "Venda Cancelada",
-        "Preço Incorreto",
         "Outros"
     ];
 

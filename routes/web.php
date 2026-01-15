@@ -126,15 +126,7 @@ Route::get('/dashboard', function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-
-    // --- ROTA PARA APAGAR MENSAGENS DE TESTE ---
-Route::get('/limpar-mensagens-teste', function () {
     
-    // Apaga qualquer mensagem que comece com a palavra "Teste"
-    $apagadas = \App\Models\Message::where('content', 'LIKE', 'Teste%')->delete();
-
-    return "<h1>Limpeza Concluída!</h1><p>Foram apagadas <b>{$apagadas}</b> mensagens de teste do banco de dados.</p>";
-});
 
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
     Route::get('/zerar-estoque-operacao', function () {

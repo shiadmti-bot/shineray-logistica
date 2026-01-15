@@ -16,7 +16,6 @@ export default function PedidoCreate({ auth, listaModelos }) {
         "Exposição / Showroom",
         "Reposição de Garantia",
         "Uso Interno",
-        "Outros"
     ];
 
     const addItem = () => {

@@ -256,42 +256,59 @@ class PedidoController extends Controller
 
     public function finalizarEntrega(Request $request, $id)
     {
+        // 1. Validação
         $request->validate([
-            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360',
+            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360', // 15MB
+            'avarias'          => 'nullable|array' // Recebe o JSON/Array do Frontend
         ]);
 
         try {
-            $pedido = Pedido::with('user')->findOrFail($id);
+            // Carregamos 'motos' junto para poder atualizar o status delas
+            $pedido = Pedido::with(['user', 'motos'])->findOrFail($id);
 
+            // Verificação de Segurança
             if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
                 abort(403, 'Você não tem permissão para finalizar pedidos de outra loja.');
             }
             
+            // 2. Integração Google Drive (Sua lógica original preservada)
             if ($request->hasFile('arquivo_romaneio')) {
                 $uploadedFile = $request->file('arquivo_romaneio');
+                
+                // Configuração do Cliente Google
                 $client = new Client();
                 $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
                 $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
                 $client->refreshToken(env('GOOGLE_DRIVE_REFRESH_TOKEN'));
+                
                 $service = new Drive($client);
                 $rootFolderId = env('GOOGLE_DRIVE_FOLDER'); 
+                
+                // Estrutura de Pastas (Ano / Mês)
                 $now = Carbon::now();
                 $yearFolder = $now->format('Y'); 
                 $monthFolder = $now->format('m') . ' - ' . Str::ucfirst($now->translatedFormat('F')); 
+                
+                // Cache para não bater na API do Google toda hora buscando pastas
                 $cacheKey = "gdrive_folder_{$yearFolder}_{$monthFolder}";
                 $targetFolderId = Cache::remember($cacheKey, 60 * 60 * 24, function () use ($service, $rootFolderId, $yearFolder, $monthFolder) {
                     $yearId = $this->findOrCreateFolder($service, $yearFolder, $rootFolderId);
                     return $this->findOrCreateFolder($service, $monthFolder, $yearId);
                 });
+
+                // Metadados do Arquivo
                 $romaneioId = $pedido->romaneio_id ?? 'AVULSO'; 
                 $dataDia = $now->format('d-m-Y'); 
                 $filial = Str::slug($pedido->user->filial ?? 'Matriz');
                 $ext = $uploadedFile->getClientOriginalExtension();
                 $novoNomeArquivo = "Romaneio-{$romaneioId}_{$dataDia}_{$filial}_ID-{$pedido->id}.{$ext}";
+                
                 $fileMetadata = new DriveFile([
                     'name' => $novoNomeArquivo,
                     'parents' => [$targetFolderId] 
                 ]);
+                
+                // Upload Real
                 $content = file_get_contents($uploadedFile->getRealPath());
                 $arquivoGoogle = $service->files->create($fileMetadata, [
                     'data' => $content,
@@ -299,25 +316,50 @@ class PedidoController extends Controller
                     'uploadType' => 'multipart',
                     'fields' => 'id, webViewLink'
                 ]);
+                
+                // Salva link no pedido
                 $pedido->comprovante_url = $arquivoGoogle->webViewLink;
             }
 
+            // 3. Atualiza Status do Pedido
             $pedido->status = 'concluido';
             $pedido->save();
 
+            // 4. Processamento Inteligente das Motos (Avaria vs Perfeita) [ATUALIZADO]
+            $listaAvarias = $request->input('avarias', []);
+
             foreach ($pedido->motos as $moto) {
-                $moto->update([
-                    'status' => 'entregue',
-                    'localizacao_atual' => 'Entregue na Loja: ' . ($pedido->user->filial ?? 'Cliente Final')
-                ]);
+                // Verifica se essa moto específica tem relato de avaria no array enviado
+                if (isset($listaAvarias[$moto->id]) && !empty($listaAvarias[$moto->id])) {
+                    // CASO COM AVARIA
+                    $moto->update([
+                        'status' => 'avariado', // Status específico para segregá-la
+                        'localizacao_atual' => 'Loja (Recebido com Avaria)',
+                        'detalhes_avaria' => $listaAvarias[$moto->id] // Salva o texto da loja
+                    ]);
+                } else {
+                    // CASO PERFEITO (Padrão)
+                    $moto->update([
+                        'status' => 'entregue',
+                        'localizacao_atual' => 'Estoque Loja: ' . ($pedido->user->filial ?? 'Matriz'),
+                        'detalhes_avaria' => null // Limpa avarias antigas se houver
+                    ]);
+                }
+            }
+
+            // 5. Log de Auditoria
+            $qtdAvarias = count($listaAvarias);
+            $textoLog = 'Comprovante anexado e pedido concluído.';
+            if ($qtdAvarias > 0) {
+                $textoLog .= " ⚠️ ATENÇÃO: {$qtdAvarias} moto(s) recebida(s) com avaria.";
             }
 
             $pedido->logs()->create([
                 'titulo' => 'Entrega Finalizada',
-                'descricao' => 'Comprovante anexado e pedido concluído.'
+                'descricao' => $textoLog
             ]);
 
-            // Fechamento de Carga
+            // 6. Fechamento de Carga Automático (Se todos os pedidos foram entregues)
             if ($pedido->romaneio_id) {
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                     ->whereNotIn('status', ['concluido', 'cancelado'])
@@ -329,15 +371,16 @@ class PedidoController extends Controller
                 }
             }
 
-            return redirect()->back()->with('message', 'Sucesso! Entrega registrada.');
+            return redirect()->back()->with('message', 'Sucesso! Entrega registrada e estoque atualizado.');
 
         } catch (\Exception $e) {
+            // Tratamento de erro do Google Drive
             $msg = $e->getMessage();
             $jsonError = json_decode($msg, true);
             if (isset($jsonError['error']['message'])) {
                 $msg = $jsonError['error']['message'];
             }
-            return redirect()->back()->withErrors(['erro_upload' => 'Erro ao salvar no Drive: ' . $msg]);
+            return redirect()->back()->withErrors(['erro_upload' => 'Erro ao processar entrega: ' . $msg]);
         }
     }
 

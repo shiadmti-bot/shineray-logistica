@@ -17,6 +17,7 @@ class Moto extends Model
         'cor',
         'ano_fabricacao',
         'motivo_solicitacao',
+        'detalhes_avaria',
         'status',
         'localizacao_atual',
         'romaneio_id'
