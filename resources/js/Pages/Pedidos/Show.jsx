@@ -52,100 +52,119 @@ export default function PedidoShow({ auth, pedido }) {
     const handleConferenciaEntrega = () => {
         Swal.fire({
             title: 'Conferência de Entrega 🚛',
+            width: '700px', // Aumentei um pouco para caber os inputs
             html: `
                 <div class="text-left text-sm">
-                    <p class="mb-2 text-gray-600">1. Verifique cada moto fisicamente.</p>
-                    <p class="mb-4 text-gray-600">2. Se houver avaria, descreva abaixo. Se deixar em branco, será considerado <strong>Perfeito Estado</strong>.</p>
+                    <p class="mb-4 text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                        <strong>Instruções:</strong><br>
+                        1. Anexe o Romaneio Assinado no final.<br>
+                        2. Se houver avaria, descreva o defeito E anexe a foto da moto.
+                    </p>
                     
-                    <div class="max-h-60 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50 mb-4">
+                    <div class="max-h-80 overflow-y-auto border border-gray-200 rounded p-3 bg-gray-50 mb-4">
                         ${pedido.motos.map(m => `
-                            <div class="mb-3 border-b border-gray-200 pb-2 last:border-0">
-                                <div class="font-bold text-gray-800 text-xs">${m.modelo} <span class="font-mono text-gray-500">(${m.chassi})</span></div>
-                                <input 
-                                    type="text" 
-                                    id="avaria-${m.id}" 
-                                    class="swal2-input mt-1 w-full text-xs h-8" 
-                                    style="margin: 5px 0;"
-                                    placeholder="Digite aqui se houver defeito (risco, quebrado...)"
-                                >
+                            <div class="mb-4 border-b border-gray-300 pb-3 last:border-0 bg-white p-2 rounded shadow-sm">
+                                <div class="font-bold text-gray-800 text-sm mb-1">
+                                    🏍️ ${m.modelo} <span class="font-mono text-blue-600">(${m.chassi})</span>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    <input 
+                                        type="text" 
+                                        id="avaria-texto-${m.id}" 
+                                        class="swal2-input w-full text-xs m-0 h-10 border-gray-300 focus:ring-red-500" 
+                                        placeholder="Descreva o defeito (se houver)..."
+                                    >
+                                    
+                                    <div class="flex items-center">
+                                        <label class="block w-full text-xs text-gray-500 border border-dashed border-gray-400 rounded cursor-pointer hover:bg-gray-100 p-2 text-center relative">
+                                            <span id="label-foto-${m.id}">📸 Add Foto (Opcional)</span>
+                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerText = '✅ Foto Selecionada'">
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         `).join('')}
                     </div>
                     
-                    <div>
-                        <label class="block font-bold text-gray-700 mb-1 text-xs uppercase">📸 Foto do Romaneio Assinado *</label>
-                        <input type="file" id="upload-comprovante" class="w-full text-xs border rounded p-2 bg-white" accept="image/*,application/pdf">
+                    <div class="mt-4 p-3 bg-green-50 rounded border border-green-200">
+                        <label class="block font-bold text-green-800 mb-1 text-sm uppercase">📄 Foto do Romaneio Assinado (Obrigatório)</label>
+                        <input type="file" id="upload-comprovante" class="w-full text-sm border rounded p-2 bg-white" accept="image/*,application/pdf">
                     </div>
                 </div>
             `,
-            width: '600px',
             showCancelButton: true,
             confirmButtonText: 'Confirmar Recebimento',
             confirmButtonColor: '#16a34a',
             focusConfirm: false,
-            preConfirm: async () => {
+            preConfirm: () => {
                 const fileInput = document.getElementById('upload-comprovante');
                 if (!fileInput.files[0]) {
                     Swal.showValidationMessage('O comprovante assinado é obrigatório!');
                     return false;
                 }
 
-                // Coleta as avarias
-                const avariasColetadas = {};
+                // Coleta Dados
+                const avariasColetadas = {}; // Texto
+                const fotosColetadas = {};   // Arquivos
+
                 pedido.motos.forEach(m => {
-                    const input = document.getElementById(`avaria-${m.id}`);
-                    if (input && input.value.trim()) {
-                        avariasColetadas[m.id] = input.value.trim();
+                    const inputTexto = document.getElementById(`avaria-texto-${m.id}`);
+                    const inputFoto = document.getElementById(`avaria-foto-${m.id}`);
+
+                    if (inputTexto && inputTexto.value.trim()) {
+                        avariasColetadas[m.id] = inputTexto.value.trim();
+                        
+                        // Só pega a foto se tiver texto de avaria (evita foto perdida)
+                        if (inputFoto.files[0]) {
+                            fotosColetadas[m.id] = inputFoto.files[0];
+                        }
                     }
                 });
 
-                // Retorna os dados para processamento
-                return { file: fileInput.files[0], avarias: avariasColetadas };
+                return { 
+                    file: fileInput.files[0], 
+                    avarias: avariasColetadas,
+                    fotos: fotosColetadas 
+                };
             }
         }).then(async (result) => {
             if (result.isConfirmed) {
-                const { file, avarias } = result.value;
-                await processarEnvio(file, avarias);
+                const { file, avarias, fotos } = result.value;
+                await processarEnvio(file, avarias, fotos);
             }
         });
     };
 
-    // B. PROCESSAMENTO DO ARQUIVO (COMPRESSÃO + ENVIO)
-    const processarEnvio = async (file, avarias) => {
+    const processarEnvio = async (romaneioFile, avarias, fotosAvarias) => {
         setCompressing(true);
         
-        // Feedback de carregamento
         Swal.fire({
-            title: 'Processando...',
-            text: 'Comprimindo imagem e enviando para o Drive.',
+            title: 'Enviando...',
+            html: 'Processando arquivos e organizando pastas no Drive.<br>Isso pode levar alguns segundos.',
             allowOutsideClick: false,
             didOpen: () => Swal.showLoading()
         });
 
-        let fileToSend = file;
-
-        // Compressão se for imagem
-        if (file.type.startsWith('image/')) {
-            try {
-                const options = { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, fileType: 'image/jpeg' };
-                const compressed = await imageCompression(file, options);
-                fileToSend = new File([compressed], file.name, { type: compressed.type });
-            } catch (e) {
-                console.error("Erro compressão", e);
-            }
-        }
-
-        // Prepara dados para o Inertia
-        // Usamos o router.post manual aqui para ter controle total do FormData
-        router.post(route('pedidos.finalizar', pedido.id), {
+        // Prepara o FormData manualmente para enviar arquivos mistos
+        // Nota: Inertia router.post com forceFormData lida com objetos, 
+        // mas para arrays de arquivos indexados por ID, precisamos estruturar bem.
+        
+        // Vamos usar o router.post do Inertia mas passando os arquivos diretos no objeto data
+        // O Inertia converte para FormData automaticamente se detectar File Objects
+        
+        const dataToSend = {
             _method: 'post',
-            arquivo_romaneio: fileToSend,
-            avarias: avarias
-        }, {
+            arquivo_romaneio: romaneioFile,
+            avarias: avarias,
+            fotos_avarias: fotosAvarias // O Inertia vai transformar isso em fotos_avarias[ID] = File
+        };
+
+        router.post(route('pedidos.finalizar', pedido.id), dataToSend, {
             forceFormData: true,
             onSuccess: () => {
                 setCompressing(false);
-                Swal.fire('Sucesso!', 'Recebimento confirmado e estoque atualizado.', 'success');
+                Swal.fire('Sucesso!', 'Recebimento confirmado. Arquivos organizados na pasta da filial.', 'success');
             },
             onError: (errors) => {
                 setCompressing(false);
