@@ -256,71 +256,87 @@ class PedidoController extends Controller
 
     public function finalizarEntrega(Request $request, $id)
     {
+        // 1. Validação
         $request->validate([
-            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360',
-            'avarias' => 'nullable|array'
+            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360', // Máx 15MB
+            'avarias'          => 'nullable|array' // Recebe array: { moto_id: "Descrição do defeito" }
         ]);
 
         try {
+            // Carrega Pedido com User e Motos
             $pedido = Pedido::with(['user', 'motos'])->findOrFail($id);
 
+            // Verificação de Segurança (Loja só mexe no seu)
             if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
                 abort(403, 'Você não tem permissão para finalizar pedidos de outra loja.');
             }
             
+            // 2. Integração Google Drive (COM CORREÇÃO DE AUTH)
             if ($request->hasFile('arquivo_romaneio')) {
                 
-                // --- TRAVA DE SEGURANÇA NOVA ---
+                // A. Carrega Credenciais via Config (Evita erro de cache do .env)
                 $clientId     = config('services.google.drive.client_id');
                 $clientSecret = config('services.google.drive.client_secret');
                 $refreshToken = config('services.google.drive.refresh_token');
                 $folderId     = config('services.google.drive.folder_id');
 
-                // Debug de segurança (vai estourar erro na tela se estiver vazio)
-                if (!$clientId || !$clientSecret) {
-                    throw new \Exception('ERRO CRÍTICO: As chaves do Google Drive não foram carregadas pelo Laravel. Verifique config/services.php');
-                }
-
+                // Debug: Verifica se as chaves existem
                 if (!$clientId || !$clientSecret || !$refreshToken) {
-                    throw new \Exception('Configuração do Google Drive incompleta na Vercel. Verifique as Variáveis de Ambiente.');
+                    throw new \Exception('Configuração Google Drive incompleta. Verifique as variáveis no painel da Vercel.');
                 }
-                // -------------------------------
 
                 $uploadedFile = $request->file('arquivo_romaneio');
                 
-                $client = new Client();
+                // B. Configura o Cliente Google
+                $client = new \Google\Client();
                 $client->setClientId($clientId);
                 $client->setClientSecret($clientSecret);
-                $client->refreshToken($refreshToken);
+                $client->setAccessType('offline'); // Importante para refresh
+
+                // --- CORREÇÃO CRÍTICA PARA ERRO "UNREGISTERED CALLERS" ---
+                // Forçamos a geração de um Access Token válido usando o Refresh Token
+                try {
+                    $client->refreshToken($refreshToken);
+                    $newAccessToken = $client->fetchAccessTokenWithRefreshToken($refreshToken);
+                    
+                    if (isset($newAccessToken['error'])) {
+                        throw new \Exception('Erro ao renovar token do Google: ' . json_encode($newAccessToken));
+                    }
+                    
+                    $client->setAccessToken($newAccessToken);
+                } catch (\Exception $e) {
+                    throw new \Exception('Falha na autenticação do Google: ' . $e->getMessage());
+                }
+                // ---------------------------------------------------------
                 
-                $service = new Drive($client);
-                $rootFolderId = env('GOOGLE_DRIVE_FOLDER'); 
+                $service = new \Google\Service\Drive($client);
+                $rootFolderId = $folderId; 
                 
-                // Estrutura de Pastas (Ano / Mês)
-                $now = Carbon::now();
+                // C. Estrutura de Pastas (Ano / Mês)
+                $now = \Carbon\Carbon::now();
                 $yearFolder = $now->format('Y'); 
-                $monthFolder = $now->format('m') . ' - ' . Str::ucfirst($now->translatedFormat('F')); 
+                $monthFolder = $now->format('m') . ' - ' . \Illuminate\Support\Str::ucfirst($now->translatedFormat('F')); 
                 
-                // Cache para não bater na API do Google toda hora buscando pastas
+                // Cache para performance (evita criar pastas repetidas)
                 $cacheKey = "gdrive_folder_{$yearFolder}_{$monthFolder}";
-                $targetFolderId = Cache::remember($cacheKey, 60 * 60 * 24, function () use ($service, $rootFolderId, $yearFolder, $monthFolder) {
+                $targetFolderId = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60 * 60 * 24, function () use ($service, $rootFolderId, $yearFolder, $monthFolder) {
                     $yearId = $this->findOrCreateFolder($service, $yearFolder, $rootFolderId);
                     return $this->findOrCreateFolder($service, $monthFolder, $yearId);
                 });
 
-                // Metadados do Arquivo
+                // D. Metadados do Arquivo
                 $romaneioId = $pedido->romaneio_id ?? 'AVULSO'; 
                 $dataDia = $now->format('d-m-Y'); 
-                $filial = Str::slug($pedido->user->filial ?? 'Matriz');
+                $filial = \Illuminate\Support\Str::slug($pedido->user->filial ?? 'Matriz');
                 $ext = $uploadedFile->getClientOriginalExtension();
                 $novoNomeArquivo = "Romaneio-{$romaneioId}_{$dataDia}_{$filial}_ID-{$pedido->id}.{$ext}";
                 
-                $fileMetadata = new DriveFile([
+                $fileMetadata = new \Google\Service\Drive\DriveFile([
                     'name' => $novoNomeArquivo,
                     'parents' => [$targetFolderId] 
                 ]);
                 
-                // Upload Real
+                // E. Upload Real
                 $content = file_get_contents($uploadedFile->getRealPath());
                 $arquivoGoogle = $service->files->create($fileMetadata, [
                     'data' => $content,
@@ -337,24 +353,23 @@ class PedidoController extends Controller
             $pedido->status = 'concluido';
             $pedido->save();
 
-            // 4. Processamento Inteligente das Motos (Avaria vs Perfeita) [ATUALIZADO]
+            // 4. Processamento das Motos (Avarias vs Perfeitas)
             $listaAvarias = $request->input('avarias', []);
 
             foreach ($pedido->motos as $moto) {
-                // Verifica se essa moto específica tem relato de avaria no array enviado
                 if (isset($listaAvarias[$moto->id]) && !empty($listaAvarias[$moto->id])) {
-                    // CASO COM AVARIA
+                    // COM AVARIA
                     $moto->update([
-                        'status' => 'avariado', // Status específico para segregá-la
+                        'status' => 'avariado',
                         'localizacao_atual' => 'Loja (Recebido com Avaria)',
-                        'detalhes_avaria' => $listaAvarias[$moto->id] // Salva o texto da loja
+                        'detalhes_avaria' => $listaAvarias[$moto->id]
                     ]);
                 } else {
-                    // CASO PERFEITO (Padrão)
+                    // SEM AVARIA (Perfeito)
                     $moto->update([
                         'status' => 'entregue',
                         'localizacao_atual' => 'Estoque Loja: ' . ($pedido->user->filial ?? 'Matriz'),
-                        'detalhes_avaria' => null // Limpa avarias antigas se houver
+                        'detalhes_avaria' => null
                     ]);
                 }
             }
@@ -371,14 +386,14 @@ class PedidoController extends Controller
                 'descricao' => $textoLog
             ]);
 
-            // 6. Fechamento de Carga Automático (Se todos os pedidos foram entregues)
+            // 6. Fechamento de Carga Automático
             if ($pedido->romaneio_id) {
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                     ->whereNotIn('status', ['concluido', 'cancelado'])
                     ->count();
 
                 if ($pendentes === 0) {
-                    Romaneio::where('id', $pedido->romaneio_id)
+                    \App\Models\Romaneio::where('id', $pedido->romaneio_id)
                         ->update(['status' => 'finalizado']);
                 }
             }
@@ -386,12 +401,15 @@ class PedidoController extends Controller
             return redirect()->back()->with('message', 'Sucesso! Entrega registrada e estoque atualizado.');
 
         } catch (\Exception $e) {
-            // Tratamento de erro do Google Drive
+            // Tratamento de erro detalhado para Debug
             $msg = $e->getMessage();
+            
+            // Tenta limpar msg JSON do Google se vier suja
             $jsonError = json_decode($msg, true);
             if (isset($jsonError['error']['message'])) {
-                $msg = $jsonError['error']['message'];
+                $msg = "Google API: " . $jsonError['error']['message'];
             }
+            
             return redirect()->back()->withErrors(['erro_upload' => 'Erro ao processar entrega: ' . $msg]);
         }
     }
