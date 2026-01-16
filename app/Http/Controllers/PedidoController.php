@@ -256,30 +256,42 @@ class PedidoController extends Controller
 
     public function finalizarEntrega(Request $request, $id)
     {
-        // 1. Validação
         $request->validate([
-            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360', // 15MB
-            'avarias'          => 'nullable|array' // Recebe o JSON/Array do Frontend
+            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360',
+            'avarias' => 'nullable|array'
         ]);
 
         try {
-            // Carregamos 'motos' junto para poder atualizar o status delas
             $pedido = Pedido::with(['user', 'motos'])->findOrFail($id);
 
-            // Verificação de Segurança
             if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
                 abort(403, 'Você não tem permissão para finalizar pedidos de outra loja.');
             }
             
-            // 2. Integração Google Drive (Sua lógica original preservada)
             if ($request->hasFile('arquivo_romaneio')) {
+                
+                // --- TRAVA DE SEGURANÇA NOVA ---
+                $clientId     = config('services.google.drive.client_id');
+                $clientSecret = config('services.google.drive.client_secret');
+                $refreshToken = config('services.google.drive.refresh_token');
+                $folderId     = config('services.google.drive.folder_id');
+
+                // Debug de segurança (vai estourar erro na tela se estiver vazio)
+                if (!$clientId || !$clientSecret) {
+                    throw new \Exception('ERRO CRÍTICO: As chaves do Google Drive não foram carregadas pelo Laravel. Verifique config/services.php');
+                }
+
+                if (!$clientId || !$clientSecret || !$refreshToken) {
+                    throw new \Exception('Configuração do Google Drive incompleta na Vercel. Verifique as Variáveis de Ambiente.');
+                }
+                // -------------------------------
+
                 $uploadedFile = $request->file('arquivo_romaneio');
                 
-                // Configuração do Cliente Google
                 $client = new Client();
-                $client->setClientId(env('GOOGLE_DRIVE_CLIENT_ID'));
-                $client->setClientSecret(env('GOOGLE_DRIVE_CLIENT_SECRET'));
-                $client->refreshToken(env('GOOGLE_DRIVE_REFRESH_TOKEN'));
+                $client->setClientId($clientId);
+                $client->setClientSecret($clientSecret);
+                $client->refreshToken($refreshToken);
                 
                 $service = new Drive($client);
                 $rootFolderId = env('GOOGLE_DRIVE_FOLDER'); 
