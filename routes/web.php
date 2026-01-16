@@ -120,7 +120,9 @@ Route::get('/dashboard', function () {
     Route::delete('/expedicao/{id}', [RomaneioController::class, 'destroy'])->name('romaneios.destroy');
 
     // 8. MOTOS
-    Route::get('/motos', [MotoController::class, 'index'])->name('motos.index');
+    Route::get('/motos', [MotoController::class, 'index'])
+    ->middleware('check_perfil:admin,cd,gestor')
+    ->name('motos.index');
 
     // 9. PERFIL
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

@@ -110,6 +110,21 @@ export default function Authenticated({ user, header, children }) {
                                         </CustomNavLink>
                                     </>
                                 )}
+                                {/* Links do Gestor (Diego) */}
+                                {currentUser.perfil === 'gestor' && (
+                                    <>
+                                        <CustomNavLink href={route('pedidos.index')} active={route().current('pedidos.*')}>
+                                            📊 Auditoria Pedidos
+                                        </CustomNavLink>
+                                        <CustomNavLink href={route('romaneios.index')} active={route().current('romaneios.*')}>
+                                            🚛 Auditoria Cargas
+                                        </CustomNavLink>
+                                        <CustomNavLink href={route('motos.index')} active={route().current('motos.*')}>
+                                            🏍 Base Chassis
+                                        </CustomNavLink>
+                                    </>
+                                )}
+
                             </div>
                         </div>
 
