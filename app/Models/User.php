@@ -26,6 +26,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'onesignal_id',
         // 3. Novos campos personalizados do nosso sistema
         'perfil',       // admin, cd, loja
         'filial',       // Nome da loja/cidade

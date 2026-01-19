@@ -128,7 +128,12 @@ Route::get('/dashboard', function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    
+
+    Route::post('/user/onesignal', function (\Illuminate\Http\Request $request) {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        $user->update(['onesignal_id' => $request->onesignal_id]);
+        return response()->json(['status' => 'success']);
+    })->middleware('auth');
 
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
     Route::get('/zerar-estoque-operacao', function () {

@@ -1,3 +1,5 @@
+import OneSignal from 'react-onesignal';
+import axios from 'axios';
 import { useState } from 'react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
@@ -5,14 +7,43 @@ import NavLink from '@/Components/NavLink';
 import NotificationBell from '@/Components/NotificationBell';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import Toast from '@/Components/Toast';
-import { Link, usePage } from '@inertiajs/react'; // Importação do usePage
+import { Link, usePage } from '@inertiajs/react';
 
 export default function Authenticated({ user, header, children }) {
-    const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
 
-    // --- CORREÇÃO DE SEGURANÇA ---
-    // Pega o usuário via Props OU via Estado Global (usePage)
-    // Isso evita o erro "undefined" em páginas como Profile/Edit
+    // EFEITO DO ONESIGNAL
+    useEffect(() => {
+        const runOneSignal = async () => {
+            try {
+                await OneSignal.init({ 
+                    appId: "SEU_APP_ID_DO_ONESIGNAL_AQUI", // Pegue no painel do OneSignal
+                    allowLocalhostAsSecureOrigin: true, // Para testar local
+                    notifyButton: { enable: true }, // Botãozinho de sino no canto (opcional)
+                });
+
+                // Mostra o prompt nativo do navegador
+                OneSignal.ShowSlidedownPrompt();
+
+                // Quando o usuário se inscreve, pegamos o ID e salvamos no banco
+                OneSignal.on('subscriptionChange', async (isSubscribed) => {
+                    if (isSubscribed) {
+                        const userId = await OneSignal.getUserId(); // Pega o Player ID
+                        if (userId) {
+                            // Envia para o Backend salvar no usuário logado
+                            await axios.post('/user/onesignal', { onesignal_id: userId });
+                            console.log("OneSignal ID salvo:", userId);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Erro OneSignal", error);
+            }
+        };
+
+        runOneSignal();
+    }, []);
+
+    const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
     const { props } = usePage();
     const currentUser = user || props.auth.user; 
 

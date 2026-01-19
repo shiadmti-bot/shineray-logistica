@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\OneSignalService;
 use App\Models\Moto;
 use App\Models\Pedido;
 use App\Models\PedidoLog;
@@ -54,15 +55,14 @@ class PedidoController extends Controller
                       $m->where('chassi', 'like', "%{$termo}%"); 
                   })
                   ->orWhereHas('user', function($u) use ($termo) {
-                      $u->where('filial', 'like', "%{$termo}%"); // Permite buscar por nome da filial
+                      $u->where('filial', 'like', "%{$termo}%");
                   });
             });
         }
 
-        // Ordenação e Paginação (AQUI ESTAVA O ERRO)
         $pedidos = $query->orderByRaw("FIELD(status, 'solicitado') DESC")
                          ->orderBy('created_at', 'desc')
-                         ->paginate(15); // Usa paginação para funcionar com pedidos.data.map
+                         ->paginate(15);
 
         return Inertia::render('Pedidos/Index', [
             'pedidos' => $pedidos,
@@ -122,7 +122,7 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Create', ['listaModelos' => $modelos]);
     }
 
-  public function store(Request $request)
+    public function store(Request $request)
     {
         // 1. Validação
         $request->validate([
@@ -130,12 +130,10 @@ class PedidoController extends Controller
             'itens.*.modelo' => 'required|string',
             'itens.*.chassi' => 'required|string|between:11,17|distinct',
             'itens.*.cor' => 'required|string|min:3', 
-            'itens.*.motivo' => 'required|string', // Validando o motivo
+            'itens.*.motivo' => 'required|string',
         ]);
 
-        // 2. Verificação de Duplicidade (Blindagem)
-        // Impede pedir motos que já estão em processo (reservado, separado, etc)
-        // Só permite pedir se não existir ou se estiver 'estoque_fabrica' (livre)
+        // 2. Verificação de Duplicidade
         $chassis = array_column($request->itens, 'chassi');
         
         $duplicados = Moto::whereIn('chassi', $chassis)
@@ -150,46 +148,58 @@ class PedidoController extends Controller
         // 3. Criação do Pedido
         $pedido = Pedido::create([
             'user_id' => Auth::id(),
-            'status' => 'em_analise', // Começa na mão do Gestor
+            'status' => 'solicitado', // Ajustado para 'solicitado' (padrão) em vez de 'em_analise' se não houver middleware de status
             'observacao' => $request->observacao
         ]);
 
         // 4. Vinculação das Motos
         foreach ($request->itens as $item) {
             $moto = Moto::updateOrCreate(
-                ['chassi' => mb_strtoupper($item['chassi'])], // Busca pelo Chassi
+                ['chassi' => mb_strtoupper($item['chassi'])],
                 [
                     'modelo' => mb_strtoupper($item['modelo']),
                     'cor' => mb_strtoupper($item['cor']),
                     'ano_fabricacao' => $item['ano'] ?? null,
-                    
-                    // --- AQUI ESTAVA FALTANDO ---
                     'motivo_solicitacao' => $item['motivo'], 
-                    // ----------------------------
-
                     'status' => 'reservado',
                     'localizacao_atual' => 'Solicitado pela Loja'
                 ]
             );
-            
-            // Vincula na tabela pivô
             $pedido->motos()->attach($moto->id);
         }
 
         // 5. Log e Notificação
-        $this->registrarLog($pedido, 'Aguardando Aprovação', 'Pedido enviado para análise do Gestor Comercial.');
+        $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido enviado para análise.');
 
-        // Notifica APENAS os Gestores (Diego)
+        // Notifica APENAS os Gestores via Sistema (Sininho)
         $gestores = User::where('perfil', 'gestor')->get();
         foreach ($gestores as $gestor) {
             $gestor->notify(new PedidoAtualizado(
                 'Nova Solicitação #' . $pedido->id,
                 'Loja ' . Auth::user()->filial . ' aguarda sua autorização.',
-                route('gestor.show', $pedido->id)
+                route('pedidos.index') // Ajustado rota
             ));
         }
 
-        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para aprovação do Gestor!');
+        // --- NOTIFICAÇÃO PUSH PARA GESTORES ---
+        $gestoresIds = User::where('perfil', 'gestor')
+            ->whereNotNull('onesignal_id')
+            ->pluck('onesignal_id')
+            ->toArray();
+
+        if (!empty($gestoresIds)) {
+            $push = new OneSignalService();
+            $lojaNome = Auth::user()->name;
+            
+            $push->sendToUser(
+                $gestoresIds,
+                'Nova Solicitação 🆕',
+                "A loja {$lojaNome} solicitou {$pedido->motos->count()} moto(s).",
+                route('dashboard')
+            );
+        }
+
+        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada com sucesso!');
     }
 
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
@@ -202,7 +212,7 @@ class PedidoController extends Controller
 
     public function marcarSeparado($id)
     {
-        $pedido = Pedido::findOrFail($id);
+        $pedido = Pedido::with('user')->findOrFail($id); // Eager load user
         
         if ($pedido->status !== 'solicitado') return redirect()->back();
 
@@ -214,12 +224,23 @@ class PedidoController extends Controller
 
         $this->registrarLog($pedido, 'Separação Concluída', 'Motos conferidas e enviadas para o Pool de Expedição.');
 
-        // --- NOTIFICAÇÃO 2: Avisar a Loja que foi separado ---
+        // --- NOTIFICAÇÃO 1: Avisar a Loja que foi separado (Sistema) ---
         $pedido->user->notify(new PedidoAtualizado(
             'Pedido #' . $pedido->id . ' Separado',
             'Suas motos foram conferidas e estão aguardando carga.',
             route('pedidos.show', $pedido->id)
         ));
+
+        // --- NOTIFICAÇÃO 2: Avisar a Loja via PUSH (OneSignal) ---
+        if ($pedido->user->onesignal_id) {
+            $push = new OneSignalService();
+            $push->sendToUser(
+                [$pedido->user->onesignal_id],
+                'Pedido Separado! 📦',
+                "Suas motos do pedido #{$pedido->id} foram conferidas e estão aguardando carga.",
+                route('pedidos.show', $pedido->id)
+            );
+        }
         // -----------------------------------------------------
 
         return redirect()->back()->with('success', 'Pedido separado com sucesso!');
@@ -227,7 +248,7 @@ class PedidoController extends Controller
 
     public function confirmarSaida($id)
     {
-        $pedido = Pedido::with('motos')->findOrFail($id);
+        $pedido = Pedido::with(['motos', 'user'])->findOrFail($id);
         
         $pedido->update(['status' => 'em_transito']);
         foreach ($pedido->motos as $moto) {
@@ -243,24 +264,34 @@ class PedidoController extends Controller
 
         $this->registrarLog($pedido, 'Saída Confirmada', 'Veículo saiu do CD e está em trânsito.');
 
-        // --- NOTIFICAÇÃO 3: Avisar a Loja que está a caminho ---
+        // --- NOTIFICAÇÃO 1: Avisar a Loja (Sistema) ---
         $pedido->user->notify(new PedidoAtualizado(
             'Pedido #' . $pedido->id . ' Em Trânsito',
             'O caminhão saiu do CD! Prepare o recebimento.',
             route('pedidos.show', $pedido->id)
         ));
+
+        // --- NOTIFICAÇÃO 2: Avisar a Loja via PUSH (OneSignal) ---
+        if ($pedido->user->onesignal_id) {
+            $push = new OneSignalService();
+            $push->sendToUser(
+                [$pedido->user->onesignal_id],
+                'Saiu para Entrega 🚚',
+                "O caminhão saiu do CD com seu pedido #{$pedido->id}. Prepare o recebimento!",
+                route('pedidos.show', $pedido->id)
+            );
+        }
         // -------------------------------------------------------
         
         return redirect()->back();
     }
 
-public function finalizarEntrega(Request $request, $id)
+    public function finalizarEntrega(Request $request, $id)
     {
-        // 1. Validação (Aceita fotos individuais agora)
+        // 1. Validação
         $request->validate([
             'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360',
             'avarias'          => 'nullable|array',
-            // Valida array de fotos: chaves devem ser IDs de moto, valores arquivos de imagem
             'fotos_avarias'    => 'nullable|array', 
             'fotos_avarias.*'  => 'file|mimes:jpg,jpeg,png|max:10240' 
         ]);
@@ -283,13 +314,11 @@ public function finalizarEntrega(Request $request, $id)
 
             if (!$clientId || !$clientSecret || !$refreshToken) throw new \Exception('Configuração Drive incompleta.');
 
-            // Setup Client
             $client = new \Google\Client();
             $client->setClientId($clientId);
             $client->setClientSecret($clientSecret);
             $client->setAccessType('offline');
             
-            // Auth Token Refresh
             $client->refreshToken($refreshToken);
             $newAccessToken = $client->fetchAccessTokenWithRefreshToken($refreshToken);
             if (isset($newAccessToken['error'])) throw new \Exception('Erro Auth Google: ' . json_encode($newAccessToken));
@@ -298,7 +327,6 @@ public function finalizarEntrega(Request $request, $id)
             $service = new \Google\Service\Drive($client);
 
             // --- LÓGICA DE PASTAS INTELIGENTE (Cacheada) ---
-            // Estrutura: Root -> Filial -> Ano -> Mês
             $now = \Carbon\Carbon::now();
             $yearStr = $now->format('Y');
             $monthStr = $now->format('m') . ' - ' . \Illuminate\Support\Str::ucfirst($now->translatedFormat('F'));
@@ -306,11 +334,8 @@ public function finalizarEntrega(Request $request, $id)
             $cacheKey = "drive_folder_{$filialSlug}_{$yearStr}_{$monthStr}";
             
             $targetFolderId = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60 * 60 * 24, function () use ($service, $rootId, $userFilial, $yearStr, $monthStr) {
-                // 1. Garante Pasta da Filial
                 $filialId = $this->findOrCreateFolder($service, "Filial - " . $userFilial, $rootId);
-                // 2. Garante Pasta do Ano (dentro da Filial)
                 $yearId = $this->findOrCreateFolder($service, $yearStr, $filialId);
-                // 3. Garante Pasta do Mês (dentro do Ano)
                 return $this->findOrCreateFolder($service, $monthStr, $yearId);
             });
 
@@ -323,26 +348,22 @@ public function finalizarEntrega(Request $request, $id)
 
             // --- B. ATUALIZAÇÃO DAS MOTOS E UPLOAD DAS AVARIAS ---
             $listaAvarias = $request->input('avarias', []);
-            $fotosAvarias = $request->file('fotos_avarias', []); // Array de arquivos
+            $fotosAvarias = $request->file('fotos_avarias', []);
 
             foreach ($pedido->motos as $moto) {
                 $dadosUpdate = [];
 
-                // Se tem avaria relatada
                 if (isset($listaAvarias[$moto->id]) && !empty($listaAvarias[$moto->id])) {
                     $dadosUpdate['status'] = 'avariado';
                     $dadosUpdate['localizacao_atual'] = "Loja ({$userFilial}) - COM AVARIA";
                     $dadosUpdate['detalhes_avaria'] = $listaAvarias[$moto->id];
 
-                    // Verifica se mandou foto para esta moto específica
                     if (isset($fotosAvarias[$moto->id])) {
                         $fotoFile = $fotosAvarias[$moto->id];
                         $fotoName = "AVARIA_Chassi-{$moto->chassi}_Ped-{$pedido->id}.{$fotoFile->getClientOriginalExtension()}";
-                        // Upload da foto na mesma pasta da filial
                         $dadosUpdate['foto_avaria'] = $this->uploadFileToDrive($service, $fotoFile, $targetFolderId, $fotoName);
                     }
                 } else {
-                    // Sem avaria
                     $dadosUpdate['status'] = 'entregue';
                     $dadosUpdate['localizacao_atual'] = "Estoque Loja: {$userFilial}";
                     $dadosUpdate['detalhes_avaria'] = null;
@@ -355,8 +376,31 @@ public function finalizarEntrega(Request $request, $id)
             $pedido->status = 'concluido';
             $pedido->save();
 
-            // Logs e Fechamento de Carga (Mantive igual)
             $this->gerarLogFinalizacao($pedido, count($listaAvarias));
+
+            // --- NOTIFICAÇÃO: AVISAR GESTORES QUE A ENTREGA FOI CONCLUÍDA ---
+            $gestoresIds = User::where('perfil', 'gestor')
+                ->whereNotNull('onesignal_id')
+                ->pluck('onesignal_id')
+                ->toArray();
+
+            if (!empty($gestoresIds)) {
+                $push = new OneSignalService();
+                $lojaNome = $pedido->user->name;
+                $push->sendToUser(
+                    $gestoresIds,
+                    'Entrega Concluída ✅',
+                    "A loja {$lojaNome} finalizou o recebimento do pedido #{$pedido->id}.",
+                    route('pedidos.show', $pedido->id)
+                );
+            }
+            // -----------------------------------------------------------------
+
+            // Notifica também a loja (Confirmação visual no celular)
+            if ($pedido->user->onesignal_id) {
+                $push = new OneSignalService();
+                $push->sendToUser([$pedido->user->onesignal_id], 'Recebimento Confirmado', 'O estoque da loja foi atualizado.', route('dashboard'));
+            }
 
             return redirect()->back()->with('message', 'Entrega finalizada com sucesso!');
 
@@ -365,10 +409,9 @@ public function finalizarEntrega(Request $request, $id)
         }
     }
 
-    // --- FUNÇÕES AUXILIARES PRIVADAS PARA LIMPAR O CÓDIGO ---
+    // --- FUNÇÕES AUXILIARES ---
 
     private function findOrCreateFolder($service, $folderName, $parentId) {
-        // Busca se existe
         $query = "mimeType='application/vnd.google-apps.folder' and name='$folderName' and '$parentId' in parents and trashed=false";
         $results = $service->files->listFiles(['q' => $query, 'fields' => 'files(id)']);
         
@@ -376,7 +419,6 @@ public function finalizarEntrega(Request $request, $id)
             return $results->files[0]->id;
         }
 
-        // Cria se não existe
         $fileMetadata = new \Google\Service\Drive\DriveFile([
             'name' => $folderName,
             'mimeType' => 'application/vnd.google-apps.folder',
@@ -416,16 +458,27 @@ public function finalizarEntrega(Request $request, $id)
 
     public function rejeitar(Request $request, $id)
     {
-        $pedido = Pedido::with('motos')->findOrFail($id);
+        $pedido = Pedido::with('motos', 'user')->findOrFail($id);
         $request->validate(['motivo' => 'required']);
 
-        // --- NOTIFICAÇÃO 4: Avisar a Loja ANTES de excluir ---
-        // Linkamos para o Dashboard pois o pedido vai deixar de existir
+        // --- NOTIFICAÇÃO 1: Avisar a Loja (Sistema) ---
         $pedido->user->notify(new PedidoAtualizado(
             'Pedido #' . $pedido->id . ' Rejeitado pelo CD',
             'Motivo: ' . $request->motivo . '. As motos foram liberadas.',
             route('dashboard') 
         ));
+
+        // --- NOTIFICAÇÃO 2: Avisar a Loja via PUSH (OneSignal) ---
+        // (Corrigido: Agora está ANTES do delete/return)
+        if ($pedido->user->onesignal_id) {
+            $push = new OneSignalService();
+            $push->sendToUser(
+                [$pedido->user->onesignal_id],
+                'Pedido Rejeitado 🛑',
+                "O pedido #{$pedido->id} foi rejeitado. Motivo: {$request->motivo}",
+                route('dashboard')
+            );
+        }
         // -----------------------------------------------------
 
         foreach ($pedido->motos as $moto) {
@@ -471,6 +524,24 @@ public function finalizarEntrega(Request $request, $id)
 
         // 2. Exclui o Pedido Permanentemente
         $pedido->delete();
+
+        // --- NOTIFICAÇÃO PARA O GESTOR (PUSH) ---
+        $gestoresIds = User::where('perfil', 'gestor')
+            ->whereNotNull('onesignal_id')
+            ->pluck('onesignal_id')
+            ->toArray();
+
+        if (!empty($gestoresIds)) {
+            $push = new OneSignalService();
+            $lojaNome = $pedido->user->name;
+
+            $push->sendToUser(
+                $gestoresIds,
+                'Solicitação Cancelada 🗑️',
+                "A loja {$lojaNome} cancelou o pedido #{$pedido->id}. O estoque foi liberado.",
+                route('dashboard')
+            );
+        }
 
         return redirect()->route('dashboard')->with('warning', 'Solicitação excluída e motos liberadas com sucesso.');
     }

@@ -28,6 +28,7 @@
         "browser-image-compression": "^2.0.2",
         "html5-qrcode": "^2.3.8",
         "nprogress": "^0.2.0",
+        "react-onesignal": "^3.4.6",
         "sweetalert2": "^11.26.17"
     }
 }
