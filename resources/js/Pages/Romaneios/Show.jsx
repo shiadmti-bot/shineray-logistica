@@ -59,26 +59,47 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
             {/* VISÃO DE TELA (Interativa) */}
             <div className="py-8 bg-gray-100 min-h-screen print:hidden">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    
+                    {/* STEPPER (Barra de Progresso) */}
                     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                         <RomaneioStepper currentStep={getStatusStep()} />
                     </div>
 
+                    {/* CARD DO MOTORISTA E AÇÕES */}
                     <div className="bg-white shadow-sm sm:rounded-lg overflow-hidden border-l-4 border-indigo-500">
                         <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900">🚛 Motorista: {romaneio.motorista}</h3>
                                 <p className="text-gray-600">Placa: <strong>{romaneio.placa}</strong></p>
+                                
+                                {/* Badge de Status para Conferência Visual */}
+                                <div className="mt-2">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold uppercase border
+                                        ${romaneio.status === 'finalizado' ? 'bg-green-100 text-green-800 border-green-200' : ''}
+                                        ${romaneio.status === 'em_transito' ? 'bg-orange-100 text-orange-800 border-orange-200' : ''}
+                                        ${romaneio.status === 'aberto' ? 'bg-blue-100 text-blue-800 border-blue-200' : ''}
+                                        ${romaneio.status === 'cancelado' ? 'bg-red-100 text-red-800 border-red-200' : ''}
+                                    `}>
+                                        Status: {romaneio.status.replace('_', ' ')}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex gap-3">
+
+                            <div className="flex gap-3 flex-wrap justify-end">
+                                {/* BOTÃO IMPRIMIR (Sempre Visível) */}
                                 <button onClick={() => window.print()} className="flex items-center gap-2 bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-700 shadow-lg">
                                     🖨️ IMPRIMIR
                                 </button>
+                                
+                                {/* BOTÃO LIBERAR (Apenas se ainda estiver Aberto/Separado) */}
                                 {romaneio.status === 'aberto' && (
                                     <button onClick={handleSaida} className="bg-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-600">
-                                        🚛 Liberar
+                                        🚛 Liberar Saída
                                     </button>
                                 )}
-                                {romaneio.status !== 'finalizado' && (
+                                
+                                {/* BOTÃO DESFAZER (Oculto se estiver em trânsito ou finalizado) */}
+                                {romaneio.status !== 'em_transito' && romaneio.status !== 'finalizado' && (
                                     <button onClick={handleDelete} className="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-100 border border-red-200">
                                         🗑️ Desfazer
                                     </button>
@@ -87,6 +108,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                         </div>
                     </div>
 
+                    {/* LISTA DE CARGAS POR LOJA */}
                     {Object.keys(cargasPorLoja).map((lojaNome, index) => (
                         <div key={index} className="bg-white shadow-sm sm:rounded-lg overflow-hidden">
                             <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
@@ -103,7 +125,11 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {cargasPorLoja[lojaNome].map((moto) => (
-                                        <tr key={moto.id}><td className="px-6 py-4 text-sm font-bold">{moto.modelo}</td><td className="px-6 py-4 text-sm font-mono">{moto.chassi}</td><td className="px-6 py-4 text-sm">{moto.cor}</td></tr>
+                                        <tr key={moto.id}>
+                                            <td className="px-6 py-4 text-sm font-bold">{moto.modelo}</td>
+                                            <td className="px-6 py-4 text-sm font-mono">{moto.chassi}</td>
+                                            <td className="px-6 py-4 text-sm">{moto.cor}</td>
+                                        </tr>
                                     ))}
                                 </tbody>
                             </table>

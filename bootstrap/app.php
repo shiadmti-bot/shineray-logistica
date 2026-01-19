@@ -12,6 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+         $middleware->alias([
+            'check_perfil' => \App\Http\Middleware\CheckPerfil::class,
+        ]);
         
         // 1. Confiar nos Proxies da Vercel (Corrige o Mixed Content)
         $middleware->trustProxies(at: '*');

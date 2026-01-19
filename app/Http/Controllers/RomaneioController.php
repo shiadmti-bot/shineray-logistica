@@ -194,37 +194,30 @@ class RomaneioController extends Controller
     // 6. DESFAZER CARGA
     public function destroy($id)
     {
-        $romaneio = Romaneio::with('motos.pedidos')->findOrFail($id);
+        $romaneio = Romaneio::with('pedidos')->findOrFail($id);
 
-        if ($romaneio->status === 'finalizado' || $romaneio->motos->contains('status', 'concluido')) {
-            return redirect()->back()->with('error', 'Não é possível excluir cargas já entregues/finalizadas.');
+        // --- TRAVA DE SEGURANÇA ---
+        // Se já saiu do CD (Em Trânsito) ou já foi entregue (Finalizado), não pode apagar.
+        if (in_array($romaneio->status, ['em_transito', 'finalizado'])) {
+            return redirect()->back()->with('error', 'Não é possível desfazer uma carga que já está em trânsito ou finalizada!');
         }
+        // ---------------------------
 
-        // CORREÇÃO: Pluck 'pedidos' e Flatten
-        $pedidosIds = $romaneio->motos->pluck('pedidos')->flatten()->pluck('id')->unique();
-
-        $romaneio->motos()->update([
-            'romaneio_id' => null,
-            'status' => 'separado',
-            'localizacao_atual' => 'Devolvido ao Pátio (Romaneio Cancelado)'
-        ]);
-
-        \App\Models\Pedido::whereIn('id', $pedidosIds)->update([
-            'status' => 'separado',
-            'romaneio_id' => null
-        ]);
-
-        foreach ($pedidosIds as $pid) {
-            if(!$pid) continue;
-            PedidoLog::create([
-                'pedido_id' => $pid,
-                'titulo' => 'Carga Cancelada',
-                'descricao' => "O Romaneio #{$id} foi excluído pelo CD. Itens retornaram ao status de separação."
+        // Lógica de reversão (Devolve os pedidos para o status 'separado')
+        foreach ($romaneio->pedidos as $pedido) {
+            $pedido->update([
+                'status' => 'separado', // Volta para o pátio
+                'romaneio_id' => null
             ]);
+            
+            // Atualiza motos também
+            foreach ($pedido->motos as $moto) {
+                $moto->update(['romaneio_id' => null]);
+            }
         }
 
         $romaneio->delete();
 
-        return redirect()->route('romaneios.index')->with('warning', 'Romaneio excluído e itens devolvidos ao pátio.');
+        return redirect()->route('romaneios.index')->with('success', 'Carga desfeita. Pedidos voltaram para o status "Separado".');
     }
 }
