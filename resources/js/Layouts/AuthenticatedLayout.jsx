@@ -1,6 +1,6 @@
 import OneSignal from 'react-onesignal';
 import axios from 'axios';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
