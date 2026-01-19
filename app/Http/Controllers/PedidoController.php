@@ -148,7 +148,7 @@ class PedidoController extends Controller
         // 3. Criação do Pedido
         $pedido = Pedido::create([
             'user_id' => Auth::id(),
-            'status' => 'solicitado', // Ajustado para 'solicitado' (padrão) em vez de 'em_analise' se não houver middleware de status
+            'status' => 'em_analise', // Ajustado para 'solicitado' (padrão) em vez de 'em_analise' se não houver middleware de status
             'observacao' => $request->observacao
         ]);
 

@@ -16,7 +16,7 @@ export default function Authenticated({ user, header, children }) {
         const runOneSignal = async () => {
             try {
                 await OneSignal.init({ 
-                    appId: "a114f37e-c4b7-4fb4-a580-51d78c8bfa57", // Pegue no painel do OneSignal
+                    appId: "", // Pegue no painel do OneSignal
                     allowLocalhostAsSecureOrigin: true, // Para testar local
                     notifyButton: { enable: true }, // Botãozinho de sino no canto (opcional)
                 });
