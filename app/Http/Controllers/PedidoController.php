@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\OneSignalService;
+use App\Services\PushService;
 use App\Models\Moto;
 use App\Models\Pedido;
 use App\Models\PedidoLog;
@@ -188,7 +188,7 @@ class PedidoController extends Controller
             ->toArray();
 
         if (!empty($gestoresIds)) {
-            $push = new OneSignalService();
+            $push = new PushService();
             $lojaNome = Auth::user()->name;
             
             $push->sendToUser(
@@ -233,7 +233,7 @@ class PedidoController extends Controller
 
         // --- NOTIFICAÇÃO 2: Avisar a Loja via PUSH (OneSignal) ---
         if ($pedido->user->onesignal_id) {
-            $push = new OneSignalService();
+            $push = new PushService();
             $push->sendToUser(
                 [$pedido->user->onesignal_id],
                 'Pedido Separado! 📦',
@@ -273,7 +273,7 @@ class PedidoController extends Controller
 
         // --- NOTIFICAÇÃO 2: Avisar a Loja via PUSH (OneSignal) ---
         if ($pedido->user->onesignal_id) {
-            $push = new OneSignalService();
+            $push = new PushService();
             $push->sendToUser(
                 [$pedido->user->onesignal_id],
                 'Saiu para Entrega 🚚',
@@ -385,7 +385,7 @@ class PedidoController extends Controller
                 ->toArray();
 
             if (!empty($gestoresIds)) {
-                $push = new OneSignalService();
+                $push = new PushService();
                 $lojaNome = $pedido->user->name;
                 $push->sendToUser(
                     $gestoresIds,
@@ -398,7 +398,7 @@ class PedidoController extends Controller
 
             // Notifica também a loja (Confirmação visual no celular)
             if ($pedido->user->onesignal_id) {
-                $push = new OneSignalService();
+                $push = new PushService();
                 $push->sendToUser([$pedido->user->onesignal_id], 'Recebimento Confirmado', 'O estoque da loja foi atualizado.', route('dashboard'));
             }
 
@@ -471,7 +471,7 @@ class PedidoController extends Controller
         // --- NOTIFICAÇÃO 2: Avisar a Loja via PUSH (OneSignal) ---
         // (Corrigido: Agora está ANTES do delete/return)
         if ($pedido->user->onesignal_id) {
-            $push = new OneSignalService();
+            $push = new PushService();
             $push->sendToUser(
                 [$pedido->user->onesignal_id],
                 'Pedido Rejeitado 🛑',
@@ -532,7 +532,7 @@ class PedidoController extends Controller
             ->toArray();
 
         if (!empty($gestoresIds)) {
-            $push = new OneSignalService();
+            $push = new PushService();
             $lojaNome = $pedido->user->name;
 
             $push->sendToUser(
