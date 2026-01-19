@@ -5,7 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class PushService
+class OneSignalService
 {
     protected $appId;
     protected $apiKey;
@@ -13,8 +13,8 @@ class PushService
     public function __construct()
     {
         // Pega as chaves do .env
-        $this->appId = env('a114f37e-c4b7-4fb4-a580-51d78c8bfa57');
-        $this->apiKey = env('jlfomvvjeebk4bzub24o5c56a');
+        $this->appId = config('services.onesignal.app_id');
+        $this->apiKey = config('services.onesignal.rest_api_key');
     }
 
     /**
