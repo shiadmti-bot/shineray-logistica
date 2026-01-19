@@ -135,6 +135,16 @@ Route::get('/dashboard', function () {
         return response()->json(['status' => 'success']);
     })->middleware('auth');
 
+    // Adicione no final do arquivo routes/web.php
+    Route::get('/force-migrate', function() {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+            return '<h1>Sucesso! Migration Rodada.</h1><pre>' . \Illuminate\Support\Facades\Artisan::output() . '</pre>';
+        } catch (\Exception $e) {
+            return 'Erro: ' . $e->getMessage();
+        }
+    });
+
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
     Route::get('/zerar-estoque-operacao', function () {
     
