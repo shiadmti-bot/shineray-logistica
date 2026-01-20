@@ -6,6 +6,7 @@
         "api/index.php": { "runtime": "vercel-php@0.7.1" }
     },
     "routes": [
+        { "handle": "filesystem" },
         { "src": "/build/(.*)", "dest": "/public/build/$1" },
         { "src": "/img/(.*)", "dest": "/public/img/$1" },
         { "src": "/favicon.ico", "dest": "/public/favicon.ico" },
