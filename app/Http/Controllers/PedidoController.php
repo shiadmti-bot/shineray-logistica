@@ -306,31 +306,28 @@ class PedidoController extends Controller
                 abort(403, 'Acesso negado.');
             }
             
-            // --- INÍCIO INTEGRAÇÃO GOOGLE DRIVE ---
-            $clientId     = config('services.google.drive.client_id');
-            $clientSecret = config('services.google.drive.client_secret');
-            $refreshToken = config('services.google.drive.refresh_token');
-            $rootId       = config('services.google.drive.folder_id');
-
-            if (!$clientId || !$clientSecret || !$refreshToken) throw new \Exception('Configuração Drive incompleta.');
-
+            // --- INÍCIO INTEGRAÇÃO GOOGLE DRIVE (SERVICE ACCOUNT) ---
             $client = new \Google\Client();
-            $client->setClientId($clientId);
-            $client->setClientSecret($clientSecret);
-            $client->setAccessType('offline');
-            
-            $client->refreshToken($refreshToken);
-            $newAccessToken = $client->fetchAccessTokenWithRefreshToken($refreshToken);
-            if (isset($newAccessToken['error'])) throw new \Exception('Erro Auth Google: ' . json_encode($newAccessToken));
-            $client->setAccessToken($newAccessToken);
-
+            $client->setAuthConfig([
+                'type' => 'service_account',
+                'project_id' => config('services.google.project_id'),
+                'private_key_id' => 'somethingsorandom', 
+                'private_key' => str_replace('\\n', "\n", config('services.google.private_key')),
+                'client_email' => config('services.google.client_email'),
+                'client_id' => '111453318979756334189', 
+                'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri' => 'https://oauth2.googleapis.com/token',
+                'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
+                'client_x509_cert_url' => 'https://www.googleapis.com/robot/v1/metadata/x509/' . urlencode(config('services.google.client_email')),
+            ]);
+            $client->setScopes([\Google\Service\Drive::DRIVE]);
             $service = new \Google\Service\Drive($client);
 
-            // --- LÓGICA DE PASTAS INTELIGENTE (Cacheada) ---
+            // Cache de pastas
+            $rootId = config('services.google.folder_id');
             $now = \Carbon\Carbon::now();
             $yearStr = $now->format('Y');
             $monthStr = $now->format('m') . ' - ' . \Illuminate\Support\Str::ucfirst($now->translatedFormat('F'));
-
             $cacheKey = "drive_folder_{$filialSlug}_{$yearStr}_{$monthStr}";
             
             $targetFolderId = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60 * 60 * 24, function () use ($service, $rootId, $userFilial, $yearStr, $monthStr) {
@@ -339,20 +336,19 @@ class PedidoController extends Controller
                 return $this->findOrCreateFolder($service, $monthStr, $yearId);
             });
 
-            // --- A. UPLOAD DO COMPROVANTE GERAL ---
+            // Upload Comprovante
             if ($request->hasFile('arquivo_romaneio')) {
                 $file = $request->file('arquivo_romaneio');
                 $name = "ROMANEIO_Ped-{$pedido->id}_{$now->format('d-m-Y')}.{$file->getClientOriginalExtension()}";
                 $pedido->comprovante_url = $this->uploadFileToDrive($service, $file, $targetFolderId, $name);
             }
 
-            // --- B. ATUALIZAÇÃO DAS MOTOS E UPLOAD DAS AVARIAS ---
+            // Avarias e Status das Motos
             $listaAvarias = $request->input('avarias', []);
             $fotosAvarias = $request->file('fotos_avarias', []);
 
             foreach ($pedido->motos as $moto) {
                 $dadosUpdate = [];
-
                 if (isset($listaAvarias[$moto->id]) && !empty($listaAvarias[$moto->id])) {
                     $dadosUpdate['status'] = 'avariado';
                     $dadosUpdate['localizacao_atual'] = "Loja ({$userFilial}) - COM AVARIA";
@@ -369,36 +365,42 @@ class PedidoController extends Controller
                     $dadosUpdate['detalhes_avaria'] = null;
                     $dadosUpdate['foto_avaria'] = null;
                 }
-
                 $moto->update($dadosUpdate);
             }
 
+            // 1. ATUALIZA O STATUS DO PEDIDO PRIMEIRO
             $pedido->status = 'concluido';
             $pedido->save();
 
-            $this->gerarLogFinalizacao($pedido, count($listaAvarias));
+            // 2. VERIFICAÇÃO ROBUSTA DO ROMANEIO (CARGA)
+            if ($pedido->romaneio_id) {
+                // Conta quantos pedidos NESSE romaneio AINDA NÃO estão concluídos ou cancelados
+                $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
+                    ->whereNotIn('status', ['concluido', 'cancelado'])
+                    ->count();
 
-            // --- NOTIFICAÇÃO: AVISAR GESTORES QUE A ENTREGA FOI CONCLUÍDA ---
-            $gestoresIds = User::where('perfil', 'gestor')
-                ->whereNotNull('onesignal_id')
-                ->pluck('onesignal_id')
-                ->toArray();
-
-            if (!empty($gestoresIds)) {
-                $push = new OneSignalService();
-                $lojaNome = $pedido->user->name;
-                $push->sendToUser(
-                    $gestoresIds,
-                    'Entrega Concluída ✅',
-                    "A loja {$lojaNome} finalizou o recebimento do pedido #{$pedido->id}.",
-                    route('pedidos.show', $pedido->id)
-                );
+                // Se zero pendentes, fecha a carga
+                if ($pendentes === 0) {
+                    \App\Models\Romaneio::where('id', $pedido->romaneio_id)
+                        ->update(['status' => 'finalizado']);
+                }
             }
-            // -----------------------------------------------------------------
 
-            // Notifica também a loja (Confirmação visual no celular)
+            // Logs
+            $texto = 'Entrega finalizada.';
+            if (count($listaAvarias) > 0) $texto .= " ⚠️ " . count($listaAvarias) . " avarias registradas.";
+            $pedido->logs()->create(['titulo' => 'Concluído', 'descricao' => $texto]);
+
+            // Notificações
+            $gestoresIds = User::where('perfil', 'gestor')->whereNotNull('onesignal_id')->pluck('onesignal_id')->toArray();
+            if (!empty($gestoresIds)) {
+                $push = new \App\Services\PushService();
+                $lojaNome = $pedido->user->name;
+                $push->sendToUser($gestoresIds, 'Entrega Concluída ✅', "A loja {$lojaNome} finalizou o recebimento do pedido #{$pedido->id}.", route('pedidos.show', $pedido->id));
+            }
+
             if ($pedido->user->onesignal_id) {
-                $push = new OneSignalService();
+                $push = new \App\Services\PushService();
                 $push->sendToUser([$pedido->user->onesignal_id], 'Recebimento Confirmado', 'O estoque da loja foi atualizado.', route('dashboard'));
             }
 

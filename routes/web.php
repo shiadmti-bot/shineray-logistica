@@ -135,15 +135,26 @@ Route::get('/dashboard', function () {
         return response()->json(['status' => 'success']);
     })->middleware('auth');
 
-    // Adicione no final do arquivo routes/web.php
-    Route::get('/force-migrate', function() {
-        try {
-            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
-            return '<h1>Sucesso! Migration Rodada.</h1><pre>' . \Illuminate\Support\Facades\Artisan::output() . '</pre>';
-        } catch (\Exception $e) {
-            return 'Erro: ' . $e->getMessage();
+    Route::get('/corrigir-cargas', function() {
+    // Busca todas as cargas em trânsito
+    $cargas = \App\Models\Romaneio::where('status', 'em_transito')->get();
+    $corrigidas = 0;
+
+    foreach ($cargas as $carga) {
+        // Conta pedidos pendentes dessa carga
+        $pendentes = \App\Models\Pedido::where('romaneio_id', $carga->id)
+            ->whereNotIn('status', ['concluido', 'cancelado'])
+            ->count();
+
+        // Se não tem pendentes, força finalizar
+        if ($pendentes === 0) {
+            $carga->update(['status' => 'finalizado']);
+            $corrigidas++;
         }
-    });
+    }
+
+    return "Total de cargas corrigidas: $corrigidas";
+});
 
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
     Route::get('/zerar-estoque-operacao', function () {
