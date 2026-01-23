@@ -145,6 +145,7 @@ Route::get('/dashboard', function () {
         'private_key_inicio' => substr($config['private_key'] ?? '', 0, 10), 
     ];
 });
+    
 
     // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
     Route::get('/zerar-estoque-operacao', function () {
