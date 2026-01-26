@@ -145,10 +145,10 @@ class PedidoController extends Controller
             throw ValidationException::withMessages(['itens' => 'Chassis já em uso/reservados: ' . implode(', ', $duplicados)]);
         }
 
-        // 3. Criação do Pedido
+        // 3. Criação do Pedido (STATUS: EM ANÁLISE para passar pelo Gestor)
         $pedido = Pedido::create([
             'user_id' => Auth::id(),
-            'status' => 'em_analise', // Ajustado para 'solicitado' (padrão) em vez de 'em_analise' se não houver middleware de status
+            'status' => 'em_analise', 
             'observacao' => $request->observacao
         ]);
 
@@ -171,17 +171,17 @@ class PedidoController extends Controller
         // 5. Log e Notificação
         $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido enviado para análise.');
 
-        // Notifica APENAS os Gestores via Sistema (Sininho)
+        // Notifica APENAS os Gestores via Sistema
         $gestores = User::where('perfil', 'gestor')->get();
         foreach ($gestores as $gestor) {
             $gestor->notify(new PedidoAtualizado(
                 'Nova Solicitação #' . $pedido->id,
                 'Loja ' . Auth::user()->filial . ' aguarda sua autorização.',
-                route('pedidos.index') // Ajustado rota
+                route('gestor.index') // Link para o painel do gestor
             ));
         }
 
-        // --- NOTIFICAÇÃO PUSH PARA GESTORES ---
+        // Notificação PUSH
         $gestoresIds = User::where('perfil', 'gestor')
             ->whereNotNull('onesignal_id')
             ->pluck('onesignal_id')
@@ -195,11 +195,11 @@ class PedidoController extends Controller
                 $gestoresIds,
                 'Nova Solicitação 🆕',
                 "A loja {$lojaNome} solicitou {$pedido->motos->count()} moto(s).",
-                route('dashboard')
+                route('gestor.index') // Link correto para o gestor
             );
         }
 
-        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada com sucesso!');
+        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para aprovação do Gestor!');
     }
 
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
