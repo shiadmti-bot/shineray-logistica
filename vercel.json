@@ -6,10 +6,11 @@
     },
     "routes": [
         {
-            "src": "/(OneSignalSDKWorker\\.js|build/.*|storage/.*|img/.*|favicon\\.ico|robots\\.txt)",
+            "src": "/(OneSignalSDKWorker\\.js|build/.*|storage/.*|img/.*|favicon\\.ico|robots\\.txt|manifest\\.json)",
             "headers": { "cache-control": "public, max-age=31536000, immutable" },
             "dest": "/$1"
         },
+        
         {
             "src": "/(.*)",
             "dest": "/api/index.php"

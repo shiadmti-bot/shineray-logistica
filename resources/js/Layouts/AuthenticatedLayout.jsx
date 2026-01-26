@@ -13,34 +13,47 @@ export default function Authenticated({ user, header, children }) {
 
     // EFEITO DO ONESIGNAL
     useEffect(() => {
-        const runOneSignal = async () => {
+        // Flag para evitar dupla execução
+        let isMounted = true;
+
+        async function runOneSignal() {
             try {
-                await OneSignal.init({ 
-                    appId: "a114f37e-c4b7-4fb4-a580-51d78c8bfa57", // Pegue no painel do OneSignal
-                    allowLocalhostAsSecureOrigin: true, // Para testar local
-                    notifyButton: { enable: true }, // Botãozinho de sino no canto (opcional)
-                });
+                // Verifica se já foi inicializado para não quebrar
+                if (!window.OneSignalInitialized) {
+                    await OneSignal.init({ 
+                        appId: "SEU-APP-ID-AQUI", // <--- CONFIRA SEU ID AQUI
+                        allowLocalhostAsSecureOrigin: true, 
+                    });
+                    window.OneSignalInitialized = true; // Marca como iniciado
+                }
+                
+                // Só tenta mostrar o prompt se o OneSignal estiver pronto
+                if (OneSignal.Slidedown) {
+                    OneSignal.Slidedown.promptPush();
+                }
 
-                // Mostra o prompt nativo do navegador
-                OneSignal.ShowSlidedownPrompt();
-
-                // Quando o usuário se inscreve, pegamos o ID e salvamos no banco
-                OneSignal.on('subscriptionChange', async (isSubscribed) => {
-                    if (isSubscribed) {
-                        const userId = await OneSignal.getUserId(); // Pega o Player ID
-                        if (userId) {
-                            // Envia para o Backend salvar no usuário logado
-                            await axios.post('/user/onesignal', { onesignal_id: userId });
-                            console.log("OneSignal ID salvo:", userId);
-                        }
+                // Pega o ID com segurança
+                if (OneSignal.User && OneSignal.User.PushSubscription) {
+                    const userId = await OneSignal.User.PushSubscription.id;
+                    if (userId && isMounted) {
+                        axios.post('/user/onesignal', { onesignal_id: userId });
                     }
-                });
+
+                    OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
+                         if (event.current.id) {
+                             axios.post('/user/onesignal', { onesignal_id: event.current.id });
+                         }
+                    });
+                }
+
             } catch (error) {
-                console.error("Erro OneSignal", error);
+                console.log("OneSignal já iniciado ou erro ignorável:", error);
             }
-        };
+        }
 
         runOneSignal();
+
+        return () => { isMounted = false; };
     }, []);
 
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);

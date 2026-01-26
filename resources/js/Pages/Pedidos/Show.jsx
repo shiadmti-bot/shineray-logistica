@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import imageCompression from 'browser-image-compression';
 
-export default function PedidoShow({ auth, pedido }) {
+export default function PedidoShow({ auth, pedido, url_romaneio }) {
     // 1. Configuração dos formulários
     const formUpload = useForm({ arquivo_romaneio: null, avarias: {} }); // Adicionado 'avarias'
     const [compressing, setCompressing] = useState(false);
