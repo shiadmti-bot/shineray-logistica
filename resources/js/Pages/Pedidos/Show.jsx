@@ -225,16 +225,41 @@ export default function PedidoShow({ auth, pedido }) {
             <div className="py-12 bg-gray-100 min-h-screen pb-32">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* CABEÇALHO */}
+                    {/* CABEÇALHO ATUALIZADO */}
                     <div className="bg-white p-6 shadow-sm sm:rounded-lg border-l-4 border-gray-800 flex justify-between flex-wrap gap-4">
+                        {/* LADO ESQUERDO: Dados do Usuário */}
                         <div>
                             <h3 className="font-bold text-gray-700 text-lg">{pedido.user.name}</h3>
                             <p className="text-gray-500 text-sm">Filial: {pedido.user.filial || 'Matriz'}</p>
-                            <p className="text-gray-400 text-xs mt-1">Data: {new Date(pedido.created_at).toLocaleDateString('pt-BR')}</p>
+                            <p className="text-gray-400 text-xs mt-1">
+                                Data: {new Date(pedido.created_at).toLocaleDateString('pt-BR')}
+                            </p>
                         </div>
-                        <div className="text-right">
+
+                        {/* LADO DIREITO: Status e Ações */}
+                        <div className="text-right flex flex-col items-end">
                             <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Status Atual</span>
                             <BadgeStatus status={pedido.status} />
+
+                            {/* --- NOVO BOTÃO: Só aparece se tiver URL (Em trânsito) --- */}
+                            {url_romaneio && (
+                                <a
+                                    href={url_romaneio}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider rounded shadow transition-colors"
+                                    title="Visualizar documento da carga"
+                                >
+                                    {/* Ícone de Olho */}
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    Ver Romaneio
+                                </a>
+                            )}
+
+                            {/* Informação da Carga */}
                             {pedido.romaneio_id && (
                                 <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200 animate-pulse">
                                     Carga/Romaneio #{String(pedido.romaneio_id).padStart(6, '0')}
@@ -267,11 +292,13 @@ export default function PedidoShow({ auth, pedido }) {
                         <Timeline status={pedido.status} />
                     </div>
                     
-                    {/* LISTA DE MOTOS */}
+                    {/* LISTA DE MOTOS - ATUALIZADO */}
                     <div className="bg-white p-6 shadow-sm sm:rounded-lg">
                         <h3 className="font-bold mb-4 border-b pb-2 flex items-center gap-2">
                             <span>📦 Itens Solicitados</span>
-                            <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">{pedido.motos.length}</span>
+                            <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">
+                                {pedido.motos.length}
+                            </span>
                         </h3>
                         <div className="overflow-x-auto">
                             <table className="min-w-full">
@@ -279,26 +306,47 @@ export default function PedidoShow({ auth, pedido }) {
                                     <tr>
                                         <th className="px-4 py-2 text-left">Modelo</th>
                                         <th className="px-4 py-2 text-left">Chassi</th>
-                                        <th className="px-4 py-2 text-left">Status Item</th>
+                                        {/* ALTERADO: Cabeçalho agora é Motivo */}
+                                        <th className="px-4 py-2 text-left">Motivo da Solicitação</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {pedido.motos.map((moto) => (
                                         <tr key={moto.id} className="border-b hover:bg-gray-50">
-                                            <td className="px-4 py-3 font-bold text-sm">{moto.modelo}</td>
-                                            <td className="px-4 py-3 font-mono text-gray-600 text-sm tracking-wide">{moto.chassi}</td>
+                                            {/* 1. Modelo */}
+                                            <td className="px-4 py-3 font-bold text-sm text-gray-700">
+                                                {moto.modelo}
+                                            </td>
+
+                                            {/* 2. Chassi + Alerta de Avaria (Se houver) */}
                                             <td className="px-4 py-3 text-sm">
-                                                {/* Exibe se está avariado ou normal */}
-                                                {moto.status === 'avariado' ? (
-                                                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded border border-red-200">⚠️ Avariado</span>
-                                                ) : (
-                                                    moto.romaneio_id ? <span className="text-indigo-600 font-bold text-xs bg-indigo-50 px-2 py-1 rounded">Em Carga #{moto.romaneio_id}</span> : <span className="text-gray-400 text-xs">-</span>
-                                                )}
-                                                
-                                                {/* Detalhe da avaria se houver */}
-                                                {moto.detalhes_avaria && (
-                                                    <div className="text-[10px] text-red-600 mt-1 italic">Obs: {moto.detalhes_avaria}</div>
-                                                )}
+                                                <div className="flex flex-col">
+                                                    <span className="font-mono text-gray-600 tracking-wide">
+                                                        {moto.chassi}
+                                                    </span>
+                                                    
+                                                    {/* Se estiver avariado, o alerta aparece aqui agora */}
+                                                    {moto.status === 'avariado' && (
+                                                        <span className="mt-1 w-fit bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1">
+                                                            ⚠️ Avariado
+                                                        </span>
+                                                    )}
+                                                    {moto.detalhes_avaria && (
+                                                        <span className="text-[10px] text-red-500 italic">
+                                                            Obs: {moto.detalhes_avaria}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* 3. NOVA COLUNA: Motivo (Para Auditoria) */}
+                                            <td className="px-4 py-3 text-sm">
+                                                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                    ${pedido.motivo === 'Venda' ? 'bg-green-100 text-green-800' : 
+                                                    pedido.motivo === 'Transferência' ? 'bg-blue-100 text-blue-800' : 
+                                                    'bg-gray-100 text-gray-800'}`}>
+                                                    {pedido.motivo || pedido.tipo || 'Solicitação Padrão'}
+                                                </span>
                                             </td>
                                         </tr>
                                     ))}

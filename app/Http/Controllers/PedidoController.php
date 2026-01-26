@@ -205,10 +205,25 @@ class PedidoController extends Controller
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
 
     public function show($id)
-    {
-        $pedido = Pedido::with(['user', 'motos.romaneio', 'romaneio', 'logs'])->findOrFail($id);
-        return Inertia::render('Pedidos/Show', ['pedido' => $pedido]);
+{
+    // Carrega o pedido com as motos e o romaneio associado
+    $pedido = Pedido::with(['motos', 'user', 'romaneio'])->findOrFail($id);
+
+    // Lógica para liberar o acesso ao Romaneio
+    $urlRomaneio = null;
+
+    // A regra: Só mostra se tiver romaneio E se estiver em trânsito (ou entregue, se quiser manter histórico)
+    if ($pedido->romaneio && in_array($pedido->status, ['em_transito', 'concluido'])) {
+        // Assume que a coluna no banco romaneios se chama 'arquivo_url' ou 'link_drive'
+        // Ajuste 'arquivo_url' para o nome real da sua coluna na tabela romaneios
+        $urlRomaneio = $pedido->romaneio->arquivo_url ?? null; 
     }
+
+    return Inertia::render('Pedidos/Show', [
+        'pedido' => $pedido,
+        'url_romaneio' => $urlRomaneio, // <--- Enviamos essa nova prop para o React
+    ]);
+}
 
     public function marcarSeparado($id)
     {

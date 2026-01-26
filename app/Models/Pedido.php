@@ -12,7 +12,7 @@ class Pedido extends Model
 
     protected $fillable = [
         'user_id', 'status', 'observacao', 'romaneio_id', 
-        'arquivo_assinado', 'comprovante_url', 'motivo_rejeicao'
+        'arquivo_assinado', 'comprovante_url', 'motivo_rejeicao', 'motivo'
     ];
 
     public function motos() {
