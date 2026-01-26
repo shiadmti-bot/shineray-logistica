@@ -306,23 +306,14 @@ class PedidoController extends Controller
                 abort(403, 'Acesso negado.');
             }
             
-            // --- INÍCIO INTEGRAÇÃO GOOGLE DRIVE (SERVICE ACCOUNT) ---
+            // --- VOLTANDO PARA OAUTH 2.0 (MODO CORRETO PARA GMAIL GRÁTIS) ---
             $client = new \Google\Client();
-            $client->setAuthConfig([
-                'type' => 'service_account',
-                'project_id' => config('services.google.project_id'),
-                'private_key_id' => 'somethingsorandom', 
-                'private_key' => str_replace('\\n', "\n", config('services.google.private_key')),
-                'client_email' => config('services.google.client_email'),
-                'client_id' => '111453318979756334189', 
-                'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
-                'token_uri' => 'https://oauth2.googleapis.com/token',
-                'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
-                'client_x509_cert_url' => 'https://www.googleapis.com/robot/v1/metadata/x509/' . urlencode(config('services.google.client_email')),
-            ]);
-            $client->setScopes([\Google\Service\Drive::DRIVE]);
+            $client->setClientId(config('services.google.client_id'));
+            $client->setClientSecret(config('services.google.client_secret'));
+            $client->refreshToken(config('services.google.refresh_token'));
+            
             $service = new \Google\Service\Drive($client);
-
+            // ---------------------------------------------------------------
             // Cache de pastas
             $rootId = config('services.google.folder_id');
             $now = \Carbon\Carbon::now();
@@ -413,36 +404,49 @@ class PedidoController extends Controller
 
     // --- FUNÇÕES AUXILIARES ---
 
-    private function findOrCreateFolder($service, $folderName, $parentId) {
-        $query = "mimeType='application/vnd.google-apps.folder' and name='$folderName' and '$parentId' in parents and trashed=false";
-        $results = $service->files->listFiles(['q' => $query, 'fields' => 'files(id)']);
-        
-        if (count($results->files) > 0) {
-            return $results->files[0]->id;
-        }
-
-        $fileMetadata = new \Google\Service\Drive\DriveFile([
-            'name' => $folderName,
-            'mimeType' => 'application/vnd.google-apps.folder',
-            'parents' => [$parentId]
-        ]);
-        $folder = $service->files->create($fileMetadata, ['fields' => 'id']);
-        return $folder->id;
-    }
-
-    private function uploadFileToDrive($service, $fileObj, $folderId, $fileName) {
+    private function uploadFileToDrive($service, $file, $folderId, $fileName)
+    {
         $fileMetadata = new \Google\Service\Drive\DriveFile([
             'name' => $fileName,
             'parents' => [$folderId]
         ]);
-        $content = file_get_contents($fileObj->getRealPath());
+
+        $content = file_get_contents($file->getRealPath());
+
         $file = $service->files->create($fileMetadata, [
             'data' => $content,
-            'mimeType' => $fileObj->getMimeType(),
+            'mimeType' => $file->getClientMimeType(),
             'uploadType' => 'multipart',
-            'fields' => 'webViewLink'
+            'fields' => 'id, webViewLink'
         ]);
+        
+        // Torna público para conseguir ver no sistema
+        try {
+            $permission = new \Google\Service\Drive\Permission();
+            $permission->setRole('reader');
+            $permission->setType('anyone');
+            $service->permissions->create($file->id, $permission);
+        } catch (\Exception $e) {}
+
         return $file->webViewLink;
+    }
+
+    private function findOrCreateFolder($service, $folderName, $parentId)
+    {
+        $query = "mimeType='application/vnd.google-apps.folder' and name='{$folderName}' and '{$parentId}' in parents and trashed=false";
+        $files = $service->files->listFiles(['q' => $query]);
+
+        if (count($files->getFiles()) > 0) {
+            return $files->getFiles()[0]->id;
+        }
+
+        $folderMetadata = new \Google\Service\Drive\DriveFile([
+            'name' => $folderName,
+            'mimeType' => 'application/vnd.google-apps.folder',
+            'parents' => [$parentId]
+        ]);
+
+        return $service->files->create($folderMetadata, ['fields' => 'id'])->id;
     }
 
     private function gerarLogFinalizacao($pedido, $qtdAvarias) {

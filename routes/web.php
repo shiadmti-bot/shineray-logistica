@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 // --- ROTA PÚBLICA (LOGIN) ---
@@ -135,79 +136,22 @@ Route::get('/dashboard', function () {
         return response()->json(['status' => 'success']);
     })->middleware('auth');
 
-    Route::get('/corrigir-cargas', function() {
-    // Busca todas as cargas em trânsito
-    $cargas = \App\Models\Romaneio::where('status', 'em_transito')->get();
-    $corrigidas = 0;
 
-    foreach ($cargas as $carga) {
-        // Conta pedidos pendentes dessa carga
-        $pendentes = \App\Models\Pedido::where('romaneio_id', $carga->id)
-            ->whereNotIn('status', ['concluido', 'cancelado'])
-            ->count();
+    Route::get('/setup-google', function (Request $request) {
+        $client = new \Google\Client();
+        $client->setClientId(config('services.google.client_id'));
+        $client->setClientSecret(config('services.google.client_secret'));
+        $client->setRedirectUri(url('/setup-google')); // A própria rota é o callback
+        $client->setAccessType('offline'); // Vital para ter refresh token
+        $client->setPrompt('consent');     // Vital para forçar novo token
+        $client->setScopes([\Google\Service\Drive::DRIVE]);
 
-        // Se não tem pendentes, força finalizar
-        if ($pendentes === 0) {
-            $carga->update(['status' => 'finalizado']);
-            $corrigidas++;
+        if ($request->has('code')) {
+            $token = $client->fetchAccessTokenWithAuthCode($request->get('code'));
+            return "<h1>Sucesso!</h1><p>Copie este Refresh Token e coloque no seu .env:</p><h3>" . $token['refresh_token'] . "</h3>";
         }
-    }
 
-    return "Total de cargas corrigidas: $corrigidas";
-});
-
-
-    Route::get('/teste-drive-final', function () {
-        try {
-            // 1. Tenta pegar as configs
-            $projectId = config('services.google.project_id');
-            $email = config('services.google.client_email');
-            $privateKey = config('services.google.private_key');
-            $folderId = config('services.google.folder_id');
-
-            if (!$privateKey) return "ERRO: Private Key não encontrada no config.";
-
-            // 2. Monta o Cliente (Exatamente como deve ser)
-            $client = new \Google\Client();
-            $client->setAuthConfig([
-                'type' => 'service_account',
-                'project_id' => $projectId,
-                'private_key_id' => 'random_id',
-                // O segredo do \n está aqui:
-                'private_key' => str_replace('\\n', "\n", $privateKey),
-                'client_email' => $email,
-                'client_id' => '1000', // Dummy
-                'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
-                'token_uri' => 'https://oauth2.googleapis.com/token',
-                'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
-                'client_x509_cert_url' => 'https://www.googleapis.com/robot/v1/metadata/x509/' . urlencode($email),
-            ]);
-            $client->setScopes([\Google\Service\Drive::DRIVE]);
-
-            // 3. Tenta listar arquivos na pasta (Prova de Fogo)
-            $service = new \Google\Service\Drive($client);
-            $results = $service->files->listFiles([
-                'q' => "'{$folderId}' in parents",
-                'pageSize' => 5,
-                'fields' => 'files(id, name)'
-            ]);
-
-            return response()->json([
-                'status' => 'SUCESSO TOTAL! ✅',
-                'mensagem' => 'Conectado como: ' . $email,
-                'arquivos_na_pasta' => $results->getFiles()
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'FALHA ❌',
-                'erro_tipo' => get_class($e),
-                'erro_msg' => $e->getMessage(),
-                // Debug da chave (sem mostrar ela toda)
-                'debug_key_inicio' => substr(config('services.google.private_key'), 0, 15) . '...',
-                'debug_key_tem_barran' => strpos(config('services.google.private_key'), '\\n') !== false ? 'SIM' : 'NÃO',
-            ], 500);
-        }
+        return redirect($client->createAuthUrl());
     });
 
 });
