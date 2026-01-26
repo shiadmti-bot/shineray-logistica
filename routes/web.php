@@ -135,26 +135,17 @@ Route::get('/dashboard', function () {
         return response()->json(['status' => 'success']);
     })->middleware('auth');
 
-    Route::get('/corrigir-cargas', function() {
-    // Busca todas as cargas em trânsito
-    $cargas = \App\Models\Romaneio::where('status', 'em_transito')->get();
-    $corrigidas = 0;
-
-    foreach ($cargas as $carga) {
-        // Conta pedidos pendentes dessa carga
-        $pendentes = \App\Models\Pedido::where('romaneio_id', $carga->id)
-            ->whereNotIn('status', ['concluido', 'cancelado'])
-            ->count();
-
-        // Se não tem pendentes, força finalizar
-        if ($pendentes === 0) {
-            $carga->update(['status' => 'finalizado']);
-            $corrigidas++;
-        }
-    }
-
-    return "Total de cargas corrigidas: $corrigidas";
+    Route::get('/debug-google', function() {
+    $config = config('services.google');
+    return [
+        'project_id' => $config['project_id'] ?? 'NULO',
+        'email'      => $config['client_email'] ?? 'NULO',
+        'private_key_existe' => !empty($config['private_key']) ? 'SIM' : 'NAO',
+        // Mostra os primeiros 10 caracteres da chave para ver se tem aspas extras
+        'private_key_inicio' => substr($config['private_key'] ?? '', 0, 10), 
+    ];
 });
+    
 
 
     Route::get('/teste-drive-final', function () {
