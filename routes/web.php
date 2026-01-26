@@ -156,42 +156,59 @@ Route::get('/dashboard', function () {
     return "Total de cargas corrigidas: $corrigidas";
 });
 
-    // --- ROTA DE LIMPEZA TOTAL DE ESTOQUE E OPERAÇÃO ---
-    Route::get('/zerar-estoque-operacao', function () {
-    
-    // Verificação de segurança simples (apenas Admin pode rodar)
-    $user = Illuminate\Support\Facades\Auth::user();
-    if (!$user || $user->perfil !== 'admin') {
-        abort(403, 'Acesso Negado. Apenas Admin pode zerar o estoque.');
-    }
 
-    // 1. Desativa travas de segurança do banco (para poder apagar sem ordem)
-    Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+    Route::get('/teste-drive-final', function () {
+        try {
+            // 1. Tenta pegar as configs
+            $projectId = config('services.google.project_id');
+            $email = config('services.google.client_email');
+            $privateKey = config('services.google.private_key');
+            $folderId = config('services.google.folder_id');
 
-    // 2. LIMPEZA DAS TABELAS (A ordem aqui não importa pois desligamos as travas)
-    
-    // A. Apaga todas as Motos (O principal problema)
-    \App\Models\Moto::truncate();
-    
-    // B. Apaga os vínculos de motos com pedidos
-    Illuminate\Support\Facades\DB::table('pedido_moto')->truncate();
+            if (!$privateKey) return "ERRO: Private Key não encontrada no config.";
 
-    // C. Apaga Pedidos e Histórico
-    \App\Models\Pedido::truncate();
-    Illuminate\Support\Facades\DB::table('pedido_logs')->truncate();
-    
-    // D. Apaga Cargas (Romaneios)
-    \App\Models\Romaneio::truncate();
-    
-    // E. Apaga Chat e Notificações antigas
-    Illuminate\Support\Facades\DB::table('messages')->truncate();
-    Illuminate\Support\Facades\DB::table('notifications')->truncate();
+            // 2. Monta o Cliente (Exatamente como deve ser)
+            $client = new \Google\Client();
+            $client->setAuthConfig([
+                'type' => 'service_account',
+                'project_id' => $projectId,
+                'private_key_id' => 'random_id',
+                // O segredo do \n está aqui:
+                'private_key' => str_replace('\\n', "\n", $privateKey),
+                'client_email' => $email,
+                'client_id' => '1000', // Dummy
+                'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
+                'token_uri' => 'https://oauth2.googleapis.com/token',
+                'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
+                'client_x509_cert_url' => 'https://www.googleapis.com/robot/v1/metadata/x509/' . urlencode($email),
+            ]);
+            $client->setScopes([\Google\Service\Drive::DRIVE]);
 
-    // 3. Reativa as travas de segurança
-    Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
+            // 3. Tenta listar arquivos na pasta (Prova de Fogo)
+            $service = new \Google\Service\Drive($client);
+            $results = $service->files->listFiles([
+                'q' => "'{$folderId}' in parents",
+                'pageSize' => 5,
+                'fields' => 'files(id, name)'
+            ]);
 
-    return "🧹 LIMPEZA CONCLUÍDA! O estoque está zerado e pronto para receber a carga real (XML) ou cadastro manual.";
-});
+            return response()->json([
+                'status' => 'SUCESSO TOTAL! ✅',
+                'mensagem' => 'Conectado como: ' . $email,
+                'arquivos_na_pasta' => $results->getFiles()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'FALHA ❌',
+                'erro_tipo' => get_class($e),
+                'erro_msg' => $e->getMessage(),
+                // Debug da chave (sem mostrar ela toda)
+                'debug_key_inicio' => substr(config('services.google.private_key'), 0, 15) . '...',
+                'debug_key_tem_barran' => strpos(config('services.google.private_key'), '\\n') !== false ? 'SIM' : 'NÃO',
+            ], 500);
+        }
+    });
 
 });
 
