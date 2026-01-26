@@ -41,12 +41,10 @@ return [
     ],
 
     'google' => [
-        'drive' => [
-            'client_id' => env('GOOGLE_DRIVE_CLIENT_ID'),
-            'client_secret' => env('GOOGLE_DRIVE_CLIENT_SECRET'),
-            'refresh_token' => env('GOOGLE_DRIVE_REFRESH_TOKEN'),
-            'folder_id' => env('GOOGLE_DRIVE_FOLDER'),
-        ],
+        'project_id' => env('GOOGLE_PROJECT_ID'),
+        'client_email' => env('GOOGLE_CLIENT_EMAIL'),
+        'private_key' => env('GOOGLE_PRIVATE_KEY'),
+        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID', env('GOOGLE_DRIVE_FOLDER')), 
     ],
 
 ];
