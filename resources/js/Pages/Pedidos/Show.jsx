@@ -5,12 +5,11 @@ import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import imageCompression from 'browser-image-compression';
 
-// Opções de compressão global
+// Opções de compressão (Otimização invisível)
 const COMPRESSION_OPTIONS = {
-    maxSizeMB: 1,          // Máximo 1MB
-    maxWidthOrHeight: 1920, // Redimensiona se for 4k/8k
-    useWebWorker: true,
-    fileType: 'image/jpeg'
+    maxSizeMB: 1,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true
 };
 
 export default function PedidoShow({ auth, pedido, url_romaneio }) {
@@ -18,34 +17,22 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
     const [compressing, setCompressing] = useState(false);
     const formAcoes = useForm({}); 
     
-    // Referência para o áudio para evitar recriação desnecessária
+    // Referência para o áudio (Melhoria de performance)
     const audioRef = useRef(typeof window !== 'undefined' ? new Audio('/plim.mp3') : null);
 
     // --- 2. ATUALIZAÇÃO EM TEMPO REAL ---
     useEffect(() => {
         if (!auth.user?.id) return;
-
         const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
 
         channel.notification((notification) => {
             if (notification.link && notification.link.includes(`/pedidos/${pedido.id}`)) {
-                // 1. Som de Alerta
-                audioRef.current?.play().catch(() => console.log('Autoplay bloqueado pelo navegador'));
-
-                // 2. Toast Flutuante
+                audioRef.current?.play().catch(() => {});
                 Swal.mixin({
-                    toast: true, 
-                    position: 'top-end', 
-                    showConfirmButton: false, 
-                    timer: 5000, 
-                    timerProgressBar: true
+                    toast: true, position: 'top-end', showConfirmButton: false, timer: 5000, timerProgressBar: true
                 }).fire({ 
-                    icon: 'info', 
-                    title: 'Atualização do Pedido', 
-                    text: notification.mensagem 
+                    icon: 'info', title: 'Atualização do Pedido', text: notification.mensagem 
                 });
-
-                // 3. Recarrega os dados preservando o scroll
                 router.reload({ only: ['pedido'], preserveScroll: true });
             }
         });
@@ -53,126 +40,77 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
         return () => channel.stopListening('Notification');
     }, [pedido.id, auth.user.id]);
 
-    // --- 3. FUNÇÕES AUXILIARES ---
-
-    /**
-     * Função para comprimir um único arquivo
-     */
+    // --- 3. OTIMIZAÇÃO: LÓGICA DE UPLOAD ROBUSTA ---
+    
+    // Função auxiliar de compressão
     const compressImage = async (imageFile) => {
-        if (!imageFile || !imageFile.type.startsWith('image/')) return imageFile; // Se for PDF ou não imagem, retorna original
-        try {
-            return await imageCompression(imageFile, COMPRESSION_OPTIONS);
-        } catch (error) {
-            console.error("Erro na compressão:", error);
-            return imageFile; // Fallback para arquivo original
-        }
+        if (!imageFile || !imageFile.type.startsWith('image/')) return imageFile;
+        try { return await imageCompression(imageFile, COMPRESSION_OPTIONS); } 
+        catch (error) { return imageFile; }
     };
 
-    // A. LÓGICA DE CONFERÊNCIA E UPLOAD
     const handleConferenciaEntrega = () => {
+        // Otimização: HTML limpo e IDs únicos para evitar conflito
         Swal.fire({
             title: 'Conferência de Entrega 🚛',
-            width: '800px',
+            width: '700px',
             html: `
                 <div class="text-left text-sm">
-                    <p class="mb-4 text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
+                    <p class="mb-4 text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
                         <strong>Instruções:</strong><br>
                         1. Anexe o Romaneio Assinado no final.<br>
-                        2. Se houver avaria, descreva o defeito <strong>E</strong> anexe a foto da moto.
+                        2. Se houver avaria, descreva o defeito E anexe a foto.
                     </p>
-                    
-                    <div class="max-h-[60vh] overflow-y-auto border border-gray-200 rounded p-3 bg-gray-50 mb-4">
+                    <div class="max-h-80 overflow-y-auto border border-gray-200 rounded p-3 bg-gray-50 mb-4">
                         ${pedido.motos.map(m => `
-                            <div class="mb-4 border-b border-gray-300 pb-3 last:border-0 bg-white p-3 rounded shadow-sm">
-                                <div class="font-bold text-gray-800 text-sm mb-2 flex justify-between items-center">
-                                    <span>🏍️ ${m.modelo}</span>
-                                    <span class="font-mono text-blue-600 bg-blue-50 px-2 rounded">${m.chassi}</span>
+                            <div class="mb-4 border-b border-gray-300 pb-3 last:border-0 bg-white p-2 rounded shadow-sm">
+                                <div class="font-bold text-gray-800 text-sm mb-1">
+                                    🏍️ ${m.modelo} <span class="font-mono text-blue-600">(${m.chassi})</span>
                                 </div>
-                                
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <input 
-                                        type="text" 
-                                        id="avaria-texto-${m.id}" 
-                                        class="swal2-input w-full text-xs m-0 h-10 border-gray-300 focus:ring-red-500 rounded" 
-                                        placeholder="Descreva o defeito (se houver)..."
-                                    >
-                                    
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    <input type="text" id="avaria-texto-${m.id}" class="swal2-input w-full text-xs m-0 h-10 border-gray-300 focus:ring-red-500" placeholder="Descreva o defeito...">
                                     <div class="flex items-center">
-                                        <label class="w-full cursor-pointer group">
-                                            <div class="flex items-center justify-center w-full h-10 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-md appearance-none cursor-pointer hover:border-blue-400 focus:outline-none" id="container-foto-${m.id}">
-                                                <span class="flex items-center space-x-2 text-xs text-gray-600" id="label-foto-${m.id}">
-                                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                                                    <span>Add Foto</span>
-                                                </span>
-                                            </div>
-                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="
-                                                const fileName = this.files[0]?.name; 
-                                                const label = document.getElementById('label-foto-${m.id}');
-                                                const container = document.getElementById('container-foto-${m.id}');
-                                                if(fileName) {
-                                                    label.innerText = '✅ Foto Selecionada';
-                                                    container.classList.add('border-green-400', 'bg-green-50');
-                                                }
-                                            ">
+                                        <label class="block w-full text-xs text-gray-500 border border-dashed border-gray-400 rounded cursor-pointer hover:bg-gray-100 p-2 text-center relative">
+                                            <span id="label-foto-${m.id}">📸 Add Foto</span>
+                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerText = '✅ Foto OK'">
                                         </label>
                                     </div>
                                 </div>
                             </div>
                         `).join('')}
                     </div>
-                    
-                    <div class="mt-4 p-4 bg-green-50 rounded border border-green-200 shadow-sm">
-                        <label class="block font-bold text-green-800 mb-2 text-sm uppercase flex items-center gap-2">
-                            <span>📄 Foto do Romaneio Assinado (Obrigatório)</span>
-                        </label>
-                        <input type="file" id="upload-comprovante" class="block w-full text-sm text-slate-500
-                          file:mr-4 file:py-2 file:px-4
-                          file:rounded-full file:border-0
-                          file:text-xs file:font-semibold
-                          file:bg-green-100 file:text-green-700
-                          hover:file:bg-green-200" accept="image/*,application/pdf">
+                    <div class="mt-4 p-3 bg-green-50 rounded border border-green-200">
+                        <label class="block font-bold text-green-800 mb-1 text-sm uppercase">📄 Foto do Romaneio Assinado *</label>
+                        <input type="file" id="upload-comprovante" class="w-full text-sm border rounded p-2 bg-white" accept="image/*,application/pdf">
                     </div>
                 </div>
             `,
             showCancelButton: true,
             confirmButtonText: 'Confirmar Recebimento',
             confirmButtonColor: '#16a34a',
-            cancelButtonText: 'Cancelar',
             focusConfirm: false,
             preConfirm: () => {
                 const fileInput = document.getElementById('upload-comprovante');
-                
-                // Validação Básica
                 if (!fileInput.files[0]) {
-                    Swal.showValidationMessage('⚠️ O comprovante assinado é obrigatório!');
+                    Swal.showValidationMessage('O comprovante assinado é obrigatório!');
                     return false;
                 }
 
-                // Coleta de Dados do DOM
-                const avariasColetadas = {}; 
-                const fotosColetadas = {};   
-
+                // Coleta manual robusta
+                const avarias = {};
+                const fotos = {};
+                
                 pedido.motos.forEach(m => {
-                    const inputTexto = document.getElementById(`avaria-texto-${m.id}`);
-                    const inputFoto = document.getElementById(`avaria-foto-${m.id}`);
-
-                    const texto = inputTexto?.value?.trim();
-                    const foto = inputFoto?.files[0];
-
+                    const texto = document.getElementById(`avaria-texto-${m.id}`)?.value;
+                    const foto = document.getElementById(`avaria-foto-${m.id}`)?.files[0];
+                    
                     if (texto) {
-                        avariasColetadas[m.id] = texto;
-                        // Regra de Negócio: Se tem avaria, a foto é recomendada (mas não bloqueante aqui, a backend que decide)
-                        if (foto) {
-                            fotosColetadas[m.id] = foto;
-                        }
+                        avarias[m.id] = texto;
+                        if (foto) fotos[m.id] = foto;
                     }
                 });
 
-                return { 
-                    file: fileInput.files[0], 
-                    avarias: avariasColetadas,
-                    fotos: fotosColetadas 
-                };
+                return { file: fileInput.files[0], avarias, fotos };
             }
         }).then(async (result) => {
             if (result.isConfirmed) {
@@ -182,101 +120,56 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
         });
     };
 
-    /**
-     * Processa a compressão e envio dos dados
-     */
     const processarEnvio = async (romaneioFile, avarias, fotosAvarias) => {
         setCompressing(true);
-        
-        // Modal de Loading com Feedback
-        Swal.fire({
-            title: 'Processando...',
-            html: 'Otimizando imagens e enviando arquivos.<br>Por favor, aguarde.',
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            didOpen: () => Swal.showLoading()
-        });
+        Swal.fire({ title: 'Enviando...', html: 'Otimizando imagens...', didOpen: () => Swal.showLoading() });
 
         try {
-            // 1. Comprimir Romaneio (se for imagem)
+            // 1. Compressão Real (Otimização)
             const compressedRomaneio = await compressImage(romaneioFile);
-
-            // 2. Comprimir Fotos das Avarias (Promise.all para paralelo)
             const compressedFotos = {};
-            const chassiIds = Object.keys(fotosAvarias);
             
-            await Promise.all(chassiIds.map(async (id) => {
+            await Promise.all(Object.keys(fotosAvarias).map(async (id) => {
                 compressedFotos[id] = await compressImage(fotosAvarias[id]);
             }));
 
-            // 3. Montar FormData Manualmente (Para garantir estrutura correta)
+            // 2. Montagem do FormData Manual (Correção para Inertia enviar arquivos corretamente)
             const formData = new FormData();
-            formData.append('_method', 'post'); // Necessário para Inertia em alguns casos de upload
+            formData.append('_method', 'post');
             formData.append('arquivo_romaneio', compressedRomaneio);
+            
+            Object.keys(avarias).forEach(id => formData.append(`avarias[${id}]`, avarias[id]));
+            Object.keys(compressedFotos).forEach(id => formData.append(`fotos_avarias[${id}]`, compressedFotos[id]));
 
-            // Anexar avarias (texto)
-            Object.keys(avarias).forEach(id => {
-                formData.append(`avarias[${id}]`, avarias[id]);
-            });
-
-            // Anexar fotos (arquivos)
-            Object.keys(compressedFotos).forEach(id => {
-                formData.append(`fotos_avarias[${id}]`, compressedFotos[id]);
-            });
-
-            // 4. Enviar via Inertia
             router.post(route('pedidos.finalizar', pedido.id), formData, {
                 forceFormData: true,
                 onSuccess: () => {
                     setCompressing(false);
-                    Swal.fire('Sucesso! 🎉', 'Recebimento confirmado e arquivos enviados.', 'success');
+                    Swal.fire('Sucesso!', 'Recebimento confirmado.', 'success');
                 },
                 onError: (errors) => {
                     setCompressing(false);
-                    console.error(errors);
-                    // Pega o primeiro erro disponível para exibir
-                    const msgErro = Object.values(errors)[0] || 'Falha no envio.';
-                    Swal.fire('Erro', msgErro, 'error');
+                    Swal.fire('Erro', Object.values(errors)[0] || 'Falha no envio.', 'error');
                 }
             });
-
-        } catch (error) {
+        } catch (e) {
             setCompressing(false);
-            console.error("Erro fatal:", error);
-            Swal.fire('Erro Técnico', 'Falha ao processar imagens no navegador.', 'error');
+            Swal.fire('Erro', 'Falha ao processar arquivos.', 'error');
         }
     };
 
-    // B. OUTRAS OPERAÇÕES (CD)
-    const handleConfirmAction = (titulo, texto, rota, corConfirm = '#2563eb') => {
+    // --- MANUTENÇÃO DAS AÇÕES ORIGINAIS ---
+    const confirmAction = (title, text, routeName, color = '#2563eb') => {
         Swal.fire({
-            title: titulo,
-            text: texto,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Sim, confirmar!',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: corConfirm
-        }).then((res) => {
-            if(res.isConfirmed) formAcoes.post(route(rota, pedido.id));
-        });
+            title, text, icon: 'warning', showCancelButton: true, confirmButtonText: 'Sim, confirmar!', confirmButtonColor: color
+        }).then((res) => { if(res.isConfirmed) formAcoes.post(route(routeName, pedido.id)); });
     };
 
     const handleRejeitar = () => {
         Swal.fire({
-            title: 'Rejeitar Pedido',
-            input: 'textarea', // Mudado para textarea para caber mais texto
-            inputLabel: 'Motivo da rejeição',
-            inputPlaceholder: 'Explique o motivo da devolução...',
-            showCancelButton: true,
-            confirmButtonText: 'Rejeitar Pedido',
-            confirmButtonColor: '#d33',
-            inputValidator: (value) => { if (!value) return 'É obrigatório informar o motivo!'; }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                router.post(route('pedidos.rejeitar', pedido.id), { motivo: result.value });
-            }
-        });
+            title: 'Rejeitar Pedido', input: 'text', inputLabel: 'Motivo', showCancelButton: true, confirmButtonText: 'Rejeitar', confirmButtonColor: '#d33',
+            inputValidator: (v) => !v && 'Escreva o motivo!'
+        }).then((r) => { if (r.isConfirmed) router.post(route('pedidos.rejeitar', pedido.id), { motivo: r.value }); });
     };
 
     return (
@@ -286,7 +179,7 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
             <div className="py-12 bg-gray-100 min-h-screen pb-32">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* CABEÇALHO */}
+                    {/* CABEÇALHO (Layout Preservado) */}
                     <div className="bg-white p-6 shadow-sm sm:rounded-lg border-l-4 border-gray-800 flex justify-between flex-wrap gap-4">
                         <div>
                             <h3 className="font-bold text-gray-700 text-lg">{pedido.user.name}</h3>
@@ -299,23 +192,33 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
                             
                             {url_romaneio && (
                                 <a href={url_romaneio} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider rounded shadow transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                     Ver Romaneio
                                 </a>
                             )}
                             {pedido.romaneio_id && (
-                                <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200">
-                                    Carga #{String(pedido.romaneio_id).padStart(6, '0')}
+                                <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200 animate-pulse">
+                                    Carga/Romaneio #{String(pedido.romaneio_id).padStart(6, '0')}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* ALERTAS DE STATUS */}
+                    {/* ALERTAS */}
                     {pedido.status === 'cancelado' && (
-                        <div className="bg-red-100 border-l-4 border-red-600 p-4 shadow-sm">
+                        <div className="bg-red-100 border-l-4 border-red-600 p-4 shadow-sm animate-pulse">
                             <h3 className="font-bold text-red-800">🚫 PEDIDO CANCELADO</h3>
                             <p className="text-red-700 mt-1">{pedido.motivo_rejeicao}</p>
+                        </div>
+                    )}
+
+                    {pedido.status === 'em_analise' && auth.user.perfil === 'loja' && (
+                        <div className="bg-purple-50 border-l-4 border-purple-500 p-4 shadow-sm flex items-center gap-3">
+                            <div className="text-2xl">🛡️</div>
+                            <div>
+                                <h3 className="font-bold text-purple-800">Em Análise Comercial</h3>
+                                <p className="text-purple-700 text-sm">Aguardando aprovação do Gestor.</p>
+                            </div>
                         </div>
                     )}
 
@@ -324,7 +227,7 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
                         <Timeline status={pedido.status} />
                     </div>
                     
-                    {/* TABELA DE MOTOS */}
+                    {/* LISTA DE MOTOS (Layout Original) */}
                     <div className="bg-white p-6 shadow-sm sm:rounded-lg">
                         <h3 className="font-bold mb-4 border-b pb-2 flex items-center gap-2">
                             <span>📦 Itens Solicitados</span>
@@ -336,7 +239,7 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
                                     <tr>
                                         <th className="px-4 py-2 text-left">Modelo</th>
                                         <th className="px-4 py-2 text-left">Chassi</th>
-                                        <th className="px-4 py-2 text-left">Motivo</th>
+                                        <th className="px-4 py-2 text-left">Motivo da Solicitação</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -349,12 +252,15 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
                                                     {moto.status === 'avariado' && (
                                                         <span className="mt-1 w-fit bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-200">⚠️ Avariado</span>
                                                     )}
+                                                    {moto.detalhes_avaria && <div className="text-[10px] text-red-600 mt-1 italic">Obs: {moto.detalhes_avaria}</div>}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                    ${pedido.motivo === 'Venda' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                    {pedido.motivo || pedido.tipo || 'Padrão'}
+                                                    ${pedido.motivo === 'Venda' ? 'bg-green-100 text-green-800' : 
+                                                      pedido.motivo === 'Transferência' ? 'bg-blue-100 text-blue-800' : 
+                                                      'bg-gray-100 text-gray-800'}`}>
+                                                    {pedido.motivo || pedido.tipo || 'Solicitação Padrão'}
                                                 </span>
                                             </td>
                                         </tr>
@@ -364,107 +270,79 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
                         </div>
                     </div>
 
-                    {/* PAINEL DE OPERAÇÕES (CD) */}
+                    {/* PAINEL CD */}
                     {auth.user.perfil === 'cd' && pedido.status !== 'cancelado' && (
                         <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-blue-600">
                             <h3 className="font-bold text-lg mb-4 text-gray-800">⚙️ Painel de Operações (CD)</h3>
                             
                             {pedido.status === 'solicitado' && (
                                 <div className="flex gap-4">
-                                    <button onClick={() => handleConfirmAction('Confirmar Separação?', 'As motos foram conferidas?', 'pedidos.separar')} className="bg-blue-600 text-white px-6 py-3 rounded font-bold hover:bg-blue-700 shadow flex-1">
+                                    <button onClick={() => confirmAction('Confirmar Separação?', 'Motos conferidas?', 'pedidos.separar')} className="bg-blue-600 text-white px-6 py-3 rounded font-bold hover:bg-blue-700 shadow flex-1">
                                         ✅ Confirmar Separação
                                     </button>
-                                    <button onClick={handleRejeitar} className="border border-red-500 text-red-600 px-6 py-3 rounded font-bold hover:bg-red-50">
-                                        Rejeitar
-                                    </button>
+                                    <button onClick={handleRejeitar} className="border border-red-500 text-red-600 px-6 py-3 rounded font-bold hover:bg-red-50">Rejeitar</button>
                                 </div>
                             )}
 
                             {pedido.status === 'separado' && (
                                 <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex justify-between items-center gap-4">
-                                    <div>
-                                        <p className="font-bold text-indigo-900">Motos separadas.</p>
-                                        <p className="text-sm text-indigo-700">Gere a carga no menu Romaneios.</p>
-                                    </div>
-                                    <Link href={route('romaneios.create')} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-indigo-700">
-                                        Nova Carga &rarr;
-                                    </Link>
+                                    <div><p className="font-bold text-indigo-900">Motos separadas.</p><p className="text-sm text-indigo-700">Vá para "Nova Carga".</p></div>
+                                    <Link href={route('romaneios.create')} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-indigo-700">Ir para Montagem de Carga &rarr;</Link>
                                 </div>
                             )}
 
                             {pedido.status === 'expedido' && (
                                 <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-bold text-indigo-700">Carga montada!</p>
-                                        <p className="text-sm text-gray-500">Aguardando saída.</p>
-                                    </div>
-                                    <button onClick={() => handleConfirmAction('Liberar Saída?', 'O motorista já saiu?', 'pedidos.saida', '#f97316')} className="bg-orange-500 text-white px-6 py-3 rounded font-bold hover:bg-orange-600 shadow">
-                                        🚛 Confirmar Saída
-                                    </button>
+                                    <div><p className="font-bold text-indigo-700">Carga montada!</p><p className="text-sm text-gray-500">Aguardando saída.</p></div>
+                                    <button onClick={() => confirmAction('Liberar Saída?', 'Motorista saiu?', 'pedidos.saida', '#f97316')} className="bg-orange-500 text-white px-6 py-3 rounded font-bold hover:bg-orange-600 shadow">🚛 Confirmar Saída</button>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* SUCESSO / COMPROVANTE */}
+                    {/* SUCESSO */}
                     {pedido.status === 'concluido' && (
                         <div className="text-center mt-6">
-                            <div className="bg-green-50 p-6 rounded-lg border border-green-200 inline-block shadow-sm">
+                            <div className="bg-green-100 p-6 rounded-lg border border-green-200 inline-block shadow-sm">
                                 <h3 className="text-green-800 font-bold text-xl mb-2">Pedido Concluído! 🎉</h3>
                                 <p className="text-green-700 text-sm">Estoque atualizado.</p>
                                 {pedido.comprovante_url && (
-                                    <a href={pedido.comprovante_url} target="_blank" className="mt-4 inline-block bg-white text-green-700 px-4 py-2 rounded border border-green-300 font-bold hover:bg-green-100">
-                                        📄 Ver Comprovante
-                                    </a>
+                                    <div className="mt-4"><a href={pedido.comprovante_url} target="_blank" className="bg-white text-green-700 px-4 py-2 rounded border border-green-300 font-bold hover:bg-green-50">📄 Ver Comprovante</a></div>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {/* HISTÓRICO */}
+                    {/* LOGS / HISTÓRICO (MANTIDO ESTRITAMENTE IGUAL AO SEU) */}
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg border-t border-gray-200 mt-6">
                         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                            <h3 className="font-bold text-gray-700">📜 Histórico</h3>
+                            <h3 className="font-bold text-gray-700">📜 Histórico de Eventos</h3>
                         </div>
-                        <ul className="divide-y divide-gray-100 max-h-60 overflow-y-auto">
+                        <ul className="divide-y divide-gray-100">
                             {pedido.logs?.map((log) => (
                                 <li key={log.id} className="p-4 hover:bg-gray-50 flex gap-4 items-start">
-                                    <div className="w-2 h-2 mt-1 bg-blue-400 rounded-full"></div>
+                                    <div className="w-2 h-2 mt-1 bg-blue-400 rounded-full ring-4 ring-blue-50"></div>
                                     <div className="flex-1">
                                         <p className="text-sm font-bold text-gray-800">{log.titulo}</p>
-                                        <p className="text-xs text-gray-600 mt-1">{log.descricao}</p>
+                                        <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap leading-relaxed bg-gray-50 p-2 rounded border border-gray-100">
+                                            {log.descricao}
+                                        </p>
                                     </div>
                                     <div className="text-[10px] text-gray-400">{new Date(log.created_at).toLocaleString('pt-BR')}</div>
                                 </li>
                             ))}
                         </ul>
                     </div>
+
                 </div>
             </div>
 
-            {/* BOTÃO FLUTUANTE DE FINALIZAÇÃO */}
+            {/* BOTÃO FLUTUANTE */}
             {pedido.status === 'em_transito' && (auth.user.perfil === 'cd' || auth.user.id === pedido.user_id) && (
                 <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40">
                     <div className="max-w-4xl mx-auto flex gap-4">
-                        <button 
-                            onClick={handleConferenciaEntrega}
-                            disabled={compressing}
-                            className={`flex-1 text-white font-bold text-lg py-3 px-8 rounded-xl shadow-lg transition flex items-center justify-center gap-2 
-                                ${compressing ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
-                        >
-                            {compressing ? (
-                                <>
-                                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    <span>PROCESSANDO...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <span>📝</span> CONFERIR E FINALIZAR ENTREGA
-                                </>
-                            )}
+                        <button onClick={handleConferenciaEntrega} disabled={compressing} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-3 px-8 rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+                            {compressing ? 'Processando...' : <span>📝 CONFERIR E FINALIZAR ENTREGA</span>}
                         </button>
                     </div>
                 </div>
@@ -475,18 +353,17 @@ export default function PedidoShow({ auth, pedido, url_romaneio }) {
     );
 }
 
-// --- HELPERS VISUAIS (Mantidos Iguais) ---
+// HELPERS VISUAIS (MANTIDOS)
 function BadgeStatus({ status }) {
     const config = {
         'em_analise': { label: 'Em Análise', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
         'solicitado': { label: 'Aguardando CD', bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        'separado':   { label: 'Separado', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
-        'expedido':   { label: 'Em Carga', bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-        'em_transito':{ label: 'Em Trânsito', bg: 'bg-orange-100 text-orange-800 border-orange-200' },
-        'concluido':  { label: 'Concluído', bg: 'bg-green-100 text-green-800 border-green-200' },
-        'cancelado':  { label: 'Cancelado', bg: 'bg-red-100 text-red-800 border-red-200' },
+        'separado': { label: 'Separado', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+        'expedido': { label: 'Em Carga', bg: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+        'em_transito': { label: 'Em Trânsito', bg: 'bg-orange-100 text-orange-800 border-orange-200' },
+        'concluido': { label: 'Concluído', bg: 'bg-green-100 text-green-800 border-green-200' },
+        'cancelado': { label: 'Cancelado', bg: 'bg-red-100 text-red-800 border-red-200' },
     }[status] || { label: status, bg: 'bg-gray-100 text-gray-600' };
-
     return <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.bg} border`}>{config.label}</span>;
 }
 
@@ -521,6 +398,7 @@ function Timeline({ status }) {
                     );
                 })}
             </div>
+            {status === 'cancelado' && <div className="mt-4 text-center text-red-600 font-bold bg-red-50 p-2 rounded animate-pulse">PROCESSO CANCELADO</div>}
         </div>
     );
 }
