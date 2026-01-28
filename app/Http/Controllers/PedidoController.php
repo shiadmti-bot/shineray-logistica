@@ -373,7 +373,7 @@ class PedidoController extends Controller
                 // Se zero pendentes, fecha a carga
                 if ($pendentes === 0) {
                     \App\Models\Romaneio::where('id', $pedido->romaneio_id)
-                        ->update(['status' => 'finalizado']);
+                        ->update(['status' => 'concluido']);
                 }
             }
 
@@ -458,7 +458,7 @@ class PedidoController extends Controller
         if ($pedido->romaneio_id) {
              $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                 ->whereNotIn('status', ['concluido', 'cancelado'])->count();
-             if ($pendentes === 0) \App\Models\Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'finalizado']);
+             if ($pendentes === 0) \App\Models\Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
         }
     }
 
