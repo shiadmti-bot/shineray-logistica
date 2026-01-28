@@ -182,7 +182,7 @@ function getStepNumber(status) {
         case 'aberto': return 1;
         case 'expedido': return 2;
         case 'em_transito': return 3;
-        case 'finalizado': return 4;
+        case 'concluido': return 4;
         default: return 1;
     }
 }
@@ -192,7 +192,7 @@ function getStatusColor(status) {
         case 'aberto': return 'bg-yellow-500';
         case 'expedido': return 'bg-blue-500';
         case 'em_transito': return 'bg-orange-500';
-        case 'finalizado': return 'bg-green-500';
+        case 'concluido': return 'bg-green-500';
         default: return 'bg-gray-400';
     }
 }
@@ -202,7 +202,7 @@ function BadgeStatus({ status }) {
         'aberto':      { label: 'Em Aberto',    bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
         'expedido':    { label: 'Carregando',   bg: 'bg-blue-100 text-blue-800 border-blue-200' },
         'em_transito': { label: 'Em Trânsito',  bg: 'bg-orange-100 text-orange-800 border-orange-200' },
-        'finalizado':  { label: 'Finalizado',   bg: 'bg-green-100 text-green-800 border-green-200' },
+        'concluido':   { label: 'concluido',    bg: 'bg-green-100 text-green-800 border-green-200' },
     };
 
     const current = config[status] || { label: status || 'Desconhecido', bg: 'bg-gray-100 text-gray-600 border-gray-200' };
