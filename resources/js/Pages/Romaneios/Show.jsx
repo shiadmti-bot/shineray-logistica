@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
     
     const getStatusStep = () => {
-        if (romaneio.status === 'finalizado') return 4;
+        if (romaneio.status === 'concluido') return 4;
         if (romaneio.status === 'em_transito') return 3;
         if (romaneio.motos && romaneio.motos.length > 0 && romaneio.status === 'aberto') return 2;
         return 1;
@@ -75,7 +75,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                                 {/* Badge de Status para Conferência Visual */}
                                 <div className="mt-2">
                                     <span className={`px-2 py-1 rounded text-xs font-bold uppercase border
-                                        ${romaneio.status === 'finalizado' ? 'bg-green-100 text-green-800 border-green-200' : ''}
+                                        ${romaneio.status === 'concluido' ? 'bg-green-100 text-green-800 border-green-200' : ''}
                                         ${romaneio.status === 'em_transito' ? 'bg-orange-100 text-orange-800 border-orange-200' : ''}
                                         ${romaneio.status === 'aberto' ? 'bg-blue-100 text-blue-800 border-blue-200' : ''}
                                         ${romaneio.status === 'cancelado' ? 'bg-red-100 text-red-800 border-red-200' : ''}
@@ -99,7 +99,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                                 )}
                                 
                                 {/* BOTÃO DESFAZER (Oculto se estiver em trânsito ou finalizado) */}
-                                {romaneio.status !== 'em_transito' && romaneio.status !== 'finalizado' && (
+                                {romaneio.status !== 'em_transito' && romaneio.status !== 'concluido' && (
                                     <button onClick={handleDelete} className="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-100 border border-red-200">
                                         🗑️ Desfazer
                                     </button>
@@ -242,7 +242,7 @@ function RomaneioStepper({ currentStep }) {
         { id: 1, label: 'Abertura', icon: '📝' },
         { id: 2, label: 'Carregamento', icon: '📦' },
         { id: 3, label: 'Em Trânsito', icon: '🚚' },
-        { id: 4, label: 'Finalizado', icon: '🏁' },
+        { id: 4, label: 'Concluído', icon: '🏁' },
     ];
     return (
         <div className="w-full">

@@ -48,7 +48,7 @@ class RomaneioController extends Controller
 
             // Lógica de Status Visual
             if ($totalMotos > 0 && $concluidas === $totalMotos) {
-                $statusVisual = 'finalizado';
+                $statusVisual = 'concluido';
             } elseif ($romaneio->status === 'aberto') {
                 $statusVisual = 'aberto';
             } else {
@@ -87,8 +87,7 @@ class RomaneioController extends Controller
 
         // 2. Busca Romaneios que estão ABERTOS (ainda não saíram)
         // Assumindo que 'aberto' é o status inicial. Se não tiver status, usamos lógica de não estar em trânsito.
-        // Aqui filtro por status diferente de 'em_transito' e 'finalizado'
-        $romaneiosAbertos = Romaneio::whereNotIn('status', ['em_transito', 'finalizado', 'cancelado'])
+        $romaneiosAbertos = Romaneio::whereNotIn('status', ['em_transito', 'concluido', 'cancelado'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -197,8 +196,8 @@ class RomaneioController extends Controller
         $romaneio = Romaneio::with('pedidos')->findOrFail($id);
 
         // --- TRAVA DE SEGURANÇA ---
-        // Se já saiu do CD (Em Trânsito) ou já foi entregue (Finalizado), não pode apagar.
-        if (in_array($romaneio->status, ['em_transito', 'finalizado'])) {
+        // Se já saiu do CD (Em Trânsito) ou já foi entregue (concluido), não pode apagar.
+        if (in_array($romaneio->status, ['em_transito', 'concluido'])) {
             return redirect()->back()->with('error', 'Não é possível desfazer uma carga que já está em trânsito ou finalizada!');
         }
         // ---------------------------
