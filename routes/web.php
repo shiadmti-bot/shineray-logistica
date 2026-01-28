@@ -137,12 +137,40 @@ Route::get('/dashboard', function () {
     })->middleware('auth');
 
 
-Route::get('/padronizar-banco', function() {
-    // Transforma tudo que é 'finalizado' em 'concluido'
-    $afetados = \App\Models\Romaneio::where('status', 'finalizado')
-        ->update(['status' => 'concluido']);
+Route::get('/force-fix-romaneios', function() {
+    // 1. Pega Romaneios que NÃO estão concluídos (pega aberto, em_transito, etc)
+    // Ajuste 'concluido' se no seu banco você usa 'finalizado'
+    $cargasPendentes = \App\Models\Romaneio::whereNotIn('status', ['concluido', 'finalizado', 'cancelado'])->get();
+    
+    $corrigidas = 0;
+    $log = [];
 
-    return "Sucesso! $afetados romaneios foram atualizados de 'finalizado' para 'concluido'.";
+    foreach ($cargasPendentes as $carga) {
+        // 2. Conta quantos pedidos essa carga tem no total
+        $totalPedidos = $carga->pedidos()->count();
+
+        // 3. Conta quantos pedidos JÁ FORAM entregues (concluido ou finalizado)
+        $pedidosEntregues = $carga->pedidos()
+            ->whereIn('status', ['concluido', 'finalizado'])
+            ->count();
+
+        // 4. A Lógica: Se tem pedidos E todos estão entregues -> FINALIZA A CARGA
+        if ($totalPedidos > 0 && $totalPedidos === $pedidosEntregues) {
+            
+            // ATENÇÃO: Aqui definimos o padrão. Estou usando 'concluido' para alinhar com os pedidos.
+            // Se o seu React espera 'finalizado', mude aqui para 'finalizado'.
+            $carga->update(['status' => 'concluido']); 
+            
+            $corrigidas++;
+            $log[] = "Carga #{$carga->id} corrigida (Status antigo: {$carga->getOriginal('status')})";
+        }
+    }
+
+    return [
+        'total_analisado' => $cargasPendentes->count(),
+        'total_corrigido' => $corrigidas,
+        'detalhes' => $log
+    ];
 });
 
 });
