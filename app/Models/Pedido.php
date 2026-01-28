@@ -12,7 +12,7 @@ class Pedido extends Model
 
     protected $fillable = [
         'user_id', 'status', 'observacao', 'romaneio_id', 
-        'arquivo_assinado', 'comprovante_url', 'motivo_rejeicao', 'motivo'
+        'arquivo_assinado', 'comprovante_url', 'motivo_rejeicao'
     ];
 
     public function motos() {
@@ -31,7 +31,6 @@ class Pedido extends Model
         return $this->hasMany(PedidoLog::class)->orderBy('created_at', 'desc');
     }
 
-    // --- ESTA É A FUNÇÃO QUE ESTÁ FALTANDO E CAUSA O ERRO ---
     public function messages() {
         return $this->hasMany(Message::class);
     }

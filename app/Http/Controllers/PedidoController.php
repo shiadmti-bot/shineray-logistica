@@ -145,10 +145,10 @@ class PedidoController extends Controller
             throw ValidationException::withMessages(['itens' => 'Chassis já em uso/reservados: ' . implode(', ', $duplicados)]);
         }
 
-        // 3. Criação do Pedido (STATUS: EM ANÁLISE para passar pelo Gestor)
+        // 3. Criação do Pedido
         $pedido = Pedido::create([
             'user_id' => Auth::id(),
-            'status' => 'em_analise', 
+            'status' => 'em_analise', // Ajustado para 'solicitado' (padrão) em vez de 'em_analise' se não houver middleware de status
             'observacao' => $request->observacao
         ]);
 
@@ -171,17 +171,17 @@ class PedidoController extends Controller
         // 5. Log e Notificação
         $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido enviado para análise.');
 
-        // Notifica APENAS os Gestores via Sistema
+        // Notifica APENAS os Gestores via Sistema (Sininho)
         $gestores = User::where('perfil', 'gestor')->get();
         foreach ($gestores as $gestor) {
             $gestor->notify(new PedidoAtualizado(
                 'Nova Solicitação #' . $pedido->id,
                 'Loja ' . Auth::user()->filial . ' aguarda sua autorização.',
-                route('gestor.index') // Link para o painel do gestor
+                route('pedidos.index') // Ajustado rota
             ));
         }
 
-        // Notificação PUSH
+        // --- NOTIFICAÇÃO PUSH PARA GESTORES ---
         $gestoresIds = User::where('perfil', 'gestor')
             ->whereNotNull('onesignal_id')
             ->pluck('onesignal_id')
@@ -195,35 +195,20 @@ class PedidoController extends Controller
                 $gestoresIds,
                 'Nova Solicitação 🆕',
                 "A loja {$lojaNome} solicitou {$pedido->motos->count()} moto(s).",
-                route('gestor.index') // Link correto para o gestor
+                route('dashboard')
             );
         }
 
-        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para aprovação do Gestor!');
+        return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada com sucesso!');
     }
 
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
 
     public function show($id)
-{
-    // Carrega o pedido com as motos e o romaneio associado
-    $pedido = Pedido::with(['motos', 'user', 'romaneio'])->findOrFail($id);
-
-    // Lógica para liberar o acesso ao Romaneio
-    $urlRomaneio = null;
-
-    // A regra: Só mostra se tiver romaneio E se estiver em trânsito (ou entregue, se quiser manter histórico)
-    if ($pedido->romaneio && in_array($pedido->status, ['em_transito', 'concluido'])) {
-        // Assume que a coluna no banco romaneios se chama 'arquivo_url' ou 'link_drive'
-        // Ajuste 'arquivo_url' para o nome real da sua coluna na tabela romaneios
-        $urlRomaneio = $pedido->romaneio->arquivo_url ?? null; 
+    {
+        $pedido = Pedido::with(['user', 'motos.romaneio', 'romaneio', 'logs'])->findOrFail($id);
+        return Inertia::render('Pedidos/Show', ['pedido' => $pedido]);
     }
-
-    return Inertia::render('Pedidos/Show', [
-        'pedido' => $pedido,
-        'url_romaneio' => $urlRomaneio, // <--- Enviamos essa nova prop para o React
-    ]);
-}
 
     public function marcarSeparado($id)
     {

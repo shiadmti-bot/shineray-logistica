@@ -137,22 +137,41 @@ Route::get('/dashboard', function () {
     })->middleware('auth');
 
 
-    Route::get('/setup-google', function (Request $request) {
-        $client = new \Google\Client();
-        $client->setClientId(config('services.google.client_id'));
-        $client->setClientSecret(config('services.google.client_secret'));
-        $client->setRedirectUri(url('/setup-google')); // A própria rota é o callback
-        $client->setAccessType('offline'); // Vital para ter refresh token
-        $client->setPrompt('consent');     // Vital para forçar novo token
-        $client->setScopes([\Google\Service\Drive::DRIVE]);
+ Route::get('/force-fix-romaneios', function() {
+    // 1. Pega Romaneios que NÃO estão concluídos (pega aberto, em_transito, etc)
+    // Ajuste 'concluido' se no seu banco você usa 'finalizado'
+    $cargasPendentes = \App\Models\Romaneio::whereNotIn('status', ['concluido', 'finalizado', 'cancelado'])->get();
+    
+    $corrigidas = 0;
+    $log = [];
 
-        if ($request->has('code')) {
-            $token = $client->fetchAccessTokenWithAuthCode($request->get('code'));
-            return "<h1>Sucesso!</h1><p>Copie este Refresh Token e coloque no seu .env:</p><h3>" . $token['refresh_token'] . "</h3>";
+    foreach ($cargasPendentes as $carga) {
+        // 2. Conta quantos pedidos essa carga tem no total
+        $totalPedidos = $carga->pedidos()->count();
+
+        // 3. Conta quantos pedidos JÁ FORAM entregues (concluido ou finalizado)
+        $pedidosEntregues = $carga->pedidos()
+            ->whereIn('status', ['concluido', 'finalizado'])
+            ->count();
+
+        // 4. A Lógica: Se tem pedidos E todos estão entregues -> FINALIZA A CARGA
+        if ($totalPedidos > 0 && $totalPedidos === $pedidosEntregues) {
+            
+            // ATENÇÃO: Aqui definimos o padrão. Estou usando 'concluido' para alinhar com os pedidos.
+            // Se o seu React espera 'finalizado', mude aqui para 'finalizado'.
+            $carga->update(['status' => 'concluido']); 
+            
+            $corrigidas++;
+            $log[] = "Carga #{$carga->id} corrigida (Status antigo: {$carga->getOriginal('status')})";
         }
+    }
 
-        return redirect($client->createAuthUrl());
-    });
+    return [
+        'total_analisado' => $cargasPendentes->count(),
+        'total_corrigido' => $corrigidas,
+        'detalhes' => $log
+    ];
+});
 
 });
 
