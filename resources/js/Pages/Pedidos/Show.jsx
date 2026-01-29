@@ -3,32 +3,34 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import imageCompression from 'browser-image-compression';
 
 export default function PedidoShow({ auth, pedido }) {
-    // 1. Configuração dos formulários
-    const formUpload = useForm({ arquivo_romaneio: null, avarias: {} }); // Adicionado 'avarias'
+    // 1. CONFIGURAÇÃO DE ESTADO E FORMULÁRIOS
+    const formUpload = useForm({ arquivo_romaneio: null, avarias: {} });
     const [compressing, setCompressing] = useState(false);
     const formRejeicao = useForm({ motivo: '' });
     const formAcoes = useForm({}); 
 
-    // --- 2. ATUALIZAÇÃO EM TEMPO REAL (Ouvindo o CD/Gestor) ---
+    // --- 2. ATUALIZAÇÃO EM TEMPO REAL (ECHO) ---
     useEffect(() => {
-        // Ouve o canal privado do usuário logado
+        if (!auth.user?.id || !window.Echo) return;
+
         const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
 
         channel.notification((notification) => {
             if (notification.link && notification.link.includes(`/pedidos/${pedido.id}`)) {
-                // 1. Som de Alerta
-                const audio = new Audio('/plim.mp3');
-                audio.play().catch(() => {});
+                // Audio
+                try {
+                    const audio = new Audio('/plim.mp3');
+                    audio.play().catch(() => {});
+                } catch(e) {}
 
-                // 2. Toast Flutuante
+                // Toast
                 const Toast = Swal.mixin({
-                    toast: true, 
-                    position: 'top-end', 
-                    showConfirmButton: false, 
-                    timer: 5000, 
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 5000,
                     timerProgressBar: true
                 });
                 
@@ -38,7 +40,7 @@ export default function PedidoShow({ auth, pedido }) {
                     text: notification.mensagem 
                 });
 
-                // 3. Recarrega os dados silenciosamente
+                // Reload Silencioso
                 router.reload({ only: ['pedido'] });
             }
         });
@@ -46,38 +48,36 @@ export default function PedidoShow({ auth, pedido }) {
         return () => channel.stopListening('Notification');
     }, [pedido.id, auth.user.id]);
 
-    // --- 3. FUNÇÕES DE AÇÃO ---
-
-    // A. LÓGICA DE CONFERÊNCIA E UPLOAD (ATUALIZADA)
+    // --- 3. LÓGICA DE CONFERÊNCIA (AVARIAS E UPLOAD) ---
     const handleConferenciaEntrega = () => {
         Swal.fire({
             title: 'Conferência de Entrega 🚛',
-            width: '700px', // Aumentei um pouco para caber os inputs
+            width: '700px',
             html: `
                 <div class="text-left text-sm">
-                    <p class="mb-4 text-gray-600 bg-blue-50 p-2 rounded border border-blue-100">
+                    <p class="mb-4 text-gray-600 bg-blue-50 p-3 rounded border border-blue-100">
                         <strong>Instruções:</strong><br>
-                        1. Anexe o Romaneio Assinado no final.<br>
+                        1. Anexe o <b>Romaneio Assinado</b> no final.<br>
                         2. Se houver avaria, descreva o defeito E anexe a foto da moto.
                     </p>
                     
                     <div class="max-h-80 overflow-y-auto border border-gray-200 rounded p-3 bg-gray-50 mb-4">
                         ${pedido.motos.map(m => `
-                            <div class="mb-4 border-b border-gray-300 pb-3 last:border-0 bg-white p-2 rounded shadow-sm">
-                                <div class="font-bold text-gray-800 text-sm mb-1">
-                                    🏍️ ${m.modelo} <span class="font-mono text-blue-600">(${m.chassi})</span>
+                            <div class="mb-4 border-b border-gray-300 pb-3 last:border-0 bg-white p-3 rounded shadow-sm">
+                                <div class="font-bold text-gray-800 text-sm mb-1 flex justify-between">
+                                    <span>🏍️ ${m.modelo}</span>
+                                    <span class="font-mono text-blue-600">${m.chassi}</span>
                                 </div>
                                 
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input 
                                         type="text" 
                                         id="avaria-texto-${m.id}" 
-                                        class="swal2-input w-full text-xs m-0 h-10 border-gray-300 focus:ring-red-500" 
+                                        class="swal2-input w-full text-xs m-0 h-10 border-gray-300 focus:ring-red-500 rounded" 
                                         placeholder="Descreva o defeito (se houver)..."
                                     >
-                                    
                                     <div class="flex items-center">
-                                        <label class="block w-full text-xs text-gray-500 border border-dashed border-gray-400 rounded cursor-pointer hover:bg-gray-100 p-2 text-center relative">
+                                        <label class="block w-full text-xs text-gray-500 border border-dashed border-gray-400 rounded cursor-pointer hover:bg-gray-100 p-2 text-center relative transition">
                                             <span id="label-foto-${m.id}">📸 Add Foto (Opcional)</span>
                                             <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerText = '✅ Foto Selecionada'">
                                         </label>
@@ -87,8 +87,8 @@ export default function PedidoShow({ auth, pedido }) {
                         `).join('')}
                     </div>
                     
-                    <div class="mt-4 p-3 bg-green-50 rounded border border-green-200">
-                        <label class="block font-bold text-green-800 mb-1 text-sm uppercase">📄 Foto do Romaneio Assinado (Obrigatório)</label>
+                    <div class="mt-4 p-4 bg-green-50 rounded border border-green-200">
+                        <label class="block font-bold text-green-800 mb-2 text-sm uppercase">📄 Foto do Romaneio Assinado (Obrigatório)</label>
                         <input type="file" id="upload-comprovante" class="w-full text-sm border rounded p-2 bg-white" accept="image/*,application/pdf">
                     </div>
                 </div>
@@ -96,6 +96,7 @@ export default function PedidoShow({ auth, pedido }) {
             showCancelButton: true,
             confirmButtonText: 'Confirmar Recebimento',
             confirmButtonColor: '#16a34a',
+            cancelButtonText: 'Cancelar',
             focusConfirm: false,
             preConfirm: () => {
                 const fileInput = document.getElementById('upload-comprovante');
@@ -105,8 +106,8 @@ export default function PedidoShow({ auth, pedido }) {
                 }
 
                 // Coleta Dados
-                const avariasColetadas = {}; // Texto
-                const fotosColetadas = {};   // Arquivos
+                const avariasColetadas = {};
+                const fotosColetadas = {};
 
                 pedido.motos.forEach(m => {
                     const inputTexto = document.getElementById(`avaria-texto-${m.id}`);
@@ -114,8 +115,6 @@ export default function PedidoShow({ auth, pedido }) {
 
                     if (inputTexto && inputTexto.value.trim()) {
                         avariasColetadas[m.id] = inputTexto.value.trim();
-                        
-                        // Só pega a foto se tiver texto de avaria (evita foto perdida)
                         if (inputFoto.files[0]) {
                             fotosColetadas[m.id] = inputFoto.files[0];
                         }
@@ -138,7 +137,6 @@ export default function PedidoShow({ auth, pedido }) {
 
     const processarEnvio = async (romaneioFile, avarias, fotosAvarias) => {
         setCompressing(true);
-        
         Swal.fire({
             title: 'Enviando...',
             html: 'Processando arquivos e organizando pastas no Drive.<br>Isso pode levar alguns segundos.',
@@ -146,18 +144,12 @@ export default function PedidoShow({ auth, pedido }) {
             didOpen: () => Swal.showLoading()
         });
 
-        // Prepara o FormData manualmente para enviar arquivos mistos
-        // Nota: Inertia router.post com forceFormData lida com objetos, 
-        // mas para arrays de arquivos indexados por ID, precisamos estruturar bem.
-        
-        // Vamos usar o router.post do Inertia mas passando os arquivos diretos no objeto data
-        // O Inertia converte para FormData automaticamente se detectar File Objects
-        
+        // Monta objeto para o router do Inertia
         const dataToSend = {
             _method: 'post',
             arquivo_romaneio: romaneioFile,
             avarias: avarias,
-            fotos_avarias: fotosAvarias // O Inertia vai transformar isso em fotos_avarias[ID] = File
+            fotos_avarias: fotosAvarias
         };
 
         router.post(route('pedidos.finalizar', pedido.id), dataToSend, {
@@ -168,20 +160,19 @@ export default function PedidoShow({ auth, pedido }) {
             },
             onError: (errors) => {
                 setCompressing(false);
-                console.error(errors);
                 Swal.fire('Erro', errors.erro_upload || 'Falha no envio.', 'error');
             }
         });
     };
 
-    // C. OPERAÇÕES DO CD
+    // --- 4. FUNÇÕES DO CD (SEPARAÇÃO/SAÍDA) ---
     const avancarSeparacao = () => { 
         Swal.fire({
             title: 'Confirmar Separação?',
             text: "As motos foram conferidas fisicamente no pátio?",
-            icon: 'warning',
+            icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Sim, confirmar!',
+            confirmButtonText: 'Sim, confirmar',
             confirmButtonColor: '#2563eb'
         }).then((res) => {
             if(res.isConfirmed) formAcoes.post(route('pedidos.separar', pedido.id));
@@ -194,7 +185,7 @@ export default function PedidoShow({ auth, pedido }) {
             text: "O motorista já está com a nota e o veículo carregado?",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Sim, liberar!',
+            confirmButtonText: 'Sim, liberar',
             confirmButtonColor: '#f97316'
         }).then((res) => {
             if(res.isConfirmed) formAcoes.post(route('pedidos.saida', pedido.id));
@@ -204,8 +195,9 @@ export default function PedidoShow({ auth, pedido }) {
     const handleRejeitar = () => {
         Swal.fire({
             title: 'Rejeitar Pedido',
-            input: 'text',
+            input: 'textarea',
             inputLabel: 'Motivo da rejeição',
+            inputPlaceholder: 'Explique o motivo...',
             showCancelButton: true,
             confirmButtonText: 'Rejeitar',
             confirmButtonColor: '#d33',
@@ -218,86 +210,126 @@ export default function PedidoShow({ auth, pedido }) {
         });
     };
 
+    // --- RENDERIZAÇÃO ---
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-red-700">Acompanhamento #{pedido.id}</h2>}>
+        <AuthenticatedLayout 
+            user={auth.user} 
+            header={
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                    <h2 className="font-bold text-xl text-gray-800 leading-tight flex items-center gap-2">
+                        📦 Pedido <span className="text-red-600">#{pedido.id}</span>
+                    </h2>
+                    <div className="flex items-center gap-2">
+                        <BadgeStatus status={pedido.status} />
+                    </div>
+                </div>
+            }
+        >
             <Head title={`Pedido #${pedido.id}`} />
 
-            <div className="py-12 bg-gray-100 min-h-screen pb-32">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+            <div className="py-8 bg-gray-50 min-h-screen pb-32">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
                     
-                    {/* CABEÇALHO */}
-                    <div className="bg-white p-6 shadow-sm sm:rounded-lg border-l-4 border-gray-800 flex justify-between flex-wrap gap-4">
+                    {/* --- CARD 1: INFORMAÇÕES GERAIS --- */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <h3 className="font-bold text-gray-700 text-lg">{pedido.user.name}</h3>
-                            <p className="text-gray-500 text-sm">Filial: {pedido.user.filial || 'Matriz'}</p>
-                            <p className="text-gray-400 text-xs mt-1">Data: {new Date(pedido.created_at).toLocaleDateString('pt-BR')}</p>
+                            <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Loja Solicitante</h3>
+                            <div className="text-lg font-bold text-gray-800">{pedido.user.filial || 'Matriz'}</div>
+                            <div className="text-sm text-gray-600">{pedido.user.name}</div>
+                            <div className="text-xs text-gray-400 mt-1">{pedido.user.email}</div>
                         </div>
-                        <div className="text-right">
-                            <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Status Atual</span>
-                            <BadgeStatus status={pedido.status} />
-                            {pedido.romaneio_id && (
-                                <div className="mt-2 text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded border border-indigo-200 animate-pulse">
-                                    Carga/Romaneio #{String(pedido.romaneio_id).padStart(6, '0')}
-                                </div>
-                            )}
+                        <div className="md:text-right">
+                            <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Data da Solicitação</h3>
+                            <div className="text-lg font-bold text-gray-800">
+                                {new Date(pedido.created_at).toLocaleDateString()}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                                às {new Date(pedido.created_at).toLocaleTimeString().slice(0, 5)}
+                            </div>
                         </div>
                     </div>
 
-                    {/* ALERTA CANCELADO */}
+                    {/* --- ALERTA: PEDIDO CANCELADO --- */}
                     {pedido.status === 'cancelado' && (
-                        <div className="bg-red-100 border-l-4 border-red-600 p-4 shadow-sm animate-pulse">
-                            <h3 className="font-bold text-red-800">🚫 PEDIDO CANCELADO</h3>
-                            <p className="text-red-700 mt-1">{pedido.motivo_rejeicao}</p>
-                        </div>
-                    )}
-
-                    {/* ALERTA EM ANÁLISE (LOJA) */}
-                    {pedido.status === 'em_analise' && auth.user.perfil === 'loja' && (
-                        <div className="bg-purple-50 border-l-4 border-purple-500 p-4 shadow-sm flex items-center gap-3">
-                            <div className="text-2xl">🛡️</div>
+                        <div className="bg-red-50 p-5 rounded-xl border border-red-200 shadow-sm flex gap-3 animate-pulse">
+                            <div className="text-red-500 text-xl">🛑</div>
                             <div>
-                                <h3 className="font-bold text-purple-800">Em Análise Comercial</h3>
-                                <p className="text-purple-700 text-sm">Seu pedido está sendo conferido pelo Gestor. Você será notificado assim que for aprovado.</p>
+                                <h4 className="font-bold text-red-800 text-sm uppercase mb-1">Pedido Cancelado / Rejeitado</h4>
+                                <p className="text-red-900 text-sm leading-relaxed">
+                                    {pedido.motivo_rejeicao || 'Sem motivo especificado.'}
+                                </p>
                             </div>
                         </div>
                     )}
 
-                    {/* TIMELINE */}
-                    <div className="px-2 md:px-8">
+                    {/* --- ALERTA: OBSERVAÇÕES --- */}
+                    {pedido.observacao && (
+                        <div className="bg-amber-50 p-5 rounded-xl border border-amber-200 shadow-sm flex gap-3">
+                            <div className="text-amber-500 text-xl">📝</div>
+                            <div>
+                                <h4 className="font-bold text-amber-800 text-sm uppercase mb-1">Observações da Solicitação</h4>
+                                <p className="text-amber-900 text-sm leading-relaxed whitespace-pre-line">
+                                    {pedido.observacao}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- TIMELINE DE PROGRESSO --- */}
+                    <div className="px-2">
                         <Timeline status={pedido.status} />
                     </div>
-                    
-                    {/* LISTA DE MOTOS */}
-                    <div className="bg-white p-6 shadow-sm sm:rounded-lg">
-                        <h3 className="font-bold mb-4 border-b pb-2 flex items-center gap-2">
-                            <span>📦 Itens Solicitados</span>
-                            <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full text-gray-600">{pedido.motos.length}</span>
-                        </h3>
+
+                    {/* --- TABELA DE ITENS (ATUALIZADA) --- */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                                🏍️ Itens Solicitados
+                                <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">{pedido.motos.length}</span>
+                            </h3>
+                        </div>
                         <div className="overflow-x-auto">
-                            <table className="min-w-full">
+                            <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                                     <tr>
-                                        <th className="px-4 py-2 text-left">Modelo</th>
-                                        <th className="px-4 py-2 text-left">Chassi</th>
-                                        <th className="px-4 py-2 text-left">Status Item</th>
+                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Modelo</th>
+                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Cor</th>
+                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Chassi</th>
+                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Motivo</th>
+                                        <th className="px-6 py-3 text-center font-extrabold tracking-wider">Carga / Status</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="bg-white divide-y divide-gray-100">
                                     {pedido.motos.map((moto) => (
-                                        <tr key={moto.id} className="border-b hover:bg-gray-50">
-                                            <td className="px-4 py-3 font-bold text-sm">{moto.modelo}</td>
-                                            <td className="px-4 py-3 font-mono text-gray-600 text-sm tracking-wide">{moto.chassi}</td>
-                                            <td className="px-4 py-3 text-sm">
-                                                {/* Exibe se está avariado ou normal */}
+                                        <tr key={moto.id} className="hover:bg-gray-50 transition">
+                                            <td className="px-6 py-4 text-sm font-bold text-gray-900">{moto.modelo}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="h-3 w-3 rounded-full border border-gray-300 shadow-sm" 
+                                                          style={{ backgroundColor: getColorHex(moto.cor) }}></span>
+                                                    <span className="text-sm text-gray-700 font-medium capitalize">{moto.cor}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 font-mono text-sm text-gray-600 tracking-wide">{moto.chassi}</td>
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                                                    {moto.motivo_solicitacao || 'Venda'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
                                                 {moto.status === 'avariado' ? (
-                                                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded border border-red-200">⚠️ Avariado</span>
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded border border-red-200">⚠️ Avariado</span>
+                                                        <span className="text-[10px] text-red-500 mt-1 max-w-[150px] truncate">{moto.detalhes_avaria}</span>
+                                                    </div>
                                                 ) : (
-                                                    moto.romaneio_id ? <span className="text-indigo-600 font-bold text-xs bg-indigo-50 px-2 py-1 rounded">Em Carga #{moto.romaneio_id}</span> : <span className="text-gray-400 text-xs">-</span>
-                                                )}
-                                                
-                                                {/* Detalhe da avaria se houver */}
-                                                {moto.detalhes_avaria && (
-                                                    <div className="text-[10px] text-red-600 mt-1 italic">Obs: {moto.detalhes_avaria}</div>
+                                                    moto.romaneio_id ? (
+                                                        <Link href={route('romaneios.show', moto.romaneio_id)} className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition">
+                                                            🚛 Carga #{moto.romaneio_id}
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400 font-medium italic">Aguardando Carga</span>
+                                                    )
                                                 )}
                                             </td>
                                         </tr>
@@ -309,45 +341,45 @@ export default function PedidoShow({ auth, pedido }) {
 
                     {/* --- PAINEL DE OPERAÇÕES DO CD --- */}
                     {auth.user.perfil === 'cd' && pedido.status !== 'cancelado' && (
-                        <div className="bg-white p-6 shadow-sm sm:rounded-lg border-t-4 border-blue-600">
+                        <div className="bg-white p-6 shadow-sm rounded-xl border-l-4 border-blue-600 mt-6">
                             <h3 className="font-bold text-lg mb-4 text-gray-800">⚙️ Painel de Operações (CD)</h3>
                             
                             {pedido.status === 'em_analise' && (
-                                <div className="text-center p-4 bg-gray-100 rounded text-gray-500 italic">
+                                <div className="text-center p-4 bg-gray-50 rounded text-gray-500 italic border border-gray-200">
                                     Aguardando aprovação do Gestor Comercial.
                                 </div>
                             )}
 
                             {pedido.status === 'solicitado' && (
                                 <div className="flex gap-4">
-                                    <button onClick={avancarSeparacao} className="bg-blue-600 text-white px-6 py-3 rounded font-bold hover:bg-blue-700 shadow flex-1">
+                                    <button onClick={avancarSeparacao} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 shadow flex-1 transition transform hover:-translate-y-0.5">
                                         ✅ Confirmar Separação
                                     </button>
-                                    <button onClick={handleRejeitar} className="border border-red-500 text-red-600 px-6 py-3 rounded font-bold hover:bg-red-50">
+                                    <button onClick={handleRejeitar} className="border border-red-500 text-red-600 px-6 py-3 rounded-lg font-bold hover:bg-red-50 transition">
                                         Rejeitar
                                     </button>
                                 </div>
                             )}
 
                             {pedido.status === 'separado' && (
-                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex justify-between items-center gap-4">
+                                <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
                                     <div>
                                         <p className="font-bold text-indigo-900">Motos separadas no pátio.</p>
                                         <p className="text-sm text-indigo-700">Vá para "Nova Carga" para gerar o transporte.</p>
                                     </div>
-                                    <Link href={route('romaneios.create')} className="bg-indigo-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-indigo-700">
+                                    <Link href={route('romaneios.create')} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-indigo-700 transition">
                                         Ir para Montagem de Carga &rarr;
                                     </Link>
                                 </div>
                             )}
 
                             {pedido.status === 'expedido' && (
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between bg-orange-50 p-4 rounded-lg border border-orange-200">
                                     <div>
-                                        <p className="font-bold text-indigo-700">Carga montada!</p>
-                                        <p className="text-sm text-gray-500">Veículo aguardando liberação na portaria.</p>
+                                        <p className="font-bold text-orange-800">Carga montada!</p>
+                                        <p className="text-sm text-orange-600">Veículo aguardando liberação na portaria.</p>
                                     </div>
-                                    <button onClick={avancarSaida} className="bg-orange-500 text-white px-6 py-3 rounded font-bold hover:bg-orange-600 shadow">
+                                    <button onClick={avancarSaida} className="bg-orange-500 text-white px-6 py-3 rounded-lg font-bold hover:bg-orange-600 shadow transition">
                                         🚛 Confirmar Saída
                                     </button>
                                 </div>
@@ -355,16 +387,16 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* MENSAGEM DE SUCESSO (FINALIZADO) */}
+                    {/* --- MENSAGEM DE SUCESSO --- */}
                     {pedido.status === 'concluido' && (
                         <div className="text-center mt-6">
-                            <div className="bg-green-100 p-6 rounded-lg border border-green-200 inline-block shadow-sm">
+                            <div className="bg-green-50 p-6 rounded-xl border border-green-200 inline-block shadow-sm">
                                 <h3 className="text-green-800 font-bold text-xl mb-2">Pedido Concluído! 🎉</h3>
                                 <p className="text-green-700 text-sm">A entrega foi registrada e o estoque atualizado.</p>
                                 {pedido.comprovante_url && (
                                     <div className="mt-4">
-                                        <a href={pedido.comprovante_url} target="_blank" className="bg-white text-green-700 px-4 py-2 rounded border border-green-300 font-bold hover:bg-green-50">
-                                            📄 Ver Comprovante
+                                        <a href={pedido.comprovante_url} target="_blank" className="bg-white text-green-700 px-4 py-2 rounded-lg border border-green-300 font-bold hover:bg-green-50 transition shadow-sm">
+                                            📄 Ver Comprovante Assinado
                                         </a>
                                     </div>
                                 )}
@@ -372,22 +404,24 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
-                    {/* LOGS */}
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg border-t border-gray-200 mt-6">
+                    {/* --- LOGS DE HISTÓRICO --- */}
+                    <div className="bg-white overflow-hidden shadow-sm rounded-xl border border-gray-200 mt-6">
                         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                            <h3 className="font-bold text-gray-700">📜 Histórico de Eventos</h3>
+                            <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide">📜 Histórico de Eventos</h3>
                         </div>
                         <ul className="divide-y divide-gray-100">
                             {pedido.logs?.map((log) => (
-                                <li key={log.id} className="p-4 hover:bg-gray-50 flex gap-4 items-start">
-                                    <div className="w-2 h-2 mt-1 bg-blue-400 rounded-full ring-4 ring-blue-50"></div>
+                                <li key={log.id} className="p-4 hover:bg-gray-50 flex gap-4 items-start transition">
+                                    <div className="w-2 h-2 mt-1.5 bg-blue-400 rounded-full ring-4 ring-blue-50"></div>
                                     <div className="flex-1">
                                         <p className="text-sm font-bold text-gray-800">{log.titulo}</p>
-                                        <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap leading-relaxed bg-gray-50 p-2 rounded border border-gray-100">
+                                        <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap leading-relaxed">
                                             {log.descricao}
                                         </p>
                                     </div>
-                                    <div className="text-[10px] text-gray-400">{new Date(log.created_at).toLocaleString('pt-BR')}</div>
+                                    <div className="text-[10px] text-gray-400 font-mono whitespace-nowrap">
+                                        {new Date(log.created_at).toLocaleString('pt-BR')}
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -395,29 +429,47 @@ export default function PedidoShow({ auth, pedido }) {
                 </div>
             </div>
 
-            {/* BOTÃO FLUTUANTE DE FINALIZAÇÃO (LOJA OU CD QUANDO EM TRÂNSITO) */}
+            {/* --- BOTÃO FLUTUANTE DE FINALIZAÇÃO --- */}
             {pedido.status === 'em_transito' && (auth.user.perfil === 'cd' || auth.user.id === pedido.user_id) && (
                 <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40">
                     <div className="max-w-4xl mx-auto flex gap-4">
                         <button 
                             onClick={handleConferenciaEntrega}
                             disabled={compressing}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-3 px-8 rounded-xl shadow-lg transition flex items-center justify-center gap-2"
+                            className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold text-lg py-3 px-8 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
                         >
-                            <span>📝</span> CONFERIR E FINALIZAR ENTREGA
+                            {compressing ? 'Enviando...' : (
+                                <>
+                                    <span>📝</span> CONFERIR E FINALIZAR ENTREGA
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* CHAT */}
+            {/* --- CHAT --- */}
             {pedido.status !== 'cancelado' && <ChatBox pedidoId={pedido.id} />}
             
         </AuthenticatedLayout>
     );
 }
 
-// --- HELPERS VISUAIS ---
+// --- HELPERS AUXILIARES ---
+
+function getColorHex(corNome) {
+    if (!corNome) return '#ccc';
+    const map = {
+        'vermelho': '#ef4444', 'vermelha': '#ef4444',
+        'preto': '#1f2937', 'preta': '#1f2937',
+        'branco': '#ffffff', 'branca': '#ffffff',
+        'azul': '#3b82f6',
+        'prata': '#9ca3af',
+        'cinza': '#6b7280',
+        'amarelo': '#eab308',
+    };
+    return map[corNome.toLowerCase()] || '#eee';
+}
 
 function BadgeStatus({ status }) {
     const config = {
@@ -430,7 +482,7 @@ function BadgeStatus({ status }) {
         'cancelado':  { label: 'Cancelado', bg: 'bg-red-100 text-red-800 border-red-200' },
     }[status] || { label: status, bg: 'bg-gray-100 text-gray-600' };
 
-    return <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.bg} border`}>{config.label}</span>;
+    return <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${config.bg} border`}>{config.label}</span>;
 }
 
 function Timeline({ status }) {
@@ -447,8 +499,8 @@ function Timeline({ status }) {
     const current = map[status] ?? 0;
 
     return (
-        <div className="w-full py-6 mb-2">
-            <div className="flex items-center justify-between relative">
+        <div className="w-full py-6 mb-2 overflow-x-auto">
+            <div className="flex items-center justify-between relative min-w-[300px]">
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 -z-10 rounded"></div>
                 {status !== 'cancelado' && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-green-500 -z-10 rounded transition-all duration-700 ease-out" style={{ width: `${(current / (steps.length - 1)) * 100}%` }}></div>
@@ -456,7 +508,7 @@ function Timeline({ status }) {
                 {steps.map((step, index) => {
                     const done = status !== 'cancelado' && index <= current;
                     return (
-                        <div key={step.id} className="flex flex-col items-center relative bg-white px-1">
+                        <div key={step.id} className="flex flex-col items-center relative bg-gray-50 px-1">
                             <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-xl border-4 bg-white shadow-sm z-10 transition-all ${done ? 'border-green-500 text-green-600 scale-110' : 'border-gray-300 text-gray-300'}`}>
                                 {done ? step.icon : index + 1}
                             </div>
@@ -465,7 +517,6 @@ function Timeline({ status }) {
                     );
                 })}
             </div>
-            {status === 'cancelado' && <div className="mt-4 text-center text-red-600 font-bold bg-red-50 p-2 rounded animate-pulse">PROCESSO CANCELADO</div>}
         </div>
     );
 }

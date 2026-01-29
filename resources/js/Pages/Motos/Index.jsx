@@ -81,14 +81,7 @@ export default function MotosIndex({ auth, motos, filters }) {
                                                     <div className="text-xs text-gray-500">{moto.cor || '-'}</div>
                                                 </td>
                                                 <td className="p-4">
-                                                    {/* Badge Simples feito com HTML puro para evitar erro de JS */}
-                                                    <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
-                                                        moto.status === 'entregue' ? 'bg-gray-800 text-white' :
-                                                        moto.status === 'em_transito' ? 'bg-orange-100 text-orange-800' :
-                                                        'bg-green-100 text-green-800'
-                                                    }`}>
-                                                        {moto.status ? moto.status.replace('_', ' ') : 'ND'}
-                                                    </span>
+                                                    <StatusBadge status={moto.status} />
                                                 </td>
                                                 <td className="p-4 text-gray-600 text-xs">
                                                     {moto.localizacao_atual || '-'}
@@ -136,5 +129,23 @@ export default function MotosIndex({ auth, motos, filters }) {
                 </div>
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+// Subcomponente para organizar os Badges
+function StatusBadge({ status }) {
+    const s = status || 'nd';
+    let colorClass = 'bg-gray-200 text-gray-800'; // Padrão
+
+    if (s === 'entregue') colorClass = 'bg-gray-800 text-white';
+    else if (s === 'em_transito') colorClass = 'bg-orange-100 text-orange-800';
+    else if (s === 'estoque_fabrica' || s === 'disponivel') colorClass = 'bg-green-100 text-green-800';
+    else if (s === 'reservado') colorClass = 'bg-yellow-100 text-yellow-800';
+    else if (s === 'separado') colorClass = 'bg-blue-100 text-blue-800';
+
+    return (
+        <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${colorClass}`}>
+            {s.replace('_', ' ')}
+        </span>
     );
 }
