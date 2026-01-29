@@ -3,10 +3,31 @@ import { Head, useForm } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 
 export default function PedidoCreate({ auth, listaModelos }) {
+    
+    // --- LISTA PADRONIZADA DE DESTINOS (Baseada na Imagem) ---
+    const locaisEntrega = [
+        // Pará
+        "Acará/PA", "Ananindeua/PA", "Barcarena/PA", "Belém/PA", 
+        "Bragança/PA", "Breves/PA", "Capanema/PA", "Capitão Poço/PA", 
+        "Castanhal/PA", "Concórdia/PA", "Curuçá/PA", "Icoaraci/PA", 
+        "Moju/PA", "São Miguel/PA", "Tailândia/PA", "Tomé-Açu/PA",
+        // Ceará
+        "Aldeota/CE", "Demócrito Rocha/CE", "Parangaba/CE",
+        // Outros
+        "Matriz / CD"
+    ].sort();
+
     const { data, setData, post, processing, errors } = useForm({
-        // Adicionado campo 'local' padrão (filial do usuário)
+        // Tenta pré-selecionar a filial do usuário se ela estiver na lista, senão deixa vazio
         itens: [
-            { modelo: '', chassi: '', cor: '', ano: '', motivo: '', local: auth.user.filial || 'Matriz' }
+            { 
+                modelo: '', 
+                chassi: '', 
+                cor: '', 
+                ano: '', 
+                motivo: '', 
+                local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : '' 
+            }
         ],
         observacao: ''
     });
@@ -23,8 +44,15 @@ export default function PedidoCreate({ auth, listaModelos }) {
     const addItem = () => {
         setData('itens', [
             ...data.itens, 
-            // Novo item herda o local do primeiro item para facilitar
-            { modelo: '', chassi: '', cor: '', ano: '', motivo: '', local: data.itens[0]?.local || auth.user.filial || 'Matriz' }
+            // Novo item herda o local do item anterior para agilizar
+            { 
+                modelo: '', 
+                chassi: '', 
+                cor: '', 
+                ano: '', 
+                motivo: '', 
+                local: data.itens[data.itens.length - 1]?.local || '' 
+            }
         ]);
     };
 
@@ -43,7 +71,10 @@ export default function PedidoCreate({ auth, listaModelos }) {
     // --- FUNÇÃO INTELIGENTE: REPLICAR DESTINO ---
     const replicarDestino = () => {
         const primeiroLocal = data.itens[0].local;
-        if (!primeiroLocal) return;
+        if (!primeiroLocal) {
+            Swal.fire('Atenção', 'Selecione um destino na primeira linha antes de copiar.', 'warning');
+            return;
+        }
 
         const novosItens = data.itens.map(item => ({ ...item, local: primeiroLocal }));
         setData('itens', novosItens);
@@ -91,7 +122,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                         <div className="mb-6">
                             <h3 className="text-lg font-bold text-gray-800">Preencha os dados das motos</h3>
                             <p className="text-sm text-gray-500">
-                                Informe o destino correto (Loja ou Cliente) para cada moto.
+                                Selecione o destino correto para agrupar a carga no romaneio.
                             </p>
                         </div>
 
@@ -99,7 +130,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                             {listaModelos.map((nome, index) => ( <option key={index} value={nome} /> ))}
                         </datalist>
 
-                        {/* --- CABEÇALHO DA TABELA (NOVO LAYOUT) --- */}
+                        {/* --- CABEÇALHO DA TABELA --- */}
                         <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
                             <div className="col-span-1 text-center">#</div>
                             <div className="col-span-3">Modelo *</div>
@@ -117,8 +148,6 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                     
                                     {/* # */}
                                     <div className="col-span-1 text-center font-bold text-gray-400 hidden md:block">{index + 1}</div>
-                                    
-                                    {/* Contador Mobile */}
                                     <div className="md:hidden absolute top-2 right-2 text-xs font-bold text-gray-300">#{index + 1}</div>
 
                                     {/* Modelo */}
@@ -148,18 +177,21 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                         />
                                     </div>
 
-                                    {/* Destino / Local (NOVO CAMPO) */}
+                                    {/* --- SELECT DE DESTINO PADRONIZADO --- */}
                                     <div className="col-span-2 relative">
                                         <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Local de Entrega</label>
                                         
-                                        <input 
-                                            type="text" 
-                                            placeholder="Ex: Cliente Castanhal"
+                                        <select 
                                             value={item.local}
                                             onChange={(e) => updateItem(index, 'local', e.target.value)}
                                             className={`w-full rounded text-sm focus:border-blue-500 bg-yellow-50 focus:bg-white ${errors[`itens.${index}.local`] ? 'border-red-500' : 'border-gray-300'}`}
                                             required
-                                        />
+                                        >
+                                            <option value="" disabled>Selecione o Destino...</option>
+                                            {locaisEntrega.map(local => (
+                                                <option key={local} value={local}>{local}</option>
+                                            ))}
+                                        </select>
 
                                         {/* Botão Copiar (Só no primeiro item) */}
                                         {index === 0 && data.itens.length > 1 && (
@@ -213,7 +245,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                             ))}
                         </div>
 
-                        {/* --- FOOTER DO FORMULÁRIO --- */}
+                        {/* --- FOOTER --- */}
                         <div className="mt-8 flex flex-col md:flex-row justify-between items-start gap-6 border-t pt-6">
                             <button type="button" onClick={addItem} className="w-full md:w-auto flex items-center justify-center gap-2 text-blue-600 font-bold border-2 border-dashed border-blue-300 rounded-lg px-6 py-4 hover:bg-blue-50 transition">
                                 <span>➕</span> Adicionar Outra Moto
@@ -233,7 +265,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                 </div>
             </div>
 
-            {/* --- BOTÃO FLUTUANTE DE ENVIO --- */}
+            {/* --- BOTÃO FLUTUANTE --- */}
             <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 shadow-lg p-4 z-50">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div>
