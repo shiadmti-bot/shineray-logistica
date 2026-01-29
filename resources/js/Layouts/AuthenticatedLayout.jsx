@@ -1,54 +1,91 @@
 import OneSignal from 'react-onesignal';
 import axios from 'axios';
-import { useState, useEffect } from 'react';
-import ApplicationLogo from '@/Components/ApplicationLogo';
+import { useState, useEffect, useRef } from 'react'; // Adicionado useRef
 import Dropdown from '@/Components/Dropdown';
-import NavLink from '@/Components/NavLink';
-import NotificationBell from '@/Components/NotificationBell';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import Toast from '@/Components/Toast';
 import { Link, usePage } from '@inertiajs/react';
 
 export default function Authenticated({ user, header, children }) {
+    const { props } = usePage();
+    // 1. Garante que temos o usuário (do prop direto ou do page prop)
+    const currentUser = user || props.auth.user; 
+    
+    const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
+    
+    // 2. REF para impedir inicialização dupla do OneSignal (Causa comum de erro)
+    const oneSignalInit = useRef(false);
 
-    // EFEITO DO ONESIGNAL
+    // --- EFEITO DO ONESIGNAL BLINDADO ---
     useEffect(() => {
         const runOneSignal = async () => {
+            // Se já rodou uma vez, para aqui imediatamente.
+            if (oneSignalInit.current) return;
+            oneSignalInit.current = true;
+
             try {
+                // Verificação de segurança para não rodar fora do navegador
+                if (typeof window === 'undefined') return;
+
                 await OneSignal.init({ 
-                    appId: "a114f37e-c4b7-4fb4-a580-51d78c8bfa57", // Pegue no painel do OneSignal
-                    allowLocalhostAsSecureOrigin: true, // Para testar local
-                    notifyButton: { enable: true }, // Botãozinho de sino no canto (opcional)
+                    appId: "a114f37e-c4b7-4fb4-a580-51d78c8bfa57", 
+                    allowLocalhostAsSecureOrigin: true, 
+                    notifyButton: { enable: true }, 
                 });
 
-                // Mostra o prompt nativo do navegador
-                OneSignal.ShowSlidedownPrompt();
+                // Tenta mostrar o prompt de forma segura (compatível com versões novas e velhas)
+                try {
+                    if (OneSignal.Slidedown) {
+                        OneSignal.Slidedown.promptPush();
+                    } else if (typeof OneSignal.ShowSlidedownPrompt === 'function') {
+                        OneSignal.ShowSlidedownPrompt();
+                    }
+                } catch(e) { 
+                    console.warn('Prompt OneSignal ignorado (bloqueador de anúncios ou erro interno):', e); 
+                }
 
-                // Quando o usuário se inscreve, pegamos o ID e salvamos no banco
-                OneSignal.on('subscriptionChange', async (isSubscribed) => {
-                    if (isSubscribed) {
-                        const userId = await OneSignal.getUserId(); // Pega o Player ID
+                // Listener de inscrição
+                OneSignal.User.PushSubscription.addEventListener("change", async (event) => {
+                    if (event.current.optedIn) {
+                        const userId = await OneSignal.User.getOnesignalId();
                         if (userId) {
-                            // Envia para o Backend salvar no usuário logado
-                            await axios.post('/user/onesignal', { onesignal_id: userId });
-                            console.log("OneSignal ID salvo:", userId);
+                            await axios.post('/user/onesignal', { onesignal_id: userId }).catch(() => {});
+                            console.log("OneSignal ID Sincronizado");
                         }
                     }
                 });
+
             } catch (error) {
-                console.error("Erro OneSignal", error);
+                console.warn("OneSignal não carregou (provavelmente AdBlock):", error);
             }
         };
 
         runOneSignal();
     }, []);
 
-    const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
-    const { props } = usePage();
-    const currentUser = user || props.auth.user; 
+    // 3. SE NÃO TIVER USUÁRIO, REDIRECIONA (Evita Tela Branca)
+    if (!currentUser) {
+        if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+        }
+        return null;
+    }
 
-    // Se por algum motivo ainda não tiver usuário, não renderiza nada para não quebrar
-    if (!currentUser) return null;
+    // 4. FUNÇÃO SEGURA DE ROTA (Evita crash se o Ziggy falhar)
+    const safeRoute = (name, params = undefined) => {
+        try {
+            // @ts-ignore
+            return route(name, params);
+        } catch (e) {
+            // console.warn(`Rota não encontrada: ${name}`);
+            return '#';
+        }
+    };
+
+    // 5. VERIFICAÇÃO SEGURA DE ROTA ATIVA
+    const isCurrent = (name) => {
+        try { return route().current(name); } catch(e) { return false; }
+    }
 
     const CustomNavLink = ({ active, href, children }) => (
         <Link
@@ -66,10 +103,8 @@ export default function Authenticated({ user, header, children }) {
     return (
         <div className="min-h-screen flex flex-col bg-gray-50">
             
-            {/* --- COMPONENTE GLOBAL DE NOTIFICAÇÕES (TOAST) --- */}
             <Toast />
 
-            {/* --- CABEÇALHO CORPORATIVO (VERMELHO SHINERAY) --- */}
             <nav className="bg-gradient-to-r from-red-800 to-red-600 shadow-lg border-b border-red-900 z-40 print:hidden">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-20">
@@ -87,75 +122,63 @@ export default function Authenticated({ user, header, children }) {
                                 </div>
                             </div>
 
-                            {/* Menu de Navegação (Desktop) */}
+                            {/* Menu de Navegação (Desktop) - USANDO SAFEROUTE */}
                             <div className="hidden space-x-8 sm:-my-px sm:ml-10 sm:flex items-center h-20">
-                                <CustomNavLink href={route('dashboard')} active={route().current('dashboard')}>
+                                <CustomNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')}>
                                     Dashboard
                                 </CustomNavLink>
 
-                                <CustomNavLink href={route('manual')} active={route().current('manual')}>
+                                <CustomNavLink href={safeRoute('manual')} active={isCurrent('manual')}>
                                     ❓ Ajuda / Manual
                                 </CustomNavLink>
 
                                 {/* Links da LOJA */}
                                 {currentUser.perfil === 'loja' && (
                                     <>
-                                        <CustomNavLink href={route('solicitar')} active={route().current('solicitar')}>
+                                        <CustomNavLink href={safeRoute('solicitar')} active={isCurrent('solicitar')}>
                                             ➕ Nova Solicitação
                                         </CustomNavLink>
-                                        <CustomNavLink href={route('pedidos.index')} active={route().current('pedidos.*')}>
+                                        <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
                                             📦 Meus Pedidos
                                         </CustomNavLink>
                                     </>
                                 )}
 
-                                {/* Links do CD */}
-                                {currentUser.perfil === 'cd' && (
+                                {/* Links GERAIS (CD, ADMIN, GESTOR) */}
+                                {['cd', 'admin', 'gestor'].includes(currentUser.perfil) && (
                                     <>
-                                        <CustomNavLink href={route('pedidos.index')} active={route().current('pedidos.*')}>
-                                            📋 Conferência
+                                        {/* Conferência/Auditoria */}
+                                        <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
+                                            {currentUser.perfil === 'cd' ? '📋 Conferência' : '📊 Auditoria Pedidos'}
                                         </CustomNavLink>
-                                        <CustomNavLink href={route('romaneios.create')} active={route().current('romaneios.create')}>
-                                            🚛 Expedição
-                                        </CustomNavLink>
-                                        <CustomNavLink href={route('romaneios.index')} active={route().current('romaneios.index')}>
-                                            🗂 Histórico Cargas
-                                        </CustomNavLink>
-                                    </>
-                                )}
 
-                                {/* Links do ADMIN (AUDITORIA TOTAL) */}
-                                {currentUser.perfil === 'admin' && (
-                                    <>
-                                        <CustomNavLink href={route('pedidos.index')} active={route().current('pedidos.*')}>
-                                            📊 Auditoria Pedidos
-                                        </CustomNavLink>
-                                        <CustomNavLink href={route('romaneios.index')} active={route().current('romaneios.*')}>
-                                            🚛 Auditoria Cargas
-                                        </CustomNavLink>
-                                        <CustomNavLink href={route('motos.index')} active={route().current('motos.*')}>
-                                            🏍 Base Chassis
-                                        </CustomNavLink>
-                                        <CustomNavLink href={route('users.index')} active={route().current('users.*')}>
-                                            👥 Usuários
-                                        </CustomNavLink>
-                                    </>
-                                )}
-                                {/* Links do Gestor (Diego) */}
-                                {currentUser.perfil === 'gestor' && (
-                                    <>
-                                        <CustomNavLink href={route('pedidos.index')} active={route().current('pedidos.*')}>
-                                            📊 Auditoria Pedidos
-                                        </CustomNavLink>
-                                        <CustomNavLink href={route('romaneios.index')} active={route().current('romaneios.*')}>
-                                            🚛 Auditoria Cargas
-                                        </CustomNavLink>
-                                        <CustomNavLink href={route('motos.index')} active={route().current('motos.*')}>
-                                            🏍 Base Chassis
-                                        </CustomNavLink>
-                                    </>
-                                )}
+                                        {/* CD Específico */}
+                                        {currentUser.perfil === 'cd' && (
+                                            <CustomNavLink href={safeRoute('romaneios.create')} active={isCurrent('romaneios.create')}>
+                                                🚛 Expedição
+                                            </CustomNavLink>
+                                        )}
 
+                                        {/* Cargas (Todos menos Loja) */}
+                                        <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.*')}>
+                                            {currentUser.perfil === 'cd' ? '🗂 Histórico Cargas' : '🚛 Auditoria Cargas'}
+                                        </CustomNavLink>
+
+                                        {/* Motos (Apenas Admin/Gestor) */}
+                                        {['admin', 'gestor'].includes(currentUser.perfil) && (
+                                            <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
+                                                🏍 Base Chassis
+                                            </CustomNavLink>
+                                        )}
+                                        
+                                        {/* Usuários (Apenas Admin) */}
+                                        {currentUser.perfil === 'admin' && (
+                                            <CustomNavLink href={safeRoute('users.index')} active={isCurrent('users.*')}>
+                                                👥 Usuários
+                                            </CustomNavLink>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -184,8 +207,8 @@ export default function Authenticated({ user, header, children }) {
                                         <div className="px-4 py-2 text-xs text-gray-400 border-b">
                                             {currentUser.filial || 'Matriz'}
                                         </div>
-                                        <Dropdown.Link href={route('profile.edit')}>Meu Perfil</Dropdown.Link>
-                                        <Dropdown.Link href={route('logout')} method="post" as="button">
+                                        <Dropdown.Link href={safeRoute('profile.edit')}>Meu Perfil</Dropdown.Link>
+                                        <Dropdown.Link href={safeRoute('logout')} method="post" as="button">
                                             Sair do Sistema
                                         </Dropdown.Link>
                                     </Dropdown.Content>
@@ -211,33 +234,40 @@ export default function Authenticated({ user, header, children }) {
                 {/* Menu Mobile */}
                 <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden bg-red-800 border-t border-red-700'}>
                     <div className="pt-2 pb-3 space-y-1">
-                        <ResponsiveNavLink href={route('dashboard')} active={route().current('dashboard')} className="text-white">
+                        <ResponsiveNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')} className="text-white">
                             Dashboard
                         </ResponsiveNavLink>
                         
                         {/* Mobile LOJA */}
                         {currentUser.perfil === 'loja' && (
                             <>
-                                <ResponsiveNavLink href={route('solicitar')} className="text-red-100 hover:text-white">Nova Solicitação</ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('pedidos.index')} className="text-red-100 hover:text-white">Meus Pedidos</ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('solicitar')} className="text-red-100 hover:text-white">Nova Solicitação</ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 hover:text-white">Meus Pedidos</ResponsiveNavLink>
                             </>
                         )}
 
-                        {/* Mobile CD */}
-                        {currentUser.perfil === 'cd' && (
+                        {/* Mobile GERAL (CD, ADMIN, GESTOR) */}
+                        {['cd', 'admin', 'gestor'].includes(currentUser.perfil) && (
                             <>
-                                <ResponsiveNavLink href={route('pedidos.index')} className="text-red-100 hover:text-white">Conferência</ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('romaneios.create')} className="text-red-100 hover:text-white">Expedição</ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('romaneios.index')} className="text-red-100 hover:text-white">Histórico Cargas</ResponsiveNavLink>
-                            </>
-                        )}
+                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 hover:text-white">
+                                    {currentUser.perfil === 'cd' ? 'Conferência' : 'Auditoria Pedidos'}
+                                </ResponsiveNavLink>
+                                
+                                {currentUser.perfil === 'cd' && (
+                                    <ResponsiveNavLink href={safeRoute('romaneios.create')} className="text-red-100 hover:text-white">Expedição</ResponsiveNavLink>
+                                )}
 
-                        {/* Mobile ADMIN */}
-                        {currentUser.perfil === 'admin' && (
-                            <>
-                                <ResponsiveNavLink href={route('pedidos.index')} className="text-red-100 hover:text-white">Auditoria Pedidos</ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('romaneios.index')} className="text-red-100 hover:text-white">Auditoria Cargas</ResponsiveNavLink>
-                                <ResponsiveNavLink href={route('users.index')} className="text-red-100 hover:text-white">Gestão Usuários</ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 hover:text-white">
+                                    {currentUser.perfil === 'cd' ? 'Histórico Cargas' : 'Auditoria Cargas'}
+                                </ResponsiveNavLink>
+
+                                {['admin', 'gestor'].includes(currentUser.perfil) && (
+                                     <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 hover:text-white">Base Chassis</ResponsiveNavLink>
+                                )}
+                                
+                                {currentUser.perfil === 'admin' && (
+                                    <ResponsiveNavLink href={safeRoute('users.index')} className="text-red-100 hover:text-white">Gestão Usuários</ResponsiveNavLink>
+                                )}
                             </>
                         )}
                     </div>
@@ -248,8 +278,8 @@ export default function Authenticated({ user, header, children }) {
                             <div className="font-medium text-sm text-red-200">{currentUser.email}</div>
                         </div>
                         <div className="mt-3 space-y-1">
-                            <ResponsiveNavLink href={route('profile.edit')} className="text-red-100 hover:text-white">Perfil</ResponsiveNavLink>
-                            <ResponsiveNavLink href={route('logout')} method="post" as="button" className="text-red-100 hover:text-white">Sair</ResponsiveNavLink>
+                            <ResponsiveNavLink href={safeRoute('profile.edit')} className="text-red-100 hover:text-white">Perfil</ResponsiveNavLink>
+                            <ResponsiveNavLink href={safeRoute('logout')} method="post" as="button" className="text-red-100 hover:text-white">Sair</ResponsiveNavLink>
                         </div>
                     </div>
                 </div>
@@ -258,7 +288,7 @@ export default function Authenticated({ user, header, children }) {
             {/* Cabeçalho da Página (Breadcrumb/Title) */}
             {header && (
                 <header className="bg-white shadow z-30 relative print:hidden">
-                    <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex items-center gap-4">
                         <button 
                                 onClick={() => window.history.back()}
                                 className="p-2 rounded-full bg-white border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-all shadow-sm group"
@@ -268,7 +298,9 @@ export default function Authenticated({ user, header, children }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                                 </svg>
                             </button>
-                        {header}
+                        <div className="flex-1">
+                            {header}
+                        </div>
                     </div>
                 </header>
             )}
@@ -297,13 +329,13 @@ export default function Authenticated({ user, header, children }) {
                             </p>
                         </div>
 
-                        {/* Coluna 2: Links Rápidos */}
+                        {/* Coluna 2: Links Rápidos (SAFE ROUTE) */}
                         <div>
                             <h4 className="font-bold text-gray-200 mb-4 uppercase text-sm">Navegação</h4>
                             <ul className="space-y-2 text-sm text-gray-400">
-                                <li><Link href={route('dashboard')} className="hover:text-red-500 transition">Dashboard</Link></li>
-                                {currentUser.perfil === 'loja' && <li><Link href={route('solicitar')} className="hover:text-red-500 transition">Nova Solicitação</Link></li>}
-                                {currentUser.perfil === 'cd' && <li><Link href={route('romaneios.index')} className="hover:text-red-500 transition">Romaneios</Link></li>}
+                                <li><Link href={safeRoute('dashboard')} className="hover:text-red-500 transition">Dashboard</Link></li>
+                                {currentUser.perfil === 'loja' && <li><Link href={safeRoute('solicitar')} className="hover:text-red-500 transition">Nova Solicitação</Link></li>}
+                                {currentUser.perfil === 'cd' && <li><Link href={safeRoute('romaneios.index')} className="hover:text-red-500 transition">Romaneios</Link></li>}
                             </ul>
                         </div>
 
