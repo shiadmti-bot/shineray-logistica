@@ -169,11 +169,12 @@ export default function PedidoCreate({ auth, listaModelos }) {
                                         <label className="md:hidden text-xs font-bold text-gray-500 uppercase mb-1 block">Chassi</label>
                                         <input 
                                             type="text" 
-                                            placeholder="CHASSI (Opcional)"
+                                            placeholder="CHASSI"
                                             value={item.chassi}
                                             maxLength={17} 
                                             onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                                             className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
+                                            required
                                         />
                                     </div>
 

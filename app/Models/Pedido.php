@@ -59,7 +59,11 @@ class Pedido extends Model
     // --- RELACIONAMENTOS ---
 
     public function motos() {
-        return $this->belongsToMany(Moto::class, 'pedido_moto')->withTimestamps();
+        // CORREÇÃO CRÍTICA AQUI:
+        // Adicionado 'withPivot' para trazer o campo 'destino' da tabela de ligação
+        return $this->belongsToMany(Moto::class, 'pedido_moto')
+                    ->withPivot('destino') 
+                    ->withTimestamps();
     }
 
     public function user() {

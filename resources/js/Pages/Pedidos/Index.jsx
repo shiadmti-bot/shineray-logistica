@@ -292,8 +292,13 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
 
 // --- HELPERS ---
 
+// --- FUNÇÕES AUXILIARES BLINDADAS (ANTI-CRASH) ---
+
 function getStepNumber(status) {
+    // AQUI ESTÁ A CORREÇÃO:
+    // O "String(status || '')" converte null para string vazia antes de tentar ler
     const safeStatus = String(status || '').toLowerCase();
+    
     switch(safeStatus) {
         case 'em_analise': return 0.5;
         case 'solicitado': return 1;
@@ -301,12 +306,13 @@ function getStepNumber(status) {
         case 'expedido': return 2.5;
         case 'em_transito': return 3;
         case 'concluido': return 4;
-        default: return 4;
+        default: return 1; // Retorna 1 por padrão se der erro, evitando crash
     }
 }
 
 function getStatusColor(status) {
     const safeStatus = String(status || '').toLowerCase();
+    
     const colors = {
         'em_analise': 'bg-purple-500',
         'solicitado': 'bg-yellow-500',
@@ -316,11 +322,12 @@ function getStatusColor(status) {
         'concluido': 'bg-green-500',
         'cancelado': 'bg-red-500',
     };
+    // Retorna cinza se não encontrar o status (safety fallback)
     return colors[safeStatus] || 'bg-gray-400';
 }
 
 function StatusBadge({ status }) {
-    const safeStatus = String(status || 'desconhecido').toLowerCase();
+    const safeStatus = String(status || 'indefinido').toLowerCase();
 
     const config = {
         'em_analise': { label: 'Em Análise',  bg: 'bg-purple-100 text-purple-800 border-purple-200' },
@@ -333,7 +340,7 @@ function StatusBadge({ status }) {
     }[safeStatus] || { label: safeStatus.toUpperCase().replace('_', ' '), bg: 'bg-gray-100 text-gray-600' };
 
     return (
-        <span className={`px-2.5 py-1 rounded-md text-[10px] md:text-xs font-bold uppercase border tracking-wide whitespace-nowrap ${config.bg}`}>
+        <span className={`px-2.5 py-1 rounded-md text-[10px] md:text-xs font-bold uppercase border tracking-wide ${config.bg}`}>
             {config.label}
         </span>
     );
