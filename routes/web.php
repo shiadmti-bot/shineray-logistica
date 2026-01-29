@@ -179,28 +179,53 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-        // 10. ROTINA
+        // 10. ROTINA DE CORREÇÃO (ROBUSTA)
+        // Acesse: seu-site.com/corrigir-status-romaneios
         Route::get('/corrigir-status-romaneios', function() {
+            // Pega tudo que não está finalizado (em_transito, aberto, etc)
             $romaneiosAbertos = \App\Models\Romaneio::whereNotIn('status', ['concluido', 'cancelado'])->get();
+            
             $corrigidos = 0;
-            $relatorio = [];
+            $detalhes = [];
 
             foreach ($romaneiosAbertos as $carga) {
-                $totalPedidos = $carga->pedidos()->count();
-                if ($totalPedidos === 0) continue;
+                // 1. Conta quantos pedidos "ativos" (não cancelados) existem na carga
+                $totalPedidos = $carga->pedidos()->where('status', '!=', 'cancelado')->count();
 
-                $pedidosProntos = $carga->pedidos()
-                    ->whereIn('status', ['concluido', 'finalizado'])
+                // 2. Se a carga estiver vazia (sem pedidos ou só cancelados), fecha logo
+                if ($totalPedidos === 0) {
+                    $carga->update(['status' => 'concluido']);
+                    $corrigidos++;
+                    $detalhes[] = "Carga #{$carga->id} fechada (Vazia ou só cancelados).";
+                    continue;
+                }
+
+                // 3. Conta quantos pedidos AINDA NÃO estão concluídos
+                // (Ignorando cancelados, pois eles não impedem a carga de fechar)
+                $pendencias = $carga->pedidos()
+                    ->whereNotIn('status', ['concluido', 'cancelado'])
                     ->count();
 
-                if ($totalPedidos === $pedidosProntos) {
+                // LÓGICA: Se pendências for ZERO, significa que todos os válidos já foram entregues.
+                if ($pendencias === 0) {
+                    // Fecha a carga
                     $carga->update(['status' => 'concluido']);
-                    $carga->pedidos()->update(['status' => 'concluido']);
+                    
+                    // Força status 'concluido' nos pedidos filhos (só pra garantir a integridade visual)
+                    $carga->pedidos()
+                        ->where('status', '!=', 'cancelado')
+                        ->update(['status' => 'concluido']);
+
                     $corrigidos++;
-                    $relatorio[] = "Carga #{$carga->id} fechada automaticamente.";
+                    $detalhes[] = "Carga #{$carga->id} fechada (Todos os pedidos válidos foram entregues).";
                 }
             }
-            return ['status' => 'Sucesso', 'cargas_corrigidas' => $corrigidos, 'detalhes' => $relatorio];
+
+            return [
+                'status' => 'Processamento Finalizado',
+                'cargas_corrigidas' => $corrigidos,
+                'log' => $detalhes
+            ];
         });
 
     });
