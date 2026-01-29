@@ -1,31 +1,32 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 
 export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
-    // 1. BLINDAGEM: Garante que 'pedidos' nunca seja null/undefined
+    // 1. BLINDAGEM: Garante objeto padrão
     const safePedidos = pedidos || { data: [], links: [], total: 0 };
 
     const { data, setData, get, processing } = useForm({
-        search: filters?.search || '', // Proteção contra filters null
+        search: filters?.search || '',
     });
+
+    // Ref para o áudio (evita recriar o objeto a cada render)
+    const audioRef = useRef(typeof window !== 'undefined' ? new Audio('/plim.mp3') : null);
 
     // --- ATUALIZAÇÃO EM TEMPO REAL ---
     useEffect(() => {
         if (!auth.user?.id || !window.Echo) return;
 
-        // Escuta o canal privado do usuário logado
         const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
 
         channel.notification((notification) => {
-            // 1. Toca o som (se o navegador permitir)
-            try {
-                const audio = new Audio('/plim.mp3');
-                audio.play().catch(e => console.warn("Áudio bloqueado pelo navegador"));
-            } catch(e) {}
+            // Toca som
+            if (audioRef.current) {
+                audioRef.current.play().catch(() => {}); // Ignora erro de autoplay
+            }
 
-            // 2. Mostra o Toast flutuante
+            // Toast
             const Toast = Swal.mixin({
                 toast: true,
                 position: 'top-end',
@@ -40,11 +41,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                 text: notification.mensagem || 'Status do pedido atualizado.'
             });
 
-            // 3. Recarrega a lista de pedidos silenciosamente
+            // Reload silencioso
             router.reload({ only: ['pedidos'] });
         });
 
-        // Limpeza ao sair da página
         return () => {
             channel.stopListening('Notification');
         };
@@ -56,6 +56,38 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
             preserveState: true,
             preserveScroll: true,
         });
+    };
+
+    const clearSearch = () => {
+        setData('search', '');
+        // Dispara a limpeza imediata
+        router.get(route('pedidos.index'), {}, { preserveState: true });
+    };
+
+    // --- LÓGICA DE EXIBIÇÃO INTELIGENTE (CORRIGE DUPLICIDADE) ---
+    const renderLojaInfo = (user) => {
+        if (!user) return <span className="text-red-400 italic">Usuário Removido</span>;
+
+        const nome = user.name || '';
+        const filial = user.filial || '';
+        
+        // Verifica se é redundante (Ex: Nome="Filial Belém", Filial="Belém")
+        const isRedundant = filial && nome.toLowerCase().includes(filial.toLowerCase());
+        const isMatriz = filial === 'Matriz';
+
+        return (
+            <div>
+                <div className="text-sm font-bold text-gray-900">{nome}</div>
+                
+                {/* Só mostra a filial se NÃO for redundante e NÃO for Matriz */}
+                {filial && !isRedundant && !isMatriz && (
+                    <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        {filial}
+                    </div>
+                )}
+            </div>
+        );
     };
 
     return (
@@ -74,10 +106,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                         ) : (
                             <div className="flex items-center gap-2 text-gray-600">
                                 <span className="text-2xl">📋</span>
-                                <h3 className="font-bold text-lg">Listagem Geral</h3>
-                                <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-500 font-bold border">
-                                    {safePedidos.total}
-                                </span>
+                                <div>
+                                    <h3 className="font-bold text-lg leading-none">Listagem Geral</h3>
+                                    <span className="text-xs text-gray-400 font-medium">Total de registros: {safePedidos.total}</span>
+                                </div>
                             </div>
                         )}
                         
@@ -90,11 +122,23 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                                 </div>
                                 <input 
                                     type="text" 
-                                    className="pl-10 w-full border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 transition-colors"
-                                    placeholder="Buscar por ID, Chassi ou Loja..."
+                                    className="pl-10 pr-10 w-full border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 transition-colors"
+                                    placeholder="Buscar ID, Chassi ou Loja..."
                                     value={data.search}
                                     onChange={e => setData('search', e.target.value)}
                                 />
+                                {/* Botão Limpar Busca */}
+                                {data.search && (
+                                    <button 
+                                        type="button" 
+                                        onClick={clearSearch}
+                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-red-500 transition"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                )}
                             </div>
                             <button type="submit" className="bg-gray-800 text-white px-5 rounded-lg hover:bg-gray-700 font-bold transition shadow-sm" disabled={processing}>
                                 Buscar
@@ -102,15 +146,14 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                         </form>
                     </div>
 
-                    {/* --- VERSÃO MOBILE (CARDS COM PROGRESSO) --- */}
+                    {/* --- VERSÃO MOBILE --- */}
                     <div className="md:hidden space-y-4">
                         {safePedidos.data && safePedidos.data.map((pedido) => (
                             <Link key={pedido.id} href={route('pedidos.show', pedido.id)} className="block group">
-                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-red-300 hover:shadow-md transition relative overflow-hidden">
-                                    {/* Faixa lateral de status */}
+                                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-red-300 transition relative overflow-hidden">
                                     <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusColor(pedido.status)}`}></div>
 
-                                    <div className="flex justify-between items-start mb-3 pl-2">
+                                    <div className="flex justify-between items-start mb-2 pl-2">
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-lg font-black text-gray-800">#{pedido.id}</span>
@@ -118,29 +161,28 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                                                     {new Date(pedido.created_at).toLocaleDateString()}
                                                 </span>
                                             </div>
-                                            <p className="text-sm font-semibold text-gray-600 mt-1 truncate max-w-[200px]">
-                                                {pedido.user?.filial || pedido.user?.name || 'Usuário Removido'}
-                                            </p>
+                                            <div className="mt-1">
+                                                {/* Reutiliza a lógica visual limpa */}
+                                                <span className="text-sm font-semibold text-gray-600 block truncate max-w-[200px]">
+                                                    {pedido.user?.name || 'Usuário Removido'}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="text-right">
-                                            <span className="block text-xs text-gray-400 uppercase font-bold mb-1">Qtd</span>
-                                            <span className="text-xl font-black text-red-600 bg-red-50 px-2 py-1 rounded-lg border border-red-100">
+                                            <span className="block text-[10px] text-gray-400 uppercase font-bold">Qtd</span>
+                                            <span className="text-lg font-black text-red-600">
                                                 {pedido.motos_count || 0}
                                             </span>
                                         </div>
                                     </div>
                                     
-                                    {/* Barra de Progresso Visual */}
-                                    <div className="mt-4 pl-2">
+                                    <div className="mt-3 pl-2">
                                         <div className="flex justify-between items-end mb-1">
                                             <StatusBadge status={pedido.status} />
-                                            <span className="text-[10px] text-gray-400 font-bold">
-                                                Etapa {getStepNumber(pedido.status)} de 4
-                                            </span>
                                         </div>
-                                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden mt-2">
                                             <div 
-                                                className={`h-full ${getStatusColor(pedido.status)} transition-all duration-1000`} 
+                                                className={`h-full ${getStatusColor(pedido.status)}`} 
                                                 style={{ width: `${(getStepNumber(pedido.status) / 4) * 100}%` }}
                                             ></div>
                                         </div>
@@ -150,7 +192,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                         ))}
                     </div>
 
-                    {/* --- VERSÃO DESKTOP (TABELA MODERNA) --- */}
+                    {/* --- VERSÃO DESKTOP --- */}
                     <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
@@ -158,43 +200,42 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                                     <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">ID / Data</th>
                                     <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Loja Solicitante</th>
                                     <th className="px-6 py-4 text-center text-xs font-extrabold text-gray-500 uppercase tracking-wider">Motos</th>
-                                    <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider w-1/4">Status & Progresso</th>
+                                    <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider w-1/4">Status</th>
                                     <th className="px-6 py-4 text-right text-xs font-extrabold text-gray-500 uppercase tracking-wider">Ação</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-100">
                                 {safePedidos.data && safePedidos.data.length > 0 ? (
                                     safePedidos.data.map((pedido) => (
-                                        <tr key={pedido.id} className="hover:bg-red-50/30 transition duration-150 group">
+                                        <tr key={pedido.id} className="hover:bg-red-50/20 transition duration-150 group">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm font-black text-gray-800">#{pedido.id}</div>
                                                 <div className="text-xs text-gray-400 mt-0.5">{new Date(pedido.created_at).toLocaleDateString()}</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center">
-                                                    <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs mr-3">
-                                                        {(pedido.user?.filial || (pedido.user?.name ? pedido.user.name[0] : 'X'))}
+                                                    {/* Avatar / Ícone */}
+                                                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-300 flex items-center justify-center text-gray-600 font-bold text-xs mr-3 shadow-sm">
+                                                        {(pedido.user?.name ? pedido.user.name.substring(0, 2).toUpperCase() : 'XX')}
                                                     </div>
-                                                    <div>
-                                                        <div className="text-sm font-bold text-gray-700">{pedido.user?.filial || 'Matriz'}</div>
-                                                        <div className="text-xs text-gray-500">{pedido.user?.name || <span className="text-red-400 italic">Usuário Removido</span>}</div>
-                                                    </div>
+                                                    
+                                                    {/* Info Inteligente (Sem duplicidade) */}
+                                                    {renderLojaInfo(pedido.user)}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200 group-hover:bg-white group-hover:border-red-200 transition">
+                                                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-gray-50 text-gray-700 border border-gray-200 group-hover:bg-white group-hover:border-red-200 transition">
                                                     {pedido.motos_count || 0}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                {/* Status + Barra de Progresso */}
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex justify-between items-center">
                                                         <StatusBadge status={pedido.status} />
                                                     </div>
                                                     <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                                                         <div 
-                                                            className={`h-full ${getStatusColor(pedido.status)}`} 
+                                                            className={`h-full ${getStatusColor(pedido.status)} transition-all duration-700`} 
                                                             style={{ width: `${(getStepNumber(pedido.status) / 4) * 100}%` }}
                                                         ></div>
                                                     </div>
@@ -212,10 +253,11 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="5" className="px-6 py-12 text-center text-gray-400 bg-gray-50/50">
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-3xl mb-2">📭</span>
-                                                <p>Nenhum pedido encontrado.</p>
+                                        <td colSpan="5" className="px-6 py-16 text-center text-gray-400 bg-gray-50/30">
+                                            <div className="flex flex-col items-center animate-pulse">
+                                                <span className="text-4xl mb-3">🔍</span>
+                                                <p className="font-medium">Nenhum pedido encontrado com estes filtros.</p>
+                                                <button onClick={clearSearch} className="text-red-500 text-sm mt-2 hover:underline">Limpar filtros</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -224,7 +266,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                         </table>
                     </div>
 
-                    {/* PAGINAÇÃO SAFE */}
+                    {/* PAGINAÇÃO */}
                     {safePedidos.links && safePedidos.links.length > 3 && (
                         <div className="flex flex-wrap justify-center gap-2 mt-6 pb-8">
                             {safePedidos.links.map((link, k) => (
@@ -232,10 +274,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                                     key={k}
                                     href={link.url}
                                     preserveScroll
-                                    className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${
+                                    className={`px-3 py-2 text-sm font-bold rounded-lg border transition ${
                                         link.active 
-                                            ? 'bg-gray-800 text-white border-gray-800 shadow-md' 
-                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                                            ? 'bg-gray-900 text-white border-gray-900 shadow-md transform scale-105' 
+                                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                                     } ${!link.url ? 'opacity-50 cursor-not-allowed hidden' : ''}`}
                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                 />
@@ -248,10 +290,9 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
     );
 }
 
-// --- FUNÇÕES AUXILIARES (BLINDADAS) ---
+// --- HELPERS ---
 
 function getStepNumber(status) {
-    // Tratamento seguro de string
     const safeStatus = String(status || '').toLowerCase();
     switch(safeStatus) {
         case 'em_analise': return 0.5;
@@ -260,26 +301,25 @@ function getStepNumber(status) {
         case 'expedido': return 2.5;
         case 'em_transito': return 3;
         case 'concluido': return 4;
-        default: return 4; // Se finalizado ou outro status
+        default: return 4;
     }
 }
 
 function getStatusColor(status) {
     const safeStatus = String(status || '').toLowerCase();
-    switch(safeStatus) {
-        case 'em_analise': return 'bg-purple-500';
-        case 'solicitado': return 'bg-yellow-500';
-        case 'separado': return 'bg-blue-500';
-        case 'expedido': return 'bg-indigo-500';
-        case 'em_transito': return 'bg-orange-500';
-        case 'concluido': return 'bg-green-500';
-        case 'cancelado': return 'bg-red-500';
-        default: return 'bg-gray-400';
-    }
+    const colors = {
+        'em_analise': 'bg-purple-500',
+        'solicitado': 'bg-yellow-500',
+        'separado': 'bg-blue-500',
+        'expedido': 'bg-indigo-500',
+        'em_transito': 'bg-orange-500',
+        'concluido': 'bg-green-500',
+        'cancelado': 'bg-red-500',
+    };
+    return colors[safeStatus] || 'bg-gray-400';
 }
 
 function StatusBadge({ status }) {
-    // BLINDAGEM PRINCIPAL: Converte null/undefined para string antes de verificar
     const safeStatus = String(status || 'desconhecido').toLowerCase();
 
     const config = {
@@ -293,7 +333,7 @@ function StatusBadge({ status }) {
     }[safeStatus] || { label: safeStatus.toUpperCase().replace('_', ' '), bg: 'bg-gray-100 text-gray-600' };
 
     return (
-        <span className={`px-2.5 py-1 rounded-md text-[10px] md:text-xs font-bold uppercase border tracking-wide ${config.bg}`}>
+        <span className={`px-2.5 py-1 rounded-md text-[10px] md:text-xs font-bold uppercase border tracking-wide whitespace-nowrap ${config.bg}`}>
             {config.label}
         </span>
     );
