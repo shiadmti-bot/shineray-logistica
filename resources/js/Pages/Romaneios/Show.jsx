@@ -1,13 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
-import { useMemo } from 'react'; // Importação essencial
+import { useMemo } from 'react';
 import Swal from 'sweetalert2';
 
 export default function RomaneioShow({ auth, romaneio }) { 
-    // Removemos a dependência de 'cargasPorLoja' do backend. 
-    // Vamos calcular o agrupamento aqui mesmo para garantir fidelidade ao destino.
-
-    // --- 1. LÓGICA DE AGRUPAMENTO REAL (POR DESTINO) ---
+    
+    // --- 1. LÓGICA DE AGRUPAMENTO AVANÇADA ---
     const cargasAgrupadas = useMemo(() => {
         const grupos = {};
         
@@ -15,14 +13,33 @@ export default function RomaneioShow({ auth, romaneio }) {
         const listaMotos = romaneio.motos || [];
 
         listaMotos.forEach(moto => {
-            // AQUI ESTÁ O SEGREDO:
-            // Pegamos o destino gravado na linha do item (pivot), ignorando quem pediu.
-            let destino = moto.pivot?.destino 
-                       || moto.pedido?.user?.filial 
-                       || 'DESTINO NÃO INFORMADO';
-            
-            // Normaliza para evitar duplicidade (ex: "Belem" vs "BELEM")
+            let destino = 'DESTINO NÃO INFORMADO';
+
+            // A CORREÇÃO MÁGICA:
+            // O destino está salvo no PEDIDO, não diretamente na moto dentro do romaneio.
+            // Precisamos olhar para 'moto.pedidos' que vem do controller.
+            const pedidoAtivo = moto.pedidos && moto.pedidos.length > 0 ? moto.pedidos[0] : null;
+
+            if (pedidoAtivo) {
+                // 1. Tenta pegar o destino escrito explicitamente no item (Tabela Pivô do Pedido)
+                if (pedidoAtivo.pivot && pedidoAtivo.pivot.destino) {
+                    destino = pedidoAtivo.pivot.destino;
+                }
+                // 2. Se não tiver, tenta a Filial do usuário que pediu
+                else if (pedidoAtivo.user && pedidoAtivo.user.filial) {
+                    destino = pedidoAtivo.user.filial;
+                }
+                // 3. Última tentativa: Nome do usuário
+                else if (pedidoAtivo.user && pedidoAtivo.user.name) {
+                    destino = pedidoAtivo.user.name;
+                }
+            }
+
+            // Normaliza (Maiúsculas e remove espaços extras)
             destino = destino.toUpperCase().trim();
+
+            // Adiciona propriedade temporária na moto para facilitar a exibição na tabela
+            moto._pedido_info = pedidoAtivo;
 
             if (!grupos[destino]) {
                 grupos[destino] = [];
@@ -30,7 +47,7 @@ export default function RomaneioShow({ auth, romaneio }) {
             grupos[destino].push(moto);
         });
 
-        // Ordena os destinos alfabeticamente
+        // Ordena os grupos alfabeticamente (Acará, Belém, Castanhal...)
         return Object.keys(grupos).sort().reduce((obj, key) => { 
             obj[key] = grupos[key]; 
             return obj;
@@ -71,6 +88,16 @@ export default function RomaneioShow({ auth, romaneio }) {
         }).then((result) => {
             if (result.isConfirmed) router.delete(route('romaneios.destroy', romaneio.id));
         });
+    };
+
+    // Helper para cores das bolinhas (evita erro se moto.cor for null)
+    const getColorHex = (cor) => {
+        if (!cor) return '#cccccc';
+        const map = {
+            'VERMELHO': '#ef4444', 'AZUL': '#3b82f6', 'PRETO': '#1f2937', 
+            'BRANCO': '#ffffff', 'PRATA': '#9ca3af', 'CINZA': '#6b7280'
+        };
+        return map[cor.toUpperCase()] || '#e5e7eb';
     };
 
     return (
@@ -174,13 +201,22 @@ export default function RomaneioShow({ auth, romaneio }) {
                                     {cargasAgrupadas[destinoNome].map((moto) => (
                                         <tr key={moto.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-3 text-sm font-bold text-gray-700">{moto.modelo}</td>
-                                            <td className="px-6 py-3 text-xs uppercase text-gray-500 font-bold">{moto.cor}</td>
+                                            <td className="px-6 py-3 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="h-2 w-2 rounded-full border border-gray-300" style={{ backgroundColor: getColorHex(moto.cor) }}></span>
+                                                    <span className="text-xs uppercase text-gray-500 font-bold">{moto.cor}</span>
+                                                </div>
+                                            </td>
                                             <td className="px-6 py-3 text-sm font-mono text-gray-600 tracking-wide">{moto.chassi}</td>
                                             <td className="px-6 py-3 text-right">
                                                 <div className="flex flex-col items-end">
-                                                    {/* Mostra quem pediu, já que o destino está no título */}
-                                                    <span className="text-xs font-bold text-gray-700">{moto.pedido?.user?.filial || 'Matriz'}</span>
-                                                    <span className="text-[10px] text-gray-400">Pedido #{moto.pedido_id}</span>
+                                                    {/* Usamos o _pedido_info que injetamos no useMemo */}
+                                                    <span className="text-xs font-bold text-gray-700">
+                                                        {moto._pedido_info?.user?.filial || 'Matriz'}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400">
+                                                        Pedido #{moto._pedido_info?.id || 'N/D'}
+                                                    </span>
                                                 </div>
                                             </td>
                                         </tr>

@@ -25,21 +25,19 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         setData('motos_ids', selectedIds);
     }, [selectedIds]);
 
-    // --- 1. LÓGICA DE AGRUPAMENTO INTELIGENTE (CORRIGIDA) ---
-    // Agrupa estritamente pelo DESTINO FINAL, independente de quem pediu.
+    // --- 1. LÓGICA DE AGRUPAMENTO INTELIGENTE ---
+    // Agrupa estritamente pelo DESTINO FINAL gravado no pedido (pivot)
     const motosAgrupadas = useMemo(() => {
         const grupos = {};
         
         motosDisponiveis.forEach(moto => {
-            // 1. Prioridade Absoluta: O destino definido item a item (ex: Aldeota/CE)
-            // 2. Fallback: A filial do usuário que fez o pedido (ex: Filial Acará)
-            // 3. Fallback final: Nome do usuário
+            // A mágica acontece aqui: O Controller injetou o 'pivot' diretamente na moto
             let destino = moto.pivot?.destino 
                        || moto.pedido?.user?.filial 
                        || moto.pedido?.user?.name 
                        || 'DESTINO NÃO INFORMADO';
             
-            // Normaliza para maiúsculas para evitar duplicação de grupos (ex: "Belem" e "BELEM")
+            // Normaliza (Maiúsculas e sem espaços extras)
             destino = destino.toUpperCase().trim();
 
             if (!grupos[destino]) {
@@ -48,7 +46,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             grupos[destino].push(moto);
         });
 
-        // Ordena chaves alfabeticamente para facilitar a busca visual
+        // Ordena chaves alfabeticamente
         return Object.keys(grupos).sort().reduce((obj, key) => { 
             obj[key] = grupos[key]; 
             return obj;
@@ -60,14 +58,11 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         const motosDoGrupo = motosAgrupadas[destino] || [];
         const idsDoGrupo = motosDoGrupo.map(m => m.id);
         
-        // Verifica se todos desse grupo JÁ estão selecionados
         const todosSelecionados = idsDoGrupo.every(id => selectedIds.includes(id));
 
         if (todosSelecionados) {
-            // Desmarca todos desse grupo
             setSelectedIds(prev => prev.filter(id => !idsDoGrupo.includes(id)));
         } else {
-            // Marca todos (adiciona os que faltam)
             const novosIds = idsDoGrupo.filter(id => !selectedIds.includes(id));
             setSelectedIds(prev => [...prev, ...novosIds]);
         }
@@ -86,7 +81,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             }, 300);
         }
         return () => { if (scanner) scanner.clear().catch(e => {}); };
-    }, [showScanner, motosDisponiveis, selectedIds]);
+    }, [showScanner]);
 
     const handleBip = (codigo) => {
         const chassiLimpo = codigo.trim().toUpperCase();
@@ -103,11 +98,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
 
         setSelectedIds(prev => [...prev, motoEncontrada.id]);
         
-        // Som de Sucesso
-        try {
-            const audio = new Audio('/plim.mp3'); 
-            audio.play().catch(() => {});
-        } catch(e){}
+        try { const audio = new Audio('/plim.mp3'); audio.play().catch(() => {}); } catch(e){}
         
         Swal.fire({ title: `${motoEncontrada.modelo} Adicionada!`, icon: 'success', timer: 1500, toast: true, position: 'top-end', showConfirmButton: false });
         return true;
@@ -146,6 +137,13 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         });
     };
 
+    // Helper de cores
+    const getColorHex = (cor) => {
+        if (!cor) return '#ccc';
+        const map = { 'VERMELHO': '#ef4444', 'AZUL': '#3b82f6', 'PRETO': '#1f2937', 'BRANCO': '#ffffff', 'PRATA': '#9ca3af', 'CINZA': '#6b7280' };
+        return map[cor.toUpperCase()] || '#eee';
+    };
+
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-gray-800">Expedição e Carga</h2>}>
             <Head title="Nova Carga" />
@@ -153,7 +151,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
             <div className="py-6 md:py-12 bg-gray-100 min-h-screen pb-32">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-2">
                     
-                    {/* --- PAINEL DE CONTROLE (SCANNER E FORM) --- */}
+                    {/* --- PAINEL DE CONTROLE --- */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                         
                         {/* ABAS */}
@@ -163,7 +161,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         </div>
 
                         <div className="p-4 md:p-6 flex flex-col md:flex-row gap-8">
-                            {/* ESQUERDA: SCANNER */}
+                            {/* LEITOR */}
                             <div className="flex-1 border-r-0 md:border-r border-gray-100 pr-0 md:pr-8">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="font-bold text-gray-700">🔍 Leitor de Código</h3>
@@ -185,7 +183,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                 </div>
                             </div>
 
-                            {/* DIREITA: DADOS DA CARGA */}
+                            {/* DADOS DA CARGA */}
                             <div className="flex-1">
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     {modo === 'novo' ? (
@@ -223,7 +221,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         </div>
                     </div>
 
-                    {/* --- LISTA AGRUPADA POR DESTINO (AQUI ESTÁ A MÁGICA) --- */}
+                    {/* --- LISTA AGRUPADA POR DESTINO (CORRIGIDO) --- */}
                     <div className="space-y-8 pb-10">
                         {Object.keys(motosAgrupadas).length > 0 ? (
                             Object.entries(motosAgrupadas).map(([destino, motos]) => (
@@ -250,6 +248,9 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                     <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {motos.map((moto) => {
                                             const isSelected = selectedIds.includes(moto.id);
+                                            // Se o destino do grupo for diferente da filial do usuário, mostra quem pediu
+                                            const isDestinoDiferente = moto.pedido?.user?.filial && moto.pedido.user.filial.toUpperCase() !== destino;
+
                                             return (
                                                 <div 
                                                     key={moto.id} 
@@ -270,15 +271,17 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                                         <p className="font-mono text-gray-500 text-xs mt-1 tracking-wider">{moto.chassi}</p>
                                                         
                                                         <div className="mt-3 flex flex-wrap gap-2 items-center">
-                                                            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-medium">
+                                                            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-medium border border-gray-200">
                                                                 Pedido #{moto.pedido?.id}
                                                             </span>
-                                                            <span className="text-[10px] bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 font-bold border border-yellow-100 capitalize">
-                                                                {moto.cor}
-                                                            </span>
+                                                            <div className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-200">
+                                                                <span className="w-2 h-2 rounded-full border border-gray-300" style={{ backgroundColor: getColorHex(moto.cor) }}></span>
+                                                                <span className="text-[10px] font-bold text-gray-600 capitalize">{moto.cor}</span>
+                                                            </div>
+                                                            
                                                             {/* Mostra quem solicitou se for diferente do destino */}
-                                                            {moto.pedido?.user?.filial && moto.pedido.user.filial.toUpperCase() !== destino && (
-                                                                <span className="text-[9px] text-gray-400">
+                                                            {isDestinoDiferente && (
+                                                                <span className="text-[9px] text-indigo-500 font-bold ml-auto">
                                                                     (Solic: {moto.pedido.user.filial})
                                                                 </span>
                                                             )}

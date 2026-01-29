@@ -9,6 +9,7 @@ use App\Models\PedidoLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB; // Importante para o destroy
 
 class RomaneioController extends Controller
 {
@@ -33,15 +34,11 @@ class RomaneioController extends Controller
         $romaneios = $query->paginate(10)->through(function ($romaneio) {
             
             // --- CÁLCULO DINÂMICO DO STATUS REAL ---
-            // Ignoramos o $romaneio->status do banco para a visualização, 
-            // calculando com base na situação real dos pedidos.
-            
             $motos = $romaneio->motos;
             $totalMotos = $motos->count();
             
             // Conta quantas motos já foram concluídas ou canceladas
             $concluidas = $motos->filter(function ($moto) {
-                // Verifica o status do pedido vinculado à moto
                 $pedido = $moto->pedidos->first();
                 return $pedido && in_array($pedido->status, ['concluido', 'cancelado']);
             })->count();
@@ -62,7 +59,7 @@ class RomaneioController extends Controller
                 'transportadora' => $romaneio->transportadora,
                 'created_at' => $romaneio->created_at,
                 'motos_count' => $romaneio->motos_count,
-                'status' => $statusVisual // Envia o status calculado
+                'status' => $statusVisual
             ];
         });
 
@@ -76,24 +73,29 @@ class RomaneioController extends Controller
     public function create()
     {
         // 1. Busca motos separadas (disponíveis para carga)
-        // Usa o 'map' para injetar o objeto 'pedido' facilitado para o frontend
         $motosDisponiveis = Moto::where('status', 'separado')
-            ->with(['pedidos.user']) 
+            // Carrega o pedido E o pivot com o destino
+            ->with(['pedidos' => function($q) {
+                $q->withPivot('destino')->with('user');
+            }]) 
             ->get()
             ->map(function ($moto) {
                 $moto->pedido = $moto->pedidos->last(); 
+                // Atalho para facilitar acesso ao destino no front
+                if ($moto->pedido) {
+                    $moto->pivot = $moto->pedido->pivot; 
+                }
                 return $moto;
             });
 
-        // 2. Busca Romaneios que estão ABERTOS (ainda não saíram)
-        // Assumindo que 'aberto' é o status inicial. Se não tiver status, usamos lógica de não estar em trânsito.
+        // 2. Busca Romaneios que estão ABERTOS
         $romaneiosAbertos = Romaneio::whereNotIn('status', ['em_transito', 'concluido', 'cancelado'])
             ->orderBy('created_at', 'desc')
             ->get();
 
         return Inertia::render('Romaneios/Create', [
             'motosDisponiveis' => $motosDisponiveis,
-            'romaneiosAbertos' => $romaneiosAbertos // Enviando para o Frontend
+            'romaneiosAbertos' => $romaneiosAbertos
         ]);
     }
 
@@ -101,13 +103,11 @@ class RomaneioController extends Controller
     {
         $request->validate([
             'motos_ids' => 'required|array|min:1',
-            // Validações condicionais
             'motorista' => 'required_without:romaneio_id', 
             'placa'     => 'required_without:romaneio_id',
             'romaneio_id' => 'nullable|exists:romaneios,id'
         ]);
 
-        // LÓGICA INTELIGENTE: Novo ou Existente?
         if ($request->romaneio_id) {
             // A. Adicionar a uma Carga Existente
             $romaneio = Romaneio::findOrFail($request->romaneio_id);
@@ -117,23 +117,20 @@ class RomaneioController extends Controller
                 'motorista' => mb_strtoupper($request->motorista),
                 'placa'     => mb_strtoupper($request->placa),
                 'transportadora' => mb_strtoupper($request->transportadora),
-                'status'    => 'aberto', // Status inicial
+                'status'    => 'aberto',
                 'user_id'   => Auth::id()
             ]);
         }
 
-        // Vincula as motos ao Romaneio (Seja novo ou velho)
         foreach ($request->motos_ids as $id) {
             $moto = Moto::find($id);
             if ($moto && $moto->status === 'separado') {
                 $moto->update([
-                    'status' => 'expedido', // Muda status para 'Em Carga'
+                    'status' => 'expedido',
                     'romaneio_id' => $romaneio->id,
                     'localizacao_atual' => 'Em Carga (Romaneio #' . $romaneio->id . ')'
                 ]);
 
-                // Atualiza o status do pedido dessa moto para 'expedido' também
-                // (Para a barra de progresso da loja andar)
                 if ($moto->pedidos->isNotEmpty()) {
                     $moto->pedidos->last()->update(['status' => 'expedido']);
                 }
@@ -143,16 +140,34 @@ class RomaneioController extends Controller
         return redirect()->route('romaneios.index')->with('success', 'Carga atualizada com sucesso!');
     }
 
-    // 4. VISUALIZAR ROMANEIO MASTER
+    // 4. VISUALIZAR ROMANEIO (CORRIGIDO PARA MOSTRAR DESTINO CORRETO)
     public function show($id)
     {
-        // CORREÇÃO: Plural 'pedidos'
-        $romaneio = Romaneio::with(['motos.pedidos.user'])->findOrFail($id);
+        // Carrega o romaneio e, dentro das motos, carrega os pedidos COM O PIVOT DESTINO
+        $romaneio = Romaneio::with(['motos' => function($q) {
+            $q->with(['pedidos' => function($q2) {
+                // IMPORTANTE: withPivot('destino') traz o campo salvo na tabela pedido_moto
+                $q2->withPivot('destino')->with('user')->latest(); 
+            }]);
+        }, 'user'])->findOrFail($id);
         
+        // Agrupa as motos pelo DESTINO REAL (Pivot) e não pelo usuário
         $cargasPorLoja = $romaneio->motos->groupBy(function($moto) {
-            // Pega o primeiro pedido da lista (assumindo que a moto está em um pedido ativo)
-            return $moto->pedidos->first()->user->name ?? 'Outros';
-        });
+            $pedido = $moto->pedidos->first();
+            
+            // 1. Tenta pegar o destino específico da moto (Ex: Aldeota/CE)
+            if ($pedido && $pedido->pivot && !empty($pedido->pivot->destino)) {
+                return mb_strtoupper($pedido->pivot->destino);
+            }
+
+            // 2. Se não tiver, tenta a filial do usuário (Ex: Filial Acará)
+            if ($pedido && $pedido->user && !empty($pedido->user->filial)) {
+                return mb_strtoupper($pedido->user->filial);
+            }
+
+            // 3. Último caso: Nome do usuário
+            return $pedido->user->name ?? 'DESTINO NÃO INFORMADO';
+        })->sortKeys(); // Ordena alfabeticamente (Acará, Aldeota, Belém...)
 
         return Inertia::render('Romaneios/Show', [
             'romaneio' => $romaneio,
@@ -160,10 +175,9 @@ class RomaneioController extends Controller
         ]);
     }
 
-    // 5. INICIAR TRÂNSITO (LIBERAR SAÍDA)
+    // 5. INICIAR TRÂNSITO
     public function iniciarTransito($id)
     {
-        // Carrega relação 'pedidos' (plural)
         $romaneio = Romaneio::with('motos.pedidos')->findOrFail($id);
         
         $romaneio->update(['status' => 'em_transito']);
@@ -173,7 +187,6 @@ class RomaneioController extends Controller
             'localizacao_atual' => 'Em Trânsito'
         ]);
 
-        // CORREÇÃO: Pluck 'pedidos' e Flatten
         $pedidosIds = $romaneio->motos->pluck('pedidos')->flatten()->pluck('id')->unique();
         
         \App\Models\Pedido::whereIn('id', $pedidosIds)->update(['status' => 'em_transito']);
@@ -190,7 +203,7 @@ class RomaneioController extends Controller
         return redirect()->back()->with('success', 'Saída confirmada! Status atualizado para Em Trânsito.');
     }
 
-    // 6. DESFAZER CARGA
+    // 6. DESFAZER CARGA (COM ROLLBACK CORRETO)
     public function destroy($id)
     {
         $romaneio = Romaneio::with('motos.pedido')->findOrFail($id);
@@ -201,15 +214,14 @@ class RomaneioController extends Controller
 
         DB::transaction(function () use ($romaneio) {
             
-            // 1. Coletar IDs dos pedidos afetados para atualizar depois
             $pedidosAfetados = collect();
 
-            // 2. Reverter status das MOTOS
+            // Volta as motos para o pátio
             foreach ($romaneio->motos as $moto) {
                 $moto->update([
-                    'status' => 'separado', // Volta para o status anterior à carga
+                    'status' => 'separado', 
                     'localizacao_atual' => 'Separado no Pátio (Retorno de Carga #' . $romaneio->id . ')',
-                    'romaneio_id' => null   // Desvincula da carga
+                    'romaneio_id' => null   
                 ]);
 
                 if ($moto->pedido) {
@@ -217,18 +229,13 @@ class RomaneioController extends Controller
                 }
             }
 
-            // 3. Reverter status dos PEDIDOS PAI
-            // Se o pedido estava "expedido" ou "em_transito", volta para "separado"
+            // Volta os pedidos para 'separado'
             foreach ($pedidosAfetados->unique('id') as $pedido) {
                 if (in_array($pedido->status, ['expedido', 'em_transito'])) {
                     $pedido->update(['status' => 'separado']);
-                    
-                    // Opcional: Registrar Log no pedido
-                    // $this->registrarLog($pedido, 'Carga Desfeita', "As motos voltaram para separação pois o Romaneio #{$romaneio->id} foi cancelado.");
                 }
             }
 
-            // 4. Finalmente, apaga o romaneio
             $romaneio->delete();
         });
 
