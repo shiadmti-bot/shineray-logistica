@@ -193,30 +193,46 @@ class RomaneioController extends Controller
     // 6. DESFAZER CARGA
     public function destroy($id)
     {
-        $romaneio = Romaneio::with('pedidos')->findOrFail($id);
+        $romaneio = Romaneio::with('motos.pedido')->findOrFail($id);
 
-        // --- TRAVA DE SEGURANÇA ---
-        // Se já saiu do CD (Em Trânsito) ou já foi entregue (concluido), não pode apagar.
-        if (in_array($romaneio->status, ['em_transito', 'concluido'])) {
-            return redirect()->back()->with('error', 'Não é possível desfazer uma carga que já está em trânsito ou finalizada!');
+        if ($romaneio->status === 'concluido') {
+            return back()->withErrors(['erro' => 'Não é possível desfazer uma carga já concluída/entregue.']);
         }
-        // ---------------------------
 
-        // Lógica de reversão (Devolve os pedidos para o status 'separado')
-        foreach ($romaneio->pedidos as $pedido) {
-            $pedido->update([
-                'status' => 'separado', // Volta para o pátio
-                'romaneio_id' => null
-            ]);
+        DB::transaction(function () use ($romaneio) {
             
-            // Atualiza motos também
-            foreach ($pedido->motos as $moto) {
-                $moto->update(['romaneio_id' => null]);
+            // 1. Coletar IDs dos pedidos afetados para atualizar depois
+            $pedidosAfetados = collect();
+
+            // 2. Reverter status das MOTOS
+            foreach ($romaneio->motos as $moto) {
+                $moto->update([
+                    'status' => 'separado', // Volta para o status anterior à carga
+                    'localizacao_atual' => 'Separado no Pátio (Retorno de Carga #' . $romaneio->id . ')',
+                    'romaneio_id' => null   // Desvincula da carga
+                ]);
+
+                if ($moto->pedido) {
+                    $pedidosAfetados->push($moto->pedido);
+                }
             }
-        }
 
-        $romaneio->delete();
+            // 3. Reverter status dos PEDIDOS PAI
+            // Se o pedido estava "expedido" ou "em_transito", volta para "separado"
+            foreach ($pedidosAfetados->unique('id') as $pedido) {
+                if (in_array($pedido->status, ['expedido', 'em_transito'])) {
+                    $pedido->update(['status' => 'separado']);
+                    
+                    // Opcional: Registrar Log no pedido
+                    // $this->registrarLog($pedido, 'Carga Desfeita', "As motos voltaram para separação pois o Romaneio #{$romaneio->id} foi cancelado.");
+                }
+            }
 
-        return redirect()->route('romaneios.index')->with('success', 'Carga desfeita. Pedidos voltaram para o status "Separado".');
+            // 4. Finalmente, apaga o romaneio
+            $romaneio->delete();
+        });
+
+        return redirect()->route('romaneios.index')
+            ->with('success', 'Carga desfeita com sucesso! As motos voltaram para o status "Separado".');
     }
 }

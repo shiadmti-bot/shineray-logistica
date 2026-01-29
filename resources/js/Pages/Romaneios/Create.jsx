@@ -25,24 +25,30 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         setData('motos_ids', selectedIds);
     }, [selectedIds]);
 
-    // --- 1. LÓGICA DE AGRUPAMENTO INTELIGENTE ---
-    // Agrupa as motos pelo destino para facilitar a visualização logística
+    // --- 1. LÓGICA DE AGRUPAMENTO INTELIGENTE (CORRIGIDA) ---
+    // Agrupa estritamente pelo DESTINO FINAL, independente de quem pediu.
     const motosAgrupadas = useMemo(() => {
         const grupos = {};
         
         motosDisponiveis.forEach(moto => {
-            // Tenta pegar o destino específico (pivot), senão pega a filial, senão o nome
-            const destino = moto.pivot?.destino 
-                         || moto.pedido?.user?.filial 
-                         || 'Destino Não Informado';
+            // 1. Prioridade Absoluta: O destino definido item a item (ex: Aldeota/CE)
+            // 2. Fallback: A filial do usuário que fez o pedido (ex: Filial Acará)
+            // 3. Fallback final: Nome do usuário
+            let destino = moto.pivot?.destino 
+                       || moto.pedido?.user?.filial 
+                       || moto.pedido?.user?.name 
+                       || 'DESTINO NÃO INFORMADO';
             
+            // Normaliza para maiúsculas para evitar duplicação de grupos (ex: "Belem" e "BELEM")
+            destino = destino.toUpperCase().trim();
+
             if (!grupos[destino]) {
                 grupos[destino] = [];
             }
-            grupos[destino].push({ ...moto, _destinoCalculado: destino });
+            grupos[destino].push(moto);
         });
 
-        // Ordena chaves alfabeticamente para ficar organizado
+        // Ordena chaves alfabeticamente para facilitar a busca visual
         return Object.keys(grupos).sort().reduce((obj, key) => { 
             obj[key] = grupos[key]; 
             return obj;
@@ -51,23 +57,23 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
 
     // --- 2. SELEÇÃO EM LOTE POR DESTINO ---
     const toggleGrupo = (destino) => {
-        const motosDoGrupo = motosAgrupadas[destino];
+        const motosDoGrupo = motosAgrupadas[destino] || [];
         const idsDoGrupo = motosDoGrupo.map(m => m.id);
         
-        // Verifica se todos já estão selecionados
+        // Verifica se todos desse grupo JÁ estão selecionados
         const todosSelecionados = idsDoGrupo.every(id => selectedIds.includes(id));
 
         if (todosSelecionados) {
-            // Remove todos desse grupo
+            // Desmarca todos desse grupo
             setSelectedIds(prev => prev.filter(id => !idsDoGrupo.includes(id)));
         } else {
-            // Adiciona os que faltam
+            // Marca todos (adiciona os que faltam)
             const novosIds = idsDoGrupo.filter(id => !selectedIds.includes(id));
             setSelectedIds(prev => [...prev, ...novosIds]);
         }
     };
 
-    // --- LÓGICA DA CÂMERA (MANTIDA) ---
+    // --- LÓGICA DA CÂMERA ---
     useEffect(() => {
         let scanner = null;
         if (showScanner) {
@@ -87,7 +93,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         const motoEncontrada = motosDisponiveis.find(m => m.chassi.toUpperCase() === chassiLimpo);
 
         if (!motoEncontrada) {
-            Swal.fire({ title: 'Não Encontrado', text: `Chassi ${chassiLimpo} não disponível.`, icon: 'error', timer: 2000, toast: true, position: 'top-end', showConfirmButton: false });
+            Swal.fire({ title: 'Não Encontrado', text: `Chassi ${chassiLimpo} não disponível na separação.`, icon: 'error', timer: 2000, toast: true, position: 'top-end', showConfirmButton: false });
             return false;
         }
         if (selectedIds.includes(motoEncontrada.id)) {
@@ -96,7 +102,12 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         }
 
         setSelectedIds(prev => [...prev, motoEncontrada.id]);
-        const audio = new Audio('/plim.mp3'); audio.play().catch(() => {});
+        
+        // Som de Sucesso
+        try {
+            const audio = new Audio('/plim.mp3'); 
+            audio.play().catch(() => {});
+        } catch(e){}
         
         Swal.fire({ title: `${motoEncontrada.modelo} Adicionada!`, icon: 'success', timer: 1500, toast: true, position: 'top-end', showConfirmButton: false });
         return true;
@@ -119,11 +130,13 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
         e.preventDefault();
         if (selectedIds.length === 0) return Swal.fire('Atenção', 'Selecione pelo menos uma moto.', 'warning');
         if (modo === 'novo' && (!data.motorista || !data.placa)) return Swal.fire('Atenção', 'Preencha Motorista e Placa.', 'warning');
-        if (modo === 'existente' && !data.romaneio_id) return Swal.fire('Atenção', 'Selecione a carga.', 'warning');
+        if (modo === 'existente' && !data.romaneio_id) return Swal.fire('Atenção', 'Selecione a carga existente.', 'warning');
+
+        const textoAcao = modo === 'novo' ? 'Gerar Nova Carga' : 'Adicionar à Carga';
 
         Swal.fire({
             title: 'Confirmar Expedição?',
-            text: `Confirmar carga com ${selectedIds.length} motos?`,
+            text: `Confirma ${textoAcao} com ${selectedIds.length} motos?`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Sim, Gerar',
@@ -146,7 +159,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         {/* ABAS */}
                         <div className="flex border-b border-gray-200">
                             <button onClick={() => { setModo('novo'); setData('romaneio_id', ''); }} className={`flex-1 py-4 font-bold text-sm uppercase tracking-wide transition ${modo === 'novo' ? 'bg-indigo-50 text-indigo-700 border-b-4 border-indigo-500' : 'text-gray-500 hover:bg-gray-50'}`}>✨ Criar Nova Carga</button>
-                            <button onClick={() => setModo('existente')} disabled={romaneiosAbertos.length === 0} className={`flex-1 py-4 font-bold text-sm uppercase tracking-wide transition ${modo === 'existente' ? 'bg-orange-50 text-orange-700 border-b-4 border-orange-500' : 'text-gray-500 hover:bg-gray-50'}`}>➕ Adicionar à Carga</button>
+                            <button onClick={() => setModo('existente')} disabled={romaneiosAbertos.length === 0} className={`flex-1 py-4 font-bold text-sm uppercase tracking-wide transition ${modo === 'existente' ? 'bg-orange-50 text-orange-700 border-b-4 border-orange-500' : 'text-gray-500 hover:bg-gray-50 disabled:opacity-50'}`}>➕ Adicionar à Carga</button>
                         </div>
 
                         <div className="p-4 md:p-6 flex flex-col md:flex-row gap-8">
@@ -179,7 +192,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                         <div className="animate-fade-in space-y-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700">Motorista</label>
-                                                <input type="text" value={data.motorista} onChange={e => setData('motorista', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="Nome do motorista" />
+                                                <input type="text" value={data.motorista} onChange={e => setData('motorista', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm uppercase" placeholder="NOME DO MOTORISTA" />
                                             </div>
                                             <div className="flex gap-4">
                                                 <div className="flex-1">
@@ -188,7 +201,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                                 </div>
                                                 <div className="flex-1">
                                                     <label className="block text-sm font-medium text-gray-700">Transportadora</label>
-                                                    <input type="text" value={data.transportadora} onChange={e => setData('transportadora', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm" />
+                                                    <input type="text" value={data.transportadora} onChange={e => setData('transportadora', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm uppercase" />
                                                 </div>
                                             </div>
                                         </div>
@@ -210,24 +223,24 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                         </div>
                     </div>
 
-                    {/* --- LISTA INTELIGENTE AGRUPADA POR DESTINO --- */}
+                    {/* --- LISTA AGRUPADA POR DESTINO (AQUI ESTÁ A MÁGICA) --- */}
                     <div className="space-y-8 pb-10">
                         {Object.keys(motosAgrupadas).length > 0 ? (
                             Object.entries(motosAgrupadas).map(([destino, motos]) => (
                                 <div key={destino} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                                     
                                     {/* CABEÇALHO DO DESTINO */}
-                                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 z-10">
+                                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 z-10 shadow-sm">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-indigo-100 p-2 rounded-full text-indigo-700">📍</div>
+                                            <div className="bg-indigo-100 p-2 rounded-full text-indigo-700 text-xl">📍</div>
                                             <div>
-                                                <h3 className="font-bold text-lg text-gray-800">{destino}</h3>
-                                                <span className="text-xs text-gray-500">{motos.length} motos neste destino</span>
+                                                <h3 className="font-black text-lg text-gray-800 tracking-tight">{destino}</h3>
+                                                <span className="text-xs text-gray-500 font-medium">{motos.length} volumes neste destino</span>
                                             </div>
                                         </div>
                                         <button 
                                             onClick={() => toggleGrupo(destino)}
-                                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-3 py-1.5 rounded transition border border-indigo-200"
+                                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-4 py-2 rounded transition border border-indigo-200 uppercase tracking-wider"
                                         >
                                             {motos.every(m => selectedIds.includes(m.id)) ? 'Desmarcar Todos' : 'Selecionar Todos'}
                                         </button>
@@ -241,7 +254,7 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                                 <div 
                                                     key={moto.id} 
                                                     onClick={() => toggleSelection(moto.id)}
-                                                    className={`cursor-pointer p-4 rounded-lg border-2 transition-all shadow-sm flex flex-col justify-between relative bg-white group
+                                                    className={`cursor-pointer p-4 rounded-lg border-2 transition-all shadow-sm flex flex-col justify-between relative bg-white group select-none
                                                         ${isSelected 
                                                             ? 'border-green-500 ring-1 ring-green-500 bg-green-50' 
                                                             : 'border-gray-100 hover:border-indigo-300'
@@ -255,9 +268,20 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                                     <div>
                                                         <h4 className="font-bold text-gray-800 text-sm pr-8">{moto.modelo}</h4>
                                                         <p className="font-mono text-gray-500 text-xs mt-1 tracking-wider">{moto.chassi}</p>
-                                                        <div className="mt-2 flex gap-2">
-                                                            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-medium">Pedido #{moto.pedido?.id}</span>
-                                                            <span className="text-[10px] bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 font-bold border border-yellow-100 capitalize">{moto.cor}</span>
+                                                        
+                                                        <div className="mt-3 flex flex-wrap gap-2 items-center">
+                                                            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-medium">
+                                                                Pedido #{moto.pedido?.id}
+                                                            </span>
+                                                            <span className="text-[10px] bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 font-bold border border-yellow-100 capitalize">
+                                                                {moto.cor}
+                                                            </span>
+                                                            {/* Mostra quem solicitou se for diferente do destino */}
+                                                            {moto.pedido?.user?.filial && moto.pedido.user.filial.toUpperCase() !== destino && (
+                                                                <span className="text-[9px] text-gray-400">
+                                                                    (Solic: {moto.pedido.user.filial})
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -267,9 +291,10 @@ export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAberto
                                 </div>
                             ))
                         ) : (
-                            <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">
-                                <div className="text-4xl mb-2">🚚</div>
-                                <p>Nenhuma moto separada aguardando expedição.</p>
+                            <div className="text-center py-16 text-gray-400 bg-white rounded-lg border-2 border-dashed border-gray-200">
+                                <div className="text-5xl mb-3 opacity-50">🚚</div>
+                                <p className="font-medium">Nenhuma moto separada aguardando expedição.</p>
+                                <p className="text-sm">Finalize a separação dos pedidos para que apareçam aqui.</p>
                             </div>
                         )}
                     </div>
