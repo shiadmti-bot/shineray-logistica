@@ -15,14 +15,15 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Foundation\Application;
 
 /*
 |--------------------------------------------------------------------------
-| SISTEMA DE MANUTENÇÃO (BYPASS LOGIC)
+| SISTEMA DE MANUTENÇÃO (ACESSO LIBERADO PARA TI)
 |--------------------------------------------------------------------------
 */
 
-// 1. Rota Secreta para VOCÊ liberar seu acesso (Salva cookie na sessão)
+// 1. Rota Secreta para VOCÊ liberar seu acesso
 // Acesse: seu-site.com/liberar-acesso-ti
 Route::get('/liberar-acesso-ti', function () {
     Session::put('manutencao_bypass', true);
@@ -35,28 +36,23 @@ Route::get('/bloquear-acesso', function () {
     return redirect('/manutencao');
 });
 
-// 3. Rota visual da Manutenção
+// 3. Rota visual da Manutenção (Esta rota fica FORA do middleware para não dar loop)
 Route::get('/manutencao', function () {
     if (Session::has('manutencao_bypass')) {
         return redirect('/dashboard');
     }
-    return Inertia::render('Maintenance'); // Certifique-se de ter criado o Maintenance.jsx
+    return Inertia::render('Maintenance');
 })->name('maintenance');
 
 
 /*
 |--------------------------------------------------------------------------
-| ROTAS DO SISTEMA (PROTEGIDAS PELO MANUTENÇÃO)
+| ROTAS DO SISTEMA (BLOQUEADAS PELO MIDDLEWARE)
 |--------------------------------------------------------------------------
 */
 
-// Middleware Lógico: Se não tiver bypass, joga para manutenção.
-Route::middleware(function ($request, $next) {
-    if (Session::has('manutencao_bypass')) {
-        return $next($request);
-    }
-    return redirect()->route('maintenance');
-})->group(function () {
+// Agora chamamos a Classe que criamos no Passo 1
+Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(function () {
 
     // --- ROTA PÚBLICA (LOGIN) ---
     Route::get('/', function () {
@@ -66,18 +62,16 @@ Route::middleware(function ($request, $next) {
     // --- ROTAS AUTENTICADAS ---
     Route::middleware(['auth', 'verified'])->group(function () {
 
-        // 1. DASHBOARD CENTRALIZADO
+        // 1. DASHBOARD
         Route::get('/dashboard', function () {
             $user = Auth::user();
 
-            // Se for Gestor, vai para o painel dele
             if ($user->perfil === 'gestor') {
                 return redirect()->route('gestor.index');
             }
 
             $stats = [];
 
-            // Visão Admin/Diretoria
             if ($user->perfil === 'admin') {
                 $stats = [
                     'total_pedidos'   => Pedido::count(),
@@ -86,16 +80,14 @@ Route::middleware(function ($request, $next) {
                     'cancelados'      => Pedido::where('status', 'cancelado')->count(),
                 ];
             } 
-            // Visão CD (Operacional)
             elseif ($user->perfil === 'cd') {
                 $stats = [
-                    'pendentes'    => Pedido::whereIn('status', ['solicitado', 'aprovado'])->count(), // Ajustado para incluir aprovados se houver
+                    'pendentes'    => Pedido::whereIn('status', ['solicitado', 'aprovado'])->count(),
                     'no_patio'     => Moto::where('status', 'separado')->count(), 
                     'cargas_total' => Romaneio::count(),
                     'hoje'         => Pedido::where('status', 'concluido')->whereDate('updated_at', now())->count(),
                 ];
             } 
-            // Visão Loja
             else {
                 $stats = [
                     'meus_pedidos' => Pedido::where('user_id', $user->id)->count(),
@@ -109,7 +101,7 @@ Route::middleware(function ($request, $next) {
             ]);
         })->name('dashboard');
 
-        // 2. UTILITÁRIOS E MANUAL
+        // 2. MANUAL E UTILITÁRIOS
         Route::get('/manual', function () { return Inertia::render('Manual'); })->name('manual');
         
         Route::post('/notificacoes/ler', function () {
@@ -122,7 +114,7 @@ Route::middleware(function ($request, $next) {
             return response()->json(['status' => 'success']);
         })->name('user.onesignal');
 
-        // 3. GESTOR COMERCIAL
+        // 3. GESTOR
         Route::prefix('gestor')->name('gestor.')->group(function () {
             Route::get('/', [GestorController::class, 'index'])->name('index');
             Route::get('/historico', [GestorController::class, 'historico'])->name('historico');
@@ -130,12 +122,12 @@ Route::middleware(function ($request, $next) {
             Route::post('/aprovar/{id}', [GestorController::class, 'aprovar'])->name('aprovar');
         });
 
-        // 4. CHAT INTERNO
+        // 4. CHAT
         Route::get('/chat/{pedidoId}/messages', [ChatController::class, 'index'])->name('chat.index');
         Route::post('/chat/{pedidoId}/messages', [ChatController::class, 'store'])->name('chat.store');
         Route::post('/chat/{pedidoId}/read', [ChatController::class, 'markAsRead'])->name('chat.read');
 
-        // 5. USUÁRIOS (ADMIN)
+        // 5. USUÁRIOS
         Route::prefix('usuarios')->name('users.')->group(function () {
             Route::get('/', [UserController::class, 'index'])->name('index');
             Route::get('/novo', [UserController::class, 'create'])->name('create');
@@ -143,30 +135,28 @@ Route::middleware(function ($request, $next) {
             Route::delete('/{id}', [UserController::class, 'destroy'])->name('destroy');
         });
 
-        // 6. PEDIDOS (CRUD E AÇÕES)
+        // 6. PEDIDOS
         Route::prefix('pedidos')->name('pedidos.')->group(function () {
             Route::get('/', [PedidoController::class, 'index'])->name('index');
             Route::get('/exportar', [PedidoController::class, 'exportar'])->name('exportar');
-            Route::post('/', [PedidoController::class, 'store'])->name('store'); // Rota do POST /pedidos
+            Route::post('/', [PedidoController::class, 'store'])->name('store');
             Route::get('/{id}', [PedidoController::class, 'show'])->name('show');
             Route::get('/{id}/imprimir', [PedidoController::class, 'imprimir'])->name('imprimir');
             
-            // Ações Específicas
             Route::post('/{id}/aprovar', [PedidoController::class, 'aprovar'])->name('aprovar');
             Route::post('/{id}/separar', [PedidoController::class, 'marcarSeparado'])->name('separar');
             Route::post('/{id}/rejeitar', [PedidoController::class, 'rejeitar'])->name('rejeitar');
             Route::post('/{id}/finalizar', [PedidoController::class, 'finalizarEntrega'])->name('finalizar');
             Route::post('/{id}/saida', [PedidoController::class, 'confirmarSaida'])->name('saida');
-            Route::post('/{id}/cancelar', [PedidoController::class, 'cancelarSolicitacao'])->name('cancelar'); // Nome padronizado
-            Route::post('/{id}/cancelar-proprio', [PedidoController::class, 'cancelarSolicitacao'])->name('cancelarProprio'); // Alias para compatibilidade
+            Route::post('/{id}/cancelar', [PedidoController::class, 'cancelarSolicitacao'])->name('cancelar');
+            Route::post('/{id}/cancelar-proprio', [PedidoController::class, 'cancelarSolicitacao'])->name('cancelarProprio');
         });
 
-        // Rotas Soltas de Pedido (Legado/Atalhos)
         Route::get('/solicitar', [PedidoController::class, 'create'])->name('solicitar');
-        Route::post('/solicitar', [PedidoController::class, 'store']); // Alias para store
+        Route::post('/solicitar', [PedidoController::class, 'store']);
         Route::get('/pedido-sucesso', [PedidoController::class, 'sucesso'])->name('pedidos.sucesso');
 
-        // 7. EXPEDIÇÃO (ROMANEIOS)
+        // 7. EXPEDIÇÃO
         Route::prefix('expedicao')->name('romaneios.')->group(function () {
             Route::get('/', [RomaneioController::class, 'index'])->name('index');
             Route::get('/nova', [RomaneioController::class, 'create'])->name('create');
@@ -174,7 +164,6 @@ Route::middleware(function ($request, $next) {
             Route::get('/{id}', [RomaneioController::class, 'show'])->name('show');
             Route::post('/{id}/saida', [RomaneioController::class, 'iniciarTransito'])->name('saida');
             Route::delete('/{id}', [RomaneioController::class, 'destroy'])->name('destroy');
-            // Rotas auxiliares de romaneio
             Route::post('/{id}/adicionar', [RomaneioController::class, 'adicionarPedido'])->name('adicionar');
             Route::delete('/{id}/remover/{pedidoId}', [RomaneioController::class, 'removerPedido'])->name('remover');
             Route::get('/{id}/imprimir', [RomaneioController::class, 'imprimir'])->name('imprimir');
@@ -182,7 +171,7 @@ Route::middleware(function ($request, $next) {
 
         // 8. MOTOS
         Route::get('/motos', [MotoController::class, 'index'])
-            ->middleware('check_perfil:admin,cd,gestor') // Middleware customizado se existir
+            ->middleware('check_perfil:admin,cd,gestor')
             ->name('motos.index');
 
         // 9. PERFIL
@@ -190,7 +179,7 @@ Route::middleware(function ($request, $next) {
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-        // 10. ROTINA DE CORREÇÃO (MANUAL)
+        // 10. ROTINA
         Route::get('/corrigir-status-romaneios', function() {
             $romaneiosAbertos = \App\Models\Romaneio::whereNotIn('status', ['concluido', 'cancelado'])->get();
             $corrigidos = 0;
@@ -214,8 +203,8 @@ Route::middleware(function ($request, $next) {
             return ['status' => 'Sucesso', 'cargas_corrigidas' => $corrigidos, 'detalhes' => $relatorio];
         });
 
-    }); // Fim do Middleware Auth
+    }); // Fim Middleware Auth
 
-    require __DIR__.'/auth.php'; // Rotas de Autenticação (Login, Register, etc)
+    require __DIR__.'/auth.php';
 
-}); // Fim do Grupo de Manutenção
+}); // Fim Middleware Manutenção
