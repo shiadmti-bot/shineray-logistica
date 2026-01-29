@@ -77,8 +77,11 @@ class PedidoController extends Controller
             });
         }
 
-        // Ordenação inteligente: Solicitados primeiro, depois por data
-        $pedidos = $query->orderByRaw("FIELD(status, 'solicitado') DESC")
+        // Ordenação: 
+        // 1. 'em_analise' (Topo para o Gestor)
+        // 2. 'solicitado' (Topo para o CD)
+        // 3. Data decrescente
+        $pedidos = $query->orderByRaw("FIELD(status, 'em_analise', 'solicitado') DESC")
                          ->orderBy('created_at', 'desc')
                          ->paginate(15)
                          ->withQueryString();
@@ -107,7 +110,7 @@ class PedidoController extends Controller
         ]);
 
         return DB::transaction(function () use ($request) {
-            // 1. Verificação de Duplicidade (Mais eficiente)
+            // 1. Verificação de Duplicidade
             $chassisRequest = array_column($request->itens, 'chassi');
             $duplicados = Moto::whereIn('chassi', $chassisRequest)
                 ->whereNotIn('status', ['estoque_fabrica', 'cancelado']) 
@@ -118,10 +121,10 @@ class PedidoController extends Controller
                 throw ValidationException::withMessages(['itens' => 'Chassis indisponíveis: ' . implode(', ', $duplicados)]);
             }
 
-            // 2. Cria Pedido
+            // 2. Cria Pedido (STATUS 'em_analise' RESTAURADO)
             $pedido = Pedido::create([
                 'user_id' => Auth::id(),
-                'status' => 'solicitado', // Padronizado
+                'status' => 'em_analise', 
                 'observacao' => $request->observacao
             ]);
 
@@ -141,18 +144,50 @@ class PedidoController extends Controller
                 $pedido->motos()->attach($moto->id);
             }
 
-            $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido enviado.');
+            $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido aguardando análise do Gestor.');
 
             // 4. Notifica Gestores
             $gestores = User::where('perfil', 'gestor')->get();
             $this->enviarNotificacao(
                 $gestores, 
                 'Nova Solicitação 🆕', 
-                "Loja " . Auth::user()->name . " pediu {$pedido->motos()->count()} moto(s).", 
-                route('dashboard')
+                "Loja " . Auth::user()->name . " solicitou aprovação para {$pedido->motos()->count()} moto(s).", 
+                route('dashboard') // Leva para o Dashboard onde o Gestor vê
             );
 
-            return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada!');
+            return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para análise!');
+        });
+    }
+
+    // --- NOVO MÉTODO: APROVAR (Gestor -> CD) ---
+    public function aprovar($id)
+    {
+        return DB::transaction(function () use ($id) {
+            $pedido = Pedido::with('user', 'motos')->findOrFail($id);
+
+            // Segurança
+            if (!in_array(Auth::user()->perfil, ['admin', 'gestor'])) {
+                abort(403, 'Ação não autorizada.');
+            }
+
+            if ($pedido->status !== 'em_analise') {
+                return redirect()->back()->with('error', 'Status inválido para aprovação.');
+            }
+
+            // Atualiza status para o CD ver
+            $pedido->update(['status' => 'solicitado']);
+
+            $this->registrarLog($pedido, 'Aprovado', 'Solicitação autorizada pelo Gestor.');
+
+            // Notifica a Loja
+            $this->enviarNotificacao(
+                $pedido->user,
+                'Solicitação Aprovada ✅',
+                "Seu pedido #{$pedido->id} foi aprovado e enviado ao CD.",
+                route('pedidos.show', $pedido->id)
+            );
+
+            return redirect()->back()->with('success', 'Pedido aprovado e encaminhado ao CD!');
         });
     }
 
@@ -172,13 +207,10 @@ class PedidoController extends Controller
             if ($pedido->status !== 'solicitado') return redirect()->back();
 
             $pedido->update(['status' => 'separado', 'motivo_rejeicao' => null]);
-            
-            // Atualização em massa para performance
             $pedido->motos()->update(['status' => 'separado']);
 
             $this->registrarLog($pedido, 'Separação Concluída', 'Motos conferidas.');
 
-            // Notifica Loja
             $this->enviarNotificacao(
                 $pedido->user,
                 'Pedido Separado! 📦',
@@ -198,7 +230,6 @@ class PedidoController extends Controller
             $pedido->update(['status' => 'em_transito']);
             $pedido->motos()->update(['status' => 'em_transito']);
 
-            // Atualiza Romaneio se necessário
             if ($pedido->romaneio_id) {
                 $romaneio = Romaneio::find($pedido->romaneio_id);
                 if ($romaneio && $romaneio->status === 'aberto') {
@@ -243,11 +274,9 @@ class PedidoController extends Controller
                 $client->refreshToken(config('services.google.refresh_token'));
                 $service = new Drive($client);
                 
-                // Cache de Pastas (Evita chamadas repetidas API)
                 $folderName = "Filial - " . $userFilial;
                 $rootId = config('services.google.folder_id');
                 
-                // Lógica de Pastas (Filial -> Ano -> Mês)
                 $targetFolderId = Cache::remember("drive_fldr_{$pedido->user_id}_" . date('Ym'), 3600, function () use ($service, $rootId, $folderName) {
                     $filialId = $this->findOrCreateFolder($service, $folderName, $rootId);
                     $yearId = $this->findOrCreateFolder($service, date('Y'), $filialId);
@@ -259,7 +288,7 @@ class PedidoController extends Controller
                 $name = "ROMANEIO_Ped-{$pedido->id}_" . date('d-m-Y') . ".{$file->getClientOriginalExtension()}";
                 $pedido->comprovante_url = $this->uploadFileToDrive($service, $file, $targetFolderId, $name);
 
-                // Processa Avarias e Atualiza Motos
+                // Processa Avarias
                 $listaAvarias = $request->input('avarias', []);
                 $fotosAvarias = $request->file('fotos_avarias', []);
                 $qtdAvarias = 0;
@@ -286,11 +315,9 @@ class PedidoController extends Controller
                     $moto->update($dadosUpdate);
                 }
 
-                // Finaliza Pedido
                 $pedido->status = 'concluido';
                 $pedido->save();
 
-                // Verifica Romaneio (Padronizado para 'concluido')
                 if ($pedido->romaneio_id) {
                     $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
                         ->whereNotIn('status', ['concluido', 'cancelado'])
@@ -301,7 +328,6 @@ class PedidoController extends Controller
                     }
                 }
 
-                // Logs e Notificações
                 $logMsg = $qtdAvarias > 0 ? "Entrega com {$qtdAvarias} avarias." : "Entrega finalizada 100%.";
                 $this->registrarLog($pedido, 'Concluído', $logMsg);
 
@@ -314,7 +340,6 @@ class PedidoController extends Controller
                     route('pedidos.show', $pedido->id)
                 );
 
-                // Confirmação para quem enviou
                 if ($pedido->user->id !== Auth::id()) {
                      $this->enviarNotificacao(
                         $pedido->user,
@@ -327,7 +352,6 @@ class PedidoController extends Controller
                 return redirect()->back()->with('message', 'Entrega finalizada com sucesso!');
 
             } catch (\Exception $e) {
-                // Em caso de erro, rollback automático da transação acontece aqui
                 throw $e; 
             }
         });
@@ -351,7 +375,6 @@ class PedidoController extends Controller
                 $pedido->motos()->detach($moto->id);
             }
 
-            // Notifica Loja ANTES de deletar o objeto da memória
             $this->enviarNotificacao(
                 $pedido->user,
                 'Pedido Rejeitado 🛑',
@@ -370,15 +393,15 @@ class PedidoController extends Controller
         return DB::transaction(function () use ($id) {
             $pedido = Pedido::with('motos', 'user')->findOrFail($id);
 
-            if ($pedido->status !== 'solicitado') {
-                return redirect()->back()->with('error', 'Pedido já em processamento.');
+            // Permite cancelar se estiver 'solicitado' (CD ainda não pegou) ou 'em_analise'
+            if (!in_array($pedido->status, ['solicitado', 'em_analise'])) {
+                return redirect()->back()->with('error', 'Pedido já em processamento avançado.');
             }
 
             if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
                 abort(403);
             }
 
-            // Libera Motos
             foreach ($pedido->motos as $moto) {
                 $moto->update([
                     'status' => 'estoque_fabrica',
@@ -388,7 +411,6 @@ class PedidoController extends Controller
             }
             $pedido->motos()->detach();
             
-            // Notifica Gestores
             $gestores = User::where('perfil', 'gestor')->get();
             $this->enviarNotificacao(
                 $gestores,
@@ -417,12 +439,11 @@ class PedidoController extends Controller
         }
 
         $pedidos = $query->orderBy('created_at', 'desc')->get();
-
         $filename = "relatorio_pedidos_" . date('d-m-Y_H-i') . ".csv";
         
         return response()->stream(function () use ($pedidos) {
             $handle = fopen('php://output', 'w');
-            fputs($handle, "\xEF\xBB\xBF"); // BOM para Excel
+            fputs($handle, "\xEF\xBB\xBF");
             fputcsv($handle, ['ID', 'Data', 'Loja', 'Status', 'Qtd', 'Modelos', 'Chassis', 'Carga', 'Motorista', 'Conclusão'], ';');
 
             foreach ($pedidos as $pedido) {
@@ -451,15 +472,10 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Romaneio', ['pedido' => $pedido]);
     }
 
-    // --- FUNÇÕES AUXILIARES PRIVADAS (GOOGLE DRIVE) ---
-
+    // --- FUNÇÕES PRIVADAS (G. DRIVE) ---
     private function uploadFileToDrive($service, $file, $folderId, $fileName)
     {
-        $fileMetadata = new DriveFile([
-            'name' => $fileName,
-            'parents' => [$folderId]
-        ]);
-        
+        $fileMetadata = new DriveFile(['name' => $fileName, 'parents' => [$folderId]]);
         $content = file_get_contents($file->getRealPath());
 
         $uploadedFile = $service->files->create($fileMetadata, [
@@ -484,9 +500,7 @@ class PedidoController extends Controller
         $query = "mimeType='application/vnd.google-apps.folder' and name='{$folderName}' and '{$parentId}' in parents and trashed=false";
         $files = $service->files->listFiles(['q' => $query]);
 
-        if (count($files->getFiles()) > 0) {
-            return $files->getFiles()[0]->id;
-        }
+        if (count($files->getFiles()) > 0) return $files->getFiles()[0]->id;
 
         $folderMetadata = new DriveFile([
             'name' => $folderName,
