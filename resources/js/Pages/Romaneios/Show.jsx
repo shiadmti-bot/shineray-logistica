@@ -1,11 +1,44 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
+import { useMemo } from 'react'; // Importação essencial
 import Swal from 'sweetalert2';
 
-export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
-    
-    // Calcula o total de motos somando os arrays de cada loja/destino
-    const totalMotos = Object.values(cargasPorLoja).reduce((acc, lista) => acc + lista.length, 0);
+export default function RomaneioShow({ auth, romaneio }) { 
+    // Removemos a dependência de 'cargasPorLoja' do backend. 
+    // Vamos calcular o agrupamento aqui mesmo para garantir fidelidade ao destino.
+
+    // --- 1. LÓGICA DE AGRUPAMENTO REAL (POR DESTINO) ---
+    const cargasAgrupadas = useMemo(() => {
+        const grupos = {};
+        
+        // Garante que existe array de motos
+        const listaMotos = romaneio.motos || [];
+
+        listaMotos.forEach(moto => {
+            // AQUI ESTÁ O SEGREDO:
+            // Pegamos o destino gravado na linha do item (pivot), ignorando quem pediu.
+            let destino = moto.pivot?.destino 
+                       || moto.pedido?.user?.filial 
+                       || 'DESTINO NÃO INFORMADO';
+            
+            // Normaliza para evitar duplicidade (ex: "Belem" vs "BELEM")
+            destino = destino.toUpperCase().trim();
+
+            if (!grupos[destino]) {
+                grupos[destino] = [];
+            }
+            grupos[destino].push(moto);
+        });
+
+        // Ordena os destinos alfabeticamente
+        return Object.keys(grupos).sort().reduce((obj, key) => { 
+            obj[key] = grupos[key]; 
+            return obj;
+        }, {});
+    }, [romaneio]);
+
+    // Total de motos (conta direta da lista)
+    const totalMotos = romaneio.motos ? romaneio.motos.length : 0;
 
     const getStatusStep = () => {
         if (romaneio.status === 'concluido') return 4;
@@ -112,20 +145,20 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                         </div>
                     </div>
 
-                    {/* LISTA DE CARGAS AGRUPADAS POR DESTINO */}
-                    <h3 className="font-bold text-gray-700 text-lg mt-4">📦 Detalhamento da Carga</h3>
-                    {Object.keys(cargasPorLoja).map((destinoNome, index) => (
+                    {/* LISTA DE CARGAS AGRUPADAS POR DESTINO REAL */}
+                    <h3 className="font-bold text-gray-700 text-lg mt-4">📦 Detalhamento da Carga (Por Destino)</h3>
+                    {Object.keys(cargasAgrupadas).map((destinoNome, index) => (
                         <div key={index} className="bg-white shadow-sm sm:rounded-lg overflow-hidden border border-gray-200">
                             <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
                                 <div className="flex items-center gap-2">
                                     <span className="text-xl">📍</span>
                                     <div>
-                                        <p className="text-xs text-gray-500 font-bold uppercase">Destino</p>
+                                        <p className="text-xs text-gray-500 font-bold uppercase">Local de Entrega</p>
                                         <h3 className="font-bold text-gray-800 text-lg leading-none">{destinoNome}</h3>
                                     </div>
                                 </div>
                                 <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">
-                                    {cargasPorLoja[destinoNome].length} Volumes
+                                    {cargasAgrupadas[destinoNome].length} Volumes
                                 </span>
                             </div>
                             <table className="min-w-full divide-y divide-gray-200">
@@ -134,19 +167,21 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                                         <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Modelo</th>
                                         <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Cor</th>
                                         <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Chassi</th>
-                                        <th className="px-6 py-3 text-right text-xs font-extrabold text-gray-500 uppercase tracking-wider">Pedido</th>
+                                        <th className="px-6 py-3 text-right text-xs font-extrabold text-gray-500 uppercase tracking-wider">Solicitante</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-100">
-                                    {cargasPorLoja[destinoNome].map((moto) => (
+                                    {cargasAgrupadas[destinoNome].map((moto) => (
                                         <tr key={moto.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-3 text-sm font-bold text-gray-700">{moto.modelo}</td>
                                             <td className="px-6 py-3 text-xs uppercase text-gray-500 font-bold">{moto.cor}</td>
                                             <td className="px-6 py-3 text-sm font-mono text-gray-600 tracking-wide">{moto.chassi}</td>
                                             <td className="px-6 py-3 text-right">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                                    #{moto.pedido_id}
-                                                </span>
+                                                <div className="flex flex-col items-end">
+                                                    {/* Mostra quem pediu, já que o destino está no título */}
+                                                    <span className="text-xs font-bold text-gray-700">{moto.pedido?.user?.filial || 'Matriz'}</span>
+                                                    <span className="text-[10px] text-gray-400">Pedido #{moto.pedido_id}</span>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -158,7 +193,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
             </div>
 
             {/* =================================================================================
-                LAYOUT DE IMPRESSÃO (NOTA FISCAL / MANIFESTO / DOCUMENTO LEGAL)
+                LAYOUT DE IMPRESSÃO (MANIFESTO DE CARGA)
                ================================================================================= */}
             <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:z-[9999] print:p-0 text-black font-sans">
                 
@@ -202,14 +237,17 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                     </div>
                 </div>
 
-                {/* LISTAGEM DE ITENS (AGRUPADA) */}
+                {/* LISTAGEM DE ITENS (AGRUPADA POR DESTINO REAL) */}
                 <div className="mx-8">
-                    {Object.keys(cargasPorLoja).map((destinoNome) => (
+                    {Object.keys(cargasAgrupadas).map((destinoNome) => (
                         <div key={destinoNome} className="mb-6 break-inside-avoid">
+                            {/* Cabeçalho do Grupo de Destino */}
                             <div className="bg-black text-white px-3 py-1 text-xs font-bold uppercase flex justify-between print:bg-black print:text-white">
                                 <span>DESTINO: {destinoNome}</span>
-                                <span>{cargasPorLoja[destinoNome].length} VOLUMES</span>
+                                <span>{cargasAgrupadas[destinoNome].length} VOLUMES</span>
                             </div>
+                            
+                            {/* Tabela de Itens */}
                             <table className="w-full text-[10px] border-collapse border-l border-r border-b border-black">
                                 <thead className="bg-gray-100">
                                     <tr>
@@ -221,7 +259,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {cargasPorLoja[destinoNome].map((moto, i) => (
+                                    {cargasAgrupadas[destinoNome].map((moto, i) => (
                                         <tr key={moto.id}>
                                             <td className="border-b border-r border-gray-300 p-1 text-center">{i + 1}</td>
                                             <td className="border-b border-r border-gray-300 p-1 font-bold">{moto.modelo}</td>
@@ -241,7 +279,6 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                     <p className="text-[8px] text-justify mb-8 italic text-gray-600">
                         DECLARO TER RECEBIDO OS ITENS ACIMA RELACIONADOS EM PERFEITO ESTADO DE CONSERVAÇÃO E FUNCIONAMENTO. 
                         A CONFERÊNCIA FÍSICA DOS CHASSIS NO ATO DA ENTREGA É DE RESPONSABILIDADE DO RECEBEDOR.
-                        QUALQUER DIVERGÊNCIA DEVE SER ANOTADA NO VERSO DESTE DOCUMENTO.
                     </p>
                     <div className="grid grid-cols-3 gap-12 text-center mt-8">
                         <div>
@@ -256,7 +293,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                         </div>
                         <div>
                             <div className="border-t border-black mb-1"></div>
-                            <p className="text-[9px] font-bold uppercase">Recebedor Loja/Cliente</p>
+                            <p className="text-[9px] font-bold uppercase">Recebedor</p>
                             <p className="text-[8px]">Data: ____/____/_______</p>
                         </div>
                     </div>
@@ -270,7 +307,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
     );
 }
 
-// Subcomponente Stepper (Visualização de Progresso)
+// Subcomponente Stepper
 function RomaneioStepper({ currentStep }) {
     const steps = [
         { id: 1, label: 'Abertura', icon: '📝' },
