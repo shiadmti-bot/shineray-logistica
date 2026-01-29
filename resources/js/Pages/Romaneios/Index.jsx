@@ -2,13 +2,19 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
 export default function RomaneioIndex({ auth, romaneios, filters }) {
+    // 1. BLINDAGEM DE DADOS: Garante que 'romaneios' nunca seja nulo/undefined
+    const safeRomaneios = romaneios || { data: [], links: [], total: 0 };
+
     const { data, setData, get, processing } = useForm({
-        search: filters.search || '',
+        search: filters?.search || '', // Proteção contra filters null
     });
 
     const handleSearch = (e) => {
         e.preventDefault();
-        get(route('romaneios.index'));
+        get(route('romaneios.index'), {
+            preserveState: true,
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -20,9 +26,11 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                     
                     {/* --- CABEÇALHO E AÇÕES --- */}
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center transition-all hover:shadow-md">
-                        <Link href={route('romaneios.create')} className="w-full md:w-auto bg-gradient-to-r from-gray-800 to-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:from-black hover:to-gray-800 transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
-                            <span>🚛</span> Nova Expedição
-                        </Link>
+                        {auth.user.perfil === 'cd' && (
+                            <Link href={route('romaneios.create')} className="w-full md:w-auto bg-gradient-to-r from-gray-800 to-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:from-black hover:to-gray-800 transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
+                                <span>🚛</span> Nova Expedição
+                            </Link>
+                        )}
 
                         <form onSubmit={handleSearch} className="flex w-full md:w-auto gap-2 relative">
                             <div className="relative w-full md:w-80">
@@ -47,26 +55,26 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
 
                     {/* --- VERSÃO MOBILE (CARDS COM PROGRESSO) --- */}
                     <div className="md:hidden space-y-4">
-                        {romaneios.data.map((romaneio) => (
+                        {safeRomaneios.data.length > 0 ? safeRomaneios.data.map((romaneio) => (
                             <Link key={romaneio.id} href={route('romaneios.show', romaneio.id)} className="block group">
                                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-gray-300 hover:shadow-md transition relative overflow-hidden">
-                                    {/* Faixa lateral colorida */}
-                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getStatusColor(romaneio.status)}`}></div>
+                                    {/* Faixa lateral colorida segura */}
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${safeGetStatusColor(romaneio.status)}`}></div>
 
                                     <div className="flex justify-between items-start mb-3 pl-2">
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xl font-black text-gray-800">#{String(romaneio.id).padStart(6, '0')}</span>
                                             </div>
-                                            <div className="text-sm font-bold text-gray-700 mt-1">{romaneio.motorista}</div>
+                                            <div className="text-sm font-bold text-gray-700 mt-1">{romaneio.motorista || 'Motorista N/D'}</div>
                                             <div className="text-xs text-gray-500 font-mono uppercase bg-gray-50 px-2 py-0.5 rounded inline-block mt-1 border border-gray-200">
-                                                {romaneio.placa}
+                                                {romaneio.placa || 'SEM PLACA'}
                                             </div>
                                         </div>
                                         <div className="text-right">
                                             <span className="block text-xs text-gray-400 uppercase font-bold mb-1">Motos</span>
                                             <span className="text-xl font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
-                                                {romaneio.motos_count}
+                                                {romaneio.motos_count || 0}
                                             </span>
                                         </div>
                                     </div>
@@ -76,19 +84,21 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                                         <div className="flex justify-between items-end mb-1">
                                             <BadgeStatus status={romaneio.status} />
                                             <span className="text-[10px] text-gray-400 font-bold">
-                                                {new Date(romaneio.created_at).toLocaleDateString()}
+                                                {romaneio.created_at ? new Date(romaneio.created_at).toLocaleDateString() : '-'}
                                             </span>
                                         </div>
                                         <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                                             <div 
-                                                className={`h-full ${getStatusColor(romaneio.status)} transition-all duration-1000`} 
-                                                style={{ width: `${(getStepNumber(romaneio.status) / 4) * 100}%` }}
+                                                className={`h-full ${safeGetStatusColor(romaneio.status)} transition-all duration-1000`} 
+                                                style={{ width: `${(safeGetStepNumber(romaneio.status) / 4) * 100}%` }}
                                             ></div>
                                         </div>
                                     </div>
                                 </div>
                             </Link>
-                        ))}
+                        )) : (
+                            <div className="text-center py-10 text-gray-500">Nenhuma expedição encontrada.</div>
+                        )}
                     </div>
 
                     {/* --- VERSÃO DESKTOP (TABELA COM PROGRESSO) --- */}
@@ -104,45 +114,47 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-100">
-                                {romaneios.data.map((romaneio) => (
-                                    <tr key={romaneio.id} className="hover:bg-gray-50 transition duration-150 group">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-black text-gray-800">#{String(romaneio.id).padStart(6, '0')}</div>
-                                            <div className="text-xs text-gray-400 mt-0.5">{new Date(romaneio.created_at).toLocaleDateString()}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-sm font-bold text-gray-800">{romaneio.motorista}</div>
-                                            <div className="text-xs text-gray-500 font-mono mt-1">
-                                                {romaneio.placa} {romaneio.transportadora ? `• ${romaneio.transportadora}` : ''}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200 group-hover:bg-white group-hover:border-gray-300 transition">
-                                                {romaneio.motos_count}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex justify-between items-center">
-                                                    <BadgeStatus status={romaneio.status} />
+                                {safeRomaneios.data.length > 0 ? (
+                                    safeRomaneios.data.map((romaneio) => (
+                                        <tr key={romaneio.id || Math.random()} className="hover:bg-gray-50 transition duration-150 group">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="text-sm font-black text-gray-800">#{String(romaneio.id).padStart(6, '0')}</div>
+                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                    {romaneio.created_at ? new Date(romaneio.created_at).toLocaleDateString() : '-'}
                                                 </div>
-                                                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className={`h-full ${getStatusColor(romaneio.status)}`} 
-                                                        style={{ width: `${(getStepNumber(romaneio.status) / 4) * 100}%` }}
-                                                    ></div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm font-bold text-gray-800">{romaneio.motorista || 'Sem Motorista'}</div>
+                                                <div className="text-xs text-gray-500 font-mono mt-1">
+                                                    {romaneio.placa || 'SEM PLACA'} {romaneio.transportadora ? `• ${romaneio.transportadora}` : ''}
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <Link href={route('romaneios.show', romaneio.id)} className="text-indigo-600 hover:text-indigo-900 font-bold border border-indigo-100 hover:border-indigo-300 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition">
-                                                Inspecionar →
-                                            </Link>
-                                        </td>
-                                    </tr>
-                                ))}
-                                
-                                {romaneios.data.length === 0 && (
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200 group-hover:bg-white group-hover:border-gray-300 transition">
+                                                    {romaneio.motos_count || 0}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <BadgeStatus status={romaneio.status} />
+                                                    </div>
+                                                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className={`h-full ${safeGetStatusColor(romaneio.status)}`} 
+                                                            style={{ width: `${(safeGetStepNumber(romaneio.status) / 4) * 100}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <Link href={route('romaneios.show', romaneio.id)} className="text-indigo-600 hover:text-indigo-900 font-bold border border-indigo-100 hover:border-indigo-300 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition">
+                                                    Inspecionar →
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
                                     <tr>
                                         <td colSpan="5" className="px-6 py-12 text-center text-gray-400 bg-gray-50/50">
                                             <div className="flex flex-col items-center">
@@ -157,13 +169,17 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                     </div>
 
                     {/* PAGINAÇÃO */}
-                    {romaneios.links && romaneios.links.length > 3 && (
+                    {safeRomaneios.links && safeRomaneios.links.length > 3 && (
                         <div className="flex flex-wrap justify-center gap-2 mt-6">
-                            {romaneios.links.map((link, k) => (
+                            {safeRomaneios.links.map((link, k) => (
                                 <Link
                                     key={k}
-                                    href={link.url}
-                                    className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${link.active ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'} ${!link.url ? 'opacity-50 cursor-not-allowed hidden' : ''}`}
+                                    href={link.url || '#'}
+                                    className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${
+                                        link.active 
+                                            ? 'bg-gray-800 text-white border-gray-800' 
+                                            : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'
+                                    } ${!link.url ? 'opacity-50 cursor-not-allowed hidden' : ''}`}
                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                 />
                             ))}
@@ -175,10 +191,17 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
     );
 }
 
-// --- HELPERS VISUAIS E DE LÓGICA ---
+// --- FUNÇÕES AUXILIARES BLINDADAS (ZERO CRASH) ---
 
-function getStepNumber(status) {
-    switch(status) {
+// 1. Converte qualquer coisa para string segura (evita o erro toString of null)
+function safeString(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).toLowerCase();
+}
+
+function safeGetStepNumber(status) {
+    const s = safeString(status);
+    switch(s) {
         case 'aberto': return 1;
         case 'expedido': return 2;
         case 'em_transito': return 3;
@@ -187,8 +210,9 @@ function getStepNumber(status) {
     }
 }
 
-function getStatusColor(status) {
-    switch(status) {
+function safeGetStatusColor(status) {
+    const s = safeString(status);
+    switch(s) {
         case 'aberto': return 'bg-yellow-500';
         case 'expedido': return 'bg-blue-500';
         case 'em_transito': return 'bg-orange-500';
@@ -198,14 +222,16 @@ function getStatusColor(status) {
 }
 
 function BadgeStatus({ status }) {
+    const s = safeString(status);
+    
     const config = {
         'aberto':      { label: 'Em Aberto',    bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
         'expedido':    { label: 'Carregando',   bg: 'bg-blue-100 text-blue-800 border-blue-200' },
         'em_transito': { label: 'Em Trânsito',  bg: 'bg-orange-100 text-orange-800 border-orange-200' },
-        'concluido':   { label: 'concluido',    bg: 'bg-green-100 text-green-800 border-green-200' },
+        'concluido':   { label: 'Concluído',    bg: 'bg-green-100 text-green-800 border-green-200' },
     };
 
-    const current = config[status] || { label: status || 'Desconhecido', bg: 'bg-gray-100 text-gray-600 border-gray-200' };
+    const current = config[s] || { label: status || 'Desconhecido', bg: 'bg-gray-100 text-gray-600 border-gray-200' };
 
     return (
         <span className={`px-2.5 py-1 rounded-md text-[10px] md:text-xs font-bold uppercase border tracking-wide ${current.bg}`}>
