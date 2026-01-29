@@ -203,7 +203,44 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             return ['status' => 'Sucesso', 'cargas_corrigidas' => $corrigidos, 'detalhes' => $relatorio];
         });
 
-    }); // Fim Middleware Auth
+    });
+
+    // --- ROTA DE EMERGÊNCIA PARA LIMPAR O BANCO ---
+// Acesse: seu-site.com/limpar-banco
+Route::get('/limpar-banco', function () {
+    
+    // 1. Corrige Status NULOS
+    $afetadosStatus = \App\Models\Pedido::whereNull('status')->update(['status' => 'solicitado']);
+    
+    // 2. Remove Pedidos "Órfãos" de Usuário (Causa da tela branca)
+    $pedidosOrfaos = \App\Models\Pedido::doesntHave('user')->get();
+    $countOrfaos = $pedidosOrfaos->count();
+    
+    foreach ($pedidosOrfaos as $p) {
+        $p->motos()->detach(); // Solta as motos
+        $p->logs()->delete();  // Apaga logs
+        $p->delete();          // Tchau pedido
+    }
+
+    // 3. Remove Pedidos vinculados a Romaneios que não existem mais
+    // (Isso corrige o erro do doesntHave que você viu)
+    $pedidosRomaneioQuebrado = \App\Models\Pedido::whereNotNull('romaneio_id')
+        ->whereDoesntHave('romaneio')
+        ->update(['romaneio_id' => null]);
+
+    // 4. Limpeza de Motos com Status Nulo
+    $motosNulas = \App\Models\Moto::whereNull('status')->update(['status' => 'estoque_fabrica']);
+
+    return [
+        'status' => 'Concluído com Sucesso',
+        'detalhes' => [
+            'status_corrigidos' => $afetadosStatus,
+            'pedidos_orfaos_deletados' => $countOrfaos,
+            'romaneios_desvinculados' => $pedidosRomaneioQuebrado,
+            'motos_corrigidas' => $motosNulas
+        ]
+    ];
+});
 
     require __DIR__.'/auth.php';
 
