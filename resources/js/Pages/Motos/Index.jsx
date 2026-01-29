@@ -1,98 +1,186 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, router, Link } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
 
-export default function MotosIndex({ auth, motos, filters }) {
-    // Inicializa o termo de busca com o que veio do controller (ou vazio)
-    const [term, setTerm] = useState(filters?.search || '');
+export default function MotosIndex({ auth, motos, lojas, filters }) {
+    // Estado local para os filtros
+    const [params, setParams] = useState({
+        search: filters.search || '',
+        status: filters.status || '',
+        loja_id: filters.loja_id || ''
+    });
 
-    // Função de busca manual e segura
-    const doSearch = (e) => {
-        e.preventDefault();
-        router.get(route('motos.index'), 
-            { search: term }, // Envia apenas o termo
-            {
-                preserveState: true, // Não reseta a página inteira
-                replace: true        // Substitui a URL atual
-            }
-        );
+    // Função que aplica os filtros automaticamente ao mudar (Debounce opcional aqui, faremos direto no botão ou enter)
+    const applyFilters = () => {
+        router.get(route('motos.index'), params, {
+            preserveState: true,
+            replace: true,
+        });
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') applyFilters();
+    };
+
+    // Limpar filtros
+    const clearFilters = () => {
+        setParams({ search: '', status: '', loja_id: '' });
+        router.get(route('motos.index'));
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Motos (Modo Seguro)</h2>}>
+        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Base Geral de Motos</h2>}>
             <Head title="Motos" />
 
-            <div className="py-12 bg-gray-100 min-h-screen">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div className="py-8 bg-gray-100 min-h-screen">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* ÁREA DE BUSCA */}
-                    <div className="bg-white p-4 rounded shadow mb-6">
-                        <form onSubmit={doSearch} className="flex gap-2">
-                            <input 
-                                type="text"
-                                className="border border-gray-300 p-2 rounded w-full text-black placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                placeholder="Digite chassi, modelo ou cor..."
-                                value={term}
-                                onChange={e => setTerm(e.target.value)}
-                            />
-                            <button type="submit" className="bg-blue-800 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold transition-colors">
-                                Buscar
-                            </button>
-                            {/* Botão limpar se tiver busca */}
-                            {filters?.search && (
-                                <button 
-                                    type="button"
-                                    onClick={() => {
-                                        setTerm('');
-                                        router.get(route('motos.index'));
+                    {/* --- BARRA DE FILTROS AVANÇADA --- */}
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            
+                            {/* Busca Texto */}
+                            <div className="md:col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar</label>
+                                <input 
+                                    type="text"
+                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                    placeholder="Chassi ou Modelo..."
+                                    value={params.search}
+                                    onChange={e => setParams({...params, search: e.target.value})}
+                                    onKeyDown={handleKeyDown}
+                                />
+                            </div>
+
+                            {/* Filtro de Loja */}
+                            <div className="md:col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Loja Solicitante</label>
+                                <select 
+                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                    value={params.loja_id}
+                                    onChange={e => {
+                                        const newVal = e.target.value;
+                                        setParams(prev => ({...prev, loja_id: newVal}));
+                                        // Auto-submit ao selecionar loja (UX melhor)
+                                        router.get(route('motos.index'), { ...params, loja_id: newVal }, { preserveState: true, replace: true });
                                     }}
-                                    className="bg-gray-200 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-300"
                                 >
-                                    Limpar
+                                    <option value="">Todas as Lojas</option>
+                                    {lojas.map(loja => (
+                                        <option key={loja.id} value={loja.id}>{loja.filial} - {loja.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Filtro de Status */}
+                            <div className="md:col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status Atual</label>
+                                <select 
+                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                    value={params.status}
+                                    onChange={e => setParams({...params, status: e.target.value})}
+                                >
+                                    <option value="">Todos</option>
+                                    <option value="estoque_fabrica">Estoque Fábrica</option>
+                                    <option value="reservado">Reservado</option>
+                                    <option value="separado">Separado</option>
+                                    <option value="em_transito">Em Trânsito</option>
+                                    <option value="entregue">Entregue</option>
+                                </select>
+                            </div>
+
+                            {/* Botões */}
+                            <div className="flex gap-2">
+                                <button onClick={applyFilters} className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-bold hover:bg-gray-700 transition flex-1">
+                                    Filtrar
                                 </button>
-                            )}
-                        </form>
+                                {(params.search || params.status || params.loja_id) && (
+                                    <button onClick={clearFilters} className="bg-white border border-gray-300 text-gray-500 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
+                                        Limpar
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
-                    {/* TABELA BLINDADA (Sem componentes complexos) */}
+                    {/* --- TABELA DE DADOS --- */}
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                         <div className="overflow-x-auto">
-                            <table className="min-w-full text-left text-sm">
-                                <thead className="bg-gray-50 text-gray-600 uppercase tracking-wider font-bold">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
                                     <tr>
-                                        <th className="p-4 border-b">ID</th>
-                                        <th className="p-4 border-b">Chassi</th>
-                                        <th className="p-4 border-b">Modelo / Cor</th>
-                                        <th className="p-4 border-b">Status</th>
-                                        <th className="p-4 border-b">Localização</th>
+                                        <th className="px-6 py-3 text-left">Chassi / ID</th>
+                                        <th className="px-6 py-3 text-left">Modelo & Detalhes</th>
+                                        <th className="px-6 py-3 text-left">Loja Solicitante</th>
+                                        <th className="px-6 py-3 text-left">Localização / Status</th>
+                                        <th className="px-6 py-3 text-right">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {/* Verifica se existem dados antes de tentar mapear */}
-                                    {motos?.data?.length > 0 ? (
-                                        motos.data.map((moto) => (
-                                            <tr key={moto?.id || Math.random()} className="hover:bg-blue-50 transition-colors">
-                                                <td className="p-4 text-gray-500">#{moto.id}</td>
-                                                <td className="p-4 font-mono font-bold text-gray-800">
-                                                    {moto.chassi || <span className="text-red-400">SEM CHASSI</span>}
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="font-bold text-gray-700">{moto.modelo || '-'}</div>
-                                                    <div className="text-xs text-gray-500">{moto.cor || '-'}</div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <StatusBadge status={moto.status} />
-                                                </td>
-                                                <td className="p-4 text-gray-600 text-xs">
-                                                    {moto.localizacao_atual || '-'}
-                                                </td>
-                                            </tr>
-                                        ))
+                                <tbody className="bg-white divide-y divide-gray-100 text-sm">
+                                    {motos.data.length > 0 ? (
+                                        motos.data.map((moto) => {
+                                            // Pega o pedido mais recente (vinculado no controller)
+                                            const pedidoAtual = moto.pedidos && moto.pedidos.length > 0 ? moto.pedidos[0] : null;
+                                            const loja = pedidoAtual ? pedidoAtual.user : null;
+
+                                            return (
+                                                <tr key={moto.id} className="hover:bg-gray-50 transition">
+                                                    
+                                                    {/* Coluna 1: Chassi */}
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-mono font-bold text-gray-800 tracking-wide">{moto.chassi}</div>
+                                                        <div className="text-xs text-gray-400">ID: #{moto.id}</div>
+                                                    </td>
+
+                                                    {/* Coluna 2: Dados Moto */}
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-gray-700">{moto.modelo}</div>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded capitalize border border-gray-200">{moto.cor}</span>
+                                                            {moto.ano_fabricacao && <span className="text-xs text-gray-500">Ano: {moto.ano_fabricacao}</span>}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Coluna 3: Loja (Inteligente) */}
+                                                    <td className="px-6 py-4">
+                                                        {loja ? (
+                                                            <div>
+                                                                <div className="font-bold text-blue-800">{loja.filial || 'Matriz'}</div>
+                                                                <div className="text-xs text-gray-500">{loja.name}</div>
+                                                                <div className="text-[10px] text-gray-400 mt-0.5">Pedido #{pedidoAtual.id}</div>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-400 italic text-xs">Sem pedido ativo</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Coluna 4: Status */}
+                                                    <td className="px-6 py-4">
+                                                        <StatusBadge status={moto.status} />
+                                                        <div className="text-xs text-gray-500 mt-1 max-w-[150px] truncate" title={moto.localizacao_atual}>
+                                                            📍 {moto.localizacao_atual || 'Não informado'}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Coluna 5: Ações */}
+                                                    <td className="px-6 py-4 text-right">
+                                                        {pedidoAtual && (
+                                                            <Link 
+                                                                href={route('pedidos.show', pedidoAtual.id)} 
+                                                                className="text-indigo-600 hover:text-indigo-900 font-bold text-xs border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-50"
+                                                            >
+                                                                Ver Pedido
+                                                            </Link>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" className="p-8 text-center text-gray-500">
-                                                <div className="text-2xl mb-2">🔍</div>
-                                                Nenhuma moto encontrada.
+                                            <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                                                <div className="text-3xl mb-2">🔍</div>
+                                                <p>Nenhuma moto encontrada com estes filtros.</p>
                                             </td>
                                         </tr>
                                     )}
@@ -100,27 +188,19 @@ export default function MotosIndex({ auth, motos, filters }) {
                             </table>
                         </div>
 
-                        {/* PAGINAÇÃO */}
-                        {motos?.links?.length > 3 && (
-                            <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-center gap-1 flex-wrap">
+                        {/* Paginação */}
+                        {motos.links.length > 3 && (
+                            <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex justify-center flex-wrap gap-1">
                                 {motos.links.map((link, i) => (
                                     link.url ? (
-                                        <button
+                                        <Link
                                             key={i}
-                                            onClick={() => router.get(link.url)}
-                                            className={`px-3 py-1 rounded text-sm font-bold border ${
-                                                link.active 
-                                                    ? 'bg-blue-800 text-white border-blue-800' 
-                                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
-                                            }`}
+                                            href={link.url}
+                                            className={`px-3 py-1 rounded text-xs font-bold border ${link.active ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
                                             dangerouslySetInnerHTML={{ __html: link.label }}
                                         />
                                     ) : (
-                                        <span 
-                                            key={i} 
-                                            className="px-3 py-1 rounded text-sm text-gray-400 border border-gray-200 bg-gray-50" 
-                                            dangerouslySetInnerHTML={{ __html: link.label }} 
-                                        />
+                                        <span key={i} className="px-3 py-1 text-xs text-gray-400 border bg-gray-100 rounded" dangerouslySetInnerHTML={{ __html: link.label }} />
                                     )
                                 ))}
                             </div>
@@ -132,20 +212,20 @@ export default function MotosIndex({ auth, motos, filters }) {
     );
 }
 
-// Subcomponente para organizar os Badges
+// Helper Visual
 function StatusBadge({ status }) {
-    const s = status || 'nd';
-    let colorClass = 'bg-gray-200 text-gray-800'; // Padrão
-
-    if (s === 'entregue') colorClass = 'bg-gray-800 text-white';
-    else if (s === 'em_transito') colorClass = 'bg-orange-100 text-orange-800';
-    else if (s === 'estoque_fabrica' || s === 'disponivel') colorClass = 'bg-green-100 text-green-800';
-    else if (s === 'reservado') colorClass = 'bg-yellow-100 text-yellow-800';
-    else if (s === 'separado') colorClass = 'bg-blue-100 text-blue-800';
+    const config = {
+        'estoque_fabrica': { bg: 'bg-green-100 text-green-800', label: 'Estoque' },
+        'reservado':       { bg: 'bg-yellow-100 text-yellow-800', label: 'Reservado' },
+        'separado':        { bg: 'bg-blue-100 text-blue-800', label: 'Separado' },
+        'em_transito':     { bg: 'bg-orange-100 text-orange-800', label: 'Em Trânsito' },
+        'entregue':        { bg: 'bg-gray-800 text-white', label: 'Entregue' },
+        'avariado':        { bg: 'bg-red-100 text-red-800', label: 'Avariado' },
+    }[status] || { bg: 'bg-gray-100 text-gray-600', label: status };
 
     return (
-        <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${colorClass}`}>
-            {s.replace('_', ' ')}
+        <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${config.bg}`}>
+            {config.label}
         </span>
     );
 }

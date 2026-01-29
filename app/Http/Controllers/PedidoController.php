@@ -101,34 +101,37 @@ class PedidoController extends Controller
 
     public function store(Request $request)
     {
+        // 1. Validação Rigorosa (Incluindo o novo campo 'local')
         $request->validate([
             'itens' => 'required|array|min:1',
             'itens.*.modelo' => 'required|string',
             'itens.*.chassi' => 'required|string|between:11,17|distinct',
             'itens.*.cor' => 'required|string|min:3', 
             'itens.*.motivo' => 'required|string',
+            'itens.*.local' => 'required|string', // Novo campo obrigatório (Destino)
         ]);
 
         return DB::transaction(function () use ($request) {
-            // 1. Verificação de Duplicidade
-            $chassisRequest = array_column($request->itens, 'chassi');
+            // 2. Verificação de Duplicidade (Otimizada)
+            $chassisRequest = array_map('strtoupper', array_column($request->itens, 'chassi'));
+            
             $duplicados = Moto::whereIn('chassi', $chassisRequest)
                 ->whereNotIn('status', ['estoque_fabrica', 'cancelado']) 
                 ->pluck('chassi')
                 ->toArray();
             
             if (!empty($duplicados)) {
-                throw ValidationException::withMessages(['itens' => 'Chassis indisponíveis: ' . implode(', ', $duplicados)]);
+                throw ValidationException::withMessages(['itens' => 'Chassis indisponíveis/já em uso: ' . implode(', ', $duplicados)]);
             }
 
-            // 2. Cria Pedido (STATUS 'em_analise' RESTAURADO)
+            // 3. Cria Pedido (Status inicial: 'em_analise')
             $pedido = Pedido::create([
                 'user_id' => Auth::id(),
                 'status' => 'em_analise', 
                 'observacao' => $request->observacao
             ]);
 
-            // 3. Vincula Motos
+            // 4. Vincula Motos e Salva o Destino Individual
             foreach ($request->itens as $item) {
                 $moto = Moto::updateOrCreate(
                     ['chassi' => mb_strtoupper($item['chassi'])],
@@ -141,18 +144,23 @@ class PedidoController extends Controller
                         'localizacao_atual' => 'Solicitado pela Loja: ' . Auth::user()->name
                     ]
                 );
-                $pedido->motos()->attach($moto->id);
+
+                // AQUI ESTÁ A ATUALIZAÇÃO DO REQUISITO:
+                // Salvamos o 'local' do formulário na coluna 'destino' da tabela pivô
+                $pedido->motos()->attach($moto->id, [
+                    'destino' => mb_strtoupper($item['local']) 
+                ]);
             }
 
             $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido aguardando análise do Gestor.');
 
-            // 4. Notifica Gestores
+            // 5. Notifica Gestores
             $gestores = User::where('perfil', 'gestor')->get();
             $this->enviarNotificacao(
                 $gestores, 
                 'Nova Solicitação 🆕', 
                 "Loja " . Auth::user()->name . " solicitou aprovação para {$pedido->motos()->count()} moto(s).", 
-                route('dashboard') // Leva para o Dashboard onde o Gestor vê
+                route('dashboard') 
             );
 
             return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para análise!');

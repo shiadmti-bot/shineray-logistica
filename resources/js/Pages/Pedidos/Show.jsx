@@ -295,6 +295,7 @@ export default function PedidoShow({ auth, pedido }) {
                                         <th className="px-6 py-3 text-left font-extrabold tracking-wider">Modelo</th>
                                         <th className="px-6 py-3 text-left font-extrabold tracking-wider">Cor</th>
                                         <th className="px-6 py-3 text-left font-extrabold tracking-wider">Chassi</th>
+                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Destino</th>
                                         <th className="px-6 py-3 text-left font-extrabold tracking-wider">Motivo</th>
                                         <th className="px-6 py-3 text-center font-extrabold tracking-wider">Carga / Status</th>
                                     </tr>
@@ -306,11 +307,19 @@ export default function PedidoShow({ auth, pedido }) {
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center gap-2">
                                                     <span className="h-3 w-3 rounded-full border border-gray-300 shadow-sm" 
-                                                          style={{ backgroundColor: getColorHex(moto.cor) }}></span>
+                                                        style={{ backgroundColor: getColorHex(moto.cor) }}></span>
                                                     <span className="text-sm text-gray-700 font-medium capitalize">{moto.cor}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-mono text-sm text-gray-600 tracking-wide">{moto.chassi}</td>
+                                            
+                                            {/* EXIBIÇÃO DO DESTINO (Pivô ou Padrão) */}
+                                            <td className="px-6 py-4 text-sm text-gray-700">
+                                                <span className="flex items-center gap-1 font-medium bg-yellow-50 px-2 py-1 rounded text-yellow-800 border border-yellow-100 text-xs">
+                                                    📍 {moto.pivot?.destino || pedido.user.filial || 'Matriz'}
+                                                </span>
+                                            </td>
+
                                             <td className="px-6 py-4">
                                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
                                                     {moto.motivo_solicitacao || 'Venda'}

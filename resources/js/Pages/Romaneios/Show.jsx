@@ -4,6 +4,9 @@ import Swal from 'sweetalert2';
 
 export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
     
+    // Calcula o total de motos somando os arrays de cada loja/destino
+    const totalMotos = Object.values(cargasPorLoja).reduce((acc, lista) => acc + lista.length, 0);
+
     const getStatusStep = () => {
         if (romaneio.status === 'concluido') return 4;
         if (romaneio.status === 'em_transito') return 3;
@@ -14,7 +17,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
     const handleSaida = () => {
         Swal.fire({
             title: 'Liberar Saída?',
-            text: "Confirma a saída física do caminhão?",
+            text: `Confirma a saída física do caminhão com ${totalMotos} motos?`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#f97316',
@@ -27,7 +30,7 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
     const handleDelete = () => {
         Swal.fire({
             title: 'Desfazer Carga?',
-            text: "O Romaneio será excluído.",
+            text: "O Romaneio será excluído e as motos voltarão para 'Separado'.",
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -49,18 +52,22 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                     </Link>
                     <div>
                         <h2 className="font-bold text-xl text-gray-800 leading-tight">Romaneio #{String(romaneio.id).padStart(6, '0')}</h2>
-                        <p className="text-sm text-gray-500">Emissão: {new Date(romaneio.created_at).toLocaleDateString('pt-BR')}</p>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <span>Emissão: {new Date(romaneio.created_at).toLocaleDateString('pt-BR')}</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-400"></span>
+                            <span className="font-bold text-gray-700">{totalMotos} Volumes</span>
+                        </div>
                     </div>
                 </div>
             }
         >
             <Head title={`Romaneio #${romaneio.id}`} />
 
-            {/* VISÃO DE TELA (Interativa) */}
+            {/* --- VISÃO DE TELA (WEB) --- */}
             <div className="py-8 bg-gray-100 min-h-screen print:hidden">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* STEPPER (Barra de Progresso) */}
+                    {/* STEPPER */}
                     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                         <RomaneioStepper currentStep={getStatusStep()} />
                     </div>
@@ -70,9 +77,9 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                         <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900">🚛 Motorista: {romaneio.motorista}</h3>
-                                <p className="text-gray-600">Placa: <strong>{romaneio.placa}</strong></p>
+                                <p className="text-gray-600">Placa: <strong className="uppercase">{romaneio.placa}</strong></p>
+                                {romaneio.transportadora && <p className="text-gray-500 text-sm">Transp: {romaneio.transportadora}</p>}
                                 
-                                {/* Badge de Status para Conferência Visual */}
                                 <div className="mt-2">
                                     <span className={`px-2 py-1 rounded text-xs font-bold uppercase border
                                         ${romaneio.status === 'concluido' ? 'bg-green-100 text-green-800 border-green-200' : ''}
@@ -86,21 +93,18 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                             </div>
 
                             <div className="flex gap-3 flex-wrap justify-end">
-                                {/* BOTÃO IMPRIMIR (Sempre Visível) */}
-                                <button onClick={() => window.print()} className="flex items-center gap-2 bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-700 shadow-lg">
-                                    🖨️ IMPRIMIR
+                                <button onClick={() => window.print()} className="flex items-center gap-2 bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-700 shadow-lg transition-transform hover:-translate-y-0.5">
+                                    🖨️ IMPRIMIR MANIFESTO
                                 </button>
                                 
-                                {/* BOTÃO LIBERAR (Apenas se ainda estiver Aberto/Separado) */}
                                 {romaneio.status === 'aberto' && (
-                                    <button onClick={handleSaida} className="bg-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-600">
+                                    <button onClick={handleSaida} className="bg-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-600 transition-transform hover:-translate-y-0.5">
                                         🚛 Liberar Saída
                                     </button>
                                 )}
                                 
-                                {/* BOTÃO DESFAZER (Oculto se estiver em trânsito ou finalizado) */}
                                 {romaneio.status !== 'em_transito' && romaneio.status !== 'concluido' && (
-                                    <button onClick={handleDelete} className="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-100 border border-red-200">
+                                    <button onClick={handleDelete} className="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-100 border border-red-200 transition-colors">
                                         🗑️ Desfazer
                                     </button>
                                 )}
@@ -108,27 +112,42 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                         </div>
                     </div>
 
-                    {/* LISTA DE CARGAS POR LOJA */}
-                    {Object.keys(cargasPorLoja).map((lojaNome, index) => (
-                        <div key={index} className="bg-white shadow-sm sm:rounded-lg overflow-hidden">
+                    {/* LISTA DE CARGAS AGRUPADAS POR DESTINO */}
+                    <h3 className="font-bold text-gray-700 text-lg mt-4">📦 Detalhamento da Carga</h3>
+                    {Object.keys(cargasPorLoja).map((destinoNome, index) => (
+                        <div key={index} className="bg-white shadow-sm sm:rounded-lg overflow-hidden border border-gray-200">
                             <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center">
-                                <h3 className="font-bold text-gray-700">🏪 {lojaNome}</h3>
-                                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">{cargasPorLoja[lojaNome].length} Motos</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">📍</span>
+                                    <div>
+                                        <p className="text-xs text-gray-500 font-bold uppercase">Destino</p>
+                                        <h3 className="font-bold text-gray-800 text-lg leading-none">{destinoNome}</h3>
+                                    </div>
+                                </div>
+                                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">
+                                    {cargasPorLoja[destinoNome].length} Volumes
+                                </span>
                             </div>
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-white">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Modelo</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chassi</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cor</th>
+                                        <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Modelo</th>
+                                        <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Cor</th>
+                                        <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Chassi</th>
+                                        <th className="px-6 py-3 text-right text-xs font-extrabold text-gray-500 uppercase tracking-wider">Pedido</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {cargasPorLoja[lojaNome].map((moto) => (
-                                        <tr key={moto.id}>
-                                            <td className="px-6 py-4 text-sm font-bold">{moto.modelo}</td>
-                                            <td className="px-6 py-4 text-sm font-mono">{moto.chassi}</td>
-                                            <td className="px-6 py-4 text-sm">{moto.cor}</td>
+                                <tbody className="bg-white divide-y divide-gray-100">
+                                    {cargasPorLoja[destinoNome].map((moto) => (
+                                        <tr key={moto.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-3 text-sm font-bold text-gray-700">{moto.modelo}</td>
+                                            <td className="px-6 py-3 text-xs uppercase text-gray-500 font-bold">{moto.cor}</td>
+                                            <td className="px-6 py-3 text-sm font-mono text-gray-600 tracking-wide">{moto.chassi}</td>
+                                            <td className="px-6 py-3 text-right">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                                    #{moto.pedido_id}
+                                                </span>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -139,76 +158,76 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
             </div>
 
             {/* =================================================================================
-                LAYOUT DE IMPRESSÃO (NOTA FISCAL / MANIFESTO)
+                LAYOUT DE IMPRESSÃO (NOTA FISCAL / MANIFESTO / DOCUMENTO LEGAL)
                ================================================================================= */}
             <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:z-[9999] print:p-0 text-black font-sans">
                 
                 {/* CABEÇALHO */}
-                <div className="border-b-2 border-black pb-2 mb-4 flex justify-between items-center px-8 pt-8">
+                <div className="border-b-2 border-black pb-4 mb-4 flex justify-between items-center px-8 pt-8">
                     <div className="flex items-center gap-6">
-                        <img src="/img/logo.png" className="h-16 w-auto object-contain grayscale" alt="Shineray Logo" />
+                        <img src="/img/logo.png" className="h-12 w-auto object-contain grayscale" alt="Logo" />
                         <div>
-                            <h1 className="text-2xl font-black uppercase tracking-tight">Manifesto de Carga</h1>
-                            <p className="text-sm font-bold">SHINERAY DO BRASIL - CD ANANINDEUA</p>
-                            <p className="text-xs">Rodovia BR-316, KM 12 - Pará</p>
+                            <h1 className="text-2xl font-black uppercase tracking-tight leading-none">Manifesto de Carga</h1>
+                            <p className="text-sm font-bold mt-1">SHINERAY DO BRASIL - CD ANANINDEUA</p>
+                            <p className="text-[10px]">Rodovia BR-316, KM 12 - Centro de Distribuição</p>
                         </div>
                     </div>
                     <div className="text-right">
-                        <div className="text-xs uppercase font-bold text-gray-500">Número do Romaneio</div>
-                        <div className="text-4xl font-mono font-bold leading-none">{String(romaneio.id).padStart(6, '0')}</div>
-                        <div className="text-xs mt-1">Emissão: {new Date().toLocaleString('pt-BR')}</div>
+                        <div className="text-[10px] uppercase font-bold text-gray-500">Romaneio N°</div>
+                        <div className="text-3xl font-mono font-bold leading-none">{String(romaneio.id).padStart(6, '0')}</div>
+                        <div className="text-[10px] mt-1">Emissão: {new Date().toLocaleString('pt-BR')}</div>
                     </div>
                 </div>
 
                 {/* DADOS TRANSPORTE */}
-                <div className="mx-8 border border-black mb-4">
-                    <div className="bg-gray-200 border-b border-black p-1 px-2 text-xs font-bold uppercase">Dados do Transporte</div>
+                <div className="mx-8 border border-black mb-6">
+                    <div className="bg-gray-200 border-b border-black p-1 px-2 text-[10px] font-bold uppercase">Dados do Transporte</div>
                     <div className="grid grid-cols-4 divide-x divide-black text-xs">
                         <div className="p-2">
-                            <span className="block text-[9px] uppercase text-gray-500">Motorista</span>
+                            <span className="block text-[8px] uppercase text-gray-500">Motorista</span>
                             <span className="font-bold uppercase">{romaneio.motorista}</span>
                         </div>
                         <div className="p-2">
-                            <span className="block text-[9px] uppercase text-gray-500">Placa</span>
+                            <span className="block text-[8px] uppercase text-gray-500">Placa Veículo</span>
                             <span className="font-bold uppercase">{romaneio.placa}</span>
                         </div>
                         <div className="p-2">
-                            <span className="block text-[9px] uppercase text-gray-500">Transportadora</span>
+                            <span className="block text-[8px] uppercase text-gray-500">Transportadora</span>
                             <span className="font-bold uppercase">{romaneio.transportadora || 'FROTA PRÓPRIA'}</span>
                         </div>
-                        <div className="p-2">
-                            <span className="block text-[9px] uppercase text-gray-500">Volumes</span>
-                            <span className="font-bold">{romaneio.motos.length} UNIDADES</span>
+                        <div className="p-2 bg-gray-100">
+                            <span className="block text-[8px] uppercase text-gray-500">Total Volumes</span>
+                            <span className="font-bold text-sm">{totalMotos} UNIDADES</span>
                         </div>
                     </div>
                 </div>
 
-                {/* LISTAGEM DE ITENS */}
+                {/* LISTAGEM DE ITENS (AGRUPADA) */}
                 <div className="mx-8">
-                    {Object.keys(cargasPorLoja).map((lojaNome) => (
-                        <div key={lojaNome} className="mb-4 break-inside-avoid">
-                            <div className="bg-black text-white px-2 py-1 text-xs font-bold uppercase flex justify-between print:bg-black print:text-white">
-                                <span>DESTINATÁRIO: {lojaNome}</span>
-                                <span>{cargasPorLoja[lojaNome].length} VOLUMES</span>
+                    {Object.keys(cargasPorLoja).map((destinoNome) => (
+                        <div key={destinoNome} className="mb-6 break-inside-avoid">
+                            <div className="bg-black text-white px-3 py-1 text-xs font-bold uppercase flex justify-between print:bg-black print:text-white">
+                                <span>DESTINO: {destinoNome}</span>
+                                <span>{cargasPorLoja[destinoNome].length} VOLUMES</span>
                             </div>
-                            <table className="w-full text-[10px] border-collapse border border-black">
+                            <table className="w-full text-[10px] border-collapse border-l border-r border-b border-black">
                                 <thead className="bg-gray-100">
                                     <tr>
-                                        <th className="border border-black p-1 w-8 text-center">#</th>
-                                        <th className="border border-black p-1 text-left">Modelo</th>
-                                        <th className="border border-black p-1 text-left w-32">Chassi</th>
-                                        <th className="border border-black p-1 text-left w-20">Cor</th>
-                                        <th className="border border-black p-1 text-center w-24">Conferência</th>
+                                        <th className="border-b border-r border-black p-1 w-8 text-center">#</th>
+                                        <th className="border-b border-r border-black p-1 text-left">Modelo</th>
+                                        <th className="border-b border-r border-black p-1 text-left w-32">Chassi</th>
+                                        <th className="border-b border-r border-black p-1 text-left w-24">Cor</th>
+                                        <th className="border-b border-black p-1 text-center w-24">Conferência</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {cargasPorLoja[lojaNome].map((moto, i) => (
+                                    {cargasPorLoja[destinoNome].map((moto, i) => (
                                         <tr key={moto.id}>
-                                            <td className="border border-black p-1 text-center">{i + 1}</td>
-                                            <td className="border border-black p-1 font-bold">{moto.modelo}</td>
-                                            <td className="border border-black p-1 font-mono">{moto.chassi}</td>
-                                            <td className="border border-black p-1">{moto.cor}</td>
-                                            <td className="border border-black p-1 text-center text-gray-300">___/___</td>
+                                            <td className="border-b border-r border-gray-300 p-1 text-center">{i + 1}</td>
+                                            <td className="border-b border-r border-gray-300 p-1 font-bold">{moto.modelo}</td>
+                                            <td className="border-b border-r border-gray-300 p-1 font-mono">{moto.chassi}</td>
+                                            <td className="border-b border-r border-gray-300 p-1 uppercase">{moto.cor}</td>
+                                            <td className="border-b border-gray-300 p-1 text-center text-gray-300">___/___</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -218,25 +237,40 @@ export default function RomaneioShow({ auth, romaneio, cargasPorLoja }) {
                 </div>
 
                 {/* ASSINATURAS */}
-                <div className="mx-8 mt-12 pt-4 border-t-2 border-black break-inside-avoid">
-                    <p className="text-[9px] text-justify mb-8 italic">
-                        DECLARO TER RECEBIDO OS ITENS ACIMA RELACIONADOS EM PERFEITO ESTADO. A CONFERÊNCIA FÍSICA DOS CHASSIS É DE RESPONSABILIDADE DO RECEBEDOR.
+                <div className="mx-8 mt-10 pt-4 border-t-2 border-black break-inside-avoid">
+                    <p className="text-[8px] text-justify mb-8 italic text-gray-600">
+                        DECLARO TER RECEBIDO OS ITENS ACIMA RELACIONADOS EM PERFEITO ESTADO DE CONSERVAÇÃO E FUNCIONAMENTO. 
+                        A CONFERÊNCIA FÍSICA DOS CHASSIS NO ATO DA ENTREGA É DE RESPONSABILIDADE DO RECEBEDOR.
+                        QUALQUER DIVERGÊNCIA DEVE SER ANOTADA NO VERSO DESTE DOCUMENTO.
                     </p>
-                    <div className="grid grid-cols-3 gap-8 text-center">
-                        <div><div className="border-t border-black mb-1"></div><p className="text-[9px] font-bold uppercase">Expedição CD</p></div>
-                        <div><div className="border-t border-black mb-1"></div><p className="text-[9px] font-bold uppercase">Motorista</p></div>
-                        <div><div className="border-t border-black mb-1"></div><p className="text-[9px] font-bold uppercase">Recebedor Loja</p></div>
+                    <div className="grid grid-cols-3 gap-12 text-center mt-8">
+                        <div>
+                            <div className="border-t border-black mb-1"></div>
+                            <p className="text-[9px] font-bold uppercase">Expedição CD</p>
+                            <p className="text-[8px]">Assinatura e Carimbo</p>
+                        </div>
+                        <div>
+                            <div className="border-t border-black mb-1"></div>
+                            <p className="text-[9px] font-bold uppercase">Motorista Responsável</p>
+                            <p className="text-[8px]">CPF: .......................................</p>
+                        </div>
+                        <div>
+                            <div className="border-t border-black mb-1"></div>
+                            <p className="text-[9px] font-bold uppercase">Recebedor Loja/Cliente</p>
+                            <p className="text-[8px]">Data: ____/____/_______</p>
+                        </div>
                     </div>
                 </div>
 
-                <div className="fixed bottom-0 w-full text-center text-[8px] py-2">
-                    Impresso pelo Sistema Shineray Logística
+                <div className="fixed bottom-0 w-full text-center text-[8px] py-2 border-t border-gray-200">
+                    Sistema Shineray Logística - Impresso em {new Date().toLocaleString()} - Página 1/1
                 </div>
             </div>
         </AuthenticatedLayout>
     );
 }
 
+// Subcomponente Stepper (Visualização de Progresso)
 function RomaneioStepper({ currentStep }) {
     const steps = [
         { id: 1, label: 'Abertura', icon: '📝' },
@@ -254,7 +288,7 @@ function RomaneioStepper({ currentStep }) {
                         <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-lg border-4 transition-all duration-500 ${step.id <= currentStep ? 'border-green-500 text-green-600 shadow-md scale-110' : 'border-gray-200 text-gray-300'}`}>
                             {step.id < currentStep ? '✓' : step.icon}
                         </div>
-                        <span className={`mt-2 text-[10px] md:text-xs font-bold ${step.id <= currentStep ? 'text-gray-800' : 'text-gray-400'}`}>{step.label}</span>
+                        <span className={`mt-2 text-[10px] md:text-xs font-bold uppercase ${step.id <= currentStep ? 'text-gray-800' : 'text-gray-400'}`}>{step.label}</span>
                     </div>
                 ))}
             </div>
