@@ -1,80 +1,139 @@
-# Shineray Logística Integrada
+# 🚛 Shineray Logística Integrada ERP
 
-## Visão Geral
+![Laravel](https://img.shields.io/badge/Laravel-10.x-FF2D20?style=for-the-badge&logo=laravel)
+![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.x-38B2AC?style=for-the-badge&logo=tailwind-css)
+![Inertia.js](https://img.shields.io/badge/Inertia.js-Core-purple?style=for-the-badge)
+![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel)
 
-O sistema **Shineray Logística Integrada** centraliza, digitaliza e rastreia o fluxo de distribuição de motocicletas entre o Centro de Distribuição (CD) e as Lojas/Revendas. Ele elimina controles manuais, garante a integridade do estoque e fornece KPIs em tempo real para a diretoria.
+Sistema corporativo de **Gestão Logística e Expedição** desenvolvido para a **Sabel Logística / Shineray do Brasil**. A plataforma orquestra todo o fluxo de distribuição de motocicletas, desde a solicitação das revendas até a confirmação de entrega via reconhecimento digital, garantindo integridade de estoque e rastreabilidade em tempo real.
 
-## Stack Tecnológica
+---
 
-Este projeto utiliza uma arquitetura Monolítica Modular com Inertia.js, combinando as seguintes tecnologias:
+## 📋 Índice
 
-*   **Backend:** Laravel 11 (PHP 8.3)
-*   **Frontend:** React.js 18 (via Inertia.js)
-*   **Estilização:** Tailwind CSS (Design System "Red Shineray")
-*   **Banco de Dados:** MySQL / TiDB (Cloud)
-*   **Servidor Web:** Nginx / Apache (Compatível com Vercel Serverless)
+- [Visão Geral](#-visão-geral)
+- [Funcionalidades por Módulo](#-funcionalidades-por-módulo)
+- [Stack Tecnológica](#-stack-tecnológica)
+- [Instalação e Configuração](#-instalação-e-configuração)
+- [Variáveis de Ambiente](#-variáveis-de-ambiente)
+- [Modo de Manutenção](#-modo-de-manutenção)
+- [Integrações Externas](#-integrações-externas)
+- [Troubleshooting](#-troubleshooting)
+- [Autor](#-autor)
 
-## Funcionalidades Principais
+---
 
-*   **Gestão de Pedidos:** Criação, acompanhamento de status e confirmação de recebimento por Lojas.
-*   **Gestão de Romaneios:** Separação, expedição e geração de manifestos de carga pelo CD.
-*   **Rastreamento em Tempo Real:** Acompanhamento do status de pedidos e cargas.
-*   **Dashboard Interativo:** KPIs em tempo real com auto-refresh para o perfil CD.
-*   **Scanner de Chassi:** Leitura via câmera ou leitor USB com validação de estoque.
-*   **Central de Notificações:** Avisos sonoros, toasts e histórico de eventos.
-*   **Integração Google Drive API:** Armazenamento de comprovantes de entrega.
+## 🔭 Visão Geral
 
-## Instalação Local
+O sistema substitui planilhas e controles manuais por um fluxo digital integrado:
+1.  **Lojas** solicitam motos com validação de chassi.
+2.  **Gestor Comercial** audita e aprova/corta itens (Painel Mobile/Tablet).
+3.  **CD (Centro de Distribuição)** visualiza pedidos aprovados, realiza separação e monta cargas (Romaneios) via leitura de código de barras.
+4.  **Entrega** é confirmada via upload de foto do manifesto assinado, com arquivamento automático na nuvem.
 
-Para configurar o ambiente de desenvolvimento local, siga os passos abaixo:
+---
 
-```bash
-# 1. Clonar repositório
-git clone https://github.com/seu-repo/shineray-logistica.git
+## 📦 Funcionalidades por Módulo
 
-# 2. Instalar dependências
-composer install
-npm install
+### 🏪 Módulo Loja (Revenda)
+* **Solicitação Inteligente:** Validação de chassi (11-17 caracteres) e verificação de duplicidade.
+* **Rastreamento:** Status em tempo real (Em Análise → Aprovado → Em Trânsito).
+* **Recebimento:** Upload de comprovante de entrega (foto) que finaliza o pedido automaticamente.
 
-# 3. Configurar ambiente
-cp .env.example .env
-php artisan key:generate
+### 👮 Módulo Gestor (Comercial)
+* **Painel de Auditoria:** Interface otimizada para Tablets.
+* **Fluxo de Aprovação:** Permite aprovar ou rejeitar itens individualmente antes de enviar ao CD.
+* **Notificações:** Alertas sonoros ("Plim") e Push Notifications para novos pedidos.
 
-# 4. Configurar Banco de Dados (no .env) e rodar migrations
-php artisan migrate --seed 
-# (Nota: O seed cria usuários padrão: admin@shineray.com / 12345678)
+### 🏭 Módulo CD (Logística)
+* **Separação:** Visualização apenas de itens aprovados financeiramente.
+* **Expedição (Romaneio):**
+    * **Scanner:** Leitura de QR Code/Código de Barras via câmera ou leitor USB.
+    * **Agrupamento Inteligente:** O sistema organiza a carga por **Cidade de Destino**, permitindo múltiplas paradas na mesma viagem.
+    * **Manifesto:** Geração automática de PDF para impressão.
+* **Dashboard:** KPIs de expedição e pendências em tempo real.
 
-# 5. Rodar
-npm run dev
-php artisan serve
-```
+---
 
-## Configuração Google Drive API
+## 💻 Stack Tecnológica
 
-Para o funcionamento do upload de comprovantes, configure a Google Drive API:
+* **Backend:** Laravel 10 (PHP 8.2+)
+* **Frontend:** React.js 18 (via Inertia.js)
+* **Estilização:** Tailwind CSS (Design System "Red Shineray")
+* **Banco de Dados:** MySQL (Produção: TiDB Cloud / Local: MySQL 8)
+* **Notificações:** OneSignal (Web Push)
+* **Armazenamento:** Google Drive API v3 (Service Account)
+* **Logs:** Spatie ActivityLog
 
-1.  Crie uma **Service Account** no Google Cloud Console.
-2.  Baixe o arquivo JSON de credenciais.
-3.  Compartilhe a pasta do Google Drive com o e-mail da Service Account (permissão Editor).
-4.  Preencha as variáveis no `.env`:
-    *   `GOOGLE_DRIVE_CLIENT_ID`
-    *   `GOOGLE_DRIVE_CLIENT_SECRET`
-    *   `GOOGLE_DRIVE_REFRESH_TOKEN`
-    *   `GOOGLE_DRIVE_FOLDER` (ID da pasta raiz)
+---
 
-## Troubleshooting Comum
+## 🚀 Instalação e Configuração
 
-| Problema | Causa Provável | Solução |
-|---|---|---|
-| **Tela Branca após Deploy** | Cache antigo ou build falho. | Rodar `/limpar-cache` ou `php artisan optimize:clear`. |
-| **Erro "File not found" (Google Drive)** | Pasta do Drive apagada/ID incorreto/permissão insuficiente. | Verificar ID no `.env` e permissões do e-mail robô na pasta. |
-| **Scanner não abre câmera** | Permissão do navegador ou ambiente não HTTPS. | Site em HTTPS; conceder acesso à câmera no celular. |
-| **Numeração de Carga (ID 3000+)** | Salto de ID do TiDB/Cloud. | Rodar `/corrigir-numeracao` para resetar `AUTO_INCREMENT`. |
-| **Erro 401 manifest.json** | Arquivo `public/manifest.json` faltando ou com permissões incorretas. | Garantir que o arquivo exista e tenha permissão de leitura. |
+### Pré-requisitos
+* PHP 8.2+
+* Composer
+* Node.js & NPM
+* MySQL
 
-## Autor
+### Passo a Passo
 
-Délcio Farias Dias Neto
+1.  **Clonar o repositório**
+    ```bash
+    git clone [https://github.com/seu-repo/shineray-logistica.git](https://github.com/seu-repo/shineray-logistica.git)
+    cd shineray-logistica
+    ```
 
-**Shineray By Sabel Logística**
-**Tecnologia movendo o seu negócio.**
+2.  **Instalar Dependências**
+    ```bash
+    composer install
+    npm install
+    ```
+
+3.  **Configurar Ambiente**
+    ```bash
+    cp .env.example .env
+    php artisan key:generate
+    ```
+
+4.  **Banco de Dados**
+    Configure as credenciais do banco no arquivo `.env` e rode as migrações:
+    ```bash
+    php artisan migrate --seed
+    # O seed cria usuários padrão: admin@shineray.com / senha: password
+    ```
+
+5.  **Executar**
+    ```bash
+    npm run dev
+    # Em outro terminal:
+    php artisan serve
+    ```
+
+---
+
+## 🔑 Variáveis de Ambiente
+
+Para o sistema funcionar corretamente, configure estas chaves no `.env`:
+
+```ini
+# Banco de Dados
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=shineray_db
+DB_USERNAME=root
+DB_PASSWORD=
+
+# Sistema de Manutenção (Controle via Código)
+SISTEMA_MANUTENCAO=false
+
+# Google Drive API (Para comprovantes)
+GOOGLE_DRIVE_CLIENT_ID=seu_client_id
+GOOGLE_DRIVE_CLIENT_SECRET=seu_client_secret
+GOOGLE_DRIVE_REFRESH_TOKEN=seu_refresh_token
+GOOGLE_DRIVE_FOLDER_ID=id_da_pasta_raiz
+
+# OneSignal (Notificações Push)
+ONESIGNAL_APP_ID=seu_app_id
+ONESIGNAL_REST_API_KEY=sua_api_key
