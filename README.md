@@ -137,3 +137,58 @@ GOOGLE_DRIVE_FOLDER_ID=id_da_pasta_raiz
 # OneSignal (Notificações Push)
 ONESIGNAL_APP_ID=seu_app_id
 ONESIGNAL_REST_API_KEY=sua_api_key
+
+```
+
+---
+
+## 🛠️ Modo de Manutenção
+
+O sistema possui um modo de manutenção exclusivo controlado via variável de ambiente, ideal para deploys na Vercel sem derrubar o serviço bruscamente.
+
+1. **Ativar:** Mude `SISTEMA_MANUTENCAO=true` no `.env` (ou nas configurações da Vercel).
+2. **Comportamento:** Usuários comuns são redirecionados para uma tela de "Em Manutenção".
+3. **Acesso TI (Bypass):** A equipe de TI pode acessar a rota secreta `/liberar-acesso-ti` para navegar normalmente e testar as correções enquanto o sistema está fechado para o público.
+
+---
+
+## ☁️ Integrações Externas
+
+### Google Drive API
+
+O sistema utiliza uma **Service Account** do Google Cloud para gerenciar arquivos.
+
+1. Os comprovantes são salvos automaticamente na estrutura: `Ano > Mês > Pedido`.
+2. Garanta que o e-mail da Service Account tenha permissão de **Editor** na pasta raiz definida no `.env`.
+
+### OneSignal
+
+Utilizado para disparar notificações em tempo real para Desktop e Mobile quando:
+
+* Um pedido é criado (Avisa Gestor).
+* Um pedido é aprovado (Avisa Loja).
+* Uma carga sai para entrega (Avisa Loja).
+
+---
+
+## ❓ Troubleshooting
+
+| Problema | Causa Provável | Solução |
+| --- | --- | --- |
+| **Tela Branca (Produção)** | Cache desatualizado ou erro de JS. | Rodar `php artisan optimize:clear` e verificar console do navegador. |
+| **Erro "File not found" (Drive)** | Token expirado ou pasta sem permissão. | Renovar Refresh Token ou verificar permissão da Service Account na pasta do Drive. |
+| **Scanner não abre câmera** | Site sem HTTPS. | A API de câmera do navegador exige contexto seguro (HTTPS). |
+| **Romaneio agrupando errado** | Lógica de destino antiga. | A versão `v1.0.6+` corrige isso agrupando pelo campo `pivot->destino`. |
+| **Erro 401 manifest.json** | Arquivo PWA faltando. | Verifique se `public/manifest.json` existe e tem permissão de leitura. |
+
+---
+
+## 👨‍💻 Autor
+
+**Délcio Farias Dias Neto** *Desenvolvedor Full Stack & Líder de TI*
+
+**Sabel Logística Integrada** *Tecnologia movendo o seu negócio.*
+
+```
+
+```
