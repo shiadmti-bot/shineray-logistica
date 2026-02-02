@@ -199,6 +199,29 @@ class PedidoController extends Controller
         });
     }
 
+    public function solicitarEstornoCD(Request $request, $id)
+    {
+        // Apenas perfil CD ou Admin pode fazer isso
+        if (Auth::user()->perfil !== 'cd' && Auth::user()->perfil !== 'admin') {
+            return back()->withErrors('Acesso negado.');
+        }
+
+        $moto = Moto::findOrFail($id);
+        
+        // Verifica se a moto realmente está em um pedido mas ainda não saiu
+        if ($moto->status === 'expedido' || $moto->status === 'em_transito') {
+            return back()->withErrors('Não é possível estornar moto já expedida ou em trânsito.');
+        }
+
+        $moto->update([
+            'estorno_pendente' => true,
+            'motivo_estorno' => 'CD Reportou: ' . $request->motivo, // Prefixo para o Gestor saber quem pediu
+            'user_estorno_id' => Auth::id()
+        ]);
+
+        return back()->with('success', 'Solicitação enviada ao Gestor! A moto ficará pendente até aprovação.');
+    }
+
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
 
     public function show($id)

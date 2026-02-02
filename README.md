@@ -187,8 +187,4 @@ Utilizado para disparar notificações em tempo real para Desktop e Mobile quand
 
 **Délcio Farias Dias Neto** *Desenvolvedor Full Stack & Líder de TI*
 
-**Sabel Logística Integrada** *Tecnologia movendo o seu negócio.*
-
-```
-
-```
+**Sabel Logística Integrada** *Tecnologia movendo o seu negócio.

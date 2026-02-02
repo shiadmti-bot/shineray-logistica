@@ -64,25 +64,38 @@ export default function PedidoShow({ auth, pedido }) {
                     <div class="max-h-80 overflow-y-auto border border-gray-200 rounded p-3 bg-gray-50 mb-4">
                         ${pedido.motos.map(m => `
                             <div class="mb-4 border-b border-gray-300 pb-3 last:border-0 bg-white p-3 rounded shadow-sm">
-                                <div class="font-bold text-gray-800 text-sm mb-1 flex justify-between">
+                                
+                                <div class="font-bold text-gray-800 text-sm mb-1 flex justify-between items-center">
                                     <span>🏍️ ${m.modelo}</span>
                                     <span class="font-mono text-blue-600">${m.chassi}</span>
                                 </div>
+
+                                ${m.estorno_pendente ? `
+                                    <div class="my-2 bg-orange-50 border border-orange-200 text-orange-800 p-2 rounded text-xs flex items-center gap-2">
+                                        <span class="text-lg">⏳</span>
+                                        <div>
+                                            <strong>Estorno em Análise</strong><br>
+                                            <span class="italic text-orange-600">${m.motivo_estorno || 'Aguardando aprovação do gestor'}</span>
+                                        </div>
+                                    </div>
+                                ` : ''}
                                 
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                                     <input 
                                         type="text" 
                                         id="avaria-texto-${m.id}" 
                                         class="swal2-input w-full text-xs m-0 h-10 border-gray-300 focus:ring-red-500 rounded" 
                                         placeholder="Descreva o defeito (se houver)..."
+                                        ${m.estorno_pendente ? 'disabled style="background-color: #f3f4f6; cursor: not-allowed;"' : ''} 
                                     >
                                     <div class="flex items-center">
                                         <label class="block w-full text-xs text-gray-500 border border-dashed border-gray-400 rounded cursor-pointer hover:bg-gray-100 p-2 text-center relative transition">
                                             <span id="label-foto-${m.id}">📸 Add Foto (Opcional)</span>
-                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerText = '✅ Foto Selecionada'">
+                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerText = '✅ Foto Selecionada'" ${m.estorno_pendente ? 'disabled' : ''}>
                                         </label>
                                     </div>
                                 </div>
+
                             </div>
                         `).join('')}
                     </div>
@@ -110,6 +123,9 @@ export default function PedidoShow({ auth, pedido }) {
                 const fotosColetadas = {};
 
                 pedido.motos.forEach(m => {
+                    // Se estiver em estorno, ignora a coleta de dados de avaria desse item
+                    if (m.estorno_pendente) return;
+
                     const inputTexto = document.getElementById(`avaria-texto-${m.id}`);
                     const inputFoto = document.getElementById(`avaria-foto-${m.id}`);
 

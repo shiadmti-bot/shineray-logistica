@@ -174,12 +174,21 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             ->middleware('check_perfil:admin,cd,gestor')
             ->name('motos.index');
 
-        // 9. PERFIL
+        // 9. ESTORNO / CORTE PELO CD (NOVA ROTA)
+        // Rota para o CD solicitar o estorno/corte antes da carga
+        Route::post('/motos/{id}/cd-solicitar-estorno', [PedidoController::class, 'solicitarEstornoCD'])
+            ->name('motos.cdSolicitarEstorno');
+
+        // Rota para o Gestor aprovar o estorno (caso já não tenha adicionado)
+        Route::post('/motos/{id}/aprovar-estorno', [GestorController::class, 'aprovarEstorno'])
+            ->name('gestor.aprovarEstorno');
+
+        // 10. PERFIL
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-        // 10. ROTINA DE CORREÇÃO (ROBUSTA)
+        // 11. ROTINA DE CORREÇÃO (ROBUSTA)
         // Acesse: seu-site.com/corrigir-status-romaneios
         Route::get('/corrigir-status-romaneios', function() {
             // Pega tudo que não está finalizado (em_transito, aberto, etc)

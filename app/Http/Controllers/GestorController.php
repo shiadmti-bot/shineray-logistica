@@ -14,13 +14,21 @@ class GestorController extends Controller
 {
     public function index()
     {
+        // Pedidos Normais (Em análise)
         $pedidos = Pedido::with(['user', 'motos'])
             ->where('status', 'em_analise')
-            ->orderBy('created_at', 'asc')
+            ->latest()
+            ->get();
+
+        // Estornos/Cortes Pendentes (Motos marcadas pelo CD ou Loja)
+        $estornos = Moto::with(['pedidos.user']) // Carrega quem pediu a moto original
+            ->where('estorno_pendente', true)
+            ->latest('updated_at')
             ->get();
 
         return Inertia::render('Gestor/Dashboard', [
-            'pedidos' => $pedidos
+            'pedidos' => $pedidos,
+            'estornos' => $estornos, // <--- Nova Prop
         ]);
     }
 
@@ -100,6 +108,31 @@ class GestorController extends Controller
             $pedido->delete();
             return redirect()->route('gestor.index')->with('warning', 'Pedido cancelado (todos os itens rejeitados).');
         }
+    }
+
+    public function aprovarEstorno(Request $request, $id)
+    {
+        $moto = Moto::findOrFail($id);
+        
+        // 1. Remove a moto dos pedidos (Desvincula da loja)
+        $moto->pedidos()->detach();
+
+        // 2. Tira do romaneio se por acaso já tivesse sido bipada (segurança)
+        $moto->romaneio_id = null;
+
+        // 3. Define o destino da moto. 
+        // Se o CD estornou, geralmente é avaria ou erro de estoque.
+        // Vamos voltar para 'disponivel' para ela poder ser auditada, 
+        // ou você pode criar um status 'bloqueado'.
+        $moto->update([
+            'estorno_pendente' => false,
+            'motivo_estorno' => null,
+            'user_estorno_id' => null,
+            'status' => 'disponivel', 
+            'localizacao_atual' => 'Estoque (Retorno de Estorno CD)' 
+        ]);
+
+        return back()->with('success', 'Corte aprovado! A moto foi removida do pedido.');
     }
 
     // --- HISTÓRICO DE AUDITORIA ---
