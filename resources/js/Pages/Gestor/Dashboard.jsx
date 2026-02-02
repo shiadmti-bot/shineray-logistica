@@ -68,7 +68,7 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
                                 Olá, {auth.user.name.split(' ')[0]} <span className="text-2xl">👋</span>
                             </h3>
                             <p className="text-gray-500 mt-1">
-                                Resumo de pendências: <strong className="text-purple-600">{pedidos.length} Vendas</strong> e <strong className="text-orange-600">{estornos.length} Estornos</strong>.
+                                Resumo de pendências: <strong className="text-purple-600">{pedidos.length} Solicitações</strong> e <strong className="text-orange-600">{estornos.length} Estornos</strong>.
                             </p>
                         </div>
                         <div className="flex gap-3">
@@ -91,7 +91,7 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
                                     ? 'bg-white text-purple-700 shadow' 
                                     : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'}`}
                         >
-                            🛍️ Vendas ({pedidos.length})
+                            🛍️ solicitações ({pedidos.length})
                         </button>
                         <button
                             onClick={() => setActiveTab('estornos')}
