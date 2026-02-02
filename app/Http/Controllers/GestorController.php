@@ -203,8 +203,12 @@ class GestorController extends Controller
 
         return Inertia::render('Gestor/History', [
             'logs' => $logs,
-            // Retorna os filtros para preencher os inputs da tela (Evita o erro 'toString of null')
-            'filters' => $request->only(['search', 'data_inicio', 'data_fim']) 
+            // AQUI ESTÁ A CORREÇÃO: Usamos o operador ?? '' para garantir que nunca vá NULL
+            'filters' => [
+                'search'      => $request->input('search') ?? '', 
+                'data_inicio' => $request->input('data_inicio') ?? '',
+                'data_fim'    => $request->input('data_fim') ?? '',
+            ]
         ]);
     }
 }

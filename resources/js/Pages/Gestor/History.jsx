@@ -4,14 +4,19 @@ import { useState } from 'react';
 
 export default function GestorHistory({ auth, logs, filters }) {
     
-    // BLINDAGEM: Garante que filters nunca seja null/undefined
-    const safeFilters = filters || {};
+    // --- BLINDAGEM CONTRA O ERRO 'toString' ---
+    // Garante que mesmo se vier null/undefined, virará uma string vazia
+    const safeFilters = {
+        search: filters?.search || '',
+        data_inicio: filters?.data_inicio || '',
+        data_fim: filters?.data_fim || ''
+    };
 
-    // Estado para os filtros
+    // Estado inicial usando os valores seguros
     const [filterForm, setFilterForm] = useState({
-        search: safeFilters.search || '',         // Se vier null, vira string vazia
-        data_inicio: safeFilters.data_inicio || '', 
-        data_fim: safeFilters.data_fim || '',
+        search: safeFilters.search,
+        data_inicio: safeFilters.data_inicio,
+        data_fim: safeFilters.data_fim,
     });
 
     // Função para aplicar os filtros (recarrega a página com parametros)

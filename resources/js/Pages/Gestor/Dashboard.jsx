@@ -91,7 +91,7 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
                                     ? 'bg-white text-purple-700 shadow' 
                                     : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'}`}
                         >
-                            🛍️ solicitações ({pedidos.length})
+                            🛍️ Solicitações ({pedidos.length})
                         </button>
                         <button
                             onClick={() => setActiveTab('estornos')}
