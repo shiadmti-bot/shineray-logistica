@@ -8,6 +8,7 @@ use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\Romaneio;
 use App\Models\User;
+use App\Notifications\EstornoSolicitado;
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -197,6 +198,59 @@ class PedidoController extends Controller
 
             return redirect()->back()->with('success', 'Pedido aprovado e encaminhado ao CD!');
         });
+    }
+
+    public function solicitarRetiradaItem(Request $request, $id)
+    {
+        $moto = Moto::with('pedidos')->findOrFail($id);
+        $user = Auth::user();
+        $pedido = $moto->pedidos->first(); // Pega o pedido vinculado
+
+        // Regra 1: Validação para o CD (Expedição)
+        if ($user->perfil === 'cd') {
+            // O CD só pode pedir retirada se a moto ainda estiver no pátio (Solicitado ou Separado)
+            // Se já foi "Expedido" (Bipado na carga) ou "Em Trânsito", é falha deles, não pode cancelar simples.
+            if (!in_array($moto->status, ['solicitado', 'separado'])) {
+                return back()->withErrors('ERRO: O CD só pode solicitar retirada de motos em separação. Item já expedido!');
+            }
+            $prefixo = "CD Reportou: ";
+        }
+        
+        // Regra 2: Validação para a Loja
+        elseif ($user->perfil === 'loja') {
+            // A loja só pode pedir retirada de itens do SEU PRÓPRIO pedido
+            if (!$pedido || $pedido->user_id !== $user->id) {
+                return back()->withErrors('Acesso não autorizado.');
+            }
+            
+            // Loja tentando cancelar item ANTES de receber (Cancelamento Parcial)
+            if (in_array($moto->status, ['solicitado', 'separado'])) {
+                $prefixo = "Loja Solicitou Cancelamento: ";
+            } 
+            // Loja tentando devolver item DEPOIS de receber (Devolução/Garantia)
+            elseif ($moto->status === 'entregue' || $moto->status === 'concluido') {
+                $prefixo = "Loja Solicitou Devolução: ";
+            } else {
+                return back()->withErrors('Não é possível solicitar retirada neste status (Em Trânsito/Expedido). Aguarde a chegada.');
+            }
+        } else {
+            $prefixo = "Solicitação: ";
+        }
+
+        // Aplica a marcação para o Gestor ver
+        $moto->update([
+            'estorno_pendente' => true,
+            'motivo_estorno' => $prefixo . $request->motivo,
+            'user_estorno_id' => $user->id
+        ]);
+
+       $gestores = User::whereIn('perfil', ['gestor', 'admin'])->get();
+    
+        foreach ($gestores as $gestor) {
+            $gestor->notify(new EstornoSolicitado($moto, $user));
+        }
+
+        return back()->with('success', 'Solicitação enviada ao Gestor Comercial.');
     }
 
     public function solicitarEstornoCD(Request $request, $id)

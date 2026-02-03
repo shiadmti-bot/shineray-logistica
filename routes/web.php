@@ -169,20 +169,22 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/{id}/imprimir', [RomaneioController::class, 'imprimir'])->name('imprimir');
         });
 
-        // 8. MOTOS
+       // 8. MOTOS
         Route::get('/motos', [MotoController::class, 'index'])
             ->middleware('check_perfil:admin,cd,gestor')
             ->name('motos.index');
 
-        // 9. ESTORNO / CORTE PELO CD (NOVA ROTA)
-        // Rota para o CD solicitar o estorno/corte antes da carga
-        Route::post('/motos/{id}/cd-solicitar-estorno', [PedidoController::class, 'solicitarEstornoCD'])
-            ->name('motos.cdSolicitarEstorno');
+        // 9. ESTORNO / RETIRADA DE ITEM (ATUALIZADO)
+        
+        // Rota UNIFICADA: Serve para o CD (Corte) e para a Loja (Cancelamento/Devolução)
+        // Aponta para a nova função 'solicitarRetiradaItem' que criamos no PedidoController
+        Route::post('/motos/{id}/solicitar-retirada', [PedidoController::class, 'solicitarRetiradaItem'])
+            ->name('motos.solicitarRetirada');
 
-        // Rota para o Gestor aprovar o estorno (caso já não tenha adicionado)
+        // Rota para o Gestor aprovar qualquer solicitação (seja do CD ou da Loja)
         Route::post('/motos/{id}/aprovar-estorno', [GestorController::class, 'aprovarEstorno'])
             ->name('gestor.aprovarEstorno');
-
+        
         // 10. PERFIL
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

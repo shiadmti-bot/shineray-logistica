@@ -19,13 +19,13 @@ export default function PedidoShow({ auth, pedido }) {
 
         channel.notification((notification) => {
             if (notification.link && notification.link.includes(`/pedidos/${pedido.id}`)) {
-                // Audio
+                // Audio Notification
                 try {
                     const audio = new Audio('/plim.mp3');
                     audio.play().catch(() => {});
                 } catch(e) {}
 
-                // Toast
+                // Toast Notification
                 const Toast = Swal.mixin({
                     toast: true,
                     position: 'top-end',
@@ -40,7 +40,7 @@ export default function PedidoShow({ auth, pedido }) {
                     text: notification.mensagem 
                 });
 
-                // Reload Silencioso
+                // Reload Silencioso dos dados
                 router.reload({ only: ['pedido'] });
             }
         });
@@ -48,7 +48,30 @@ export default function PedidoShow({ auth, pedido }) {
         return () => channel.stopListening('Notification');
     }, [pedido.id, auth.user.id]);
 
-    // --- 3. LÓGICA DE CONFERÊNCIA (AVARIAS E UPLOAD) ---
+    // --- 3. AÇÕES DE SOLICITAÇÃO (RETIRADA / ESTORNO) ---
+    // Esta função atende tanto o CD (Corte) quanto a Loja (Devolução)
+    const handleSolicitarRetirada = (motoId, pergunta) => {
+        Swal.fire({
+            title: 'Solicitar Retirada do Item',
+            text: pergunta,
+            input: 'text',
+            inputPlaceholder: 'Descreva o motivo (Ex: Avaria, Erro, Desistência)',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar Solicitação',
+            confirmButtonColor: '#d33',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                router.post(route('motos.solicitarRetirada', motoId), {
+                    motivo: result.value
+                }, {
+                    onSuccess: () => Swal.fire('Enviado!', 'Solicitação enviada para aprovação do Gestor.', 'success')
+                });
+            }
+        });
+    };
+
+    // --- 4. LÓGICA DE CONFERÊNCIA (AVARIAS E UPLOAD) ---
     const handleConferenciaEntrega = () => {
         Swal.fire({
             title: 'Conferência de Entrega 🚛',
@@ -61,7 +84,7 @@ export default function PedidoShow({ auth, pedido }) {
                         2. Se houver avaria, descreva o defeito E anexe a foto da moto.
                     </p>
                     
-                    <div class="max-h-80 overflow-y-auto border border-gray-200 rounded p-3 bg-gray-50 mb-4">
+                    <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200 mb-4">
                         ${pedido.motos.map(m => `
                             <div class="mb-4 border-b border-gray-300 pb-3 last:border-0 bg-white p-3 rounded shadow-sm">
                                 
@@ -75,7 +98,7 @@ export default function PedidoShow({ auth, pedido }) {
                                         <span class="text-lg">⏳</span>
                                         <div>
                                             <strong>Estorno em Análise</strong><br>
-                                            <span class="italic text-orange-600">${m.motivo_estorno || 'Aguardando aprovação do gestor'}</span>
+                                            <span class="italic text-orange-600">${m.motivo_estorno || 'Aguardando aprovação'}</span>
                                         </div>
                                     </div>
                                 ` : ''}
@@ -91,7 +114,14 @@ export default function PedidoShow({ auth, pedido }) {
                                     <div class="flex items-center">
                                         <label class="block w-full text-xs text-gray-500 border border-dashed border-gray-400 rounded cursor-pointer hover:bg-gray-100 p-2 text-center relative transition">
                                             <span id="label-foto-${m.id}">📸 Add Foto (Opcional)</span>
-                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerText = '✅ Foto Selecionada'" ${m.estorno_pendente ? 'disabled' : ''}>
+                                            <input 
+                                                type="file" 
+                                                id="avaria-foto-${m.id}" 
+                                                class="hidden" 
+                                                accept="image/*" 
+                                                onchange="document.getElementById('label-foto-${m.id}').innerText = '✅ Foto Selecionada'"
+                                                ${m.estorno_pendente ? 'disabled' : ''}
+                                            >
                                         </label>
                                     </div>
                                 </div>
@@ -160,7 +190,6 @@ export default function PedidoShow({ auth, pedido }) {
             didOpen: () => Swal.showLoading()
         });
 
-        // Monta objeto para o router do Inertia
         const dataToSend = {
             _method: 'post',
             arquivo_romaneio: romaneioFile,
@@ -181,7 +210,7 @@ export default function PedidoShow({ auth, pedido }) {
         });
     };
 
-    // --- 4. FUNÇÕES DO CD (SEPARAÇÃO/SAÍDA) ---
+    // --- 5. FUNÇÕES DO CD (SEPARAÇÃO/SAÍDA) ---
     const avancarSeparacao = () => { 
         Swal.fire({
             title: 'Confirmar Separação?',
@@ -296,7 +325,7 @@ export default function PedidoShow({ auth, pedido }) {
                         <Timeline status={pedido.status} />
                     </div>
 
-                    {/* --- TABELA DE ITENS (ATUALIZADA) --- */}
+                    {/* --- TABELA DE ITENS (LISTA PRINCIPAL) --- */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-gray-700 flex items-center gap-2">
@@ -304,63 +333,110 @@ export default function PedidoShow({ auth, pedido }) {
                                 <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">{pedido.motos.length}</span>
                             </h3>
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Modelo</th>
-                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Cor</th>
-                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Chassi</th>
-                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Destino</th>
-                                        <th className="px-6 py-3 text-left font-extrabold tracking-wider">Motivo</th>
-                                        <th className="px-6 py-3 text-center font-extrabold tracking-wider">Carga / Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100">
-                                    {pedido.motos.map((moto) => (
-                                        <tr key={moto.id} className="hover:bg-gray-50 transition">
-                                            <td className="px-6 py-4 text-sm font-bold text-gray-900">{moto.modelo}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="h-3 w-3 rounded-full border border-gray-300 shadow-sm" 
-                                                        style={{ backgroundColor: getColorHex(moto.cor) }}></span>
-                                                    <span className="text-sm text-gray-700 font-medium capitalize">{moto.cor}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 font-mono text-sm text-gray-600 tracking-wide">{moto.chassi}</td>
-                                            
-                                            {/* EXIBIÇÃO DO DESTINO (Pivô ou Padrão) */}
-                                            <td className="px-6 py-4 text-sm text-gray-700">
-                                                <span className="flex items-center gap-1 font-medium bg-yellow-50 px-2 py-1 rounded text-yellow-800 border border-yellow-100 text-xs">
-                                                    📍 {moto.pivot?.destino || pedido.user.filial || 'Matriz'}
-                                                </span>
-                                            </td>
 
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
-                                                    {moto.motivo_solicitacao || 'Venda'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                {moto.status === 'avariado' ? (
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded border border-red-200">⚠️ Avariado</span>
-                                                        <span className="text-[10px] text-red-500 mt-1 max-w-[150px] truncate">{moto.detalhes_avaria}</span>
-                                                    </div>
-                                                ) : (
-                                                    moto.romaneio_id ? (
-                                                        <Link href={route('romaneios.show', moto.romaneio_id)} className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition">
-                                                            🚛 Carga #{moto.romaneio_id}
-                                                        </Link>
-                                                    ) : (
-                                                        <span className="text-xs text-gray-400 font-medium italic">Aguardando Carga</span>
-                                                    )
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        {/* MAP DAS MOTOS */}
+                        <div className="divide-y divide-gray-100">
+                            {pedido.motos.map((moto) => (
+                                <div key={moto.id} className="p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50 transition">
+                                    
+                                    {/* COLUNA 1: DADOS DA MOTO */}
+                                    <div className="flex items-center gap-4 flex-1">
+                                        <div className="bg-gray-100 p-3 rounded-full hidden md:block">🏍️</div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-800">{moto.modelo}</h4>
+                                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                <span>Cor:</span>
+                                                <span className="h-3 w-3 rounded-full border border-gray-300 shadow-sm" style={{ backgroundColor: getColorHex(moto.cor) }}></span>
+                                                <span className="font-semibold capitalize">{moto.cor}</span>
+                                            </div>
+                                            <p className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit mt-1">
+                                                {moto.chassi}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* COLUNA 2: DESTINO E MOTIVO */}
+                                    <div className="text-center md:text-left">
+                                        <span className="flex items-center gap-1 font-medium bg-yellow-50 px-2 py-1 rounded text-yellow-800 border border-yellow-100 text-xs">
+                                            📍 {moto.pivot?.destino || pedido.user.filial || 'Matriz'}
+                                        </span>
+                                        <div className="mt-1">
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-800">
+                                                {moto.motivo_solicitacao || 'Venda'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* COLUNA 3: STATUS E AÇÕES */}
+                                    <div className="text-right flex flex-col items-end min-w-[200px]">
+                                        {/* Status / Carga */}
+                                        <div className="mb-2">
+                                            {moto.status === 'avariado' ? (
+                                                <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded border border-red-200">⚠️ Avariado</span>
+                                            ) : moto.romaneio_id ? (
+                                                <Link href={route('romaneios.show', moto.romaneio_id)} className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition">
+                                                    🚛 Carga #{moto.romaneio_id}
+                                                </Link>
+                                            ) : (
+                                                <span className="text-xs text-gray-400 font-medium italic">Aguardando Carga</span>
+                                            )}
+                                            
+                                            <div className="text-xs text-gray-400 mt-1">
+                                                {moto.localizacao_atual || 'Local não definido'}
+                                            </div>
+                                        </div>
+
+                                        {/* --- ÁREA DE AÇÕES (BOTÕES DE ESTORNO) --- */}
+                                        <div>
+                                            {moto.estorno_pendente ? (
+                                                <div className="flex items-center gap-2 text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded animate-pulse">
+                                                    <span>⏳ Em Análise:</span>
+                                                    <span className="italic font-normal text-orange-600 truncate max-w-[150px]" title={moto.motivo_estorno}>
+                                                        "{moto.motivo_estorno}"
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex gap-2 justify-end">
+                                                    
+                                                    {/* VISÃO CD: Reportar Corte */}
+                                                    {auth.user.perfil === 'cd' && ['solicitado', 'separado'].includes(moto.status) && (
+                                                        <button
+                                                            onClick={() => handleSolicitarRetirada(moto.id, 'CD: Qual o motivo do corte (Avaria/Furo)?')}
+                                                            className="flex items-center gap-1 text-xs text-red-600 hover:text-white border border-red-200 hover:bg-red-600 px-3 py-1.5 rounded transition shadow-sm font-bold"
+                                                        >
+                                                            ✂️ Reportar Corte
+                                                        </button>
+                                                    )}
+
+                                                    {/* VISÃO LOJA: Cancelar ou Devolver */}
+                                                    {auth.user.perfil === 'loja' && (
+                                                        <>
+                                                            {['solicitado', 'separado', 'em_analise'].includes(moto.status) && (
+                                                                <button
+                                                                    onClick={() => handleSolicitarRetirada(moto.id, 'Deseja cancelar este item do pedido?')}
+                                                                    className="text-xs text-gray-500 hover:text-red-600 underline px-2 transition"
+                                                                >
+                                                                    Cancelar Item
+                                                                </button>
+                                                            )}
+
+                                                            {['concluido', 'entregue'].includes(moto.status) && (
+                                                                <button
+                                                                    onClick={() => handleSolicitarRetirada(moto.id, 'Qual o motivo da devolução desta moto?')}
+                                                                    className="flex items-center gap-1 text-xs text-purple-700 hover:text-white border border-purple-200 hover:bg-purple-600 px-3 py-1.5 rounded transition shadow-sm font-bold"
+                                                                >
+                                                                    ↩️ Solicitar Devolução
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                </div>
+                            ))}
                         </div>
                     </div>
 
