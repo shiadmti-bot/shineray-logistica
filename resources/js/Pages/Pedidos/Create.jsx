@@ -26,7 +26,7 @@ export default function PedidoCreate({ auth, listaModelos }) {
                 cor: '', 
                 ano: '', 
                 motivo: '', 
-                local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : '' 
+                local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : ''
             }
         ],
         observacao: ''
@@ -85,9 +85,25 @@ export default function PedidoCreate({ auth, listaModelos }) {
 
     const submit = (e) => {
         e.preventDefault();
+
         post(route('pedidos.store'), {
-            onSuccess: () => Swal.fire('Sucesso!', 'Solicitação enviada.', 'success'),
-            onError: () => Swal.fire('Erro!', 'Verifique os campos em vermelho.', 'error')
+            onSuccess: () => {
+                Swal.fire('Sucesso!', 'Solicitação enviada com sucesso.', 'success');
+            },
+            onError: (errors) => {
+                console.error(errors); // Mostra no console (F12) para debug
+
+                // Pega a primeira mensagem de erro real
+                const primeiraMensagem = Object.values(errors)[0];
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erro de Validação',
+                    // AQUI ESTÁ A CORREÇÃO: Mostra o motivo real (ex: "Chassi já cadastrado")
+                    text: primeiraMensagem || 'Verifique os campos obrigatórios em vermelho.',
+                    confirmButtonColor: '#d33'
+                });
+            }
         });
     };
 
