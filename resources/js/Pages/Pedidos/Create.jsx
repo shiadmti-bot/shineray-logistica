@@ -214,32 +214,45 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
 
                             {!carregandoLogistica && logisticaInfo && !logisticaInfo.erro && (
                                 <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex flex-col md:flex-row items-start gap-4 animate-fade-in-up">
-                                    <div className="text-3xl bg-white p-2 rounded-full shadow-sm border border-green-100">🚚</div>
+                                    {/* Ícone do Caminhão */}
+                                    <div className="text-3xl bg-white p-2 rounded-full shadow-sm border border-green-100 flex-shrink-0">
+                                        🚚
+                                    </div>
                                     
-                                    <div className="flex-1">
-                                        <h4 className="font-black text-green-900 text-xs uppercase tracking-wider mb-1">
+                                    <div className="flex-1 w-full">
+                                        <h4 className="font-black text-green-900 text-xs uppercase tracking-wider mb-2 border-b border-green-200 pb-1">
                                             Logística Definida
                                         </h4>
                                         
-                                        {/* 1. DADOS DA COLETA (Sempre Visível) */}
-                                        <div className="text-sm text-gray-700">
-                                            Coleta em <b className="uppercase">{logisticaInfo.origem}</b> via Rota <b className="uppercase">{logisticaInfo.rota_origem}</b>:
-                                            <div className="mt-1">
-                                                📅 Previsão Coleta: <span className="font-bold bg-white px-2 py-0.5 rounded border border-green-200 ml-1">{logisticaInfo.data_coleta?.split('-').reverse().join('/')}</span>
+                                        {/* 1. DADOS DA COLETA (Sempre Visível - Capital/CD tem coleta garantida) */}
+                                        <div className="text-sm text-gray-700 mb-3">
+                                            Coleta em <strong className="uppercase text-gray-900">{logisticaInfo.origem}</strong> via Rota <strong className="uppercase text-gray-900">{logisticaInfo.rota_origem}</strong>:
+                                            <div className="mt-1 flex items-center gap-2">
+                                                <span className="text-xs uppercase font-bold text-gray-500">🗓️ Previsão Coleta:</span>
+                                                <span className="font-bold bg-white px-2 py-0.5 rounded border border-green-200 text-green-800">
+                                                    {logisticaInfo.data_coleta?.split('-').reverse().join('/')}
+                                                </span>
                                             </div>
                                         </div>
 
-                                        {/* 2. DADOS DA ENTREGA (Condicional: Só aparece se tiver rota agendada no calendário) */}
+                                        {/* 2. DADOS DA ENTREGA (Condicional: Só aparece se houver rota agendada) */}
                                         {logisticaInfo.data_entrega ? (
-                                            <div className="mt-3 pt-3 border-t border-green-200">
-                                                <div className="flex items-center gap-2 text-xs font-bold text-green-800 bg-green-100 px-3 py-1.5 rounded-lg border border-green-200 w-fit">
+                                            // CENÁRIO A: Rota Encontrada (Data Prevista existe)
+                                            <div className="pt-2 border-t border-green-200">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-green-800 bg-green-100 px-3 py-2 rounded-lg border border-green-200 w-full md:w-fit shadow-sm">
                                                     <span>📍 Entrega Prevista na sua Loja:</span>
-                                                    <span className="text-sm">{logisticaInfo.data_entrega.split('-').reverse().join('/')}</span>
+                                                    <span className="text-sm bg-white px-1.5 rounded text-green-900">
+                                                        {logisticaInfo.data_entrega.split('-').reverse().join('/')}
+                                                    </span>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="mt-2 text-[10px] text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded border border-orange-100 inline-block">
-                                                ⚠️ Entrega depende de agendamento de rota para sua região (Aguardando Rota).
+                                            // CENÁRIO B: Interior sem rota na semana (Hub & Spoke / Milk Run)
+                                            <div className="pt-2 border-t border-green-200">
+                                                <div className="flex items-center gap-2 text-[10px] md:text-xs font-bold text-orange-700 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200 w-full md:w-fit">
+                                                    <span>⚠️ Sem rota direta agendada:</span>
+                                                    <span className="font-normal text-orange-600">Aguardando definição logística via CD (Transbordo).</span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
