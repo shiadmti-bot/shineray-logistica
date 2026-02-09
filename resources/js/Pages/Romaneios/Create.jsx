@@ -6,15 +6,19 @@ import Swal from 'sweetalert2';
 export default function RomaneioCreate({ auth, expedicao = [], coletas = [], cargasEmAberto = [] }) {
     
     // --- ESTADOS ---
-    const [selectedIds, setSelectedIds] = useState([]); 
+    // Agora armazena IDs das MOTOS, não dos pedidos, para permitir seleção parcial
+    const [selectedMotoIds, setSelectedMotoIds] = useState([]); 
     const [activeTab, setActiveTab] = useState('expedicao'); 
+    
+    // Estado para controlar quais pedidos estão expandidos (para ver as motos)
+    const [expandedPedidoIds, setExpandedPedidoIds] = useState([]);
 
     const { data, setData, post, processing, errors } = useForm({
         motorista: '',
         placa: '',
         rota_nome: '',
         romaneio_id: '',
-        pedidos_ids: []
+        motos_ids: [] // Mudança no nome para refletir que são motos
     });
 
     // --- 1. AGRUPAMENTO INTELIGENTE ---
@@ -38,24 +42,51 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
         return grupos;
     }, [coletas]);
 
-    // --- 2. LÓGICA DE SELEÇÃO ---
-    const togglePedido = (id) => {
-        if (selectedIds.includes(id)) {
-            setSelectedIds(selectedIds.filter(i => i !== id));
+    // --- 2. LÓGICA DE SELEÇÃO (GRANULARIDADE: MOTO) ---
+    
+    // Selecionar/Deselecionar uma única moto
+    const toggleMoto = (motoId) => {
+        if (selectedMotoIds.includes(motoId)) {
+            setSelectedMotoIds(selectedMotoIds.filter(i => i !== motoId));
         } else {
-            setSelectedIds([...selectedIds, id]);
+            setSelectedMotoIds([...selectedMotoIds, motoId]);
         }
     };
 
-    const toggleGrupo = (pedidosDoGrupo) => {
-        const idsDoGrupo = pedidosDoGrupo.map(p => p.id);
-        const todosSelecionados = idsDoGrupo.every(id => selectedIds.includes(id));
+    // Selecionar/Deselecionar TODAS as motos de um Pedido
+    const togglePedido = (pedido) => {
+        const motosDoPedido = pedido.motos.map(m => m.id);
+        const todasSelecionadas = motosDoPedido.every(id => selectedMotoIds.includes(id));
 
-        if (todosSelecionados) {
-            setSelectedIds(selectedIds.filter(id => !idsDoGrupo.includes(id)));
+        if (todasSelecionadas) {
+            // Remove todas
+            setSelectedMotoIds(selectedMotoIds.filter(id => !motosDoPedido.includes(id)));
         } else {
-            const novos = idsDoGrupo.filter(id => !selectedIds.includes(id));
-            setSelectedIds([...selectedIds, ...novos]);
+            // Adiciona as que faltam
+            const novas = motosDoPedido.filter(id => !selectedMotoIds.includes(id));
+            setSelectedMotoIds([...selectedMotoIds, ...novas]);
+        }
+    };
+
+    // Selecionar/Deselecionar TODO um Grupo (Destino/Origem)
+    const toggleGrupo = (pedidosDoGrupo) => {
+        // Pega todas as motos de todos os pedidos do grupo
+        const todasMotosDoGrupo = pedidosDoGrupo.flatMap(p => p.motos.map(m => m.id));
+        const todasSelecionadas = todasMotosDoGrupo.every(id => selectedMotoIds.includes(id));
+
+        if (todasSelecionadas) {
+            setSelectedMotoIds(selectedMotoIds.filter(id => !todasMotosDoGrupo.includes(id)));
+        } else {
+            const novas = todasMotosDoGrupo.filter(id => !selectedMotoIds.includes(id));
+            setSelectedMotoIds([...selectedMotoIds, ...novas]);
+        }
+    };
+
+    const toggleExpand = (pedidoId) => {
+        if (expandedPedidoIds.includes(pedidoId)) {
+            setExpandedPedidoIds(expandedPedidoIds.filter(id => id !== pedidoId));
+        } else {
+            setExpandedPedidoIds([...expandedPedidoIds, pedidoId]);
         }
     };
 
@@ -63,12 +94,12 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
     const handleSubmit = (e) => {
         e.preventDefault();
         
-        if (selectedIds.length === 0) {
-            Swal.fire('Vazio', 'Selecione pelo menos um pedido para a carga.', 'warning');
+        if (selectedMotoIds.length === 0) {
+            Swal.fire('Vazio', 'Selecione pelo menos uma moto para a carga.', 'warning');
             return;
         }
 
-        data.pedidos_ids = selectedIds;
+        data.motos_ids = selectedMotoIds;
         
         post(route('romaneios.store'), {
             onSuccess: () => Swal.fire({ icon: 'success', title: 'Sucesso', text: 'Carga gerada! Redirecionando...', timer: 2000, showConfirmButton: false }),
@@ -77,12 +108,11 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
     };
 
     // --- CÁLCULO DE TOTAIS ---
-    const totalMotosSelecionadas = [...expedicao, ...coletas]
-        .filter(p => selectedIds.includes(p.id))
-        .reduce((acc, p) => acc + (p.motos?.length || 0), 0);
+    const totalMotosSelecionadas = selectedMotoIds.length;
 
-    const countExp = expedicao.filter(p => selectedIds.includes(p.id)).length;
-    const countCol = coletas.filter(p => selectedIds.includes(p.id)).length;
+    // Conta quantos pedidos estão PARCIALMENTE ou TOTALMENTE selecionados
+    const countExp = expedicao.filter(p => p.motos.some(m => selectedMotoIds.includes(m.id))).length;
+    const countCol = coletas.filter(p => p.motos.some(m => selectedMotoIds.includes(m.id))).length;
 
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="font-black text-xl text-gray-800 uppercase tracking-tight">Montagem de Carga <span className="text-red-600">V2</span></h2>}>
@@ -99,7 +129,6 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
                                 <h3 className="font-bold text-gray-700 flex items-center gap-2 uppercase text-sm tracking-wider">
                                     🚚 Configuração da Viagem
                                 </h3>
-                                {/* Alternar Nova/Existente */}
                                 <div className="flex bg-gray-100 p-1 rounded-lg">
                                     <button 
                                         type="button"
@@ -175,7 +204,7 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
                             )}
                         </div>
 
-                        {/* --- ABAS DE SELEÇÃO --- */}
+                        {/* --- ABAS --- */}
                         <div className="mb-6">
                             <div className="flex border-b border-gray-300 bg-white rounded-t-xl overflow-hidden shadow-sm">
                                 <button
@@ -197,87 +226,128 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
                             </div>
                         </div>
 
-                        {/* --- LISTA DE PEDIDOS --- */}
+                        {/* --- LISTAGEM DETALHADA --- */}
                         <div className="space-y-6">
-                            {activeTab === 'expedicao' && Object.keys(agrupadosExpedicao).length === 0 && (
-                                <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-300">
-                                    <p className="text-gray-400 font-medium">Nenhum pedido de expedição disponível.</p>
-                                </div>
-                            )}
+                            {Object.entries(activeTab === 'expedicao' ? agrupadosExpedicao : agrupadosColeta).map(([local, pedidos]) => {
+                                // Verifica se TODAS as motos de TODOS os pedidos desse grupo estão selecionadas
+                                const todasMotosGrupo = pedidos.flatMap(p => p.motos.map(m => m.id));
+                                const grupoSelecionado = todasMotosGrupo.length > 0 && todasMotosGrupo.every(id => selectedMotoIds.includes(id));
 
-                            {activeTab === 'coleta' && Object.keys(agrupadosColeta).length === 0 && (
-                                <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-300">
-                                    <p className="text-gray-400 font-medium">Nenhuma coleta solicitada.</p>
-                                </div>
-                            )}
-
-                            {Object.entries(activeTab === 'expedicao' ? agrupadosExpedicao : agrupadosColeta).map(([local, pedidos]) => (
-                                <div key={local} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition hover:shadow-md">
-                                    {/* Cabeçalho do Grupo */}
-                                    <div className={`px-6 py-3 border-b flex justify-between items-center ${activeTab === 'expedicao' ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100'}`}>
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-full text-lg shadow-sm bg-white ${activeTab === 'expedicao' ? 'text-blue-600' : 'text-orange-600'}`}>
-                                                {activeTab === 'expedicao' ? '📍' : '🏪'}
-                                            </div>
-                                            <div>
-                                                <h3 className={`font-black text-base ${activeTab === 'expedicao' ? 'text-blue-900' : 'text-orange-900'}`}>
-                                                    {local}
-                                                </h3>
-                                                <p className={`text-[10px] font-bold uppercase tracking-wide ${activeTab === 'expedicao' ? 'text-blue-400' : 'text-orange-400'}`}>
-                                                    {activeTab === 'expedicao' ? 'Destino Final' : 'Local de Coleta'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => toggleGrupo(pedidos)}
-                                            className={`text-[10px] font-bold px-4 py-2 rounded uppercase border transition shadow-sm ${
-                                                pedidos.every(p => selectedIds.includes(p.id)) 
-                                                ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' 
-                                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            {pedidos.every(p => selectedIds.includes(p.id)) ? 'Desmarcar Todos' : 'Selecionar Todos'}
-                                        </button>
-                                    </div>
-
-                                    {/* Lista de Pedidos */}
-                                    <div className="divide-y divide-gray-100">
-                                        {pedidos.map(pedido => {
-                                            const isSelected = selectedIds.includes(pedido.id);
-                                            return (
-                                                <div 
-                                                    key={pedido.id} 
-                                                    onClick={() => togglePedido(pedido.id)}
-                                                    className={`p-4 flex items-center justify-between cursor-pointer transition group ${isSelected ? (activeTab === 'expedicao' ? 'bg-blue-50/30' : 'bg-orange-50/30') : 'hover:bg-gray-50'}`}
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-6 h-6 rounded border flex items-center justify-center transition shadow-sm ${isSelected ? 'bg-green-500 border-green-500 text-white scale-110' : 'bg-white border-gray-300 group-hover:border-gray-400'}`}>
-                                                            {isSelected && <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-gray-800 text-sm">Pedido #{pedido.id}</span>
-                                                                {pedido.status === 'no_cd' && <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold">TRANSBORDO</span>}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 mt-0.5 font-medium">
-                                                                {activeTab === 'expedicao' 
-                                                                    ? `Solicitante: ${pedido.user.name}` 
-                                                                    : `Vai para: ${pedido.user.filial || 'Matriz'}`}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="text-right">
-                                                        <span className="block text-2xl font-black text-gray-800 leading-none">{pedido.motos?.length || 0}</span>
-                                                        <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Motos</span>
-                                                    </div>
+                                return (
+                                    <div key={local} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition hover:shadow-md">
+                                        
+                                        {/* HEADER DO GRUPO (LOCAL) */}
+                                        <div className={`px-6 py-3 border-b flex justify-between items-center ${activeTab === 'expedicao' ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-full text-lg shadow-sm bg-white ${activeTab === 'expedicao' ? 'text-blue-600' : 'text-orange-600'}`}>
+                                                    {activeTab === 'expedicao' ? '📍' : '🏪'}
                                                 </div>
-                                            );
-                                        })}
+                                                <div>
+                                                    <h3 className={`font-black text-base ${activeTab === 'expedicao' ? 'text-blue-900' : 'text-orange-900'}`}>
+                                                        {local}
+                                                    </h3>
+                                                    <p className={`text-[10px] font-bold uppercase tracking-wide ${activeTab === 'expedicao' ? 'text-blue-400' : 'text-orange-400'}`}>
+                                                        {activeTab === 'expedicao' ? 'Destino Final' : 'Local de Coleta'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => toggleGrupo(pedidos)}
+                                                className={`text-[10px] font-bold px-4 py-2 rounded uppercase border transition shadow-sm ${
+                                                    grupoSelecionado
+                                                    ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' 
+                                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                {grupoSelecionado ? 'Desmarcar Local' : 'Selecionar Local'}
+                                            </button>
+                                        </div>
+
+                                        {/* LISTA DE PEDIDOS DO LOCAL */}
+                                        <div className="divide-y divide-gray-100">
+                                            {pedidos.map(pedido => {
+                                                const motosDoPedido = pedido.motos.map(m => m.id);
+                                                const selecionadasDoPedido = motosDoPedido.filter(id => selectedMotoIds.includes(id));
+                                                const todasSelecionadas = motosDoPedido.length > 0 && motosDoPedido.length === selecionadasDoPedido.length;
+                                                const algumaSelecionada = selecionadasDoPedido.length > 0;
+                                                
+                                                const isExpanded = expandedPedidoIds.includes(pedido.id);
+
+                                                return (
+                                                    <div key={pedido.id} className="bg-white">
+                                                        {/* HEADER DO PEDIDO */}
+                                                        <div className={`p-4 flex items-center justify-between transition ${algumaSelecionada ? (activeTab === 'expedicao' ? 'bg-blue-50/20' : 'bg-orange-50/20') : ''}`}>
+                                                            
+                                                            <div className="flex items-center gap-4 cursor-pointer" onClick={() => togglePedido(pedido)}>
+                                                                {/* Checkbox "Tri-state" Visual */}
+                                                                <div className={`w-6 h-6 rounded border flex items-center justify-center transition shadow-sm ${todasSelecionadas ? 'bg-green-500 border-green-500 text-white' : (algumaSelecionada ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-gray-300')}`}>
+                                                                    {todasSelecionadas && <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
+                                                                    {!todasSelecionadas && algumaSelecionada && <div className="w-3 h-3 bg-green-500 rounded-sm"></div>}
+                                                                </div>
+                                                                
+                                                                <div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-bold text-gray-800 text-sm">Pedido #{pedido.id}</span>
+                                                                        {pedido.status === 'no_cd' && <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold">TRANSBORDO</span>}
+                                                                    </div>
+                                                                    <div className="text-xs text-gray-500 mt-0.5 font-medium">
+                                                                        {activeTab === 'expedicao' ? `Solicitante: ${pedido.user.name}` : `Vai para: ${pedido.user.filial || 'Matriz'}`}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="text-right">
+                                                                    <span className="block text-lg font-black text-gray-800 leading-none">
+                                                                        {selecionadasDoPedido.length} <span className="text-gray-400 text-sm font-normal">/ {pedido.motos.length}</span>
+                                                                    </span>
+                                                                    <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Motos</span>
+                                                                </div>
+                                                                
+                                                                {/* Botão Expandir */}
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => toggleExpand(pedido.id)}
+                                                                    className="p-2 rounded-full hover:bg-gray-100 text-gray-400 transition"
+                                                                >
+                                                                    <svg className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* LISTA DE MOTOS (EXPANDIDA) */}
+                                                        {isExpanded && (
+                                                            <div className="border-t border-gray-100 bg-gray-50 px-4 py-2 space-y-1 animate-fade-in">
+                                                                <div className="text-[10px] font-bold text-gray-400 uppercase mb-2 pl-9">Selecione as motos individualmente:</div>
+                                                                {pedido.motos.map(moto => {
+                                                                    const isMotoSelected = selectedMotoIds.includes(moto.id);
+                                                                    return (
+                                                                        <div 
+                                                                            key={moto.id} 
+                                                                            onClick={() => toggleMoto(moto.id)}
+                                                                            className={`flex items-center gap-3 p-2 rounded cursor-pointer transition ml-8 border ${isMotoSelected ? 'bg-white border-green-300 shadow-sm' : 'border-transparent hover:bg-white hover:border-gray-200'}`}
+                                                                        >
+                                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition ${isMotoSelected ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300'}`}>
+                                                                                {isMotoSelected && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
+                                                                            </div>
+                                                                            <div className="flex gap-4 text-xs">
+                                                                                <span className="font-mono font-bold text-gray-700">{moto.chassi}</span>
+                                                                                <span className="text-gray-600 font-bold">{moto.modelo}</span>
+                                                                                <span className="text-gray-500">{moto.cor}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* --- BARRA FLUTUANTE DE RESUMO --- */}
@@ -288,7 +358,7 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
                                         <span className="text-[9px] text-gray-400 uppercase font-bold tracking-widest mb-1">Total Carga</span>
                                         <div className="flex items-baseline gap-1">
                                             <span className="text-3xl font-black text-yellow-400 leading-none">{totalMotosSelecionadas}</span>
-                                            <span className="text-xs font-bold text-gray-500">VOLUMES</span>
+                                            <span className="text-xs font-bold text-gray-500">MOTOS</span>
                                         </div>
                                     </div>
                                     <div className="h-8 w-px bg-gray-700 hidden md:block"></div>
@@ -306,7 +376,7 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
 
                                 <button 
                                     type="submit" 
-                                    disabled={processing || selectedIds.length === 0}
+                                    disabled={processing || selectedMotoIds.length === 0}
                                     className={`w-full md:w-auto bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-12 rounded-lg shadow-lg transition transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 uppercase tracking-wide text-sm ${processing ? 'animate-pulse' : ''}`}
                                 >
                                     {processing ? 'Gerando Manifesto...' : (
