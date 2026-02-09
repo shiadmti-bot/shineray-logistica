@@ -52,60 +52,76 @@ class PedidoController extends Controller
     }
 
     // --- API v2: CÉREBRO LOGÍSTICO ---
-    public function calcularLogistica(Request $request) {
-        $destino = Auth::user(); // Quem pede
-        $origemId = $request->fornecedor_id; // De onde vem
+    public function calcularLogistica(Request $request)
+    {
+        $origemId = $request->input('origem_id');
+        $origem = User::findOrFail($origemId);
+        $solicitante = Auth::user(); // Quem vai receber a moto
 
-        // Se não tem origem definida, assumimos que é CD (Reposição)
-        if (!$origemId) {
-            return response()->json([
-                'tipo' => 'reposicao',
-                'origem' => 'CD / Fábrica',
-                'rota_origem' => 'Fluxo CD',
-                'data_coleta' => now()->format('Y-m-d'),
-                'data_entrega' => now()->addDays(2)->format('Y-m-d'), // Estimativa padrão
-                'mensagem' => 'Saída direta do estoque do CD.'
-            ]);
-        }
-
-        $origem = User::find($origemId);
-        if (!$origem) return response()->json(['erro' => 'Fornecedor não encontrado.'], 404);
-
-        // LÓGICA CAPITAL vs INTERIOR (V2)
-        if (!$origem->is_interior) {
-            // Capital: Fluxo Direto (Imediato)
-            return response()->json([
-                'tipo' => 'transferencia',
-                'origem' => $origem->filial,
-                'rota_origem' => 'Direta (Capital)',
-                'data_coleta' => now()->format('Y-m-d'),
-                'data_entrega' => now()->addDay()->format('Y-m-d'),
-                'mensagem' => 'Transferência direta na região metropolitana.'
-            ]);
-        } 
+        // LÓGICA V2: A prioridade é a Loja Solicitante (Destino)
         
-        // Interior: Depende do Calendário (Schedule)
-        // Busca a próxima viagem confirmada onde a origem é Destino ou Escala
-        $viagem = Schedule::where(function($q) use ($origemId) {
-                $q->where('target_user_id', $origemId)
-                  ->orWhere('secondary_user_id', $origemId);
+        $rotaNome = 'Indefinida';
+        $dataColeta = now()->addDay()->format('Y-m-d'); // Padrão: Coleta amanhã (D+1) se for capital
+        $dataEntrega = null; // Null ativa o aviso "Aguardando Agendamento" no Frontend
+
+        // CENÁRIO 1: O SOLICITANTE É DO INTERIOR (Hub & Spoke Mandatório)
+        // Não importa de onde vem a moto, ela vai para o CD e espera o caminhão da rota.
+        if ($solicitante->is_interior) {
+            $rotaNome = 'Rota Interior (Agendada)';
+            
+            // 1. Busca se já existe uma viagem CONFIRMADA para esta loja no calendário
+            // A busca olha na tabela de paradas (stops) ou destino final
+            $proximaViagem = \App\Models\Schedule::whereHas('stops', function($q) use ($solicitante) {
+                $q->where('user_id', $solicitante->id);
             })
             ->where('date', '>=', now())
-            ->where('status', 'confirmed')
+            ->where('status', 'confirmed') // Só rotas confirmadas geram data
             ->orderBy('date', 'asc')
             ->first();
 
-        if (!$viagem) {
-            return response()->json(['erro' => "A loja {$origem->filial} não tem viagens confirmadas no calendário para coleta."], 404);
+            if ($proximaViagem) {
+                $dataEntrega = $proximaViagem->date;
+            }
+            
+            // Se a origem for interior também, a coleta depende da rota da origem
+            if ($origem->is_interior) {
+                $rotaColeta = \App\Models\Schedule::whereHas('stops', function($q) use ($origem) {
+                    $q->where('user_id', $origem->id);
+                })->where('date', '>=', now())->first();
+                
+                $dataColeta = $rotaColeta ? $rotaColeta->date : null; // Aguardando coleta
+            }
+        } 
+        // CENÁRIO 2: O SOLICITANTE É DA CAPITAL
+        else {
+            // Se a origem for Interior -> Capital (Retorno de Milk Run)
+            if ($origem->is_interior) {
+                $rotaNome = 'Retorno Interior -> Capital';
+                
+                // A entrega depende de quando o caminhão passar na origem para buscar
+                $viagemColeta = \App\Models\Schedule::whereHas('stops', function($q) use ($origem) {
+                    $q->where('user_id', $origem->id);
+                })->where('date', '>=', now())->first();
+
+                if ($viagemColeta) {
+                    $dataColeta = $viagemColeta->date;
+                    // Entrega no mesmo dia da chegada ou dia seguinte
+                    $dataEntrega = \Carbon\Carbon::parse($viagemColeta->date)->format('Y-m-d'); 
+                }
+            } 
+            // Se a origem for Capital -> Capital (Rota Direta)
+            else {
+                $rotaNome = 'Direta (Capital)';
+                $dataEntrega = now()->addDay()->format('Y-m-d'); // D+1 Garantido
+            }
         }
 
         return response()->json([
-            'tipo' => 'transferencia',
             'origem' => $origem->filial,
-            'rota_origem' => 'Agendada (Interior)',
-            'data_coleta' => $viagem->date->format('Y-m-d'),
-            // Entrega = Coleta + 3 dias (Triagem CD)
-            'data_entrega' => Carbon::parse($viagem->date)->addDays(3)->format('Y-m-d')
+            'rota_origem' => $rotaNome,
+            'data_coleta' => $dataColeta,
+            'data_entrega' => $dataEntrega, // Se for null, o frontend mostra o alerta laranja
+            'erro' => false
         ]);
     }
 
