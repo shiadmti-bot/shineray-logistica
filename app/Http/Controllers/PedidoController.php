@@ -169,84 +169,88 @@ class PedidoController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validação Robusta
         $request->validate([
-            'origem_id'  => 'nullable|exists:users,id',
-            'observacao' => 'nullable|string|max:500',
-            'motos'      => 'required|array|min:1', // Garante que tem motos
-            // Valida cada item dentro do array de motos
-            'motos.*.chassi' => 'required|string|distinct', 
-            'motos.*.modelo' => 'required|string',
-            'motos.*.cor'    => 'required|string',
-            'motos.*.ano'    => 'nullable'
+            'itens' => 'required|array|min:1',
+            'itens.*.modelo' => 'required',
+            'itens.*.cor' => 'required',
+            // Chassi é opcional na solicitação inicial se for apenas "Pedido de Giro", 
+            // mas obrigatório se for transferência específica.
+            'origem_id' => 'nullable|exists:users,id'
         ]);
 
         return DB::transaction(function () use ($request) {
-            $user = Auth::user();
             
-            // 2. Cria o Cabeçalho do Pedido (Apenas 1 Query)
-            $pedido = Pedido::create([
-                'user_id'        => $user->id,
-                'origem_user_id' => $request->origem_id, // Se for transferência
-                'status'         => 'solicitado', // Status inicial V2
-                'observacao'     => $request->observacao
-            ]);
-
-            // 3. Preparação para Inserção em Massa (Bulk Insert)
-            // O método ::insert() é 50x mais rápido que o ::create() em loops,
-            // mas ele NÃO preenche created_at/updated_at automaticamente.
-            
-            $motosParaInserir = [];
-            $now = now(); // Data única para todos os registros
-            $statusInicialMoto = 'solicitado';
-
-            foreach ($request->motos as $motoData) {
-                $motosParaInserir[] = [
-                    'pedido_id'      => $pedido->id,
-                    'user_id'        => $user->id, // Dono atual (quem pediu)
-                    'chassi'         => mb_strtoupper($motoData['chassi']),
-                    'modelo'         => mb_strtoupper($motoData['modelo']),
-                    'cor'            => mb_strtoupper($motoData['cor']),
-                    'ano_fabricacao' => $motoData['ano'] ?? null,
-                    'status'         => $statusInicialMoto,
-                    'localizacao_atual' => 'Aguardando Aprovação/Separação',
-                    'created_at'     => $now,
-                    'updated_at'     => $now,
-                ];
-            }
-
-            // 4. Executa a Inserção (Query Única)
-            // Divide em lotes de 100 para segurança, caso enviem 1000 de uma vez.
-            foreach (array_chunk($motosParaInserir, 100) as $chunk) {
-                \App\Models\Moto::insert($chunk);
-            }
-
-            // 5. Log e Notificações (Otimizado)
-            // Logamos apenas o pedido para não travar a thread com muitos logs de moto
-            \App\Models\PedidoLog::create([
-                'pedido_id' => $pedido->id,
-                'titulo'    => 'Pedido Criado 🆕',
-                'descricao' => "Solicitação #{$pedido->id} criada com " . count($motosParaInserir) . " motos."
-            ]);
-
-            // Notifica Gestores (Sem travar o request, usando queue se possível, ou try/catch)
-            try {
-                $gestores = \App\Models\User::where('perfil', 'gestor')->get();
-                // Assumindo que você tem esse helper no controller
-                if (method_exists($this, 'enviarNotificacao')) {
-                    $this->enviarNotificacao(
-                        $gestores, 
-                        'Nova Solicitação 🆕', 
-                        "Loja {$user->filial} solicitou {$pedido->id}.", 
-                        route('gestor.show', $pedido->id)
-                    );
+            // Valida duplicidade se chassis forem informados
+            $chassisInformados = array_filter(array_column($request->itens, 'chassi'));
+            if (!empty($chassisInformados)) {
+                $duplicados = Moto::whereIn('chassi', $chassisInformados)
+                    ->whereNotIn('status', ['estoque_fabrica', 'cancelado'])
+                    ->pluck('chassi')->toArray();
+                
+                if ($duplicados) {
+                    throw ValidationException::withMessages(['itens' => 'Chassis já em uso: ' . implode(', ', $duplicados)]);
                 }
-            } catch (\Exception $e) {
-                // Ignora erro de notificação para não falhar o pedido
             }
 
-            return redirect()->route('pedidos.index')
-                ->with('success', 'Pedido enviado com sucesso! Aguarde a aprovação.');
+            // Recalcula Logística (Backend Trust)
+            $previsaoColeta = null; $previsaoEntrega = null;
+            if ($request->origem_id) {
+                $reqLogistica = new Request(['fornecedor_id' => $request->origem_id]);
+                $dadosLogistica = $this->calcularLogistica($reqLogistica)->getData();
+                
+                if (isset($dadosLogistica->erro)) {
+                    throw ValidationException::withMessages(['origem_id' => $dadosLogistica->erro]);
+                }
+                $previsaoColeta = $dadosLogistica->data_coleta ?? null;
+                $previsaoEntrega = $dadosLogistica->data_entrega ?? null;
+            }
+
+            // Cria o Pedido
+            $pedido = Pedido::create([
+                'user_id' => Auth::id(),
+                'status' => 'em_analise', // Vai para aprovação do Gestor
+                'observacao' => $request->observacao,
+                'origem_user_id' => $request->origem_id,
+                'itens' => $request->itens, // Salva JSON para histórico
+                'previsao_coleta' => $previsaoColeta,
+                'previsao_entrega' => $previsaoEntrega
+            ]);
+
+            // Cria ou Vincula as Motos
+            foreach ($request->itens as $item) {
+                // Se o usuário informou chassi, criamos/atualizamos a moto
+                if (!empty($item['chassi'])) {
+                    $moto = Moto::updateOrCreate(
+                        ['chassi' => mb_strtoupper($item['chassi'])],
+                        [
+                            'modelo' => mb_strtoupper($item['modelo']),
+                            'cor' => mb_strtoupper($item['cor']),
+                            'ano_fabricacao' => $item['ano'] ?? null,
+                            'motivo_solicitacao' => $item['motivo'],
+                            'status' => 'reservado', // Bloqueia para outros
+                            'localizacao_atual' => 'Reservado Pedido #' . $pedido->id
+                        ]
+                    );
+                    // Vincula na tabela pivô
+                    $pedido->motos()->attach($moto->id, ['destino' => mb_strtoupper($item['local'])]);
+                } else {
+                    // Se NÃO informou chassi (Pedido Genérico), o CD alocará depois.
+                    // A moto não é criada na tabela `motos` ainda, fica só no JSON `itens` do pedido.
+                }
+            }
+
+            $origemNome = $request->origem_id ? 'Transferência (Inter-lojas)' : 'Reposição CD';
+            $this->registrarLog($pedido, 'Solicitação Criada', $origemNome);
+            
+            // Notifica Diretoria
+            $this->enviarNotificacao(
+                User::where('perfil', 'gestor')->get(), 
+                'Nova Solicitação 🆕', 
+                "Loja " . Auth::user()->filial . " criou pedido #{$pedido->id}.", 
+                route('dashboard')
+            );
+
+            return redirect()->route('pedidos.index')->with('success', 'Solicitação enviada para aprovação!');
         });
     }
 

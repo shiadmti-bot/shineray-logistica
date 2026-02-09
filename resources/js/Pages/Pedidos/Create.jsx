@@ -26,14 +26,12 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         "Exposição / Showroom", "Reposição de Garantia", "Uso Interno"
     ];
 
-    // --- ESTADO DO FORMULÁRIO (Padronizado para 'motos') ---
     const { data, setData, post, processing, errors, reset } = useForm({
-        origem_id: '', // ID da loja de origem (vazio = CD)
-        motos: [       // A chave deve ser 'motos' para bater com a validação do Laravel
+        origem_id: '', // v2: ID da loja de origem (vazio = CD)
+        itens: [
             { 
                 modelo: '', chassi: '', cor: '', ano: '', motivo: '', 
-                // Se 'locaisEntrega' e 'auth' estiverem disponíveis no escopo:
-                local: (typeof locaisEntrega !== 'undefined' && locaisEntrega.includes(auth?.user?.filial)) ? auth.user.filial : '' 
+                local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : '' 
             }
         ],
         observacao: ''
@@ -42,123 +40,89 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     // --- LÓGICA LOGÍSTICA (v2) ---
     const verificarLogistica = async (fornecedorId) => {
         if (!fornecedorId) {
-            if (typeof setLogisticaInfo === 'function') setLogisticaInfo(null);
+            setLogisticaInfo(null);
             return;
         }
 
-        if (typeof setCarregandoLogistica === 'function') setCarregandoLogistica(true);
-        
+        setCarregandoLogistica(true);
         try {
-            // Chama a API para calcular prazos e rotas
+            // Chama a API que criamos no Backend para calcular as datas
             const response = await axios.post(route('pedidos.logistica'), {
-                origem_id: fornecedorId // Ajustado para bater com o Controller (geralmente usa origem_id)
+                fornecedor_id: fornecedorId
             });
-            if (typeof setLogisticaInfo === 'function') setLogisticaInfo(response.data);
+            setLogisticaInfo(response.data);
         } catch (error) {
             console.error("Erro logística:", error);
-            if (typeof setLogisticaInfo === 'function') {
-                setLogisticaInfo({ erro: 'Não foi possível calcular a rota. Verifique se as lojas possuem rotas definidas.' });
-            }
+            setLogisticaInfo({ erro: 'Não foi possível calcular a rota. Verifique se as lojas possuem rotas definidas.' });
         } finally {
-            if (typeof setCarregandoLogistica === 'function') setCarregandoLogistica(false);
+            setCarregandoLogistica(false);
         }
     };
 
     const handleFornecedorChange = (e) => {
         const id = e.target.value;
         setData('origem_id', id);
-        // Só chama a logística se tiver ID selecionado
-        if(id) verificarLogistica(id);
+        verificarLogistica(id);
     };
 
-    // --- MANIPULAÇÃO DE ITENS (CORRIGIDO: 'itens' -> 'motos') ---
-    
+    // --- MANIPULAÇÃO DE ITENS (MANTIDO) ---
     const addItem = () => {
-        // Pega o local da última moto para facilitar a digitação
-        const ultimoLocal = data.motos.length > 0 ? data.motos[data.motos.length - 1].local : '';
-        
-        setData('motos', [
-            ...data.motos, 
+        setData('itens', [
+            ...data.itens, 
             { 
                 modelo: '', chassi: '', cor: '', ano: '', motivo: '', 
-                local: ultimoLocal 
+                local: data.itens[data.itens.length - 1]?.local || '' 
             }
         ]);
     };
 
     const removeItem = (index) => {
-        // Impede remover se só tiver 1 item (opcional, mas recomendado)
-        if (data.motos.length === 1) {
-            Swal.fire('Aviso', 'O pedido deve ter pelo menos uma moto.', 'warning');
-            return;
-        }
-        
-        const novasMotos = [...data.motos];
-        novasMotos.splice(index, 1);
-        setData('motos', novasMotos);
+        const novosItens = [...data.itens];
+        novosItens.splice(index, 1);
+        setData('itens', novosItens);
     };
 
     const updateItem = (index, field, value) => {
-        const novasMotos = [...data.motos];
-        novasMotos[index][field] = value;
-        setData('motos', novasMotos);
+        const novosItens = [...data.itens];
+        novosItens[index][field] = value;
+        setData('itens', novosItens);
     };
 
-    // Função auxiliar para replicar o destino da 1ª moto para todas (Facilitador)
     const replicarDestino = () => {
-        if (data.motos.length === 0) return;
-
-        const primeiroLocal = data.motos[0].local;
+        const primeiroLocal = data.itens[0].local;
         if (!primeiroLocal) {
             Swal.fire('Atenção', 'Selecione um destino na primeira linha antes de copiar.', 'warning');
             return;
         }
-        
-        const novasMotos = data.motos.map(item => ({ ...item, local: primeiroLocal }));
-        setData('motos', novasMotos);
-        
+        const novosItens = data.itens.map(item => ({ ...item, local: primeiroLocal }));
+        setData('itens', novosItens);
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-        Toast.fire({ icon: 'success', title: `Destino "${primeiroLocal}" copiado para todos!` });
+        Toast.fire({ icon: 'success', title: `Destino "${primeiroLocal}" copiado!` });
     };
 
     // --- SUBMIT COM VALIDAÇÃO v2 ---
     const submit = (e) => {
         e.preventDefault();
 
-        // 1. Validação de Origem (Se for transferência)
-        // Certifique-se que a variável 'modo' está disponível no escopo (ex: const [modo, setModo] = useState('cd'))
-        if (typeof modo !== 'undefined' && modo === 'transferencia' && !data.origem_id) {
+        // Validação Específica de Transferência
+        if (modo === 'transferencia' && !data.origem_id) {
             Swal.fire('Falta a Origem', 'Selecione de qual loja essas motos virão.', 'warning');
             return;
         }
 
-        // 2. Validação de Motos (Frontend)
-        const temErroMotos = data.motos.some(m => !m.modelo || !m.cor); // Exemplo simples
-        if (temErroMotos) {
-             Swal.fire('Dados Incompletos', 'Verifique se Modelo e Cor estão preenchidos em todas as linhas.', 'warning');
-             return;
-        }
-
         post(route('pedidos.store'), {
             onSuccess: () => {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Solicitação Enviada!',
-                    text: 'O pedido foi registrado e aguarda aprovação.',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-                reset(); // Limpa o formulário
-                if (typeof setModo === 'function') setModo('cd'); 
-                if (typeof setLogisticaInfo === 'function') setLogisticaInfo(null);
+                Swal.fire('Sucesso!', 'Solicitação enviada.', 'success');
+                reset(); // Limpa o form após sucesso
+                setModo('cd'); // Reseta para padrão
+                setLogisticaInfo(null);
             },
             onError: (errors) => {
-                // Pega a primeira mensagem de erro para exibir no alerta
                 const primeiraMensagem = Object.values(errors)[0];
                 Swal.fire({
                     icon: 'error',
-                    title: 'Erro ao Salvar',
-                    text: primeiraMensagem || 'Verifique os campos destacados em vermelho.',
+                    title: 'Atenção',
+                    text: primeiraMensagem || 'Verifique os campos em vermelho.',
                     confirmButtonColor: '#d33'
                 });
             }
@@ -325,9 +289,8 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                             </div>
 
                             <div className="space-y-3">
-                                {/* CORREÇÃO: data.motos.map em vez de data.itens.map */}
-                                {data.motos.map((item, index) => (
-                                    <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all relative ${errors[`motos.${index}.motivo`] || errors[`motos.${index}.local`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                {data.itens.map((item, index) => (
+                                    <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all relative ${errors[`itens.${index}.motivo`] || errors[`itens.${index}.local`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                                         
                                         {/* Index */}
                                         <div className="col-span-1 text-center font-bold text-gray-400 hidden md:block">{index + 1}</div>
@@ -359,13 +322,13 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                             <select 
                                                 value={item.local}
                                                 onChange={(e) => updateItem(index, 'local', e.target.value)}
-                                                className={`w-full rounded text-sm bg-yellow-50 focus:bg-white ${errors[`motos.${index}.local`] ? 'border-red-500' : 'border-gray-300'}`}
+                                                className={`w-full rounded text-sm bg-yellow-50 focus:bg-white ${errors[`itens.${index}.local`] ? 'border-red-500' : 'border-gray-300'}`}
                                             >
                                                 <option value="" disabled>Selecione...</option>
                                                 {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
                                             </select>
-                                            {/* Botão Copiar (v2) - CORRIGIDO data.motos */}
-                                            {index === 0 && data.motos.length > 1 && (
+                                            {/* Botão Copiar (v2) */}
+                                            {index === 0 && data.itens.length > 1 && (
                                                 <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold hidden md:block">
                                                     Copiar p/ todos ⬇️
                                                 </button>
@@ -386,7 +349,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                             <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Motivo</label>
                                             <select 
                                                 value={item.motivo} onChange={(e) => updateItem(index, 'motivo', e.target.value)}
-                                                className={`w-full rounded text-sm ${errors[`motos.${index}.motivo`] ? 'border-red-500' : 'border-gray-300'}`}
+                                                className={`w-full rounded text-sm ${errors[`itens.${index}.motivo`] ? 'border-red-500' : 'border-gray-300'}`}
                                             >
                                                 <option value="" disabled>Selecione...</option>
                                                 {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
@@ -394,8 +357,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                         </div>
 
                                         <div className="col-span-1 text-center">
-                                            {/* CORRIGIDO data.motos */}
-                                            {data.motos.length > 1 && (
+                                            {data.itens.length > 1 && (
                                                 <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 text-xl p-2 transition rounded-full hover:bg-red-50">🗑️</button>
                                             )}
                                         </div>
