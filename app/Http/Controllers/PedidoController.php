@@ -52,7 +52,62 @@ class PedidoController extends Controller
     }
 
     // --- API v2: CÉREBRO LOGÍSTICO ---
-    
+    public function calcularLogistica(Request $request) {
+        $destino = Auth::user(); // Quem pede
+        $origemId = $request->fornecedor_id; // De onde vem
+
+        // Se não tem origem definida, assumimos que é CD (Reposição)
+        if (!$origemId) {
+            return response()->json([
+                'tipo' => 'reposicao',
+                'origem' => 'CD / Fábrica',
+                'rota_origem' => 'Fluxo CD',
+                'data_coleta' => now()->format('Y-m-d'),
+                'data_entrega' => now()->addDays(2)->format('Y-m-d'), // Estimativa padrão
+                'mensagem' => 'Saída direta do estoque do CD.'
+            ]);
+        }
+
+        $origem = User::find($origemId);
+        if (!$origem) return response()->json(['erro' => 'Fornecedor não encontrado.'], 404);
+
+        // LÓGICA CAPITAL vs INTERIOR (V2)
+        if (!$origem->is_interior) {
+            // Capital: Fluxo Direto (Imediato)
+            return response()->json([
+                'tipo' => 'transferencia',
+                'origem' => $origem->filial,
+                'rota_origem' => 'Direta (Capital)',
+                'data_coleta' => now()->format('Y-m-d'),
+                'data_entrega' => now()->addDay()->format('Y-m-d'),
+                'mensagem' => 'Transferência direta na região metropolitana.'
+            ]);
+        } 
+        
+        // Interior: Depende do Calendário (Schedule)
+        // Busca a próxima viagem confirmada onde a origem é Destino ou Escala
+        $viagem = Schedule::where(function($q) use ($origemId) {
+                $q->where('target_user_id', $origemId)
+                  ->orWhere('secondary_user_id', $origemId);
+            })
+            ->where('date', '>=', now())
+            ->where('status', 'confirmed')
+            ->orderBy('date', 'asc')
+            ->first();
+
+        if (!$viagem) {
+            return response()->json(['erro' => "A loja {$origem->filial} não tem viagens confirmadas no calendário para coleta."], 404);
+        }
+
+        return response()->json([
+            'tipo' => 'transferencia',
+            'origem' => $origem->filial,
+            'rota_origem' => 'Agendada (Interior)',
+            'data_coleta' => $viagem->date->format('Y-m-d'),
+            // Entrega = Coleta + 3 dias (Triagem CD)
+            'data_entrega' => Carbon::parse($viagem->date)->addDays(3)->format('Y-m-d')
+        ]);
+    }
 
     // --- CRUD PEDIDOS ---
     public function index(Request $request)
@@ -325,153 +380,110 @@ class PedidoController extends Controller
     // --- FINALIZAÇÃO (RECEBIMENTO NA LOJA) ---
     public function finalizarEntrega(Request $request, $id)
     {
-        // 1. Validação Rigorosa: Arquivo Obrigatório
-        $request->validate([
-            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360', // Máx 15MB
-            'avarias'          => 'nullable|array',
-            'fotos_avarias'    => 'nullable|array'
-        ], [
-            'arquivo_romaneio.required' => 'É obrigatório anexar a foto do romaneio assinado para finalizar.',
-            'arquivo_romaneio.mimes'    => 'O arquivo deve ser uma imagem (JPG, PNG) ou PDF.'
-        ]);
+        // 1. Validação
+        $request->validate(['arquivo_romaneio' => 'required|file|max:15360']);
 
         return DB::transaction(function () use ($request, $id) {
+            $pedido = Pedido::with('user', 'motos')->findOrFail($id);
             
-            // Carrega Pedido e Motos
-            $pedido = Pedido::with(['user', 'motos'])->findOrFail($id);
-            $userFilial = $pedido->user->filial ?? 'Matriz';
+            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) abort(403);
 
-            // Segurança: Apenas o dono da loja ou Admin/Gestor pode finalizar
-            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
-                abort(403, 'Acesso negado: Você não pode finalizar pedidos de outra loja.');
-            }
-
-            // 2. Upload do Romaneio (Google Drive com Fallback Local)
+            // 2. Lógica de Backup (Drive ou Local)
             $linkComprovante = null;
-            $driveError = null;
+            $usouBackupLocal = false;
 
             try {
-                // Tenta conectar ao Drive
+                $refreshToken = config('services.google.refresh_token');
+                if (empty($refreshToken)) throw new \Exception("Token vazio");
+
                 $client = new Client();
                 $client->setClientId(config('services.google.client_id'));
                 $client->setClientSecret(config('services.google.client_secret'));
-                $client->refreshToken(config('services.google.refresh_token'));
+                $client->refreshToken($refreshToken);
                 $service = new Drive($client);
-                
-                // Estrutura de Pastas: Filial -> Ano -> Mês
-                $folderName = "Filial - " . $userFilial;
-                $rootId = config('services.google.folder_id');
-                
-                // Cache para evitar chamadas repetidas à API do Drive para achar pastas
-                $targetFolderId = Cache::remember("drive_fldr_{$pedido->user_id}_" . date('Ym'), 3600, function () use ($service, $rootId, $folderName) {
-                    $filialId = $this->findOrCreateFolder($service, $folderName, $rootId);
-                    $yearId = $this->findOrCreateFolder($service, date('Y'), $filialId);
-                    return $this->findOrCreateFolder($service, date('m') . ' - Recebimentos', $yearId);
+
+                $folderId = Cache::remember("drive_folder_" . date('Ym'), 3600, function () use ($service) {
+                    $root = config('services.google.folder_id') ?: 'root';
+                    $ano = $this->findOrCreateFolder($service, date('Y'), $root);
+                    return $this->findOrCreateFolder($service, date('m') . ' - Recebimentos', $ano);
                 });
 
-                // Nome do Arquivo Padronizado
-                $fileName = "ROMANEIO_Ped-{$pedido->id}_" . date('d-m-Y') . ".{$request->file('arquivo_romaneio')->getClientOriginalExtension()}";
-                
-                // Upload
-                $linkComprovante = $this->uploadFileToDrive($service, $request->file('arquivo_romaneio'), $targetFolderId, $fileName);
+                $linkComprovante = $this->uploadFileToDrive($service, $request->file('arquivo_romaneio'), $folderId, "PEDIDO_{$id}_RECEBIMENTO");
 
             } catch (\Exception $e) {
-                // Se o Drive falhar, salva localmente para não travar a operação
-                $driveError = $e->getMessage();
-                $localName = "comprovante_ped_{$id}_" . time() . "." . $request->file('arquivo_romaneio')->getClientOriginalExtension();
-                $path = $request->file('arquivo_romaneio')->storeAs('comprovantes_contingencia', $localName, 'public');
-                $linkComprovante = asset("storage/$path");
+                // Fallback Local
+                $nomeArquivo = "comprovante_ped_{$id}_" . time() . "." . $request->file('arquivo_romaneio')->getClientOriginalExtension();
+                $caminho = $request->file('arquivo_romaneio')->storeAs('comprovantes', $nomeArquivo, 'public');
+                $linkComprovante = asset("storage/$caminho");
+                $usouBackupLocal = true;
             }
 
-            // Salva link no pedido
             $pedido->comprovante_url = $linkComprovante;
-
-            // 3. Processamento das Motos e Avarias
-            $listaAvarias = $request->input('avarias', []);
-            $fotosAvarias = $request->file('fotos_avarias', []);
+            
+            // 3. Processamento das Motos (CORREÇÃO AQUI)
+            $avarias = $request->input('avarias', []);
+            $fotos = $request->file('fotos_avarias', []);
             $qtdAvarias = 0;
 
             foreach ($pedido->motos as $moto) {
-                
-                $statusMoto = 'disponivel'; // Padrão: Entra no estoque da loja para venda
+                $statusMoto = 'disponivel'; 
                 $obsAvaria = null;
-                $linkFotoAvaria = null;
+                $linkFoto = null;
 
-                // Verifica se esta moto foi marcada como avariada
-                if (!empty($listaAvarias[$moto->id])) {
+                if (!empty($avarias[$moto->id])) {
                     $qtdAvarias++;
-                    $statusMoto = 'avariado'; // Entra no estoque como avariada (indisponível)
-                    $obsAvaria = $listaAvarias[$moto->id];
-
-                    // Upload da foto da avaria (se houver)
-                    if (isset($fotosAvarias[$moto->id])) {
-                        try {
-                            if (!isset($driveError) && isset($service)) {
-                                // Tenta Drive
-                                $fName = "AVARIA_{$moto->chassi}_Ped-{$pedido->id}." . $fotosAvarias[$moto->id]->getClientOriginalExtension();
-                                $linkFotoAvaria = $this->uploadFileToDrive($service, $fotosAvarias[$moto->id], $targetFolderId, $fName);
-                            } else {
-                                throw new \Exception("Drive indisponível");
+                    $statusMoto = 'avariado';
+                    $obsAvaria = $avarias[$moto->id];
+                    
+                    if (isset($fotos[$moto->id])) {
+                        if (!$usouBackupLocal && isset($service)) {
+                            try {
+                                $linkFoto = $this->uploadFileToDrive($service, $fotos[$moto->id], $folderId, "AVARIA_{$moto->chassi}");
+                            } catch (\Exception $e) {
+                                $pathFoto = $fotos[$moto->id]->store('avarias', 'public');
+                                $linkFoto = asset("storage/$pathFoto");
                             }
-                        } catch (\Exception $e) {
-                            // Fallback Local
-                            $path = $fotosAvarias[$moto->id]->store('avarias_contingencia', 'public');
-                            $linkFotoAvaria = asset("storage/$path");
+                        } else {
+                            $pathFoto = $fotos[$moto->id]->store('avarias', 'public');
+                            $linkFoto = asset("storage/$pathFoto");
                         }
                     }
                 }
 
-                // Atualiza a Moto
                 $moto->update([
-                    'status' => $statusMoto,
-                    'localizacao_atual' => "Estoque Loja: {$userFilial}" . ($statusMoto === 'avariado' ? ' (COM AVARIA)' : ''),
+                    'status' => $statusMoto, // Fica 'disponivel' ou 'avariado'
+                    'localizacao_atual' => "Estoque Loja: {$pedido->user->filial}",
                     'detalhes_avaria' => $obsAvaria,
-                    'foto_avaria' => $linkFotoAvaria,
-                    // Mantemos o 'romaneio_id' histórico, mas o ciclo logístico encerrou aqui.
+                    'foto_avaria' => $linkFoto,
+                    // REMOVIDO: 'romaneio_id' => null
+                    // Mantemos o ID para que o histórico da carga continue mostrando essa moto.
                 ]);
             }
 
-            // 4. Finaliza o Pedido
-            $pedido->status = 'concluido';
-            $pedido->save();
-
-            // 5. Verifica se a Carga (Romaneio) inteira foi concluída
+            $pedido->update(['status' => 'concluido']);
+            
+            // 4. Fechamento da Carga (Romaneio)
             if ($pedido->romaneio_id) {
-                // Conta quantos pedidos ainda faltam entregar neste caminhão
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
-                    ->whereNotIn('status', ['concluido', 'cancelado', 'no_cd']) // no_cd = transbordo devolvido
-                    ->count();
-
+                                   ->where('status', '!=', 'concluido')->count();
+                
+                // Se não tem mais pedidos pendentes nesta carga, marca como Concluída
                 if ($pendentes === 0) {
                     Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
                 }
             }
 
-            // 6. Logs e Notificações
-            $logMsg = $qtdAvarias > 0 
-                ? "Entrega finalizada com {$qtdAvarias} avarias reportadas." 
-                : "Entrega finalizada com sucesso (100% OK).";
+            $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Com $qtdAvarias avarias." : "100% OK.");
             
-            $this->registrarLog($pedido, 'Concluído', $logMsg);
-
-            // Notifica Gestores
             try {
-                $gestores = User::where('perfil', 'gestor')->get();
-                $this->enviarNotificacao(
-                    $gestores,
-                    'Entrega Realizada ✅',
-                    "Loja {$userFilial} finalizou o recebimento do pedido #{$pedido->id}.",
-                    route('pedidos.show', $pedido->id)
-                );
-            } catch (\Exception $e) {
-                // Ignora erro de notificação para não travar o processo
-            }
+                $this->enviarNotificacao(User::where('perfil', 'gestor')->get(), 'Concluído ✅', "Loja finalizou pedido #{$id}.", route('pedidos.show', $id));
+            } catch (\Exception $e) {}
 
-            $msgFinal = isset($driveError) 
-                ? 'Recebimento salvo localmente (Google Drive instável), mas finalizado com sucesso!' 
-                : 'Recebimento confirmado e arquivos salvos na nuvem!';
+            $msg = $usouBackupLocal 
+                ? 'Recebimento salvo localmente (Drive indisponível).' 
+                : 'Recebimento confirmado!';
 
-            return redirect()->back()->with('message', $msgFinal);
+            return back()->with('message', $msg);
         });
     }
 
