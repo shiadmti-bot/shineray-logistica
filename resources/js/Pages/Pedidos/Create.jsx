@@ -26,12 +26,14 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         "Exposição / Showroom", "Reposição de Garantia", "Uso Interno"
     ];
 
+    // --- ESTADO DO FORMULÁRIO (Padronizado para 'motos') ---
     const { data, setData, post, processing, errors, reset } = useForm({
-        origem_id: '', // v2: ID da loja de origem (vazio = CD)
-        itens: [
+        origem_id: '', // ID da loja de origem (vazio = CD)
+        motos: [       // A chave deve ser 'motos' para bater com a validação do Laravel
             { 
                 modelo: '', chassi: '', cor: '', ano: '', motivo: '', 
-                local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : '' 
+                // Se 'locaisEntrega' e 'auth' estiverem disponíveis no escopo:
+                local: (typeof locaisEntrega !== 'undefined' && locaisEntrega.includes(auth?.user?.filial)) ? auth.user.filial : '' 
             }
         ],
         observacao: ''
@@ -40,89 +42,123 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     // --- LÓGICA LOGÍSTICA (v2) ---
     const verificarLogistica = async (fornecedorId) => {
         if (!fornecedorId) {
-            setLogisticaInfo(null);
+            if (typeof setLogisticaInfo === 'function') setLogisticaInfo(null);
             return;
         }
 
-        setCarregandoLogistica(true);
+        if (typeof setCarregandoLogistica === 'function') setCarregandoLogistica(true);
+        
         try {
-            // Chama a API que criamos no Backend para calcular as datas
+            // Chama a API para calcular prazos e rotas
             const response = await axios.post(route('pedidos.logistica'), {
-                fornecedor_id: fornecedorId
+                origem_id: fornecedorId // Ajustado para bater com o Controller (geralmente usa origem_id)
             });
-            setLogisticaInfo(response.data);
+            if (typeof setLogisticaInfo === 'function') setLogisticaInfo(response.data);
         } catch (error) {
             console.error("Erro logística:", error);
-            setLogisticaInfo({ erro: 'Não foi possível calcular a rota. Verifique se as lojas possuem rotas definidas.' });
+            if (typeof setLogisticaInfo === 'function') {
+                setLogisticaInfo({ erro: 'Não foi possível calcular a rota. Verifique se as lojas possuem rotas definidas.' });
+            }
         } finally {
-            setCarregandoLogistica(false);
+            if (typeof setCarregandoLogistica === 'function') setCarregandoLogistica(false);
         }
     };
 
     const handleFornecedorChange = (e) => {
         const id = e.target.value;
         setData('origem_id', id);
-        verificarLogistica(id);
+        // Só chama a logística se tiver ID selecionado
+        if(id) verificarLogistica(id);
     };
 
-    // --- MANIPULAÇÃO DE ITENS (MANTIDO) ---
+    // --- MANIPULAÇÃO DE ITENS (CORRIGIDO: 'itens' -> 'motos') ---
+    
     const addItem = () => {
-        setData('itens', [
-            ...data.itens, 
+        // Pega o local da última moto para facilitar a digitação
+        const ultimoLocal = data.motos.length > 0 ? data.motos[data.motos.length - 1].local : '';
+        
+        setData('motos', [
+            ...data.motos, 
             { 
                 modelo: '', chassi: '', cor: '', ano: '', motivo: '', 
-                local: data.itens[data.itens.length - 1]?.local || '' 
+                local: ultimoLocal 
             }
         ]);
     };
 
     const removeItem = (index) => {
-        const novosItens = [...data.itens];
-        novosItens.splice(index, 1);
-        setData('itens', novosItens);
+        // Impede remover se só tiver 1 item (opcional, mas recomendado)
+        if (data.motos.length === 1) {
+            Swal.fire('Aviso', 'O pedido deve ter pelo menos uma moto.', 'warning');
+            return;
+        }
+        
+        const novasMotos = [...data.motos];
+        novasMotos.splice(index, 1);
+        setData('motos', novasMotos);
     };
 
     const updateItem = (index, field, value) => {
-        const novosItens = [...data.itens];
-        novosItens[index][field] = value;
-        setData('itens', novosItens);
+        const novasMotos = [...data.motos];
+        novasMotos[index][field] = value;
+        setData('motos', novasMotos);
     };
 
+    // Função auxiliar para replicar o destino da 1ª moto para todas (Facilitador)
     const replicarDestino = () => {
-        const primeiroLocal = data.itens[0].local;
+        if (data.motos.length === 0) return;
+
+        const primeiroLocal = data.motos[0].local;
         if (!primeiroLocal) {
             Swal.fire('Atenção', 'Selecione um destino na primeira linha antes de copiar.', 'warning');
             return;
         }
-        const novosItens = data.itens.map(item => ({ ...item, local: primeiroLocal }));
-        setData('itens', novosItens);
+        
+        const novasMotos = data.motos.map(item => ({ ...item, local: primeiroLocal }));
+        setData('motos', novasMotos);
+        
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-        Toast.fire({ icon: 'success', title: `Destino "${primeiroLocal}" copiado!` });
+        Toast.fire({ icon: 'success', title: `Destino "${primeiroLocal}" copiado para todos!` });
     };
 
     // --- SUBMIT COM VALIDAÇÃO v2 ---
     const submit = (e) => {
         e.preventDefault();
 
-        // Validação Específica de Transferência
-        if (modo === 'transferencia' && !data.origem_id) {
+        // 1. Validação de Origem (Se for transferência)
+        // Certifique-se que a variável 'modo' está disponível no escopo (ex: const [modo, setModo] = useState('cd'))
+        if (typeof modo !== 'undefined' && modo === 'transferencia' && !data.origem_id) {
             Swal.fire('Falta a Origem', 'Selecione de qual loja essas motos virão.', 'warning');
             return;
         }
 
+        // 2. Validação de Motos (Frontend)
+        const temErroMotos = data.motos.some(m => !m.modelo || !m.cor); // Exemplo simples
+        if (temErroMotos) {
+             Swal.fire('Dados Incompletos', 'Verifique se Modelo e Cor estão preenchidos em todas as linhas.', 'warning');
+             return;
+        }
+
         post(route('pedidos.store'), {
             onSuccess: () => {
-                Swal.fire('Sucesso!', 'Solicitação enviada.', 'success');
-                reset(); // Limpa o form após sucesso
-                setModo('cd'); // Reseta para padrão
-                setLogisticaInfo(null);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Solicitação Enviada!',
+                    text: 'O pedido foi registrado e aguarda aprovação.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                reset(); // Limpa o formulário
+                if (typeof setModo === 'function') setModo('cd'); 
+                if (typeof setLogisticaInfo === 'function') setLogisticaInfo(null);
             },
             onError: (errors) => {
+                // Pega a primeira mensagem de erro para exibir no alerta
                 const primeiraMensagem = Object.values(errors)[0];
                 Swal.fire({
                     icon: 'error',
-                    title: 'Atenção',
-                    text: primeiraMensagem || 'Verifique os campos em vermelho.',
+                    title: 'Erro ao Salvar',
+                    text: primeiraMensagem || 'Verifique os campos destacados em vermelho.',
                     confirmButtonColor: '#d33'
                 });
             }
