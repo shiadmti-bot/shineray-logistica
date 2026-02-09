@@ -19,17 +19,54 @@ class GestorController extends Controller
      */
     public function index()
     {
-        // 1. Pedidos Normais (Fluxo de Venda)
-        $pedidos = Pedido::with(['user', 'motos'])
+        // 1. Pedidos Normais (Fluxo de Venda + Transferências)
+        $pedidos = Pedido::with(['user', 'motos', 'origem'])
             ->where('status', 'em_analise')
             ->latest()
-            ->get();
+            ->get()
+            ->map(function ($pedido) {
+                return [
+                    'id' => $pedido->id,
+                    'user_id' => $pedido->user_id,
+                    'solicitante' => ($pedido->user->filial ?? 'Matriz') . ' - ' . $pedido->user->name,
+                    'tipo' => $pedido->origem_user_id ? 'transferencia' : 'reposicao',
+                    'origem_nome' => $pedido->origem_user_id ? ($pedido->origem->filial ?? 'Loja Origem') : 'CD / Fábrica',
+                    'created_at' => $pedido->created_at->format('d/m H:i'),
+                    'qtd_motos' => $pedido->motos->count(),
+                    'resumo_itens' => $pedido->motos->map(fn($m) => $m->modelo . ' (' . $m->cor . ')')->unique()->implode(', '),
+                    'observacao' => $pedido->observacao
+                ];
+            });
 
-        // 2. Estornos/Cortes Pendentes (Solicitados por CD ou Loja)
-        $estornos = Moto::with(['pedidos.user']) // Carrega quem pediu a moto original
-            ->where('estorno_pendente', true)
+        // 2. Estornos/Cortes Pendentes (CORREÇÃO DE QUERY)
+        // Agora buscamos motos que estão marcadas como estorno_pendente
+        // E usamos 'pedidos' (plural) para tentar achar a loja dona
+        $estornos = Moto::where('estorno_pendente', true)
+            ->with(['pedidos.user']) // Carrega relacionamentos para exibir nome da loja
             ->latest('updated_at')
-            ->get();
+            ->get()
+            ->map(function ($moto) {
+                // Tenta pegar o primeiro pedido vinculado (geralmente é o atual)
+                $pedido = $moto->pedidos->first();
+                
+                // Se não tiver pedido vinculado (foi detach), tentamos pegar o user_estorno_id se existir
+                // Se não, fica como "Desconhecido"
+                $nomeLoja = 'Loja/CD Desconhecido';
+                
+                if ($pedido && $pedido->user) {
+                    $nomeLoja = $pedido->user->filial;
+                }
+
+                return [
+                    'id' => $moto->id,
+                    'modelo' => $moto->modelo,
+                    'chassi' => $moto->chassi,
+                    'motivo_estorno' => $moto->motivo_estorno ?? 'Motivo não informado',
+                    'solicitante_original' => $nomeLoja,
+                    'pedido_id' => $pedido?->id,
+                    'data_solicitacao' => $moto->updated_at->format('d/m H:i')
+                ];
+            });
 
         return Inertia::render('Gestor/Dashboard', [
             'pedidos' => $pedidos,

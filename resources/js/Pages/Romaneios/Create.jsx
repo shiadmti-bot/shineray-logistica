@@ -1,306 +1,324 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm } from '@inertiajs/react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import Swal from 'sweetalert2';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 
-export default function RomaneioCreate({ auth, motosDisponiveis, romaneiosAbertos = [] }) {
-    const [selectedIds, setSelectedIds] = useState([]);
-    const [leituraInput, setLeituraInput] = useState('');
-    const [showScanner, setShowScanner] = useState(false);
-    const [modo, setModo] = useState('novo'); 
+export default function RomaneioCreate({ auth, expedicao = [], coletas = [], cargasEmAberto = [] }) {
     
-    const inputLeitorRef = useRef(null);
-    
-    const { data, setData, post, processing } = useForm({
+    // --- ESTADOS ---
+    const [selectedIds, setSelectedIds] = useState([]); 
+    const [activeTab, setActiveTab] = useState('expedicao'); 
+
+    const { data, setData, post, processing, errors } = useForm({
         motorista: '',
         placa: '',
-        transportadora: '',
+        rota_nome: '',
         romaneio_id: '',
-        motos_ids: []
+        pedidos_ids: []
     });
 
-    // Sincroniza seleção com o form
-    useEffect(() => {
-        setData('motos_ids', selectedIds);
-    }, [selectedIds]);
-
-    // --- 1. LÓGICA DE AGRUPAMENTO INTELIGENTE ---
-    // Agrupa estritamente pelo DESTINO FINAL gravado no pedido (pivot)
-    const motosAgrupadas = useMemo(() => {
+    // --- 1. AGRUPAMENTO INTELIGENTE ---
+    const agrupadosExpedicao = useMemo(() => {
         const grupos = {};
-        
-        motosDisponiveis.forEach(moto => {
-            // A mágica acontece aqui: O Controller injetou o 'pivot' diretamente na moto
-            let destino = moto.pivot?.destino 
-                       || moto.pedido?.user?.filial 
-                       || moto.pedido?.user?.name 
-                       || 'DESTINO NÃO INFORMADO';
-            
-            // Normaliza (Maiúsculas e sem espaços extras)
-            destino = destino.toUpperCase().trim();
-
-            if (!grupos[destino]) {
-                grupos[destino] = [];
-            }
-            grupos[destino].push(moto);
+        expedicao.forEach(p => {
+            const destino = p.user?.filial || p.user?.name || 'DESTINO NÃO INFORMADO';
+            if (!grupos[destino]) grupos[destino] = [];
+            grupos[destino].push(p);
         });
+        return grupos;
+    }, [expedicao]);
 
-        // Ordena chaves alfabeticamente
-        return Object.keys(grupos).sort().reduce((obj, key) => { 
-            obj[key] = grupos[key]; 
-            return obj;
-        }, {});
-    }, [motosDisponiveis]);
+    const agrupadosColeta = useMemo(() => {
+        const grupos = {};
+        coletas.forEach(p => {
+            const origem = p.origem?.filial || 'ORIGEM NÃO INFORMADA';
+            if (!grupos[origem]) grupos[origem] = [];
+            grupos[origem].push(p);
+        });
+        return grupos;
+    }, [coletas]);
 
-    // --- 2. SELEÇÃO EM LOTE POR DESTINO ---
-    const toggleGrupo = (destino) => {
-        const motosDoGrupo = motosAgrupadas[destino] || [];
-        const idsDoGrupo = motosDoGrupo.map(m => m.id);
-        
+    // --- 2. LÓGICA DE SELEÇÃO ---
+    const togglePedido = (id) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(i => i !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const toggleGrupo = (pedidosDoGrupo) => {
+        const idsDoGrupo = pedidosDoGrupo.map(p => p.id);
         const todosSelecionados = idsDoGrupo.every(id => selectedIds.includes(id));
 
         if (todosSelecionados) {
-            setSelectedIds(prev => prev.filter(id => !idsDoGrupo.includes(id)));
+            setSelectedIds(selectedIds.filter(id => !idsDoGrupo.includes(id)));
         } else {
-            const novosIds = idsDoGrupo.filter(id => !selectedIds.includes(id));
-            setSelectedIds(prev => [...prev, ...novosIds]);
+            const novos = idsDoGrupo.filter(id => !selectedIds.includes(id));
+            setSelectedIds([...selectedIds, ...novos]);
         }
     };
 
-    // --- LÓGICA DA CÂMERA ---
-    useEffect(() => {
-        let scanner = null;
-        if (showScanner) {
-            setTimeout(() => {
-                const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0, videoConstraints: { facingMode: "environment" } };
-                try {
-                    scanner = new Html5QrcodeScanner("reader", config, false);
-                    scanner.render((decodedText) => handleBip(decodedText), (error) => {});
-                } catch (e) { console.error("Erro cam", e); }
-            }, 300);
-        }
-        return () => { if (scanner) scanner.clear().catch(e => {}); };
-    }, [showScanner]);
-
-    const handleBip = (codigo) => {
-        const chassiLimpo = codigo.trim().toUpperCase();
-        const motoEncontrada = motosDisponiveis.find(m => m.chassi.toUpperCase() === chassiLimpo);
-
-        if (!motoEncontrada) {
-            Swal.fire({ title: 'Não Encontrado', text: `Chassi ${chassiLimpo} não disponível na separação.`, icon: 'error', timer: 2000, toast: true, position: 'top-end', showConfirmButton: false });
-            return false;
-        }
-        if (selectedIds.includes(motoEncontrada.id)) {
-            Swal.fire({ title: 'Já na lista', icon: 'warning', timer: 2000, toast: true, position: 'top-end', showConfirmButton: false });
-            return false;
-        }
-
-        setSelectedIds(prev => [...prev, motoEncontrada.id]);
-        
-        try { const audio = new Audio('/plim.mp3'); audio.play().catch(() => {}); } catch(e){}
-        
-        Swal.fire({ title: `${motoEncontrada.modelo} Adicionada!`, icon: 'success', timer: 1500, toast: true, position: 'top-end', showConfirmButton: false });
-        return true;
-    };
-
-    const handleManualSubmit = (e) => {
-        e.preventDefault();
-        if(!leituraInput) return;
-        handleBip(leituraInput);
-        setLeituraInput('');
-        inputLeitorRef.current?.focus(); 
-    };
-
-    const toggleSelection = (id) => {
-        if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(itemId => itemId !== id));
-        else setSelectedIds([...selectedIds, id]);
-    };
-
+    // --- 3. SUBMIT ---
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (selectedIds.length === 0) return Swal.fire('Atenção', 'Selecione pelo menos uma moto.', 'warning');
-        if (modo === 'novo' && (!data.motorista || !data.placa)) return Swal.fire('Atenção', 'Preencha Motorista e Placa.', 'warning');
-        if (modo === 'existente' && !data.romaneio_id) return Swal.fire('Atenção', 'Selecione a carga existente.', 'warning');
+        
+        if (selectedIds.length === 0) {
+            Swal.fire('Vazio', 'Selecione pelo menos um pedido para a carga.', 'warning');
+            return;
+        }
 
-        const textoAcao = modo === 'novo' ? 'Gerar Nova Carga' : 'Adicionar à Carga';
-
-        Swal.fire({
-            title: 'Confirmar Expedição?',
-            text: `Confirma ${textoAcao} com ${selectedIds.length} motos?`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Sim, Gerar',
-            confirmButtonColor: '#16a34a'
-        }).then((res) => {
-            if (res.isConfirmed) post(route('romaneios.store'));
+        data.pedidos_ids = selectedIds;
+        
+        post(route('romaneios.store'), {
+            onSuccess: () => Swal.fire({ icon: 'success', title: 'Sucesso', text: 'Carga gerada! Redirecionando...', timer: 2000, showConfirmButton: false }),
+            onError: () => Swal.fire('Erro', 'Verifique os dados obrigatórios.', 'error')
         });
     };
 
-    // Helper de cores
-    const getColorHex = (cor) => {
-        if (!cor) return '#ccc';
-        const map = { 'VERMELHO': '#ef4444', 'AZUL': '#3b82f6', 'PRETO': '#1f2937', 'BRANCO': '#ffffff', 'PRATA': '#9ca3af', 'CINZA': '#6b7280' };
-        return map[cor.toUpperCase()] || '#eee';
-    };
+    // --- CÁLCULO DE TOTAIS ---
+    const totalMotosSelecionadas = [...expedicao, ...coletas]
+        .filter(p => selectedIds.includes(p.id))
+        .reduce((acc, p) => acc + (p.motos?.length || 0), 0);
+
+    const countExp = expedicao.filter(p => selectedIds.includes(p.id)).length;
+    const countCol = coletas.filter(p => selectedIds.includes(p.id)).length;
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-gray-800">Expedição e Carga</h2>}>
+        <AuthenticatedLayout user={auth.user} header={<h2 className="font-black text-xl text-gray-800 uppercase tracking-tight">Montagem de Carga <span className="text-red-600">V2</span></h2>}>
             <Head title="Nova Carga" />
 
-            <div className="py-6 md:py-12 bg-gray-100 min-h-screen pb-32">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-2">
+            <div className="py-6 bg-gray-100 min-h-screen pb-40 font-sans">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     
-                    {/* --- PAINEL DE CONTROLE --- */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <form onSubmit={handleSubmit}>
                         
-                        {/* ABAS */}
-                        <div className="flex border-b border-gray-200">
-                            <button onClick={() => { setModo('novo'); setData('romaneio_id', ''); }} className={`flex-1 py-4 font-bold text-sm uppercase tracking-wide transition ${modo === 'novo' ? 'bg-indigo-50 text-indigo-700 border-b-4 border-indigo-500' : 'text-gray-500 hover:bg-gray-50'}`}>✨ Criar Nova Carga</button>
-                            <button onClick={() => setModo('existente')} disabled={romaneiosAbertos.length === 0} className={`flex-1 py-4 font-bold text-sm uppercase tracking-wide transition ${modo === 'existente' ? 'bg-orange-50 text-orange-700 border-b-4 border-orange-500' : 'text-gray-500 hover:bg-gray-50 disabled:opacity-50'}`}>➕ Adicionar à Carga</button>
-                        </div>
-
-                        <div className="p-4 md:p-6 flex flex-col md:flex-row gap-8">
-                            {/* LEITOR */}
-                            <div className="flex-1 border-r-0 md:border-r border-gray-100 pr-0 md:pr-8">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-gray-700">🔍 Leitor de Código</h3>
-                                    <button type="button" onClick={() => setShowScanner(!showScanner)} className={`text-xs px-3 py-1 rounded-full border font-bold flex items-center gap-2 ${showScanner ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'}`}>
-                                        {showScanner ? 'FECHAR CAM' : '📷 CÂMERA'}
+                        {/* --- DADOS DA CARGA --- */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+                            <div className="flex justify-between items-center mb-4 border-b pb-2 border-gray-100">
+                                <h3 className="font-bold text-gray-700 flex items-center gap-2 uppercase text-sm tracking-wider">
+                                    🚚 Configuração da Viagem
+                                </h3>
+                                {/* Alternar Nova/Existente */}
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setData('romaneio_id', '')}
+                                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${!data.romaneio_id ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        ✨ NOVA CARGA
                                     </button>
-                                </div>
-
-                                {showScanner && <div className="mb-4 bg-black rounded-lg overflow-hidden border-4 border-indigo-500"><div id="reader"></div></div>}
-
-                                <form onSubmit={handleManualSubmit} className="flex gap-2">
-                                    <input ref={inputLeitorRef} type="text" value={leituraInput} onChange={e => setLeituraInput(e.target.value)} placeholder="Bipe o chassi..." className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 font-mono uppercase" autoFocus />
-                                    <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-md font-bold">OK</button>
-                                </form>
-
-                                <div className="mt-4 flex justify-between items-center bg-blue-50 p-3 rounded border border-blue-100 text-blue-800">
-                                    <span className="text-sm">Selecionadas:</span>
-                                    <span className="font-bold text-xl">{selectedIds.length}</span>
+                                    <button 
+                                        type="button"
+                                        disabled={cargasEmAberto.length === 0}
+                                        onClick={() => cargasEmAberto.length > 0 && setData('romaneio_id', cargasEmAberto[0].id)}
+                                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${data.romaneio_id ? 'bg-orange-100 text-orange-800' : 'text-gray-500'} ${cargasEmAberto.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-700'}`}
+                                    >
+                                        ➕ ADICIONAR À EXISTENTE
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* DADOS DA CARGA */}
-                            <div className="flex-1">
-                                <form onSubmit={handleSubmit} className="space-y-4">
-                                    {modo === 'novo' ? (
-                                        <div className="animate-fade-in space-y-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700">Motorista</label>
-                                                <input type="text" value={data.motorista} onChange={e => setData('motorista', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm uppercase" placeholder="NOME DO MOTORISTA" />
-                                            </div>
-                                            <div className="flex gap-4">
-                                                <div className="flex-1">
-                                                    <label className="block text-sm font-medium text-gray-700">Placa</label>
-                                                    <input type="text" value={data.placa} onChange={e => setData('placa', e.target.value.toUpperCase())} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm uppercase" placeholder="ABC-1234" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <label className="block text-sm font-medium text-gray-700">Transportadora</label>
-                                                    <input type="text" value={data.transportadora} onChange={e => setData('transportadora', e.target.value)} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm uppercase" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-orange-50 p-4 rounded border border-orange-200 animate-fade-in">
-                                            <label className="block text-sm font-bold text-orange-800 mb-2">Selecione Carga Aberta:</label>
-                                            <select value={data.romaneio_id} onChange={e => setData('romaneio_id', e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm">
-                                                <option value="">-- Selecione --</option>
-                                                {romaneiosAbertos.map(r => <option key={r.id} value={r.id}>#{r.id} - {r.motorista} ({r.placa})</option>)}
-                                            </select>
-                                        </div>
-                                    )}
+                            {!data.romaneio_id ? (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-down">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Rota / Região</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ex: Rota Bragança"
+                                            className="w-full border-gray-300 rounded-lg text-sm focus:ring-gray-900 focus:border-gray-900"
+                                            value={data.rota_nome}
+                                            onChange={e => setData('rota_nome', e.target.value)}
+                                        />
+                                        {errors.rota_nome && <div className="text-red-500 text-[10px] mt-1 font-bold">{errors.rota_nome}</div>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Motorista</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Nome Completo"
+                                            className="w-full border-gray-300 rounded-lg text-sm uppercase focus:ring-gray-900 focus:border-gray-900"
+                                            value={data.motorista}
+                                            onChange={e => setData('motorista', e.target.value)}
+                                        />
+                                        {errors.motorista && <div className="text-red-500 text-[10px] mt-1 font-bold">{errors.motorista}</div>}
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Placa</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="ABC-1234"
+                                            className="w-full border-gray-300 rounded-lg text-sm uppercase text-center font-mono font-bold focus:ring-gray-900 focus:border-gray-900"
+                                            maxLength={8}
+                                            value={data.placa}
+                                            onChange={e => setData('placa', e.target.value.toUpperCase())}
+                                        />
+                                        {errors.placa && <div className="text-red-500 text-[10px] mt-1 font-bold">{errors.placa}</div>}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 animate-fade-in-down">
+                                    <label className="block text-xs font-bold text-orange-800 mb-2 uppercase">Selecione a Carga Aberta:</label>
+                                    <select 
+                                        value={data.romaneio_id} 
+                                        onChange={e => setData('romaneio_id', e.target.value)} 
+                                        className="block w-full rounded-md border-orange-300 shadow-sm font-bold text-gray-700 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                                    >
+                                        <option value="">-- Selecione --</option>
+                                        {cargasEmAberto.map(r => (
+                                            <option key={r.id} value={r.id}>
+                                                #{String(r.id).padStart(6,'0')} - {r.rota} ({r.motorista}) - {r.motos_count} vols
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
 
-                                    <button disabled={processing || selectedIds.length === 0} className={`w-full py-4 rounded-md font-bold text-lg text-white shadow-lg mt-6 transition disabled:opacity-50 hover:-translate-y-1 ${modo === 'novo' ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'}`}>
-                                        {processing ? 'Processando...' : (modo === 'novo' ? 'GERAR ROMANEIO 🚛' : 'ATUALIZAR CARGA 🔄')}
-                                    </button>
-                                </form>
+                        {/* --- ABAS DE SELEÇÃO --- */}
+                        <div className="mb-6">
+                            <div className="flex border-b border-gray-300 bg-white rounded-t-xl overflow-hidden shadow-sm">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('expedicao')}
+                                    className={`flex-1 py-4 text-center font-black text-xs uppercase tracking-widest border-b-4 transition ${activeTab === 'expedicao' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                                >
+                                    🏭 Estoque CD (Saída)
+                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'expedicao' ? 'bg-blue-200 text-blue-900' : 'bg-gray-200 text-gray-500'}`}>{expedicao.length}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('coleta')}
+                                    className={`flex-1 py-4 text-center font-black text-xs uppercase tracking-widest border-b-4 transition ${activeTab === 'coleta' ? 'border-orange-500 text-orange-700 bg-orange-50' : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                                >
+                                    🚚 Coletas (Milk Run)
+                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'coleta' ? 'bg-orange-200 text-orange-900' : 'bg-gray-200 text-gray-500'}`}>{coletas.length}</span>
+                                </button>
                             </div>
                         </div>
-                    </div>
 
-                    {/* --- LISTA AGRUPADA POR DESTINO (CORRIGIDO) --- */}
-                    <div className="space-y-8 pb-10">
-                        {Object.keys(motosAgrupadas).length > 0 ? (
-                            Object.entries(motosAgrupadas).map(([destino, motos]) => (
-                                <div key={destino} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                                    
-                                    {/* CABEÇALHO DO DESTINO */}
-                                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+                        {/* --- LISTA DE PEDIDOS --- */}
+                        <div className="space-y-6">
+                            {activeTab === 'expedicao' && Object.keys(agrupadosExpedicao).length === 0 && (
+                                <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-300">
+                                    <p className="text-gray-400 font-medium">Nenhum pedido de expedição disponível.</p>
+                                </div>
+                            )}
+
+                            {activeTab === 'coleta' && Object.keys(agrupadosColeta).length === 0 && (
+                                <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-300">
+                                    <p className="text-gray-400 font-medium">Nenhuma coleta solicitada.</p>
+                                </div>
+                            )}
+
+                            {Object.entries(activeTab === 'expedicao' ? agrupadosExpedicao : agrupadosColeta).map(([local, pedidos]) => (
+                                <div key={local} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition hover:shadow-md">
+                                    {/* Cabeçalho do Grupo */}
+                                    <div className={`px-6 py-3 border-b flex justify-between items-center ${activeTab === 'expedicao' ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100'}`}>
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-indigo-100 p-2 rounded-full text-indigo-700 text-xl">📍</div>
+                                            <div className={`p-2 rounded-full text-lg shadow-sm bg-white ${activeTab === 'expedicao' ? 'text-blue-600' : 'text-orange-600'}`}>
+                                                {activeTab === 'expedicao' ? '📍' : '🏪'}
+                                            </div>
                                             <div>
-                                                <h3 className="font-black text-lg text-gray-800 tracking-tight">{destino}</h3>
-                                                <span className="text-xs text-gray-500 font-medium">{motos.length} volumes neste destino</span>
+                                                <h3 className={`font-black text-base ${activeTab === 'expedicao' ? 'text-blue-900' : 'text-orange-900'}`}>
+                                                    {local}
+                                                </h3>
+                                                <p className={`text-[10px] font-bold uppercase tracking-wide ${activeTab === 'expedicao' ? 'text-blue-400' : 'text-orange-400'}`}>
+                                                    {activeTab === 'expedicao' ? 'Destino Final' : 'Local de Coleta'}
+                                                </p>
                                             </div>
                                         </div>
                                         <button 
-                                            onClick={() => toggleGrupo(destino)}
-                                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-4 py-2 rounded transition border border-indigo-200 uppercase tracking-wider"
+                                            type="button" 
+                                            onClick={() => toggleGrupo(pedidos)}
+                                            className={`text-[10px] font-bold px-4 py-2 rounded uppercase border transition shadow-sm ${
+                                                pedidos.every(p => selectedIds.includes(p.id)) 
+                                                ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' 
+                                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                            }`}
                                         >
-                                            {motos.every(m => selectedIds.includes(m.id)) ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                                            {pedidos.every(p => selectedIds.includes(p.id)) ? 'Desmarcar Todos' : 'Selecionar Todos'}
                                         </button>
                                     </div>
 
-                                    {/* GRID DE CARDS */}
-                                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {motos.map((moto) => {
-                                            const isSelected = selectedIds.includes(moto.id);
-                                            // Se o destino do grupo for diferente da filial do usuário, mostra quem pediu
-                                            const isDestinoDiferente = moto.pedido?.user?.filial && moto.pedido.user.filial.toUpperCase() !== destino;
-
+                                    {/* Lista de Pedidos */}
+                                    <div className="divide-y divide-gray-100">
+                                        {pedidos.map(pedido => {
+                                            const isSelected = selectedIds.includes(pedido.id);
                                             return (
                                                 <div 
-                                                    key={moto.id} 
-                                                    onClick={() => toggleSelection(moto.id)}
-                                                    className={`cursor-pointer p-4 rounded-lg border-2 transition-all shadow-sm flex flex-col justify-between relative bg-white group select-none
-                                                        ${isSelected 
-                                                            ? 'border-green-500 ring-1 ring-green-500 bg-green-50' 
-                                                            : 'border-gray-100 hover:border-indigo-300'
-                                                        }`}
+                                                    key={pedido.id} 
+                                                    onClick={() => togglePedido(pedido.id)}
+                                                    className={`p-4 flex items-center justify-between cursor-pointer transition group ${isSelected ? (activeTab === 'expedicao' ? 'bg-blue-50/30' : 'bg-orange-50/30') : 'hover:bg-gray-50'}`}
                                                 >
-                                                    {/* Check Visual */}
-                                                    <div className={`absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isSelected ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400 group-hover:bg-indigo-100'}`}>
-                                                        {isSelected ? '✓' : ''}
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-6 h-6 rounded border flex items-center justify-center transition shadow-sm ${isSelected ? 'bg-green-500 border-green-500 text-white scale-110' : 'bg-white border-gray-300 group-hover:border-gray-400'}`}>
+                                                            {isSelected && <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-gray-800 text-sm">Pedido #{pedido.id}</span>
+                                                                {pedido.status === 'no_cd' && <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold">TRANSBORDO</span>}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 mt-0.5 font-medium">
+                                                                {activeTab === 'expedicao' 
+                                                                    ? `Solicitante: ${pedido.user.name}` 
+                                                                    : `Vai para: ${pedido.user.filial || 'Matriz'}`}
+                                                            </div>
+                                                        </div>
                                                     </div>
 
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-800 text-sm pr-8">{moto.modelo}</h4>
-                                                        <p className="font-mono text-gray-500 text-xs mt-1 tracking-wider">{moto.chassi}</p>
-                                                        
-                                                        <div className="mt-3 flex flex-wrap gap-2 items-center">
-                                                            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-medium border border-gray-200">
-                                                                Pedido #{moto.pedido?.id}
-                                                            </span>
-                                                            <div className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-200">
-                                                                <span className="w-2 h-2 rounded-full border border-gray-300" style={{ backgroundColor: getColorHex(moto.cor) }}></span>
-                                                                <span className="text-[10px] font-bold text-gray-600 capitalize">{moto.cor}</span>
-                                                            </div>
-                                                            
-                                                            {/* Mostra quem solicitou se for diferente do destino */}
-                                                            {isDestinoDiferente && (
-                                                                <span className="text-[9px] text-indigo-500 font-bold ml-auto">
-                                                                    (Solic: {moto.pedido.user.filial})
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                    <div className="text-right">
+                                                        <span className="block text-2xl font-black text-gray-800 leading-none">{pedido.motos?.length || 0}</span>
+                                                        <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Motos</span>
                                                     </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 </div>
-                            ))
-                        ) : (
-                            <div className="text-center py-16 text-gray-400 bg-white rounded-lg border-2 border-dashed border-gray-200">
-                                <div className="text-5xl mb-3 opacity-50">🚚</div>
-                                <p className="font-medium">Nenhuma moto separada aguardando expedição.</p>
-                                <p className="text-sm">Finalize a separação dos pedidos para que apareçam aqui.</p>
+                            ))}
+                        </div>
+
+                        {/* --- BARRA FLUTUANTE DE RESUMO --- */}
+                        <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] z-50 border-t border-gray-800 safe-area-bottom">
+                            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-start">
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] text-gray-400 uppercase font-bold tracking-widest mb-1">Total Carga</span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-3xl font-black text-yellow-400 leading-none">{totalMotosSelecionadas}</span>
+                                            <span className="text-xs font-bold text-gray-500">VOLUMES</span>
+                                        </div>
+                                    </div>
+                                    <div className="h-8 w-px bg-gray-700 hidden md:block"></div>
+                                    <div className="flex gap-6 text-sm">
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px] font-bold uppercase">Expedição</span>
+                                            <span className="font-bold text-blue-300">{countExp} peds</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-500 block text-[10px] font-bold uppercase">Coletas</span>
+                                            <span className="font-bold text-orange-300">{countCol} peds</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    type="submit" 
+                                    disabled={processing || selectedIds.length === 0}
+                                    className={`w-full md:w-auto bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-12 rounded-lg shadow-lg transition transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 uppercase tracking-wide text-sm ${processing ? 'animate-pulse' : ''}`}
+                                >
+                                    {processing ? 'Gerando Manifesto...' : (
+                                        <>
+                                            <span>🚀</span> Gerar Carga
+                                        </>
+                                    )}
+                                </button>
                             </div>
-                        )}
-                    </div>
+                        </div>
+
+                    </form>
 
                 </div>
             </div>

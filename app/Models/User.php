@@ -10,11 +10,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 // 1. Importações do Spatie Activitylog
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+// 2. Importar o Model Route para o relacionamento
+use App\Models\Route; 
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    // 2. Adicione LogsActivity aqui
     use HasFactory, Notifiable, LogsActivity, SoftDeletes;
 
     /**
@@ -28,9 +29,11 @@ class User extends Authenticatable
         'password',
         'onesignal_id',
         // 3. Novos campos personalizados do nosso sistema
-        'perfil',       // admin, cd, loja
-        'filial',       // Nome da loja/cidade
-        'last_seen_at', // Visto por último (Online)
+        'perfil',           // admin, cd, loja
+        'filial',
+        'is_interior',      // Nome da loja/cidade
+        'last_seen_at',     // Visto por último (Online)
+        'default_route_id'  // <--- NOVO (v2): Vincula a loja a uma rota logística
     ];
 
     /**
@@ -53,7 +56,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'last_seen_at' => 'datetime', // Importante para o Carbon funcionar direto
+            'last_seen_at' => 'datetime',
+            'is_interior' => 'boolean',
         ];
     }
 
@@ -61,9 +65,19 @@ class User extends Authenticatable
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'perfil', 'filial']) // O que vigiar
-            ->logOnlyDirty() // Só grava se mudar algo
-            ->dontSubmitEmptyLogs() // Não grava se salvar sem mudar nada
+            ->logOnly(['name', 'email', 'perfil', 'filial', 'default_route_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Usuário foi {$eventName}");
+    }
+
+    // --- RELACIONAMENTOS (v2) ---
+
+    /**
+     * Rota padrão logística desta loja (Ex: Loja Castanhal pertence à Rota BR-316)
+     */
+    public function defaultRoute()
+    {
+        return $this->belongsTo(Route::class, 'default_route_id');
     }
 }

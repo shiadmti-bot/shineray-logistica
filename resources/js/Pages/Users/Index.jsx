@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
+import Swal from 'sweetalert2';
 
 export default function UsersIndex({ auth, users, filters }) {
     const [term, setTerm] = useState(filters.search || '');
@@ -14,6 +15,36 @@ export default function UsersIndex({ auth, users, filters }) {
         if (confirm('Tem certeza que deseja remover o acesso deste usuário?')) {
             router.delete(route('users.destroy', id));
         }
+    };
+
+    // --- FUNÇÃO DE ALTERAÇÃO DE FLUXO (V2) ---
+    const toggleRota = (user) => {
+        Swal.fire({
+            title: 'Alterar Logística?',
+            text: user.is_interior 
+                ? `Mudar ${user.filial} para CAPITAL? (Isso habilitará o fluxo direto Loja->Loja sem passar pelo CD).`
+                : `Mudar ${user.filial} para INTERIOR? (Isso obrigará todas as cargas a passarem pelo CD).`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: user.is_interior ? '#16a34a' : '#ea580c', // Verde p/ Capital, Laranja p/ Interior
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: user.is_interior ? 'Sim, virar Capital' : 'Sim, virar Interior'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                router.patch(route('users.toggle-interior', user.id), {}, {
+                    preserveScroll: true,
+                    preserveState: false, // <--- FUNDAMENTAL: Força o Inertia a pegar os dados frescos do banco
+                    onSuccess: () => {
+                        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+                        Toast.fire({ 
+                            icon: 'success', 
+                            title: 'Fluxo Atualizado!',
+                            text: `Nova regra aplicada para ${user.filial}`
+                        });
+                    }
+                });
+            }
+        });
     };
 
     return (
@@ -51,6 +82,7 @@ export default function UsersIndex({ auth, users, filters }) {
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status / Nome</th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Perfil</th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Filial / Local</th>
+                                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Logística & Fluxo (V2)</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Ações</th>
                                     </tr>
                                 </thead>
@@ -59,33 +91,23 @@ export default function UsersIndex({ auth, users, filters }) {
                                         <tr key={user.id} className="hover:bg-gray-50 transition">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-4">
-
-                                                    {/* Avatar / Indicador Online */}
+                                                    {/* Avatar */}
                                                     <div className="relative">
-                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white uppercase shadow-sm ${user.is_online ? 'bg-green-600' : 'bg-gray-400'
-                                                            }`}>
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white uppercase shadow-sm ${user.is_online ? 'bg-green-600' : 'bg-gray-400'}`}>
                                                             {user.name.charAt(0)}
                                                         </div>
                                                         {user.is_online && (
                                                             <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-white rounded-full animate-pulse"></span>
                                                         )}
                                                     </div>
-
-                                                    {/* Nome e E-mail */}
+                                                    {/* Info */}
                                                     <div>
                                                         <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                                             {user.name}
-                                                            {user.is_online && (
-                                                                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded border border-green-200 font-bold uppercase tracking-wider">
-                                                                    Online
-                                                                </span>
-                                                            )}
                                                         </div>
                                                         <div className="text-xs text-gray-500">{user.email}</div>
-
-                                                        {/* Visto por Último */}
-                                                        <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1 font-mono">
-                                                            <span>🕒 Visto: {user.last_seen_human}</span>
+                                                        <div className="text-[10px] text-gray-400 mt-1 font-mono">
+                                                            {user.last_seen_human ? `🕒 ${user.last_seen_human}` : ''}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -99,20 +121,56 @@ export default function UsersIndex({ auth, users, filters }) {
                                                 {user.filial || <span className="text-gray-400 italic">Matriz</span>}
                                             </td>
 
+                                            {/* --- COLUNA INTERATIVA V2 --- */}
+                                            <td className="px-6 py-4 text-center">
+                                                {user.perfil === 'loja' ? (
+                                                    <button 
+                                                        onClick={() => toggleRota(user)}
+                                                        className={`w-full md:w-auto px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:scale-105 ${
+                                                            user.is_interior 
+                                                                ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' 
+                                                                : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                                        }`}
+                                                        title="Clique para alterar a regra de roteamento"
+                                                    >
+                                                        {user.is_interior ? (
+                                                            <>
+                                                                <span>🏭</span> Interior (Via CD)
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span>⚡</span> Capital (Direto)
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-gray-300 text-xs">-</span>
+                                                )}
+                                            </td>
+
                                             <td className="px-6 py-4 text-right">
-                                                <button
-                                                    onClick={() => handleDelete(user.id)}
-                                                    className="text-red-600 hover:text-red-900 font-bold text-xs uppercase border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition"
-                                                >
-                                                    Remover
-                                                </button>
+                                                <div className="flex justify-end gap-2">
+                                                    <Link
+                                                        href={route('users.edit', user.id)}
+                                                        className="text-indigo-600 hover:text-indigo-900 font-bold text-xs uppercase border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-50 transition"
+                                                    >
+                                                        Editar
+                                                    </Link>
+
+                                                    <button
+                                                        onClick={() => handleDelete(user.id)}
+                                                        className="text-red-600 hover:text-red-900 font-bold text-xs uppercase border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition"
+                                                    >
+                                                        Remover
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
 
                                     {users.data.length === 0 && (
                                         <tr>
-                                            <td colSpan="4" className="px-6 py-10 text-center text-gray-500">
+                                            <td colSpan="5" className="px-6 py-10 text-center text-gray-500">
                                                 Nenhum usuário encontrado.
                                             </td>
                                         </tr>
@@ -148,8 +206,9 @@ export default function UsersIndex({ auth, users, filters }) {
 function BadgePerfil({ perfil }) {
     const config = {
         admin: { label: 'ADMIN / AUDITOR', class: 'bg-black text-white' },
+        gestor: { label: 'DIRETORIA', class: 'bg-orange-100 text-orange-800 border border-orange-200' },
         cd: { label: 'OPERADOR CD', class: 'bg-blue-100 text-blue-800 border border-blue-200' },
-        loja: { label: 'LOJA / REVENDA', class: 'bg-green-100 text-green-800 border border-green-200' },
+        loja: { label: 'LOJA / REVENDA', class: 'bg-gray-100 text-gray-800 border border-gray-200' },
     }[perfil] || { label: perfil, class: 'bg-gray-100 text-gray-600' };
 
     return <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide ${config.class}`}>{config.label}</span>;

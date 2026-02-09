@@ -13,7 +13,7 @@ export default function Login({ status, canResetPassword }) {
         remember: false,
     });
 
-    // Estado do "Olhinho" da senha
+    // Estado para alternar visualização da senha
     const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
@@ -28,76 +28,93 @@ export default function Login({ status, canResetPassword }) {
     };
 
     return (
-        // --- LAYOUT MODERNO INTEGRADO ---
-        <div className="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gradient-to-br from-red-900 to-red-600">
+        // --- FUNDO: Gradiente Vermelho Intenso (Identidade V2) ---
+        <div className="min-h-screen flex flex-col justify-center items-center pt-6 sm:pt-0 bg-gradient-to-br from-red-950 via-red-800 to-red-600">
             <Head title="Login - Shineray Logística" />
 
-            {/* LOGO ANIMADA */}
-            <div className="mb-6 transform hover:scale-105 transition-transform duration-500">
-                <div className="bg-white p-4 rounded-full shadow-2xl flex items-center justify-center w-28 h-28 border-4 border-red-800">
+            {/* --- ÁREA DA LOGO (Adaptada para formato Retangular) --- */}
+            {/* Usamos um container branco largo para acomodar o Caminhão + Texto "By Sabel" */}
+            <div className="mb-8 transform hover:scale-105 transition-transform duration-500 ease-out">
+                <div className="bg-white px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.3)] flex items-center justify-center border-b-4 border-red-900/30">
                     <img 
                         src="/img/logo.png" 
-                        alt="Logo Shineray" 
-                        className="w-20 h-auto object-contain" 
+                        alt="Logo Shineray By Sabel" 
+                        className="h-16 w-auto object-contain" 
                     />
                 </div>
             </div>
 
-            {/* CARD DE LOGIN */}
-            <div className="w-full sm:max-w-md mt-4 px-8 py-8 bg-white shadow-2xl overflow-hidden sm:rounded-2xl border-b-8 border-red-800 relative">
+            {/* --- CARD DE LOGIN --- */}
+            <div className="w-full sm:max-w-md px-8 py-10 bg-white shadow-2xl overflow-hidden sm:rounded-3xl border-t-4 border-red-600 relative">
                 
-                {/* Cabeçalho do Card */}
-                <div className="text-center mb-8">
-                    <h2 className="text-3xl font-black text-gray-800 uppercase tracking-tighter">Acesso Restrito</h2>
-                    <p className="text-sm text-red-600 font-bold tracking-widest uppercase mt-1">Shineray By Sabel Logística</p>
+                {/* Elemento Decorativo de Fundo */}
+                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-red-50 rounded-full blur-2xl opacity-50 pointer-events-none"></div>
+
+                {/* Cabeçalho */}
+                <div className="text-center mb-8 relative z-10">
+                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">
+                        Acesso ao Sistema
+                    </h2>
+                    <p className="text-xs text-red-600 font-bold tracking-[0.3em] uppercase mt-1">
+                        Logística Integrada
+                    </p>
                 </div>
 
-                {status && <div className="mb-4 font-medium text-sm text-green-600 bg-green-50 p-3 rounded border border-green-200 text-center">{status}</div>}
+                {/* Mensagem de Status (Feedback) */}
+                {status && (
+                    <div className="mb-6 font-medium text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 flex items-center gap-2 animate-pulse">
+                        <span className="text-lg">✅</span> {status}
+                    </div>
+                )}
 
-                <form onSubmit={submit} className="space-y-5">
+                <form onSubmit={submit} className="space-y-6 relative z-10">
                     
-                    {/* EMAIL */}
+                    {/* INPUT: EMAIL */}
                     <div>
-                        <InputLabel htmlFor="email" value="E-mail Corporativo" className="text-gray-700 font-bold" />
-                        <div className="relative mt-1">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <span className="text-gray-400">📧</span>
+                        <InputLabel htmlFor="email" value="Usuário / E-mail" className="text-gray-700 font-bold text-xs uppercase ml-1 mb-1" />
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-red-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                                </svg>
                             </div>
                             <TextInput
                                 id="email"
                                 type="email"
                                 name="email"
                                 value={data.email}
-                                className="block w-full pl-10 border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                className="block w-full pl-10 border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-xl shadow-sm h-12 transition-all bg-gray-50 focus:bg-white"
                                 autoComplete="username"
                                 isFocused={true}
                                 onChange={(e) => setData('email', e.target.value)}
-                                placeholder="seu.nome@shineray.com"
+                                placeholder="ex: logistica@shineray.com"
                             />
                         </div>
                         <InputError message={errors.email} className="mt-2" />
                     </div>
 
-                    {/* SENHA COM OLHINHO */}
+                    {/* INPUT: SENHA */}
                     <div>
-                        <InputLabel htmlFor="password" value="Senha de Acesso" className="text-gray-700 font-bold" />
-                        <div className="relative mt-1">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <span className="text-gray-400">🔒</span>
+                        <InputLabel htmlFor="password" value="Senha" className="text-gray-700 font-bold text-xs uppercase ml-1 mb-1" />
+                        <div className="relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-red-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
                             </div>
                             
                             <TextInput
                                 id="password"
-                                type={showPassword ? "text" : "password"} // Alterna o tipo
+                                type={showPassword ? "text" : "password"}
                                 name="password"
                                 value={data.password}
-                                className="block w-full pl-10 pr-10 border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                className="block w-full pl-10 pr-10 border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-xl shadow-sm h-12 transition-all bg-gray-50 focus:bg-white"
                                 autoComplete="current-password"
                                 onChange={(e) => setData('password', e.target.value)}
                                 placeholder="••••••••"
                             />
 
-                            {/* Botão Mostrar/Ocultar */}
+                            {/* Botão Ver Senha */}
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
@@ -119,40 +136,62 @@ export default function Login({ status, canResetPassword }) {
                         <InputError message={errors.password} className="mt-2" />
                     </div>
 
+                    {/* OPÇÕES: Manter Conectado / Esqueci Senha */}
                     <div className="flex items-center justify-between mt-4">
-                        <label className="flex items-center">
+                        <label className="flex items-center cursor-pointer group select-none">
                             <Checkbox
                                 name="remember"
                                 checked={data.remember}
                                 onChange={(e) => setData('remember', e.target.checked)}
-                                className="text-red-600 focus:ring-red-500"
+                                className="text-red-600 focus:ring-red-500 rounded border-gray-300 w-4 h-4"
                             />
-                            <span className="ms-2 text-sm text-gray-600">Manter conectado</span>
+                            <span className="ms-2 text-sm text-gray-600 group-hover:text-red-700 transition">Manter conectado</span>
                         </label>
 
                         {canResetPassword && (
                             <Link
                                 href={route('password.request')}
-                                className="text-sm text-red-600 hover:text-red-800 hover:underline font-semibold"
+                                className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline"
                             >
-                                Esqueceu?
+                                Esqueceu a senha?
                             </Link>
                         )}
                     </div>
 
+                    {/* BOTÃO DE AÇÃO */}
                     <div className="pt-2">
                         <PrimaryButton 
-                            className="w-full justify-center py-3 bg-red-700 hover:bg-red-800 focus:ring-red-500 text-lg shadow-lg transform hover:-translate-y-0.5 transition-all" 
+                            className="w-full justify-center py-4 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 focus:ring-red-500 text-lg shadow-lg hover:shadow-red-900/30 transform hover:-translate-y-0.5 transition-all duration-200 rounded-xl" 
                             disabled={processing}
                         >
-                            {processing ? 'Autenticando...' : 'ENTRAR NO SISTEMA'}
+                            {processing ? (
+                                <span className="flex items-center gap-2">
+                                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Validando...
+                                </span>
+                            ) : (
+                                'ACESSAR PAINEL'
+                            )}
                         </PrimaryButton>
                     </div>
                 </form>
             </div>
 
-            <div className="mt-8 text-red-200 text-xs opacity-70">
-                &copy; {new Date().getFullYear()} Shineray Sabel. Uso exclusivo interno.
+            {/* RODAPÉ */}
+            <div className="mt-8 flex flex-col items-center gap-2 opacity-80 text-white">
+                <p className="text-xs font-light tracking-wide">
+                    &copy; {new Date().getFullYear()} Shineray do Brasil.
+                </p>
+                <div className="flex gap-3 text-[10px] text-red-200 uppercase font-bold tracking-widest border-t border-red-700 pt-2">
+                    <span>V2.0</span>
+                    <span>•</span>
+                    <span>Hub & Spoke</span>
+                    <span>•</span>
+                    <span>Milk Run</span>
+                </div>
             </div>
         </div>
     );

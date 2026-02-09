@@ -4,38 +4,60 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes; // Se estiver usando soft deletes
 
 class Moto extends Model
 {
     use HasFactory;
-    // use SoftDeletes; // Descomente se sua tabela usa deleted_at
 
     protected $fillable = [
         'modelo',
         'chassi',
         'cor',
         'ano_fabricacao',
+        'status',             // Ex: disponivel, separado, aguardando_coleta, transito_loja, no_cd, avariado
+        'localizacao_atual',  // Texto livre: "Estoque CD", "Caminhão placa XXX", "Loja Belém"
+        'romaneio_id',        // Vínculo com a carga atual (se houver)
+        
+        // Campos de Controle
         'motivo_solicitacao',
         'detalhes_avaria',
         'foto_avaria',
-        'status',
-        'localizacao_atual',
-        'romaneio_id'
-        // Nota: Não colocamos pedido_id aqui pois usamos tabela pivo
+        'estorno_pendente',
+        'motivo_estorno',
+        'user_estorno_id'
+
     ];
 
-    // --- RELAÇÃO COM ROMANEIO ---
+    /**
+     * RELAÇÃO: Carga Atual
+     * Uma moto só pode estar em UM caminhão (Romaneio) por vez.
+     */
     public function romaneio()
     {
         return $this->belongsTo(Romaneio::class);
     }
 
-    // --- ADICIONE ESTA FUNÇÃO (CORREÇÃO DO ERRO) ---
+    /**
+     * RELAÇÃO: Histórico de Pedidos
+     * Uma moto pode ter passado por vários pedidos (Venda, Transferência, Devolução).
+     * * ATUALIZAÇÃO IMPORTANTE:
+     * Adicionamos o 'orderByPivot' para garantir que $moto->pedidos->first() 
+     * traga sempre o pedido ATUAL (o último criado), e não um antigo.
+     */
     public function pedidos()
     {
-        // Uma moto pertence a pedidos via tabela pivô 'pedido_moto'
         return $this->belongsToMany(Pedido::class, 'pedido_moto')
-                    ->withTimestamps();
+                    ->withPivot(['created_at', 'destino']) // Traz dados da tabela pivo
+                    ->withTimestamps()
+                    ->orderByPivot('created_at', 'desc'); // O mais recente primeiro
+    }
+
+    /**
+     * ACESSOR MÁGICO (Opcional)
+     * Permite usar $moto->pedido_atual para pegar o pedido ativo sem fazer query complexa.
+     */
+    public function getPedidoAtualAttribute()
+    {
+        return $this->pedidos->first();
     }
 }

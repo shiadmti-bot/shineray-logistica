@@ -31,7 +31,7 @@ class UserSeeder extends Seeder
                 'email' => 'cd@shineray.com',
                 'password' => $senhaPadrao,
                 'perfil' => 'cd',
-                'filial' => 'CD Benevides'
+                'filial' => 'CD Ananindeua'
             ]
         ];
 

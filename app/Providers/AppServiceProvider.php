@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\URL; // <--- ESSA LINHA É OBRIGATÓRIA!
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Gate;
+use App\Models\User;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,9 +22,28 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Força HTTPS na Vercel (Produção)
+        // 1. Configuração de HTTPS (Mantenha, essencial para Vercel)
         if($this->app->environment('production')) {
             URL::forceScheme('https');
         }
+
+        // 2. DEFINIÇÃO DE PERMISSÕES (GATES)
+        // Isso ensina ao Laravel o que verificar quando usamos middleware('can:admin')
+        
+        Gate::define('admin', function (User $user) {
+            return $user->perfil === 'admin';
+        });
+
+        Gate::define('cd', function (User $user) {
+            return $user->perfil === 'cd';
+        });
+
+        Gate::define('gestor', function (User $user) {
+            return $user->perfil === 'gestor';
+        });
+        
+        Gate::define('loja', function (User $user) {
+            return $user->perfil === 'loja';
+        });
     }
 }

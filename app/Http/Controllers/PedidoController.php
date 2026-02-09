@@ -8,6 +8,8 @@ use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\Romaneio;
 use App\Models\User;
+use App\Models\Schedule; // Modelo do Calendário V2
+use App\Models\Modelo;
 use App\Notifications\EstornoSolicitado;
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
@@ -20,579 +22,575 @@ use Google\Client;
 use Google\Service\Drive;
 use Google\Service\Drive\DriveFile;
 use Google\Service\Drive\Permission;
+use Carbon\Carbon;
 
 class PedidoController extends Controller
 {
-    // --- HELPER: Centraliza Logs ---
+    // --- HELPER: Logs e Notificações ---
     private function registrarLog($pedido, $titulo, $desc = '') {
-        if ($pedido && $pedido->exists) {
+        if ($pedido?->exists) {
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
                 'titulo' => $titulo,
-                'descricao' => $desc . ' (Por: ' . Auth::user()->name . ')'
+                'descricao' => "$desc (Por: " . Auth::user()->name . ")"
             ]);
         }
     }
 
-    // --- HELPER: Centraliza Notificações (Sistema + Push) ---
-    private function enviarNotificacao($usuarios, $titulo, $mensagem, $link, $tipo = 'info') {
-        // Garante que é uma coleção ou array
-        if (!is_iterable($usuarios)) $usuarios = collect([$usuarios]);
-
-        // 1. Notificação do Sistema (Sininho)
+    private function enviarNotificacao($usuarios, $titulo, $mensagem, $link) {
+        $usuarios = is_iterable($usuarios) ? $usuarios : collect([$usuarios]);
+        
         foreach ($usuarios as $user) {
-            $user->notify(new PedidoAtualizado($titulo, $mensagem, $link));
+            if($user) $user->notify(new PedidoAtualizado($titulo, $mensagem, $link));
         }
 
-        // 2. Notificação Push (OneSignal)
-        $ids = collect($usuarios)->whereNotNull('onesignal_id')->pluck('onesignal_id')->toArray();
-        
+        $ids = collect($usuarios)->pluck('onesignal_id')->filter()->toArray();
         if (!empty($ids)) {
-            try {
-                $push = new OneSignalService();
-                $push->sendToUser($ids, $titulo, $mensagem, $link);
-            } catch (\Exception $e) {
-                // Loga erro mas não para o fluxo
-                \Illuminate\Support\Facades\Log::warning("Erro OneSignal: " . $e->getMessage());
-            }
+            try { (new OneSignalService())->sendToUser($ids, $titulo, $mensagem, $link); } 
+            catch (\Exception $e) { \Illuminate\Support\Facades\Log::warning("OneSignal: " . $e->getMessage()); }
         }
     }
 
+    // --- API v2: CÉREBRO LOGÍSTICO ---
+    public function calcularLogistica(Request $request) {
+        $destino = Auth::user(); // Quem pede
+        $origemId = $request->fornecedor_id; // De onde vem
+
+        // Se não tem origem definida, assumimos que é CD (Reposição)
+        if (!$origemId) {
+            return response()->json([
+                'tipo' => 'reposicao',
+                'origem' => 'CD / Fábrica',
+                'rota_origem' => 'Fluxo CD',
+                'data_coleta' => now()->format('Y-m-d'),
+                'data_entrega' => now()->addDays(2)->format('Y-m-d'), // Estimativa padrão
+                'mensagem' => 'Saída direta do estoque do CD.'
+            ]);
+        }
+
+        $origem = User::find($origemId);
+        if (!$origem) return response()->json(['erro' => 'Fornecedor não encontrado.'], 404);
+
+        // LÓGICA CAPITAL vs INTERIOR (V2)
+        if (!$origem->is_interior) {
+            // Capital: Fluxo Direto (Imediato)
+            return response()->json([
+                'tipo' => 'transferencia',
+                'origem' => $origem->filial,
+                'rota_origem' => 'Direta (Capital)',
+                'data_coleta' => now()->format('Y-m-d'),
+                'data_entrega' => now()->addDay()->format('Y-m-d'),
+                'mensagem' => 'Transferência direta na região metropolitana.'
+            ]);
+        } 
+        
+        // Interior: Depende do Calendário (Schedule)
+        // Busca a próxima viagem confirmada onde a origem é Destino ou Escala
+        $viagem = Schedule::where(function($q) use ($origemId) {
+                $q->where('target_user_id', $origemId)
+                  ->orWhere('secondary_user_id', $origemId);
+            })
+            ->where('date', '>=', now())
+            ->where('status', 'confirmed')
+            ->orderBy('date', 'asc')
+            ->first();
+
+        if (!$viagem) {
+            return response()->json(['erro' => "A loja {$origem->filial} não tem viagens confirmadas no calendário para coleta."], 404);
+        }
+
+        return response()->json([
+            'tipo' => 'transferencia',
+            'origem' => $origem->filial,
+            'rota_origem' => 'Agendada (Interior)',
+            'data_coleta' => $viagem->date->format('Y-m-d'),
+            // Entrega = Coleta + 3 dias (Triagem CD)
+            'data_entrega' => Carbon::parse($viagem->date)->addDays(3)->format('Y-m-d')
+        ]);
+    }
+
+    // --- CRUD PEDIDOS ---
     public function index(Request $request)
     {
         $user = Auth::user();
         $termo = $request->input('search');
 
-        $query = Pedido::with(['user', 'romaneio'])->withCount('motos');
-
-        if ($user->perfil === 'loja') {
-            $query->where('user_id', $user->id);
-        }
-
-        if ($termo) {
-            $query->where(function($q) use ($termo) {
-                $q->where('id', 'like', "%{$termo}%")
-                  ->orWhere('status', 'like', "%{$termo}%")
-                  ->orWhereHas('motos', fn($m) => $m->where('chassi', 'like', "%{$termo}%"))
-                  ->orWhereHas('user', fn($u) => $u->where('name', 'like', "%{$termo}%")->orWhere('filial', 'like', "%{$termo}%"));
-            });
-        }
-
-        // Ordenação: 
-        // 1. 'em_analise' (Topo para o Gestor)
-        // 2. 'solicitado' (Topo para o CD)
-        // 3. Data decrescente
-        $pedidos = $query->orderByRaw("FIELD(status, 'em_analise', 'solicitado') DESC")
-                         ->orderBy('created_at', 'desc')
-                         ->paginate(15)
-                         ->withQueryString();
+        $pedidos = Pedido::with([
+                'user:id,name,filial',    // Quem pediu
+                'origem:id,name,filial',  // Quem fornece
+                'romaneio'
+            ])
+            ->withCount('motos')
+            // LÓGICA V2: Loja vê entrada (meus pedidos) E saída (pedidos de mim)
+            ->when($user->perfil === 'loja', function($q) use ($user) {
+                $q->where(function($sub) use ($user) {
+                    $sub->where('user_id', $user->id)
+                        ->orWhere('origem_user_id', $user->id);
+                });
+            })
+            ->when($termo, function($q) use ($termo) {
+                $q->where(function($sub) use ($termo) {
+                    $sub->where('id', 'like', "%{$termo}%")
+                        ->orWhere('status', 'like', "%{$termo}%")
+                        // Busca nas motos (JSON ou relação)
+                        ->orWhereHas('motos', fn($m) => $m->where('chassi', 'like', "%{$termo}%"))
+                        // Busca quem pediu ou origem
+                        ->orWhereHas('user', fn($u) => $u->where('filial', 'like', "%{$termo}%"))
+                        ->orWhereHas('origem', fn($o) => $o->where('filial', 'like', "%{$termo}%"));
+                });
+            })
+            // Ordenação por urgência de status
+            ->orderByRaw("FIELD(status, 'em_analise', 'solicitado', 'separado') DESC")
+            ->orderBy('created_at', 'desc')
+            ->paginate(15)
+            ->withQueryString();
 
         return Inertia::render('Pedidos/Index', [
-            'pedidos' => $pedidos,
-            'perfil' => $user->perfil,
+            'pedidos' => $pedidos, 
+            'perfil' => $user->perfil, 
             'filters' => $request->only(['search'])
         ]);
     }
 
     public function create()
     {
-        $modelos = \App\Models\Modelo::orderBy('nome')->pluck('nome');
-        return Inertia::render('Pedidos/Create', ['listaModelos' => $modelos]);
+        // Lista lojas para transferência (exclui a própria)
+        $lojas = User::where('perfil', 'loja')
+            ->where('id', '!=', Auth::id())
+            ->select('id', 'name', 'filial')
+            ->orderBy('filial')
+            ->get();
+
+        return Inertia::render('Pedidos/Create', [
+            'listaModelos' => Modelo::orderBy('nome')->pluck('nome'),
+            'lojasDisponiveis' => $lojas
+        ]);
     }
 
     public function store(Request $request)
     {
-        // 1. Validação Rigorosa (Incluindo o novo campo 'local')
         $request->validate([
             'itens' => 'required|array|min:1',
-            'itens.*.modelo' => 'required|string',
-            'itens.*.chassi' => 'required|string|between:11,17|distinct',
-            'itens.*.cor' => 'required|string|min:3', 
-            'itens.*.motivo' => 'required|string',
-            'itens.*.local' => 'required|string', // Novo campo obrigatório (Destino)
+            'itens.*.modelo' => 'required',
+            'itens.*.cor' => 'required',
+            // Chassi é opcional na solicitação inicial se for apenas "Pedido de Giro", 
+            // mas obrigatório se for transferência específica.
+            'origem_id' => 'nullable|exists:users,id'
         ]);
 
         return DB::transaction(function () use ($request) {
-            // 2. Verificação de Duplicidade (Otimizada)
-            $chassisRequest = array_map('strtoupper', array_column($request->itens, 'chassi'));
             
-            $duplicados = Moto::whereIn('chassi', $chassisRequest)
-                ->whereNotIn('status', ['estoque_fabrica', 'cancelado']) 
-                ->pluck('chassi')
-                ->toArray();
-            
-            if (!empty($duplicados)) {
-                throw ValidationException::withMessages(['itens' => 'Chassis indisponíveis/já em uso: ' . implode(', ', $duplicados)]);
+            // Valida duplicidade se chassis forem informados
+            $chassisInformados = array_filter(array_column($request->itens, 'chassi'));
+            if (!empty($chassisInformados)) {
+                $duplicados = Moto::whereIn('chassi', $chassisInformados)
+                    ->whereNotIn('status', ['estoque_fabrica', 'cancelado'])
+                    ->pluck('chassi')->toArray();
+                
+                if ($duplicados) {
+                    throw ValidationException::withMessages(['itens' => 'Chassis já em uso: ' . implode(', ', $duplicados)]);
+                }
             }
 
-            // 3. Cria Pedido (Status inicial: 'em_analise')
+            // Recalcula Logística (Backend Trust)
+            $previsaoColeta = null; $previsaoEntrega = null;
+            if ($request->origem_id) {
+                $reqLogistica = new Request(['fornecedor_id' => $request->origem_id]);
+                $dadosLogistica = $this->calcularLogistica($reqLogistica)->getData();
+                
+                if (isset($dadosLogistica->erro)) {
+                    throw ValidationException::withMessages(['origem_id' => $dadosLogistica->erro]);
+                }
+                $previsaoColeta = $dadosLogistica->data_coleta ?? null;
+                $previsaoEntrega = $dadosLogistica->data_entrega ?? null;
+            }
+
+            // Cria o Pedido
             $pedido = Pedido::create([
                 'user_id' => Auth::id(),
-                'status' => 'em_analise', 
-                'observacao' => $request->observacao
+                'status' => 'em_analise', // Vai para aprovação do Gestor
+                'observacao' => $request->observacao,
+                'origem_user_id' => $request->origem_id,
+                'itens' => $request->itens, // Salva JSON para histórico
+                'previsao_coleta' => $previsaoColeta,
+                'previsao_entrega' => $previsaoEntrega
             ]);
 
-            // 4. Vincula Motos e Salva o Destino Individual
+            // Cria ou Vincula as Motos
             foreach ($request->itens as $item) {
-                $moto = Moto::updateOrCreate(
-                    ['chassi' => mb_strtoupper($item['chassi'])],
-                    [
-                        'modelo' => mb_strtoupper($item['modelo']),
-                        'cor' => mb_strtoupper($item['cor']),
-                        'ano_fabricacao' => $item['ano'] ?? null,
-                        'motivo_solicitacao' => $item['motivo'], 
-                        'status' => 'reservado',
-                        'localizacao_atual' => 'Solicitado pela Loja: ' . Auth::user()->name
-                    ]
-                );
-
-                // AQUI ESTÁ A ATUALIZAÇÃO DO REQUISITO:
-                // Salvamos o 'local' do formulário na coluna 'destino' da tabela pivô
-                $pedido->motos()->attach($moto->id, [
-                    'destino' => mb_strtoupper($item['local']) 
-                ]);
+                // Se o usuário informou chassi, criamos/atualizamos a moto
+                if (!empty($item['chassi'])) {
+                    $moto = Moto::updateOrCreate(
+                        ['chassi' => mb_strtoupper($item['chassi'])],
+                        [
+                            'modelo' => mb_strtoupper($item['modelo']),
+                            'cor' => mb_strtoupper($item['cor']),
+                            'ano_fabricacao' => $item['ano'] ?? null,
+                            'motivo_solicitacao' => $item['motivo'],
+                            'status' => 'reservado', // Bloqueia para outros
+                            'localizacao_atual' => 'Reservado Pedido #' . $pedido->id
+                        ]
+                    );
+                    // Vincula na tabela pivô
+                    $pedido->motos()->attach($moto->id, ['destino' => mb_strtoupper($item['local'])]);
+                } else {
+                    // Se NÃO informou chassi (Pedido Genérico), o CD alocará depois.
+                    // A moto não é criada na tabela `motos` ainda, fica só no JSON `itens` do pedido.
+                }
             }
 
-            $this->registrarLog($pedido, 'Solicitação Criada', 'Pedido aguardando análise do Gestor.');
-
-            // 5. Notifica Gestores
-            $gestores = User::where('perfil', 'gestor')->get();
+            $origemNome = $request->origem_id ? 'Transferência (Inter-lojas)' : 'Reposição CD';
+            $this->registrarLog($pedido, 'Solicitação Criada', $origemNome);
+            
+            // Notifica Diretoria
             $this->enviarNotificacao(
-                $gestores, 
+                User::where('perfil', 'gestor')->get(), 
                 'Nova Solicitação 🆕', 
-                "Loja " . Auth::user()->name . " solicitou aprovação para {$pedido->motos()->count()} moto(s).", 
-                route('dashboard') 
+                "Loja " . Auth::user()->filial . " criou pedido #{$pedido->id}.", 
+                route('dashboard')
             );
 
-            return redirect()->route('pedidos.sucesso')->with('success', 'Solicitação enviada para análise!');
+            return redirect()->route('pedidos.index')->with('success', 'Solicitação enviada para aprovação!');
         });
     }
 
-    // --- NOVO MÉTODO: APROVAR (Gestor -> CD) ---
     public function aprovar($id)
     {
         return DB::transaction(function () use ($id) {
-            $pedido = Pedido::with('user', 'motos')->findOrFail($id);
+            $pedido = Pedido::with(['user', 'motos', 'origem'])->findOrFail($id);
 
-            // Segurança
             if (!in_array(Auth::user()->perfil, ['admin', 'gestor'])) {
-                abort(403, 'Ação não autorizada.');
+                abort(403, 'Apenas a diretoria pode aprovar movimentações.');
             }
 
             if ($pedido->status !== 'em_analise') {
-                return redirect()->back()->with('error', 'Status inválido para aprovação.');
+                return back()->with('error', 'Este pedido já foi processado.');
             }
 
-            // Atualiza status para o CD ver
+            // Aprova
             $pedido->update(['status' => 'solicitado']);
+            
+            $this->registrarLog($pedido, 'Aprovado', 'Movimentação autorizada pelo Gestor.');
 
-            $this->registrarLog($pedido, 'Aprovado', 'Solicitação autorizada pelo Gestor.');
-
-            // Notifica a Loja
+            // Notifica solicitante
             $this->enviarNotificacao(
-                $pedido->user,
-                'Solicitação Aprovada ✅',
-                "Seu pedido #{$pedido->id} foi aprovado e enviado ao CD.",
+                $pedido->user, 
+                'Aprovado ✅', 
+                "Sua solicitação #{$pedido->id} foi aprovada.", 
                 route('pedidos.show', $pedido->id)
             );
 
-            return redirect()->back()->with('success', 'Pedido aprovado e encaminhado ao CD!');
+            // Se for Transferência, notifica a Origem para separar
+            if ($pedido->origem_user_id && $pedido->origem) {
+                // Lista modelos do JSON ou das motos vinculadas
+                $modelos = collect($pedido->itens)->pluck('modelo')->unique()->implode(', ');
+                
+                $this->enviarNotificacao(
+                    $pedido->origem, 
+                    'Transferência Solicitada 🔁', 
+                    "Aprovado: Separe as motos ({$modelos}) para envio à {$pedido->user->filial}. Pedido #{$pedido->id}.", 
+                    route('pedidos.show', $pedido->id)
+                );
+            }
+
+            return back()->with('success', 'Movimentação aprovada! Lojas notificadas.');
         });
     }
 
+    // --- FLUXO DE RETIRADA / ESTORNO ---
     public function solicitarRetiradaItem(Request $request, $id)
     {
         $moto = Moto::with('pedidos')->findOrFail($id);
         $user = Auth::user();
-        $pedido = $moto->pedidos->first(); // Pega o pedido vinculado
-
-        // Regra 1: Validação para o CD (Expedição)
-        if ($user->perfil === 'cd') {
-            // O CD só pode pedir retirada se a moto ainda estiver no pátio (Solicitado ou Separado)
-            // Se já foi "Expedido" (Bipado na carga) ou "Em Trânsito", é falha deles, não pode cancelar simples.
-            if (!in_array($moto->status, ['solicitado', 'separado'])) {
-                return back()->withErrors('ERRO: O CD só pode solicitar retirada de motos em separação. Item já expedido!');
-            }
-            $prefixo = "CD Reportou: ";
-        }
         
-        // Regra 2: Validação para a Loja
-        elseif ($user->perfil === 'loja') {
-            // A loja só pode pedir retirada de itens do SEU PRÓPRIO pedido
-            if (!$pedido || $pedido->user_id !== $user->id) {
-                return back()->withErrors('Acesso não autorizado.');
-            }
-            
-            // Loja tentando cancelar item ANTES de receber (Cancelamento Parcial)
-            if (in_array($moto->status, ['solicitado', 'separado'])) {
-                $prefixo = "Loja Solicitou Cancelamento: ";
-            } 
-            // Loja tentando devolver item DEPOIS de receber (Devolução/Garantia)
-            elseif ($moto->status === 'entregue' || $moto->status === 'concluido') {
-                $prefixo = "Loja Solicitou Devolução: ";
-            } else {
-                return back()->withErrors('Não é possível solicitar retirada neste status (Em Trânsito/Expedido). Aguarde a chegada.');
-            }
-        } else {
-            $prefixo = "Solicitação: ";
-        }
-
-        // Aplica a marcação para o Gestor ver
+        // Validações básicas de permissão e status
+        if ($user->perfil === 'cd' && !in_array($moto->status, ['solicitado', 'separado'])) 
+            return back()->withErrors('CD só cancela item em separação.');
+        
         $moto->update([
-            'estorno_pendente' => true,
-            'motivo_estorno' => $prefixo . $request->motivo,
+            'estorno_pendente' => true, 
+            'motivo_estorno' => "$user->perfil: $request->motivo", 
             'user_estorno_id' => $user->id
         ]);
-
-       $gestores = User::whereIn('perfil', ['gestor', 'admin'])->get();
-    
-        foreach ($gestores as $gestor) {
-            $gestor->notify(new EstornoSolicitado($moto, $user));
-        }
-
-        return back()->with('success', 'Solicitação enviada ao Gestor Comercial.');
-    }
-
-    public function solicitarEstornoCD(Request $request, $id)
-    {
-        // Apenas perfil CD ou Admin pode fazer isso
-        if (Auth::user()->perfil !== 'cd' && Auth::user()->perfil !== 'admin') {
-            return back()->withErrors('Acesso negado.');
-        }
-
-        $moto = Moto::findOrFail($id);
         
-        // Verifica se a moto realmente está em um pedido mas ainda não saiu
-        if ($moto->status === 'expedido' || $moto->status === 'em_transito') {
-            return back()->withErrors('Não é possível estornar moto já expedida ou em trânsito.');
-        }
-
-        $moto->update([
-            'estorno_pendente' => true,
-            'motivo_estorno' => 'CD Reportou: ' . $request->motivo, // Prefixo para o Gestor saber quem pediu
-            'user_estorno_id' => Auth::id()
-        ]);
-
-        return back()->with('success', 'Solicitação enviada ao Gestor! A moto ficará pendente até aprovação.');
+        // Notifica Gestores
+        User::whereIn('perfil', ['gestor', 'admin'])->each(fn($u) => $u->notify(new EstornoSolicitado($moto, $user)));
+        
+        return back()->with('success', 'Solicitação de estorno enviada.');
     }
 
-    public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
-
-    public function show($id)
-    {
-        $pedido = Pedido::with(['user', 'motos.romaneio', 'romaneio', 'logs' => fn($q) => $q->latest()])->findOrFail($id);
-        return Inertia::render('Pedidos/Show', ['pedido' => $pedido]);
-    }
-
+    // --- OPERAÇÃO DE SEPARAÇÃO (ATUALIZADA V2) ---
     public function marcarSeparado($id)
     {
         return DB::transaction(function () use ($id) {
-            $pedido = Pedido::with('user', 'motos')->findOrFail($id);
-            
-            if ($pedido->status !== 'solicitado') return redirect()->back();
+            $pedido = Pedido::with('origem', 'user')->findOrFail($id);
+            $user = Auth::user();
 
-            $pedido->update(['status' => 'separado', 'motivo_rejeicao' => null]);
+            // Validação de Status
+            if ($pedido->status !== 'solicitado') {
+                return back()->withErrors(['erro' => 'Status inválido para separação.']);
+            }
+
+            // LÓGICA V2: QUEM SEPARA?
+            // Cenário A: Transferência (Origem definida) -> Quem separa é a Loja de Origem
+            if ($pedido->origem_user_id) {
+                if ($user->id !== $pedido->origem_user_id && $user->perfil !== 'admin') {
+                    return back()->withErrors(['erro' => 'Apenas a loja de origem (' . $pedido->origem->filial . ') pode confirmar a separação desta moto.']);
+                }
+                $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando coleta do CD.";
+            } 
+            // Cenário B: Reposição (Origem NULL) -> Quem separa é o CD
+            else {
+                if ($user->perfil !== 'cd' && $user->perfil !== 'admin') {
+                    return back()->withErrors(['erro' => 'Apenas o CD pode separar pedidos de reposição.']);
+                }
+                $msgLog = "Separado no estoque do CD.";
+            }
+
+            // Atualiza
+            $pedido->update(['status' => 'separado']);
             $pedido->motos()->update(['status' => 'separado']);
+            
+            $this->registrarLog($pedido, 'Separado 📦', $msgLog);
+            
+            // Notifica o CD que existe uma coleta pronta (apenas se for transferência)
+            if ($pedido->origem_user_id) {
+                $cdUsers = User::where('perfil', 'cd')->get();
+                $this->enviarNotificacao($cdUsers, 'Coleta Pronta 🚚', "Loja {$pedido->origem->filial} separou as motos do pedido #{$pedido->id}. Pode agendar coleta.", route('romaneios.create'));
+            }
 
-            $this->registrarLog($pedido, 'Separação Concluída', 'Motos conferidas.');
-
-            $this->enviarNotificacao(
-                $pedido->user,
-                'Pedido Separado! 📦',
-                "Pedido #{$pedido->id} conferido e aguardando carga.",
-                route('pedidos.show', $pedido->id)
-            );
-
-            return redirect()->back()->with('success', 'Pedido separado!');
+            return back()->with('success', 'Itens separados e prontos para logística!');
         });
     }
 
     public function confirmarSaida($id)
     {
         return DB::transaction(function () use ($id) {
-            $pedido = Pedido::with(['motos', 'user'])->findOrFail($id);
-            
+            $pedido = Pedido::with('motos')->findOrFail($id);
+            // Saída lógica (o trânsito físico real é via RomaneioController)
             $pedido->update(['status' => 'em_transito']);
             $pedido->motos()->update(['status' => 'em_transito']);
-
-            if ($pedido->romaneio_id) {
-                $romaneio = Romaneio::find($pedido->romaneio_id);
-                if ($romaneio && $romaneio->status === 'aberto') {
-                    $romaneio->update(['status' => 'em_transito']);
-                }
-            }
-
-            $this->registrarLog($pedido, 'Saída Confirmada', 'Veículo em trânsito.');
-
-            $this->enviarNotificacao(
-                $pedido->user,
-                'Saiu para Entrega 🚚',
-                "O pedido #{$pedido->id} saiu do CD. Prepare o recebimento!",
-                route('pedidos.show', $pedido->id)
-            );
-
-            return redirect()->back()->with('success', 'Saída confirmada!');
+            
+            $this->registrarLog($pedido, 'Expedido', 'Aguardando embarque no romaneio.');
+            
+            return back()->with('success', 'Pedido marcado como expedido.');
         });
     }
 
+    // --- FINALIZAÇÃO (RECEBIMENTO NA LOJA) ---
     public function finalizarEntrega(Request $request, $id)
     {
+        // 1. Validação Rigorosa: Arquivo Obrigatório
         $request->validate([
-            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360',
+            'arquivo_romaneio' => 'required|file|mimes:jpg,jpeg,png,pdf|max:15360', // Máx 15MB
             'avarias'          => 'nullable|array',
             'fotos_avarias'    => 'nullable|array'
+        ], [
+            'arquivo_romaneio.required' => 'É obrigatório anexar a foto do romaneio assinado para finalizar.',
+            'arquivo_romaneio.mimes'    => 'O arquivo deve ser uma imagem (JPG, PNG) ou PDF.'
         ]);
 
         return DB::transaction(function () use ($request, $id) {
-            try {
-                $pedido = Pedido::with(['user', 'motos'])->findOrFail($id);
-                $userFilial = $pedido->user->filial ?? 'Matriz';
+            
+            // Carrega Pedido e Motos
+            $pedido = Pedido::with(['user', 'motos'])->findOrFail($id);
+            $userFilial = $pedido->user->filial ?? 'Matriz';
 
-                if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
-                    abort(403, 'Acesso negado.');
-                }
-                
-                // --- SETUP GOOGLE DRIVE ---
+            // Segurança: Apenas o dono da loja ou Admin/Gestor pode finalizar
+            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
+                abort(403, 'Acesso negado: Você não pode finalizar pedidos de outra loja.');
+            }
+
+            // 2. Upload do Romaneio (Google Drive com Fallback Local)
+            $linkComprovante = null;
+            $driveError = null;
+
+            try {
+                // Tenta conectar ao Drive
                 $client = new Client();
                 $client->setClientId(config('services.google.client_id'));
                 $client->setClientSecret(config('services.google.client_secret'));
                 $client->refreshToken(config('services.google.refresh_token'));
                 $service = new Drive($client);
                 
+                // Estrutura de Pastas: Filial -> Ano -> Mês
                 $folderName = "Filial - " . $userFilial;
                 $rootId = config('services.google.folder_id');
                 
+                // Cache para evitar chamadas repetidas à API do Drive para achar pastas
                 $targetFolderId = Cache::remember("drive_fldr_{$pedido->user_id}_" . date('Ym'), 3600, function () use ($service, $rootId, $folderName) {
                     $filialId = $this->findOrCreateFolder($service, $folderName, $rootId);
                     $yearId = $this->findOrCreateFolder($service, date('Y'), $filialId);
-                    return $this->findOrCreateFolder($service, date('m') . ' - ' . ucfirst(now()->translatedFormat('F')), $yearId);
+                    return $this->findOrCreateFolder($service, date('m') . ' - Recebimentos', $yearId);
                 });
 
-                // Upload Comprovante
-                $file = $request->file('arquivo_romaneio');
-                $name = "ROMANEIO_Ped-{$pedido->id}_" . date('d-m-Y') . ".{$file->getClientOriginalExtension()}";
-                $pedido->comprovante_url = $this->uploadFileToDrive($service, $file, $targetFolderId, $name);
+                // Nome do Arquivo Padronizado
+                $fileName = "ROMANEIO_Ped-{$pedido->id}_" . date('d-m-Y') . ".{$request->file('arquivo_romaneio')->getClientOriginalExtension()}";
+                
+                // Upload
+                $linkComprovante = $this->uploadFileToDrive($service, $request->file('arquivo_romaneio'), $targetFolderId, $fileName);
 
-                // Processa Avarias
-                $listaAvarias = $request->input('avarias', []);
-                $fotosAvarias = $request->file('fotos_avarias', []);
-                $qtdAvarias = 0;
+            } catch (\Exception $e) {
+                // Se o Drive falhar, salva localmente para não travar a operação
+                $driveError = $e->getMessage();
+                $localName = "comprovante_ped_{$id}_" . time() . "." . $request->file('arquivo_romaneio')->getClientOriginalExtension();
+                $path = $request->file('arquivo_romaneio')->storeAs('comprovantes_contingencia', $localName, 'public');
+                $linkComprovante = asset("storage/$path");
+            }
 
-                foreach ($pedido->motos as $moto) {
-                    $dadosUpdate = [
-                        'status' => 'entregue',
-                        'localizacao_atual' => "Estoque Loja: {$userFilial}",
-                        'detalhes_avaria' => null,
-                        'foto_avaria' => null
-                    ];
+            // Salva link no pedido
+            $pedido->comprovante_url = $linkComprovante;
 
-                    if (!empty($listaAvarias[$moto->id])) {
-                        $qtdAvarias++;
-                        $dadosUpdate['status'] = 'avariado';
-                        $dadosUpdate['localizacao_atual'] .= " (COM AVARIA)";
-                        $dadosUpdate['detalhes_avaria'] = $listaAvarias[$moto->id];
+            // 3. Processamento das Motos e Avarias
+            $listaAvarias = $request->input('avarias', []);
+            $fotosAvarias = $request->file('fotos_avarias', []);
+            $qtdAvarias = 0;
 
-                        if (isset($fotosAvarias[$moto->id])) {
-                            $fName = "AVARIA_{$moto->chassi}_Ped-{$pedido->id}." . $fotosAvarias[$moto->id]->getClientOriginalExtension();
-                            $dadosUpdate['foto_avaria'] = $this->uploadFileToDrive($service, $fotosAvarias[$moto->id], $targetFolderId, $fName);
+            foreach ($pedido->motos as $moto) {
+                
+                $statusMoto = 'disponivel'; // Padrão: Entra no estoque da loja para venda
+                $obsAvaria = null;
+                $linkFotoAvaria = null;
+
+                // Verifica se esta moto foi marcada como avariada
+                if (!empty($listaAvarias[$moto->id])) {
+                    $qtdAvarias++;
+                    $statusMoto = 'avariado'; // Entra no estoque como avariada (indisponível)
+                    $obsAvaria = $listaAvarias[$moto->id];
+
+                    // Upload da foto da avaria (se houver)
+                    if (isset($fotosAvarias[$moto->id])) {
+                        try {
+                            if (!isset($driveError) && isset($service)) {
+                                // Tenta Drive
+                                $fName = "AVARIA_{$moto->chassi}_Ped-{$pedido->id}." . $fotosAvarias[$moto->id]->getClientOriginalExtension();
+                                $linkFotoAvaria = $this->uploadFileToDrive($service, $fotosAvarias[$moto->id], $targetFolderId, $fName);
+                            } else {
+                                throw new \Exception("Drive indisponível");
+                            }
+                        } catch (\Exception $e) {
+                            // Fallback Local
+                            $path = $fotosAvarias[$moto->id]->store('avarias_contingencia', 'public');
+                            $linkFotoAvaria = asset("storage/$path");
                         }
                     }
-                    $moto->update($dadosUpdate);
                 }
 
-                $pedido->status = 'concluido';
-                $pedido->save();
+                // Atualiza a Moto
+                $moto->update([
+                    'status' => $statusMoto,
+                    'localizacao_atual' => "Estoque Loja: {$userFilial}" . ($statusMoto === 'avariado' ? ' (COM AVARIA)' : ''),
+                    'detalhes_avaria' => $obsAvaria,
+                    'foto_avaria' => $linkFotoAvaria,
+                    // Mantemos o 'romaneio_id' histórico, mas o ciclo logístico encerrou aqui.
+                ]);
+            }
 
-                if ($pedido->romaneio_id) {
-                    $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
-                        ->whereNotIn('status', ['concluido', 'cancelado'])
-                        ->count();
+            // 4. Finaliza o Pedido
+            $pedido->status = 'concluido';
+            $pedido->save();
 
-                    if ($pendentes === 0) {
-                        Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
-                    }
+            // 5. Verifica se a Carga (Romaneio) inteira foi concluída
+            if ($pedido->romaneio_id) {
+                // Conta quantos pedidos ainda faltam entregar neste caminhão
+                $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
+                    ->whereNotIn('status', ['concluido', 'cancelado', 'no_cd']) // no_cd = transbordo devolvido
+                    ->count();
+
+                if ($pendentes === 0) {
+                    Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
                 }
+            }
 
-                $logMsg = $qtdAvarias > 0 ? "Entrega com {$qtdAvarias} avarias." : "Entrega finalizada 100%.";
-                $this->registrarLog($pedido, 'Concluído', $logMsg);
+            // 6. Logs e Notificações
+            $logMsg = $qtdAvarias > 0 
+                ? "Entrega finalizada com {$qtdAvarias} avarias reportadas." 
+                : "Entrega finalizada com sucesso (100% OK).";
+            
+            $this->registrarLog($pedido, 'Concluído', $logMsg);
 
-                // Avisa Gestores
+            // Notifica Gestores
+            try {
                 $gestores = User::where('perfil', 'gestor')->get();
                 $this->enviarNotificacao(
                     $gestores,
-                    'Entrega Concluída ✅',
-                    "Loja {$pedido->user->name} finalizou pedido #{$pedido->id}.",
+                    'Entrega Realizada ✅',
+                    "Loja {$userFilial} finalizou o recebimento do pedido #{$pedido->id}.",
                     route('pedidos.show', $pedido->id)
                 );
-
-                if ($pedido->user->id !== Auth::id()) {
-                     $this->enviarNotificacao(
-                        $pedido->user,
-                        'Recebimento Confirmado',
-                        'O estoque da loja foi atualizado.',
-                        route('dashboard')
-                    );
-                }
-
-                return redirect()->back()->with('message', 'Entrega finalizada com sucesso!');
-
             } catch (\Exception $e) {
-                throw $e; 
+                // Ignora erro de notificação para não travar o processo
             }
+
+            $msgFinal = isset($driveError) 
+                ? 'Recebimento salvo localmente (Google Drive instável), mas finalizado com sucesso!' 
+                : 'Recebimento confirmado e arquivos salvos na nuvem!';
+
+            return redirect()->back()->with('message', $msgFinal);
         });
     }
 
-    public function rejeitar(Request $request, $id)
-    {
-        return DB::transaction(function () use ($request, $id) {
-            $pedido = Pedido::with('motos', 'user')->findOrFail($id);
-            $request->validate(['motivo' => 'required']);
-
-            $motivo = $request->motivo;
-
-            // Libera Motos
-            foreach ($pedido->motos as $moto) {
-                $moto->update([
-                    'status' => 'estoque_fabrica',
-                    'romaneio_id' => null,
-                    'localizacao_atual' => 'Estoque (Liberado após Rejeição)'
-                ]);
-                $pedido->motos()->detach($moto->id);
-            }
-
-            $this->enviarNotificacao(
-                $pedido->user,
-                'Pedido Rejeitado 🛑',
-                "Pedido #{$pedido->id} rejeitado. Motivo: {$motivo}",
-                route('dashboard')
-            );
-
-            $pedido->delete();
-
-            return redirect()->route('dashboard')->with('warning', 'Pedido rejeitado e excluído.');
-        });
-    }
-
-    public function cancelarSolicitacao($id)
-    {
-        return DB::transaction(function () use ($id) {
-            $pedido = Pedido::with('motos', 'user')->findOrFail($id);
-
-            // Permite cancelar se estiver 'solicitado' (CD ainda não pegou) ou 'em_analise'
-            if (!in_array($pedido->status, ['solicitado', 'em_analise'])) {
-                return redirect()->back()->with('error', 'Pedido já em processamento avançado.');
-            }
-
-            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
-                abort(403);
-            }
-
-            foreach ($pedido->motos as $moto) {
-                $moto->update([
-                    'status' => 'estoque_fabrica',
-                    'romaneio_id' => null,
-                    'localizacao_atual' => 'Estoque (Cancelamento)'
-                ]);
-            }
-            $pedido->motos()->detach();
-            
-            $gestores = User::where('perfil', 'gestor')->get();
-            $this->enviarNotificacao(
-                $gestores,
-                'Solicitação Cancelada 🗑️',
-                "Loja {$pedido->user->name} cancelou o pedido #{$pedido->id}.",
-                route('dashboard')
-            );
-
-            $pedido->delete();
-
-            return redirect()->route('dashboard')->with('warning', 'Solicitação cancelada.');
-        });
-    }
-
-    public function exportar(Request $request)
-    {
-        $termo = $request->input('search');
-        $query = Pedido::with(['user', 'motos', 'romaneio']);
-
-        if ($termo) {
-            $query->where(function($q) use ($termo) {
-                $q->where('id', 'like', "%{$termo}%")
-                  ->orWhereHas('user', fn($u) => $u->where('name', 'like', "%{$termo}%"))
-                  ->orWhereHas('motos', fn($m) => $m->where('chassi', 'like', "%{$termo}%"));
-            });
-        }
-
-        $pedidos = $query->orderBy('created_at', 'desc')->get();
-        $filename = "relatorio_pedidos_" . date('d-m-Y_H-i') . ".csv";
-        
-        return response()->stream(function () use ($pedidos) {
-            $handle = fopen('php://output', 'w');
-            fputs($handle, "\xEF\xBB\xBF");
-            fputcsv($handle, ['ID', 'Data', 'Loja', 'Status', 'Qtd', 'Modelos', 'Chassis', 'Carga', 'Motorista', 'Conclusão'], ';');
-
-            foreach ($pedidos as $pedido) {
-                fputcsv($handle, [
-                    $pedido->id,
-                    $pedido->created_at->format('d/m/Y H:i'), 
-                    $pedido->user->name . ' - ' . ($pedido->user->filial ?? 'Matriz'),
-                    strtoupper($pedido->status),
-                    $pedido->motos->count(),
-                    $pedido->motos->pluck('modelo')->unique()->implode(', '),
-                    $pedido->motos->pluck('chassi')->implode(', '),
-                    $pedido->romaneio_id ? ('#' . $pedido->romaneio_id) : '-',
-                    $pedido->romaneio->motorista ?? '-',
-                    $pedido->status == 'concluido' ? $pedido->updated_at->format('d/m/Y') : '-'
-                ], ';');
-            }
-            fclose($handle);
-        }, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ]);
-    }
-    
-    public function imprimir($id) {
-        $pedido = Pedido::with(['user', 'motos', 'romaneio'])->findOrFail($id);
-        return Inertia::render('Pedidos/Romaneio', ['pedido' => $pedido]);
-    }
-
-    // --- FUNÇÕES PRIVADAS (G. DRIVE) ---
-    private function uploadFileToDrive($service, $file, $folderId, $fileName)
-    {
-        $fileMetadata = new DriveFile(['name' => $fileName, 'parents' => [$folderId]]);
-        $content = file_get_contents($file->getRealPath());
-
-        $uploadedFile = $service->files->create($fileMetadata, [
-            'data' => $content,
+    // --- GOOGLE DRIVE HELPERS ---
+    private function uploadFileToDrive($service, $file, $folderId, $name) {
+        $meta = new DriveFile(['name' => $name . "." . $file->getClientOriginalExtension(), 'parents' => [$folderId]]);
+        $uploaded = $service->files->create($meta, [
+            'data' => file_get_contents($file->getRealPath()),
             'mimeType' => $file->getClientMimeType(),
             'uploadType' => 'multipart',
             'fields' => 'id, webViewLink'
         ]);
-        
         try {
-            $permission = new Permission();
-            $permission->setRole('reader');
-            $permission->setType('anyone');
-            $service->permissions->create($uploadedFile->id, $permission);
+            $service->permissions->create($uploaded->id, new Permission(['role' => 'reader', 'type' => 'anyone']));
         } catch (\Exception $e) {}
-
-        return $uploadedFile->webViewLink;
+        return $uploaded->webViewLink;
     }
 
-    private function findOrCreateFolder($service, $folderName, $parentId)
-    {
-        $query = "mimeType='application/vnd.google-apps.folder' and name='{$folderName}' and '{$parentId}' in parents and trashed=false";
-        $files = $service->files->listFiles(['q' => $query]);
-
+    private function findOrCreateFolder($service, $name, $parentId) {
+        $q = "mimeType='application/vnd.google-apps.folder' and name='$name' and '$parentId' in parents and trashed=false";
+        $files = $service->files->listFiles(['q' => $q]);
         if (count($files->getFiles()) > 0) return $files->getFiles()[0]->id;
-
-        $folderMetadata = new DriveFile([
-            'name' => $folderName,
-            'mimeType' => 'application/vnd.google-apps.folder',
-            'parents' => [$parentId]
-        ]);
-
-        return $service->files->create($folderMetadata, ['fields' => 'id'])->id;
+        return $service->files->create(new DriveFile(['name' => $name, 'mimeType' => 'application/vnd.google-apps.folder', 'parents' => [$parentId]]), ['fields' => 'id'])->id;
     }
+
+    // --- CANCELAMENTOS ---
+    public function rejeitar(Request $request, $id) { return $this->cancelarGenerico($id, 'rejeitado', $request->motivo); }
+    public function cancelarSolicitacao($id) { return $this->cancelarGenerico($id, 'cancelado', 'Cancelado pela Loja'); }
+
+    private function cancelarGenerico($id, $tipo, $motivo) {
+        return DB::transaction(function () use ($id, $tipo, $motivo) {
+            $pedido = Pedido::with('motos', 'user')->findOrFail($id);
+            if ($tipo == 'cancelado' && !in_array($pedido->status, ['solicitado', 'em_analise'])) return back()->with('error', 'Não é possível cancelar neste estágio.');
+            
+            // Libera motos
+            foreach ($pedido->motos as $moto) {
+                // Se era transferência, volta pro dono original, senão volta pra fábrica/CD
+                $statusVolta = $pedido->origem_user_id ? 'disponivel' : 'estoque_fabrica';
+                $localVolta = $pedido->origem_user_id ? "Estoque Loja" : "Pátio CD/Fábrica";
+                
+                $moto->update(['status' => $statusVolta, 'localizacao_atual' => $localVolta]);
+            }
+            $pedido->motos()->detach();
+            
+            $this->enviarNotificacao($pedido->user, ucfirst($tipo), "Pedido #$id $tipo: $motivo", route('dashboard'));
+            
+            $pedido->delete(); // Soft Delete
+            return redirect()->route('dashboard')->with('warning', "Pedido $tipo com sucesso.");
+        });
+    }
+    
+    // --- VIEWS ---
+    public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
+    public function show($id) 
+    { 
+        return Inertia::render('Pedidos/Show', [
+            'pedido' => Pedido::with([
+                'user', 
+                'origem', // <--- ADICIONADO: Traz os dados da loja de origem
+                'motos.romaneio', 
+                'romaneio', 
+                'logs' => fn($q) => $q->latest()
+            ])->findOrFail($id)
+        ]); 
+    }    
+    public function imprimir($id) { return Inertia::render('Pedidos/Romaneio', ['pedido' => Pedido::with(['user', 'motos', 'romaneio'])->findOrFail($id)]); }
 }

@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 
 export default function Manual({ auth }) {
-    // Define qual aba abrir por padrão baseado no perfil logado
+    // Define a aba inicial baseada no perfil
     const getPerfilInicial = () => {
         if (auth.user.perfil === 'gestor') return 'gestor';
         if (auth.user.perfil === 'cd') return 'cd';
@@ -13,23 +13,22 @@ export default function Manual({ auth }) {
 
     const [activeTab, setActiveTab] = useState(getPerfilInicial());
 
-    // Efeito para rolar ao topo quando troca a aba
     useEffect(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }, [activeTab]);
 
     const tabs = [
-        { id: 'loja',   label: '🏪 Lojas',    color: 'red',    icon: '🛍️', desc: 'Solicitação e Recebimento' },
-        { id: 'gestor', label: '👮 Gestão',   color: 'purple', icon: '🛡️', desc: 'Auditoria e Aprovação' },
-        { id: 'cd',     label: '🏭 CD/Log',   color: 'blue',   icon: '📦', desc: 'Separação e Expedição' },
-        { id: 'drive',  label: '☁️ Drive',    color: 'green',  icon: '📄', desc: 'Arquivamento' },
-        { id: 'faq',    label: '❓ Suporte',  color: 'gray',   icon: '🆘', desc: 'Dúvidas Frequentes' },
+        { id: 'loja',   label: '🏪 Lojas',    color: 'red',    icon: '🛍️', desc: 'Solicitações e Transferências' },
+        { id: 'gestor', label: '👮 Gestão',   color: 'purple', icon: '🛡️', desc: 'Auditoria Comercial' },
+        { id: 'cd',     label: '🏭 Logística', color: 'blue',   icon: '🚛', desc: 'Expedição e Milk Run' },
+        { id: 'drive',  label: '☁️ Arquivos',  color: 'green',  icon: '📄', desc: 'Comprovantes Digitais' },
+        { id: 'faq',    label: '❓ Suporte',  color: 'gray',   icon: '🆘', desc: 'Ajuda e Contatos' },
     ];
 
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento Shineray</h2>}
+            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento V2</h2>}
         >
             <Head title="Manual do Sistema" />
 
@@ -64,50 +63,74 @@ export default function Manual({ auth }) {
                         <div className="p-8 md:p-12">
                             
                             {/* =======================================================
-                                ABA 1: LOJA / REVENDA
+                                ABA 1: LOJAS (REPOSIÇÃO E TRANSFERÊNCIAS)
                                ======================================================= */}
                             {activeTab === 'loja' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Manual da Loja" 
-                                        subtitle="Do pedido à entrega: Entenda o novo fluxo de aprovação."
+                                        title="Manual da Loja (V2)" 
+                                        subtitle="Fluxo Unificado: Reposição de Estoque e Transferência entre Filiais."
                                         color="red"
                                     />
                                     
-                                    <Step number="1" title="Nova Solicitação">
-                                        <p>No menu, clique em <strong className="text-red-600">Nova Solicitação</strong>. Preencha os dados com atenção:</p>
-                                        <ul className="mt-3 space-y-2 text-sm text-gray-600 bg-red-50 p-4 rounded-lg border border-red-100">
-                                            <li>📌 <strong>Destino:</strong> Selecione para onde a moto vai (ex: sua própria loja ou um cliente em outra cidade). Isso agrupa a carga corretamente.</li>
-                                            <li>🔑 <strong>Chassi:</strong> Obrigatório entre <strong>11 e 17 caracteres</strong>. Apenas letras e números (sem traços). O sistema valida se já existe no estoque.</li>
-                                            <li>🎨 <strong>Cor:</strong> Essencial para a separação correta no CD.</li>
-                                        </ul>
-                                    </Step>
+                                    {/* CENÁRIO A: PEDIR MOTO */}
+                                    <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+                                        <h3 className="text-xl font-black text-red-800 mb-4 flex items-center gap-2">
+                                            🅰️ Como Solicitar Motos (Entrada)
+                                        </h3>
+                                        
+                                        <Step number="1" title="Nova Solicitação">
+                                            <p>Acesse o menu e clique em <strong>Nova Solicitação</strong>. O formulário é o mesmo para qualquer tipo de pedido.</p>
+                                            <ul className="mt-3 space-y-2 text-sm text-gray-600 bg-white p-4 rounded-lg border border-red-200">
+                                                <li>🏭 <strong>Reposição CD:</strong> Deixe o campo "Origem" vazio. O sistema entende que virá da fábrica.</li>
+                                                <li>🔁 <strong>Transferência:</strong> Selecione a loja de onde a moto virá no campo "Origem".</li>
+                                                <li>🔑 <strong>Chassi:</strong> Digite o chassi exato (para transferências) ou o modelo desejado (para reposição).</li>
+                                            </ul>
+                                        </Step>
 
-                                    <Step number="2" title="Fluxo de Aprovação (Auditoria)">
-                                        <p>Seu pedido agora passa por uma auditoria comercial antes de ir para o CD.</p>
-                                        <div className="flex flex-col md:flex-row gap-4 mt-4">
-                                            <StatusCard color="bg-purple-100 text-purple-800 border-purple-200" title="1. Em Análise" desc="O Gestor está conferindo crédito e estoque." />
-                                            <div className="hidden md:flex items-center text-gray-300">➜</div>
-                                            <StatusCard color="bg-yellow-100 text-yellow-800 border-yellow-200" title="2. Aprovado/Solicitado" desc="O Gestor liberou. O CD iniciará a separação." />
-                                            <div className="hidden md:flex items-center text-gray-300">➜</div>
-                                            <StatusCard color="bg-blue-100 text-blue-800 border-blue-200" title="3. Em Trânsito" desc="Nota fiscal emitida e caminhão na estrada." />
-                                        </div>
-                                    </Step>
+                                        <Step number="2" title="Aprovação e Rastreio">
+                                            <p>Todo pedido entra como <span className="text-purple-600 font-bold">EM ANÁLISE</span>. O Gestor Comercial precisa aprovar.</p>
+                                            <p className="mt-2 text-sm">Acompanhe pelo Dashboard:</p>
+                                            <div className="flex gap-2 mt-2">
+                                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-200">🟡 Solicitado (Aprovado)</span>
+                                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200">🟠 Em Trânsito (Caminhão saiu)</span>
+                                            </div>
+                                        </Step>
+                                    </div>
 
-                                    <Step number="3" title="Motos Rejeitadas (Cortes)">
-                                        <p>O Gestor pode aprovar o pedido parcialmente (ex: você pediu 10 motos, ele aprovou 8).</p>
-                                        <p className="text-sm mt-2 text-gray-600">
-                                            ⚠️ <strong>Atenção:</strong> Itens rejeitados somem da lista de entrega e aparecem na <strong>Timeline do Pedido</strong> com o motivo do corte (ex: "Sem limite de crédito").
+                                    {/* CENÁRIO B: ENVIAR MOTO (TRANSFERÊNCIA PASSIVA) */}
+                                    <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
+                                        <h3 className="text-xl font-black text-orange-800 mb-4 flex items-center gap-2">
+                                            🅱️ Como Enviar Motos (Saída/Transferência)
+                                        </h3>
+                                        <p className="text-sm text-orange-900 mb-6">
+                                            Quando outra loja pede uma moto sua, você receberá um <strong>ALERTA GIGANTE</strong> no seu Dashboard.
                                         </p>
-                                    </Step>
 
-                                    <Step number="4" title="Confirmação de Entrega">
-                                        <p>Quando o caminhão chegar na sua loja:</p>
+                                        <Step number="1" title="1. Separar no Pátio">
+                                            <p>Ao ver o alerta "Pendente de Separação", clique no botão. Localize a moto física e clique em <strong>✅ Confirmar Separação</strong>.</p>
+                                            <p className="text-xs text-gray-500 mt-1">O status muda para "Separado". Isso avisa a logística que a moto está pronta.</p>
+                                        </Step>
+
+                                        <Step number="2" title="2. Aguardar o Caminhão (Milk Run)">
+                                            <p>O status mudará para <span className="font-bold text-orange-600">AGUARDANDO COLETA</span>. Isso significa que o romaneio foi gerado e o motorista está vindo.</p>
+                                        </Step>
+
+                                        <Step number="3" title="3. O Caminhão Chegou">
+                                            <p>Entregue a moto ao motorista. Ele ligará para o CD para confirmar a coleta no sistema.</p>
+                                            <p className="text-xs bg-white p-2 rounded border border-orange-200 mt-2">
+                                                <strong>Nota:</strong> Você não dá baixa na saída. A baixa ocorre automaticamente quando o motorista confirma a coleta.
+                                            </p>
+                                        </Step>
+                                    </div>
+
+                                    <Step number="Final" title="Recebimento e Baixa">
+                                        <p>Quando receber uma moto (seja do CD ou de outra loja):</p>
                                         <ol className="list-decimal ml-6 mt-3 text-sm text-gray-700 space-y-2">
-                                            <li>Confira fisicamente se os chassis batem com o Romaneio.</li>
-                                            <li>Assine e carimbe o documento do motorista.</li>
-                                            <li>Acesse o sistema, abra o pedido (Status "Em Trânsito").</li>
-                                            <li>Tire uma foto legível do comprovante assinado e clique em <strong>📸 Finalizar Entrega</strong>.</li>
+                                            <li>Confira o chassi físico.</li>
+                                            <li>Assine o manifesto do motorista.</li>
+                                            <li>No sistema, clique em <strong>📝 Conferir e Finalizar</strong>.</li>
+                                            <li>Tire uma foto legível do documento assinado e anexe.</li>
                                         </ol>
                                     </Step>
                                 </div>
@@ -119,180 +142,178 @@ export default function Manual({ auth }) {
                             {activeTab === 'gestor' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Painel do Gestor Comercial" 
-                                        subtitle="Auditoria, Aprovação e Corte de Pedidos."
+                                        title="Painel do Gestor" 
+                                        subtitle="O Gatekeeper: Nada sai ou entra sem sua aprovação."
                                         color="purple"
                                     />
 
                                     <div className="bg-purple-50 p-4 rounded-xl border border-purple-200 mb-6 flex items-start gap-3">
                                         <span className="text-2xl">📱</span>
                                         <div>
-                                            <h4 className="font-bold text-purple-900">Modo Tablet Otimizado</h4>
+                                            <h4 className="font-bold text-purple-900">Mobile First</h4>
                                             <p className="text-sm text-purple-800">
-                                                Use o painel em um iPad ou Tablet Android. A interface é adaptada para toque, permitindo aprovar/rejeitar itens com rapidez.
+                                                O painel foi desenhado para ser usado em Tablets ou Celulares, permitindo aprovações rápidas de qualquer lugar.
                                             </p>
                                         </div>
                                     </div>
 
-                                    <Step number="1" title="Alerta de Novos Pedidos">
-                                        <p>Sempre que uma loja faz um pedido, você ouve um alerta sonoro ("Plim") e o contador no menu lateral aumenta.</p>
-                                        <p className="text-sm text-gray-600">O status inicial é <span className="font-bold text-purple-600">EM ANÁLISE</span>. O CD não visualiza o pedido até você aprovar.</p>
+                                    <Step number="1" title="Auditoria de Pedidos">
+                                        <p>Você verá uma lista de solicitações pendentes. Clique em um pedido para ver os detalhes (Cliente, Destino, Chassis).</p>
                                     </Step>
 
-                                    <Step number="2" title="Conferência e Corte (Touch)">
-                                        <p>Na tela de auditoria, você verá a lista de motos. O sistema padrão é <strong>Tudo Aprovado</strong>.</p>
-                                        <ul className="mt-3 space-y-2 text-sm text-gray-700">
-                                            <li className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                                <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                                                <strong>Verde (Padrão):</strong> Item aprovado. Seguirá para o CD.
-                                            </li>
-                                            <li className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                                                <span className="w-3 h-3 rounded-full bg-red-500"></span>
-                                                <strong>Vermelho (Ao Clicar):</strong> Item REJEITADO.
-                                            </li>
+                                    <Step number="2" title="Cortes (Rejeição Parcial)">
+                                        <p>Se um pedido tem 10 motos e o cliente só tem crédito para 8:</p>
+                                        <ul className="mt-2 text-sm text-gray-700 space-y-1 ml-4">
+                                            <li>🟢 <strong>Verde:</strong> Item Aprovado.</li>
+                                            <li>🔴 <strong>Vermelho:</strong> Toque no item para Rejeitar/Cortar.</li>
                                         </ul>
-                                        <p className="text-xs text-red-600 mt-2 font-bold ml-1">
-                                            ❌ Cuidado: Ao finalizar, os itens vermelhos são EXCLUÍDOS do pedido permanentemente.
-                                        </p>
+                                        <p className="mt-2 text-xs text-red-600 font-bold">Itens vermelhos serão excluídos do pedido ao finalizar.</p>
                                     </Step>
 
-                                    <Step number="3" title="Finalização">
-                                        <p>Adicione uma observação (opcional) e clique em <strong>Autorizar Pedido</strong>.</p>
-                                        <p className="text-sm mt-1">A loja recebe uma notificação e o pedido muda para <span className="text-yellow-600 font-bold">SOLICITADO</span>, ficando visível para o CD separar.</p>
+                                    <Step number="3" title="Estornos">
+                                        <p>Se uma loja pedir o estorno de uma venda ou devolução, a solicitação aparecerá no seu painel para autorização antes de liberar a logística reversa.</p>
                                     </Step>
                                 </div>
                             )}
 
                             {/* =======================================================
-                                ABA 3: CD / EXPEDIÇÃO
+                                ABA 3: CD / LOGÍSTICA (V2)
                                ======================================================= */}
                             {activeTab === 'cd' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Manual do Centro de Distribuição" 
-                                        subtitle="Separação, Montagem de Carga Inteligente e Expedição."
+                                        title="Logística V2: Hub & Spoke" 
+                                        subtitle="Gerenciamento de Cargas, Coletas e Transbordos."
                                         color="blue"
                                     />
 
-                                    <Step number="1" title="Separação Física">
-                                        <p>Você recebe apenas pedidos já aprovados pelo Gestor (Status Amarelo).</p>
-                                        <ol className="list-decimal ml-6 text-sm text-gray-600 space-y-2 mt-2">
-                                            <li>Localize as motos no pátio conforme o pedido.</li>
-                                            <li>Clique em <strong>✅ Confirmar Separação</strong> no sistema.</li>
-                                            <li>O status muda para "Separado". As motos agora ficam disponíveis para montar carga.</li>
-                                        </ol>
-                                    </Step>
-
-                                    <Step number="2" title="Montagem de Carga (Scanner)">
-                                        <p>Vá em <strong>Expedição {'>'} Nova Carga</strong>.</p>
-                                        <div className="grid md:grid-cols-2 gap-4 mt-3">
-                                            <div className="p-4 bg-gray-800 text-white rounded-lg">
-                                                <h4 className="font-bold flex items-center gap-2">🔫 Leitor de Código</h4>
-                                                <p className="text-sm mt-1 text-gray-300">
-                                                    Use o leitor USB ou a Câmera. O sistema valida instantaneamente se a moto bipada pertence a um pedido separado.
-                                                </p>
+                                    <Step number="1" title="Mesa de Operação (Montagem de Carga)">
+                                        <p>Ao criar um novo Romaneio, você verá duas colunas:</p>
+                                        <div className="grid md:grid-cols-2 gap-4 mt-3 text-sm">
+                                            <div className="p-4 bg-blue-50 rounded border border-blue-200">
+                                                <h4 className="font-bold text-blue-800">🏭 Expedição CD</h4>
+                                                <p>Itens que estão fisicamente no seu estoque. <br/>Status ao salvar: <strong>Expedido</strong>.</p>
                                             </div>
-                                            <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-blue-900">
-                                                <h4 className="font-bold">📍 Agrupamento Inteligente</h4>
-                                                <p className="text-sm mt-1">
-                                                    O sistema agrupa as motos por <strong>Destino Final</strong> (Ex: Belém, Castanhal). Mesmo que a Loja Acará peça motos para 3 cidades diferentes, o sistema organizará em 3 blocos visuais na tela.
-                                                </p>
+                                            <div className="p-4 bg-orange-50 rounded border border-orange-200">
+                                                <h4 className="font-bold text-orange-800">🚛 Coletas (Milk Run)</h4>
+                                                <p>Itens em outras lojas que o caminhão deve buscar. <br/>Status ao salvar: <strong>Aguardando Coleta</strong>.</p>
                                             </div>
                                         </div>
                                     </Step>
 
-                                    <Step number="3" title="Manifesto e Saída">
-                                        <p>Após bipar todas as motos do caminhão:</p>
-                                        <ul className="list-disc ml-6 mt-1 text-gray-600 text-sm">
-                                            <li>Clique em <strong>Gerar Romaneio</strong>.</li>
-                                            <li>O sistema gera um PDF oficial (Manifesto) já dividido por destino.</li>
-                                            <li>Clique em <strong>Liberar Saída</strong>. Isso muda todos os pedidos vinculados para "Em Trânsito".</li>
+                                    <Step number="2" title="O Processo de Milk Run">
+                                        <p>O caminhão pode sair vazio do CD apenas para realizar coletas.</p>
+                                        <ul className="list-disc ml-6 mt-2 text-gray-600 text-sm">
+                                            <li>O motorista chega na loja de origem.</li>
+                                            <li>Ele confere a moto e liga para o CD.</li>
+                                            <li>O CD acessa o Romaneio e clica em <strong>📞 Confirmar Coleta</strong> no item específico.</li>
+                                            <li>A moto passa a constar "A Bordo" do caminhão.</li>
                                         </ul>
                                     </Step>
 
-                                    <Step number="4" title="Desfazer Carga (Correção)">
-                                        <p>Se errou a carga, use o botão vermelho <strong>🗑️ Desfazer</strong>.</p>
-                                        <p className="text-xs text-gray-500">Isso apaga o romaneio e devolve as motos para o status "Separado" no pátio.</p>
+                                    <Step number="3" title="Transbordo (Hub & Spoke)">
+                                        <p>Se o caminhão coletar uma moto no interior e trouxer para o CD (para depois ir a outra loja):</p>
+                                        <ul className="list-disc ml-6 mt-2 text-gray-600 text-sm">
+                                            <li>Ao chegar no CD, clique em <strong>Receber Carga</strong>.</li>
+                                            <li>Os itens de transbordo ficarão com status <span className="text-purple-600 font-bold">NO CD</span>.</li>
+                                            <li>Eles aparecerão automaticamente na lista de "Expedição" para serem alocados no próximo caminhão de saída.</li>
+                                        </ul>
                                     </Step>
                                 </div>
                             )}
 
                             {/* =======================================================
-                                ABA 4: DRIVE (COMPROVANTES)
+                                ABA 4: DRIVE
                                ======================================================= */}
                             {activeTab === 'drive' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Arquivamento Digital (Google Drive)" 
+                                        title="Arquivamento Digital" 
                                         subtitle="Backup automático e organização de documentos."
                                         color="green"
                                     />
 
-                                    <Step number="1" title="Estrutura de Pastas">
-                                        <p>O sistema organiza os arquivos na nuvem automaticamente. Não é necessário criar pastas manualmente.</p>
-                                        <div className="mt-4 font-mono text-xs md:text-sm bg-gray-100 p-4 rounded-lg border border-gray-300 text-gray-700 overflow-x-auto shadow-inner">
-                                            📁 Google Drive (Shineray)<br/>
-                                            &nbsp;&nbsp;└── 📂 2026<br/>
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📂 01 - Janeiro<br/>
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📄 Pedido-1093_Aprovado.pdf<br/>
-                                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 🖼️ Comprovante_Entrega_Pedido-1093.jpg
-                                        </div>
+                                    <Step number="1" title="Upload Obrigatório">
+                                        <p>Nenhum pedido pode ser finalizado sem a foto do comprovante (Romaneio/Canhoto assinado).</p>
                                     </Step>
 
-                                    <Step number="2" title="Conclusão Automática de Carga">
-                                        <p>O Romaneio (Carga) permanece com status "Em Trânsito" até que a última moto seja entregue.</p>
-                                        <p className="mt-2 text-sm text-gray-600 bg-green-50 p-3 rounded border border-green-200">
-                                            ✅ <strong>Automação:</strong> Assim que a última loja da rota enviar a foto do comprovante, o Romaneio muda automaticamente para <span className="text-green-700 font-bold">FINALIZADO</span>.
-                                        </p>
+                                    <Step number="2" title="Organização Automática">
+                                        <p>O sistema renomeia e organiza os arquivos na nuvem (Google Drive) seguindo a estrutura:</p>
+                                        <div className="mt-4 font-mono text-xs md:text-sm bg-gray-100 p-4 rounded-lg border border-gray-300 text-gray-700 overflow-x-auto shadow-inner">
+                                            📂 2026 / 📂 [Mês] / 📂 [Nome da Loja] / 📄 Pedido_[ID].pdf
+                                        </div>
                                     </Step>
                                 </div>
                             )}
 
                             {/* =======================================================
-                                ABA 5: FAQ / SUPORTE
+                                ABA 5: SUPORTE / FAQ
                                ======================================================= */}
                             {activeTab === 'faq' && (
                                 <div className="space-y-8 animate-fade-in">
                                     <HeaderSection 
                                         title="Suporte Técnico" 
-                                        subtitle="Solução de problemas comuns."
+                                        subtitle="Solução de problemas e contato direto."
                                         color="gray"
                                     />
 
                                     <div className="grid gap-4">
-                                        <FaqItem question="O sistema diz 'Chassi Inválido' na solicitação.">
-                                            Verifique se o chassi possui entre <strong>11 e 17 caracteres</strong>. O sistema não aceita caracteres especiais (traços, pontos, barras), apenas letras e números. Espaços em branco no final também podem gerar erro.
+                                        <FaqItem question="O sistema diz 'Chassi Inválido'.">
+                                            Verifique se o chassi possui entre <strong>11 e 17 caracteres</strong>. Não use traços ou espaços. O sistema valida se o chassi já está em outro pedido ativo.
                                         </FaqItem>
 
-                                        <FaqItem question="Errei o pedido e o Gestor já aprovou. E agora?">
-                                            Se o pedido já está com o CD ("Solicitado"), entre em contato urgente via Chat ou WhatsApp. O CD pode rejeitar o pedido antes de separar, devolvendo-o para você corrigir. Se já foi separado, o CD precisará desfazer a separação primeiro.
+                                        <FaqItem question="Errei a solicitação e o Gestor aprovou.">
+                                            Entre em contato com o CD imediatamente. Eles podem rejeitar o pedido na fase de separação, devolvendo-o para correção.
                                         </FaqItem>
 
-                                        <FaqItem question="O som de notificação ('Plim') não toca.">
-                                            Navegadores modernos (Chrome, Edge) bloqueiam reprodução automática de som. Você precisa interagir com a página (clicar em qualquer lugar) pelo menos uma vez após abrir o sistema para que o navegador libere o áudio.
-                                        </FaqItem>
-
-                                        <FaqItem question="Erro ao enviar foto: 'Payload too large'.">
-                                            O sistema aceita fotos de até 5MB e tenta comprimir automaticamente. Se o erro persistir, tente tirar a foto em uma resolução menor, envie via PDF ou envie a foto pelo WhatsApp do suporte informando o número do pedido.
-                                        </FaqItem>
-
-                                        <FaqItem question="A impressão do Manifesto sai cortada.">
-                                            O manifesto é configurado para folha A4. Nas configurações de impressão do navegador, verifique se a opção "Escala" está em "Padrão" ou "Ajustar à página" e se as margens estão zeradas ou mínimas.
+                                        <FaqItem question="Como desfaço uma carga errada?">
+                                            No menu Expedição, entre no Romaneio e clique no botão vermelho <strong>🗑️ Desfazer</strong>. As motos voltarão para o status "Separado" nas lojas de origem.
                                         </FaqItem>
                                     </div>
 
-                                    <div className="mt-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-                                        <div>
-                                            <h4 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                                                <span>📞</span> TI Sabel Logística
-                                            </h4>
-                                            <p className="text-gray-500 text-sm mt-1">Dúvidas sobre acesso, senhas ou erros no sistema.</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-bold text-gray-700">Ramal Interno: <span className="bg-gray-100 px-2 py-1 rounded">8535</span></p>
-                                            <p className="text-sm text-blue-600 font-bold mt-1">shiadmti@gmail.com</p>
+                                    {/* CONTATOS E CRÉDITOS */}
+                                    <div className="mt-10 pt-10 border-t border-gray-200">
+                                        <div className="bg-gray-900 text-white p-8 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-center gap-8">
+                                            
+                                            {/* Contato TI */}
+                                            <div className="text-center md:text-left">
+                                                <h4 className="text-xl font-bold flex items-center gap-2 justify-center md:justify-start">
+                                                    <span>🛠️</span> Suporte TI Sabel
+                                                </h4>
+                                                <p className="text-gray-400 mt-2 text-sm">Problemas técnicos, senhas ou erros.</p>
+                                                
+                                                <div className="mt-4 space-y-2">
+                                                    <div className="flex items-center gap-3 justify-center md:justify-start bg-gray-800 px-4 py-2 rounded-lg">
+                                                        <span className="text-2xl">📱</span>
+                                                        <div className="text-left">
+                                                            <p className="text-[10px] text-gray-400 uppercase">WhatsApp / Plantão</p>
+                                                            <p className="font-mono text-lg font-bold text-green-400">(91) 98492-8535</p>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-3 justify-center md:justify-start bg-gray-800 px-4 py-2 rounded-lg">
+                                                        <span className="text-2xl">📧</span>
+                                                        <div className="text-left">
+                                                            <p className="text-[10px] text-gray-400 uppercase">E-mail Corporativo</p>
+                                                            <p className="font-mono text-sm font-bold text-blue-300">ti@shineraybysabel.com.br</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Créditos */}
+                                            <div className="text-center md:text-right border-t md:border-t-0 md:border-l border-gray-700 pt-6 md:pt-0 md:pl-8">
+                                                <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2">Desenvolvimento & Arquitetura</p>
+                                                <h5 className="text-2xl font-black text-white tracking-tight">Délcio Farias Dias Neto</h5>
+                                                <p className="text-gray-400 text-xs mt-1">Full Stack Developer • Shineray System V2</p>
+                                                <div className="mt-4 inline-flex items-center gap-2 bg-gray-800 px-3 py-1 rounded-full text-[10px] text-gray-400 border border-gray-700">
+                                                    <span>© {new Date().getFullYear()} Shineray By Sabel</span>
+                                                </div>
+                                            </div>
+
                                         </div>
                                     </div>
+
                                 </div>
                             )}
 
@@ -338,15 +359,6 @@ function Step({ number, title, children }) {
                     {children}
                 </div>
             </div>
-        </div>
-    );
-}
-
-function StatusCard({ color, title, desc }) {
-    return (
-        <div className={`p-4 rounded-lg border flex-1 ${color}`}>
-            <h5 className="font-bold text-sm uppercase mb-1">{title}</h5>
-            <p className="text-xs opacity-80 leading-snug">{desc}</p>
         </div>
     );
 }

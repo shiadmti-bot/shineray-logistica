@@ -1,15 +1,16 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
 
-// Recebemos 'filiais' vindo do Controller
-export default function UserCreate({ auth, filiais }) {
+// Agora recebemos também 'rotas' vindo do Controller
+export default function UserCreate({ auth, filiais, rotas }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         email: '',
         password: '',
         password_confirmation: '',
         perfil: 'loja', // Padrão
-        filial: ''
+        filial: '',
+        default_route_id: '' // Campo da v2.0
     });
 
     const submit = (e) => {
@@ -33,7 +34,7 @@ export default function UserCreate({ auth, filiais }) {
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-2">Tipo de Acesso</label>
                                 <div className="flex gap-4">
-                                    {['loja', 'cd', 'admin'].map((tipo) => (
+                                    {['loja', 'cd', 'admin', 'gestor'].map((tipo) => (
                                         <label key={tipo} className={`flex-1 border rounded-lg p-3 cursor-pointer text-center uppercase font-bold text-sm transition ${data.perfil === tipo ? 'bg-red-50 border-red-500 text-red-700' : 'border-gray-200 hover:border-gray-400'}`}>
                                             <input 
                                                 type="radio" 
@@ -63,7 +64,7 @@ export default function UserCreate({ auth, filiais }) {
                                 {errors.email && <div className="text-red-500 text-xs mt-1">{errors.email}</div>}
                             </div>
 
-                            {/* Filial (MUDANÇA AQUI: Agora é um Select Automático) */}
+                            {/* Filial */}
                             {data.perfil === 'loja' && (
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700">Selecione a Loja / Filial</label>
@@ -75,12 +76,40 @@ export default function UserCreate({ auth, filiais }) {
                                     >
                                         <option value="">-- Selecione na lista --</option>
                                         {filiais && filiais.map((filial) => (
-                                            <option key={filial.id} value={filial.nome}>
-                                                {filial.uf} - {filial.nome}
+                                            <option key={filial.id} value={`${filial.cidade}/${filial.uf}`}>
+                                                {filial.uf} - {filial.cidade} - {filial.nome}
+                                            </option>
+                                        ))}
+                                        <option value="Matriz">Matriz</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* --- CONFIGURAÇÃO LOGÍSTICA V2.0 --- */}
+                            {/* Mostramos para Loja e CD, pois ambos participam da logística */}
+                            {(data.perfil === 'loja' || data.perfil === 'cd') && (
+                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mt-2">
+                                    <h4 className="font-bold text-blue-900 text-sm flex items-center gap-2 mb-2">
+                                        🚚 Rota Logística (v2.0)
+                                    </h4>
+                                    <p className="text-xs text-blue-600 mb-3">
+                                        Vincule este usuário a uma rota oficial para habilitar o calendário de entregas automático.
+                                    </p>
+                                    
+                                    <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Rota Padrão</label>
+                                    <select
+                                        value={data.default_route_id}
+                                        onChange={e => setData('default_route_id', e.target.value)}
+                                        className="w-full border-blue-300 rounded text-sm text-blue-900 font-semibold focus:ring-blue-500"
+                                    >
+                                        <option value="">-- Sem Rota Definida --</option>
+                                        {rotas && rotas.map((rota) => (
+                                            <option key={rota.id} value={rota.id}>
+                                                {rota.code} {rota.name ? `- ${rota.name}` : ''}
                                             </option>
                                         ))}
                                     </select>
-                                    <p className="text-xs text-gray-400 mt-1">A lista carrega as lojas cadastradas no banco.</p>
+                                    {errors.default_route_id && <div className="text-red-500 text-xs mt-1">{errors.default_route_id}</div>}
                                 </div>
                             )}
 
@@ -100,8 +129,8 @@ export default function UserCreate({ auth, filiais }) {
                         </div>
 
                         <div className="mt-8 flex justify-end gap-4 border-t pt-6">
-                            <Link href={route('users.index')} className="px-6 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">Cancelar</Link>
-                            <button disabled={processing} className="bg-red-700 text-white px-6 py-2 rounded font-bold hover:bg-red-800 shadow">
+                            <Link href={route('users.index')} className="px-6 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition">Cancelar</Link>
+                            <button disabled={processing} className="bg-red-700 text-white px-6 py-2 rounded font-bold hover:bg-red-800 shadow transition transform hover:-translate-y-0.5">
                                 {processing ? 'Salvando...' : 'Criar Conta'}
                             </button>
                         </div>

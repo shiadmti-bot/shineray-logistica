@@ -1,8 +1,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, Link } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function MotosIndex({ auth, motos, lojas, filters }) {
+    
     // Estado local para os filtros
     const [params, setParams] = useState({
         search: filters.search || '',
@@ -10,7 +11,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
         loja_id: filters.loja_id || ''
     });
 
-    // Função que aplica os filtros automaticamente ao mudar (Debounce opcional aqui, faremos direto no botão ou enter)
+    // Função que aplica os filtros
     const applyFilters = () => {
         router.get(route('motos.index'), params, {
             preserveState: true,
@@ -29,13 +30,26 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Base Geral de Motos</h2>}>
+        <AuthenticatedLayout user={auth.user} 
+            header={
+                <div className="flex justify-between items-center">
+                    <h2 className="font-bold text-xl text-gray-800 leading-tight">Base Geral de Motos</h2>
+                    {/* Botão de Acesso Rápido à Timeline */}
+                    <Link 
+                        href={route('motos.timeline')} 
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2"
+                    >
+                        <span>🔍</span> Rastrear Vida Útil (Timeline)
+                    </Link>
+                </div>
+            }
+        >
             <Head title="Motos" />
 
             <div className="py-8 bg-gray-100 min-h-screen">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* --- BARRA DE FILTROS AVANÇADA --- */}
+                    {/* --- BARRA DE FILTROS --- */}
                     <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                             
@@ -44,7 +58,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar</label>
                                 <input 
                                     type="text"
-                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                                     placeholder="Chassi ou Modelo..."
                                     value={params.search}
                                     onChange={e => setParams({...params, search: e.target.value})}
@@ -56,12 +70,12 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                             <div className="md:col-span-1">
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Loja Solicitante</label>
                                 <select 
-                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                                     value={params.loja_id}
                                     onChange={e => {
                                         const newVal = e.target.value;
                                         setParams(prev => ({...prev, loja_id: newVal}));
-                                        // Auto-submit ao selecionar loja (UX melhor)
+                                        // Auto-submit opcional para melhor UX
                                         router.get(route('motos.index'), { ...params, loja_id: newVal }, { preserveState: true, replace: true });
                                     }}
                                 >
@@ -76,27 +90,28 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                             <div className="md:col-span-1">
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status Atual</label>
                                 <select 
-                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-red-500 focus:border-red-500"
+                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                                     value={params.status}
                                     onChange={e => setParams({...params, status: e.target.value})}
                                 >
                                     <option value="">Todos</option>
                                     <option value="estoque_fabrica">Estoque Fábrica</option>
                                     <option value="reservado">Reservado</option>
-                                    <option value="separado">Separado</option>
+                                    <option value="separado">Separado (Expedição)</option>
                                     <option value="em_transito">Em Trânsito</option>
-                                    <option value="entregue">Entregue</option>
+                                    <option value="entregue">Entregue / Em Loja</option>
+                                    <option value="avariado">Avariado</option>
                                 </select>
                             </div>
 
                             {/* Botões */}
-                            <div className="flex gap-2">
-                                <button onClick={applyFilters} className="bg-gray-800 text-white px-4 py-2 rounded-md text-sm font-bold hover:bg-gray-700 transition flex-1">
+                            <div className="flex gap-2 h-10">
+                                <button onClick={applyFilters} className="bg-gray-800 text-white px-4 rounded-md text-sm font-bold hover:bg-gray-700 transition flex-1 h-full">
                                     Filtrar
                                 </button>
                                 {(params.search || params.status || params.loja_id) && (
-                                    <button onClick={clearFilters} className="bg-white border border-gray-300 text-gray-500 px-3 py-2 rounded-md text-sm hover:bg-gray-50">
-                                        Limpar
+                                    <button onClick={clearFilters} className="bg-white border border-gray-300 text-gray-500 px-3 rounded-md text-sm hover:bg-gray-50 h-full">
+                                        ✕
                                     </button>
                                 )}
                             </div>
@@ -157,21 +172,30 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                                     {/* Coluna 4: Status */}
                                                     <td className="px-6 py-4">
                                                         <StatusBadge status={moto.status} />
-                                                        <div className="text-xs text-gray-500 mt-1 max-w-[150px] truncate" title={moto.localizacao_atual}>
+                                                        <div className="text-xs text-gray-500 mt-1 max-w-[200px] truncate" title={moto.localizacao_atual}>
                                                             📍 {moto.localizacao_atual || 'Não informado'}
                                                         </div>
                                                     </td>
 
                                                     {/* Coluna 5: Ações */}
                                                     <td className="px-6 py-4 text-right">
-                                                        {pedidoAtual && (
+                                                        <div className="flex justify-end gap-2">
+                                                            {pedidoAtual && (
+                                                                <Link 
+                                                                    href={route('pedidos.show', pedidoAtual.id)} 
+                                                                    className="text-indigo-600 hover:text-indigo-900 font-bold text-xs border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-50"
+                                                                >
+                                                                    Ver Pedido
+                                                                </Link>
+                                                            )}
                                                             <Link 
-                                                                href={route('pedidos.show', pedidoAtual.id)} 
-                                                                className="text-indigo-600 hover:text-indigo-900 font-bold text-xs border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-50"
+                                                                href={route('motos.timeline', { chassi: moto.chassi })}
+                                                                className="text-gray-500 hover:text-gray-900"
+                                                                title="Ver Histórico Completo"
                                                             >
-                                                                Ver Pedido
+                                                                🕒
                                                             </Link>
-                                                        )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -212,15 +236,19 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
     );
 }
 
-// Helper Visual
+// Helper Visual para Status
 function StatusBadge({ status }) {
     const config = {
         'estoque_fabrica': { bg: 'bg-green-100 text-green-800', label: 'Estoque' },
         'reservado':       { bg: 'bg-yellow-100 text-yellow-800', label: 'Reservado' },
         'separado':        { bg: 'bg-blue-100 text-blue-800', label: 'Separado' },
         'em_transito':     { bg: 'bg-orange-100 text-orange-800', label: 'Em Trânsito' },
+        'transito_loja':   { bg: 'bg-orange-100 text-orange-800', label: 'Transp. Loja' },
         'entregue':        { bg: 'bg-gray-800 text-white', label: 'Entregue' },
+        'disponivel':      { bg: 'bg-green-50 text-green-600 border border-green-200', label: 'Disponível Loja' },
         'avariado':        { bg: 'bg-red-100 text-red-800', label: 'Avariado' },
+        'aguardando_coleta': { bg: 'bg-purple-100 text-purple-800', label: 'Aguard. Coleta' },
+        'no_cd':           { bg: 'bg-indigo-100 text-indigo-800', label: 'No CD (Transbordo)' },
     }[status] || { bg: 'bg-gray-100 text-gray-600', label: status };
 
     return (
