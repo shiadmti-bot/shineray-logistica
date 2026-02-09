@@ -18,7 +18,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         "Castanhal/PA", "Concórdia/PA", "Curuçá/PA", "Icoaraci/PA", 
         "Moju/PA", "São Miguel/PA", "Tailândia/PA", "Tomé-Açu/PA",
         "Aldeota/CE", "Demócrito Rocha/CE", "Parangaba/CE",
-        "Matriz / CD"
+        "Matriz / CD", "PDV Paar", "PDV Bragança"
     ].sort();
 
     const motivosOpcoes = [
