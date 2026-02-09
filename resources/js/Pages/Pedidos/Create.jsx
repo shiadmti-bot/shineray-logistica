@@ -325,8 +325,9 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                             </div>
 
                             <div className="space-y-3">
-                                {data.itens.map((item, index) => (
-                                    <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all relative ${errors[`itens.${index}.motivo`] || errors[`itens.${index}.local`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                {/* CORREÇÃO: data.motos.map em vez de data.itens.map */}
+                                {data.motos.map((item, index) => (
+                                    <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all relative ${errors[`motos.${index}.motivo`] || errors[`motos.${index}.local`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                                         
                                         {/* Index */}
                                         <div className="col-span-1 text-center font-bold text-gray-400 hidden md:block">{index + 1}</div>
@@ -358,13 +359,13 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                             <select 
                                                 value={item.local}
                                                 onChange={(e) => updateItem(index, 'local', e.target.value)}
-                                                className={`w-full rounded text-sm bg-yellow-50 focus:bg-white ${errors[`itens.${index}.local`] ? 'border-red-500' : 'border-gray-300'}`}
+                                                className={`w-full rounded text-sm bg-yellow-50 focus:bg-white ${errors[`motos.${index}.local`] ? 'border-red-500' : 'border-gray-300'}`}
                                             >
                                                 <option value="" disabled>Selecione...</option>
                                                 {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
                                             </select>
-                                            {/* Botão Copiar (v2) */}
-                                            {index === 0 && data.itens.length > 1 && (
+                                            {/* Botão Copiar (v2) - CORRIGIDO data.motos */}
+                                            {index === 0 && data.motos.length > 1 && (
                                                 <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold hidden md:block">
                                                     Copiar p/ todos ⬇️
                                                 </button>
@@ -385,7 +386,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                             <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Motivo</label>
                                             <select 
                                                 value={item.motivo} onChange={(e) => updateItem(index, 'motivo', e.target.value)}
-                                                className={`w-full rounded text-sm ${errors[`itens.${index}.motivo`] ? 'border-red-500' : 'border-gray-300'}`}
+                                                className={`w-full rounded text-sm ${errors[`motos.${index}.motivo`] ? 'border-red-500' : 'border-gray-300'}`}
                                             >
                                                 <option value="" disabled>Selecione...</option>
                                                 {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
@@ -393,7 +394,8 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                         </div>
 
                                         <div className="col-span-1 text-center">
-                                            {data.itens.length > 1 && (
+                                            {/* CORRIGIDO data.motos */}
+                                            {data.motos.length > 1 && (
                                                 <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 text-xl p-2 transition rounded-full hover:bg-red-50">🗑️</button>
                                             )}
                                         </div>
