@@ -12,8 +12,18 @@
         },
         
         {
-            "src": "/(.*)",
-            "dest": "/api/index.php"
+            "functions": {
+                "api/index.php": {
+                    "memory": 1024,
+                    "maxDuration": 10
+                }
+            },
+            "routes": [
+                {
+                    "src": "/(.*)",
+                    "dest": "/api/index.php"
+                }
+            ]
         }
     ]
 }
