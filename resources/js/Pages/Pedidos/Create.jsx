@@ -205,19 +205,41 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                             )}
 
                             {/* Card de Informação Logística */}
-                            {carregandoLogistica && <div className="mt-4 text-sm text-gray-500 animate-pulse">⏳ Calculando rota e prazos com o CD...</div>}
+                            {carregandoLogistica && (
+                                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3 animate-pulse">
+                                    <span className="text-xl">⏳</span>
+                                    <span className="text-sm text-gray-500 font-bold">Calculando malha logística com o CD...</span>
+                                </div>
+                            )}
 
                             {!carregandoLogistica && logisticaInfo && !logisticaInfo.erro && (
-                                <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex flex-col md:flex-row items-center gap-4 animate-fadeIn">
-                                    <div className="text-3xl">🚚</div>
+                                <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex flex-col md:flex-row items-start gap-4 animate-fade-in-up">
+                                    <div className="text-3xl bg-white p-2 rounded-full shadow-sm border border-green-100">🚚</div>
+                                    
                                     <div className="flex-1">
-                                        <h4 className="font-bold text-green-900 text-sm uppercase">Rota Confirmada</h4>
-                                        <div className="text-sm text-gray-700 mt-1">
-                                            Coleta em <b>{logisticaInfo.origem}</b> via Rota <b>{logisticaInfo.rota_origem}</b> prevista para <span className="font-bold bg-white px-1 rounded border">{logisticaInfo.data_coleta?.split('-').reverse().join('/')}</span>.
+                                        <h4 className="font-black text-green-900 text-xs uppercase tracking-wider mb-1">
+                                            Logística Definida
+                                        </h4>
+                                        
+                                        {/* 1. DADOS DA COLETA (Sempre Visível) */}
+                                        <div className="text-sm text-gray-700">
+                                            Coleta em <b className="uppercase">{logisticaInfo.origem}</b> via Rota <b className="uppercase">{logisticaInfo.rota_origem}</b>:
+                                            <div className="mt-1">
+                                                📅 Previsão Coleta: <span className="font-bold bg-white px-2 py-0.5 rounded border border-green-200 ml-1">{logisticaInfo.data_coleta?.split('-').reverse().join('/')}</span>
+                                            </div>
                                         </div>
-                                        {logisticaInfo.data_entrega && (
-                                            <div className="text-xs text-green-700 mt-1 font-bold">
-                                                Entrega prevista na sua loja: {logisticaInfo.data_entrega.split('-').reverse().join('/')}
+
+                                        {/* 2. DADOS DA ENTREGA (Condicional: Só aparece se tiver rota agendada no calendário) */}
+                                        {logisticaInfo.data_entrega ? (
+                                            <div className="mt-3 pt-3 border-t border-green-200">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-green-800 bg-green-100 px-3 py-1.5 rounded-lg border border-green-200 w-fit">
+                                                    <span>📍 Entrega Prevista na sua Loja:</span>
+                                                    <span className="text-sm">{logisticaInfo.data_entrega.split('-').reverse().join('/')}</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-2 text-[10px] text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded border border-orange-100 inline-block">
+                                                ⚠️ Entrega depende de agendamento de rota para sua região (Aguardando Rota).
                                             </div>
                                         )}
                                     </div>
