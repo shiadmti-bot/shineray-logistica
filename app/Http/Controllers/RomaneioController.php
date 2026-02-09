@@ -104,75 +104,86 @@ class RomaneioController extends Controller
     {
         $request->validate([
             'motorista' => 'required_without:romaneio_id|string|nullable',
-            'placa' => 'required_without:romaneio_id|string|nullable',
+            'placa'     => 'required_without:romaneio_id|string|nullable',
             'rota_nome' => 'required_without:romaneio_id|string|nullable',
             'romaneio_id' => 'nullable|exists:romaneios,id',
-            'pedidos_ids' => 'required|array|min:1' // IDs dos PEDIDOS selecionados
+            'motos_ids'   => 'required|array|min:1' // CORREÇÃO: Agora recebe IDs das MOTOS
         ]);
 
         return DB::transaction(function () use ($request) {
             
-            // A) Cria ou Recupera o Romaneio
+            // A) Cria ou Recupera o Romaneio (Cabeçalho da Carga)
             if ($request->romaneio_id) {
                 $romaneio = Romaneio::findOrFail($request->romaneio_id);
             } else {
                 $romaneio = Romaneio::create([
-                    'user_id' => Auth::id(),
-                    'status' => 'aberto',
+                    'user_id'   => Auth::id(),
+                    'status'    => 'aberto',
                     'motorista' => mb_strtoupper($request->motorista),
-                    'placa' => mb_strtoupper($request->placa),
-                    'rota' => mb_strtoupper($request->rota_nome),
-                    'tipo' => 'misto', // Milk Run (Coleta + Entrega)
-                    'saida_em' => now()
+                    'placa'     => mb_strtoupper($request->placa),
+                    'rota'      => mb_strtoupper($request->rota_nome),
+                    'tipo'      => 'misto', // Milk Run
+                    'saida_em'  => now()
                 ]);
             }
 
-            // B) Processa os Pedidos Selecionados
-            $pedidos = Pedido::with(['origem', 'user', 'motos'])->whereIn('id', $request->pedidos_ids)->get();
+            // B) Busca as MOTOS selecionadas (e seus pedidos vinculados para contexto)
+            $motos = Moto::with(['pedidos.origem', 'pedidos.user'])
+                         ->whereIn('id', $request->motos_ids)
+                         ->get();
             
-            foreach ($pedidos as $pedido) {
+            // Array para controlar quais pedidos tiveram status alterado (evita update repetido)
+            $pedidosAfetados = [];
+
+            foreach ($motos as $moto) {
                 
-                // --- LÓGICA INTELIGENTE DE STATUS (MILK RUN) ---
+                // Pega o pedido ATIVO vinculado a esta moto para saber Origem/Destino
+                // Assumimos que o primeiro da coleção é o atual (devido ao latest() no model ou lógica de negócio)
+                $pedido = $moto->pedidos->first(); 
+
+                if (!$pedido) continue; // Segurança caso a moto esteja órfã
+
+                // --- LÓGICA INTELIGENTE (MILK RUN) ---
                 
                 $isColeta = ($pedido->origem_user_id != null);
                 
-                // Se for coleta, verificamos se passa pelo CD (Interior) ou Direto (Capital)
-                // Se origem ou destino for interior, geralmente passa pelo hub.
-                $passaPeloCD = ($isColeta && ($pedido->origem->is_interior || $pedido->user->is_interior));
-
                 if ($isColeta) {
-                    // Cenário: Caminhão sai do CD vazio e pega na Loja A
-                    // Status deve indicar que AINDA NÃO ESTÁ NO CAMINHÃO
+                    // Cenário 1: Coleta (Milk Run) - Motorista vai buscar na loja
                     $novoStatusPedido = 'aguardando_coleta'; 
-                    $novoStatusMoto = 'aguardando_coleta';
-                    $localizacaoTexto = "Aguardando Coleta em: {$pedido->origem->filial}";
+                    $novoStatusMoto   = 'aguardando_coleta';
+                    $localizacaoTexto = "Aguardando Coleta em: " . ($pedido->origem->filial ?? 'Origem');
                 } 
                 else {
-                    // Cenário: Sai do CD cheio
-                    // Antes: 'em_transito'. Agora: 'expedido' (Está no caminhão, mas no pátio)
+                    // Cenário 2: Expedição (Saindo do CD)
                     $novoStatusPedido = 'expedido';
-                    $novoStatusMoto = 'expedido'; 
+                    $novoStatusMoto   = 'expedido'; 
                     $localizacaoTexto = "Em Carga (Docas CD) - Romaneio #{$romaneio->id}";
                 }
 
-                // Atualiza Pedido
-                $pedido->update([
-                    'status' => $novoStatusPedido,
+                // 1. Atualiza a MOTO (Item Individual)
+                // Só atualiza se ela estiver disponível para movimentação
+                if (in_array($moto->status, ['separado', 'disponivel', 'no_cd', 'solicitado'])) {
+                    $moto->update([
+                        'status'            => $novoStatusMoto,
+                        'romaneio_id'       => $romaneio->id,
+                        'localizacao_atual' => $localizacaoTexto
+                    ]);
+                }
+
+                // 2. Prepara atualização do PEDIDO PAI
+                // Se a moto mudou, o pedido também muda de status
+                $pedidosAfetados[$pedido->id] = [
+                    'model' => $pedido,
+                    'status' => $novoStatusPedido
+                ];
+            }
+
+            // C) Atualiza os Pedidos Pai (em lote/único por pedido)
+            foreach ($pedidosAfetados as $dados) {
+                $dados['model']->update([
+                    'status' => $dados['status'],
                     'romaneio_id' => $romaneio->id
                 ]);
-
-                // Atualiza Motos vinculadas a este pedido
-                foreach ($pedido->motos as $moto) {
-                    // Só mexe se a moto estiver 'separado', 'disponivel' ou 'no_cd'
-                    // Evita mexer em moto que já foi entregue ou cancelada
-                    if (in_array($moto->status, ['separado', 'disponivel', 'no_cd', 'solicitado'])) {
-                        $moto->update([
-                            'status' => $novoStatusMoto,
-                            'romaneio_id' => $romaneio->id,
-                            'localizacao_atual' => $localizacaoTexto
-                        ]);
-                    }
-                }
             }
 
             return redirect()->route('romaneios.show', $romaneio->id)
