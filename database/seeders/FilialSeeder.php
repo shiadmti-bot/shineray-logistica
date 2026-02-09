@@ -26,6 +26,7 @@ class FilialSeeder extends Seeder
             ['cidade' => 'São Miguel do Guamá', 'uf' => 'PA'],
             ['cidade' => 'Tailândia', 'uf' => 'PA'],
             ['cidade' => 'Tomé-Açu', 'uf' => 'PA'],
+            ['cidade' => 'Concórdia', 'uf' => 'PA'],
 
             // CEARÁ (Bairros de Fortaleza/Região)
             ['cidade' => 'Fortaleza (Aldeota)', 'uf' => 'CE'],
