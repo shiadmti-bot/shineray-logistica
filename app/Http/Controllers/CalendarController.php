@@ -82,38 +82,32 @@ class CalendarController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'id' => 'nullable|exists:schedules,id', // Aceita ID para edição
-            'date' => 'required|date', // Removi o after_or_equal para permitir editar datas passadas se necessário, ou mantenha
+            'id' => 'nullable|exists:schedules,id',
+            'date' => 'required|date', 
             'status' => 'required|in:confirmed,planned',
             'stops' => 'required|array|min:1',
             'stops.*' => 'exists:users,id'
         ]);
 
-        return DB::transaction(function () use ($request) {
+        // 1. REMOVIDO O "return" DAQUI DA FRENTE DO DB::transaction
+        DB::transaction(function () use ($request) {
             
-            // 1. Atualiza ou Cria (Update or Create)
-            // Se vier o ID, ele busca e atualiza. Se não, cria um novo.
+            // Atualiza ou Cria
             $schedule = Schedule::updateOrCreate(
-                ['id' => $request->id], // Chave de busca
+                ['id' => $request->id], 
                 [
                     'date' => $request->date,
                     'status' => $request->status,
-                    'created_by' => Auth::id() // Atualiza quem editou por último ou mantém o criador
+                    'created_by' => Auth::id()
                 ]
             );
 
-            // 2. Lógica das Paradas (Stops)
-            // Na edição, a maneira mais limpa de lidar com reordenação de paradas 
-            // é apagar as antigas e recriar as novas na ordem correta.
-            
-            // Apaga paradas antigas dessa viagem
+            // Atualiza as paradas
             $schedule->stops()->delete();
 
-            // Recria as paradas baseadas no array enviado pelo frontend
             $totalStops = count($request->stops);
             
             foreach ($request->stops as $index => $lojaId) {
-                // A última loja do array é o Destino Final
                 $isLast = ($index === $totalStops - 1);
                 
                 ScheduleStop::create([
@@ -123,10 +117,11 @@ class CalendarController extends Controller
                     'type' => $isLast ? 'destination' : 'scale'
                 ]);
             }
-
-            return $schedule;
+            
+            // Não precisa retornar nada aqui dentro, ou se retornar, não use esse valor fora.
         });
 
+        // 2. O RETORNO TEM QUE SER AQUI (REDIRECT INERTIA)
         return back()->with('success', $request->id ? 'Rota atualizada com sucesso!' : 'Rota criada com sucesso!');
     }
 
