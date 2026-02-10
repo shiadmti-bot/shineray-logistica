@@ -12,21 +12,24 @@ class FilialSeeder extends Seeder
         $lojas = [
             // PARÁ
             ['cidade' => 'Acará', 'uf' => 'PA'],
+            ['cidade' => 'Ananindeua', 'uf' => 'PA'],
             ['cidade' => 'Barcarena', 'uf' => 'PA'],
             ['cidade' => 'Belém', 'uf' => 'PA'],
             ['cidade' => 'Bragança', 'uf' => 'PA'],
             ['cidade' => 'Breves', 'uf' => 'PA'],
+            ['cidade' => 'Cametá', 'uf' => 'PA'],
             ['cidade' => 'Capanema', 'uf' => 'PA'],
             ['cidade' => 'Capitão Poço', 'uf' => 'PA'],
             ['cidade' => 'Castanhal', 'uf' => 'PA'],
             ['cidade' => 'Concórdia do Pará', 'uf' => 'PA'],
             ['cidade' => 'Curuçá', 'uf' => 'PA'],
             ['cidade' => 'Icoaraci', 'uf' => 'PA'],
+            ['cidade' => 'Igarapé Miri', 'uf' => 'PA'],
             ['cidade' => 'Moju', 'uf' => 'PA'],
+            ['cidade' => 'Paragominas', 'uf' => 'PA'],
             ['cidade' => 'São Miguel do Guamá', 'uf' => 'PA'],
             ['cidade' => 'Tailândia', 'uf' => 'PA'],
             ['cidade' => 'Tomé-Açu', 'uf' => 'PA'],
-            ['cidade' => 'Concórdia', 'uf' => 'PA'],
 
             // CEARÁ (Bairros de Fortaleza/Região)
             ['cidade' => 'Fortaleza (Aldeota)', 'uf' => 'CE'],
