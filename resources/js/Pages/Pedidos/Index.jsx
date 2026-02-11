@@ -60,10 +60,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
         const ehReposicao = !pedido.origem_user_id; // Vem do CD
 
         return (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5 w-full">
                 {/* LINHA DE CIMA: DE ONDE VEM? */}
-                <div className="flex items-center gap-2 text-xs">
-                    <span className="text-gray-400 font-bold uppercase w-10 text-right">DE:</span>
+                <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400 font-bold uppercase text-[10px]">Origem</span>
                     {ehReposicao ? (
                         <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-1">
                             🏭 CD MATRIZ
@@ -75,14 +75,14 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                     )}
                 </div>
 
-                {/* ÍCONE DE SETA */}
-                <div className="pl-12 text-gray-300 leading-none -my-1 text-xs">
-                    ⬇
+                {/* CONECTOR VISUAL */}
+                <div className="flex items-center gap-2 opacity-30 px-2">
+                    <div className="h-4 w-0.5 bg-gray-400 mx-auto"></div>
                 </div>
 
                 {/* LINHA DE BAIXO: PARA ONDE VAI? */}
-                <div className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-400 font-bold uppercase w-10 text-right">PARA:</span>
+                <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400 font-bold uppercase text-[10px]">Destino</span>
                     <span className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${souDestino ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-50 text-gray-800 border-gray-200'}`}>
                         📍 {pedido.user?.filial || pedido.user?.name} {souDestino && '(Você)'}
                     </span>
@@ -95,17 +95,17 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
         <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Gerenciamento de Pedidos</h2>}>
             <Head title="Pedidos" />
 
-            <div className="py-8 bg-gray-50 min-h-screen pb-32">
+            <div className="py-8 bg-gray-100 min-h-screen pb-32">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
                     
                     {/* --- 1. BARRA DE AÇÕES E FILTROS --- */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4 justify-between items-center sticky top-0 z-20 md:static">
                         {perfil === 'loja' ? (
                             <Link href={route('solicitar')} className="w-full md:w-auto bg-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
                                 <span>➕</span> Nova Solicitação
                             </Link>
                         ) : (
-                            <div className="flex items-center gap-3 text-gray-600">
+                            <div className="flex items-center gap-3 text-gray-600 w-full md:w-auto">
                                 <span className="text-2xl bg-gray-100 p-2 rounded-lg">📊</span>
                                 <div>
                                     <h3 className="font-bold text-lg leading-none text-gray-800">Visão Geral</h3>
@@ -171,10 +171,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                     )}
 
                     {/* --- 3. TABELA GERAL --- */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        
-                        {/* VIEW DESKTOP */}
-                        <div className="hidden md:block overflow-x-auto">
+                    
+                    {/* VIEW DESKTOP (TABELA) */}
+                    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -196,7 +196,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                                                 <div className="text-[10px] text-gray-400 mt-1 font-mono">{new Date(pedido.created_at).toLocaleDateString()}</div>
                                             </td>
 
-                                            {/* Fluxo Logístico (NOVO) */}
+                                            {/* Fluxo Logístico */}
                                             <td className="px-6 py-4 align-top">
                                                 <RenderLogisticaFlow pedido={pedido} />
                                             </td>
@@ -233,33 +233,44 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                                 </tbody>
                             </table>
                         </div>
+                    </div>
 
-                        {/* VIEW MOBILE (Cards) */}
-                        <div className="md:hidden">
-                            {listaPrincipal.map((pedido) => (
-                                <Link key={pedido.id} href={route('pedidos.show', pedido.id)} className="block border-b border-gray-100 p-4 hover:bg-gray-50 transition">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <span className="font-bold text-gray-900">#{pedido.id}</span>
-                                            <span className="text-gray-400 text-xs ml-2">{new Date(pedido.created_at).toLocaleDateString()}</span>
-                                        </div>
-                                        <TipoBadge pedido={pedido} authId={auth.user.id} />
+                    {/* VIEW MOBILE (CARDS INDIVIDUAIS) - ATUALIZADO */}
+                    <div className="md:hidden space-y-4">
+                        {listaPrincipal.map((pedido) => (
+                            <Link 
+                                key={pedido.id} 
+                                href={route('pedidos.show', pedido.id)} 
+                                className="block bg-white p-5 rounded-2xl shadow-sm border border-gray-200 active:scale-[0.98] transition-transform duration-100"
+                            >
+                                {/* HEADER DO CARD */}
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="flex flex-col">
+                                        <span className="text-lg font-black text-gray-800 leading-none">#{pedido.id}</span>
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+                                            {new Date(pedido.created_at).toLocaleDateString()}
+                                        </span>
                                     </div>
+                                    <TipoBadge pedido={pedido} authId={auth.user.id} />
+                                </div>
+                                
+                                {/* MEIOLO: FLUXO LOGÍSTICO EM CAIXA */}
+                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 mb-4">
+                                    <RenderLogisticaFlow pedido={pedido} />
+                                </div>
+
+                                {/* FOOTER DO CARD */}
+                                <div className="flex justify-between items-center border-t border-gray-100 pt-3">
+                                    <StatusBadge status={pedido.status} />
                                     
-                                    <div className="mb-3 pl-2 border-l-2 border-gray-200">
-                                        <RenderLogisticaFlow pedido={pedido} />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-bold text-gray-800">{pedido.motos_count || 0}</span>
+                                        <span className="text-[9px] font-bold uppercase text-gray-400">Motos</span>
+                                        <span className="text-gray-300 ml-1 text-lg">›</span>
                                     </div>
-
-                                    <div className="flex justify-between items-center">
-                                        <StatusBadge status={pedido.status} />
-                                        <div className="text-xs font-bold text-gray-500">
-                                            {pedido.motos_count || 0} Motos
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-
+                                </div>
+                            </Link>
+                        ))}
                     </div>
 
                     {/* PAGINAÇÃO */}
@@ -283,12 +294,12 @@ function TipoBadge({ pedido, authId }) {
         const souOrigem = pedido.origem_user_id === authId;
         const souDestino = pedido.user_id === authId;
         
-        if(souOrigem) return <span className="text-[9px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded border border-orange-200 font-bold uppercase">📤 Saída</span>;
-        if(souDestino) return <span className="text-[9px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded border border-green-200 font-bold uppercase">📥 Entrada</span>;
+        if(souOrigem) return <span className="text-[9px] bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200 font-bold uppercase shadow-sm">📤 Saída</span>;
+        if(souDestino) return <span className="text-[9px] bg-green-100 text-green-800 px-2 py-1 rounded border border-green-200 font-bold uppercase shadow-sm">📥 Entrada</span>;
         
-        return <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-200 font-bold uppercase">🔁 Transf.</span>;
+        return <span className="text-[9px] bg-purple-100 text-purple-800 px-2 py-1 rounded border border-purple-200 font-bold uppercase shadow-sm">🔁 Transf.</span>;
     }
-    return <span className="text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded border border-blue-200 font-bold uppercase">🏭 Reposição</span>;
+    return <span className="text-[9px] bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-200 font-bold uppercase shadow-sm">🏭 Reposição</span>;
 }
 
 function safeString(value) { return String(value || '').toLowerCase(); }
@@ -326,7 +337,7 @@ function StatusBadge({ status }) {
     }[s] || { label: s.toUpperCase(), bg: 'bg-gray-100 text-gray-600' };
 
     return (
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border tracking-wide whitespace-nowrap ${config.bg}`}>
+        <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase border tracking-wide whitespace-nowrap shadow-sm ${config.bg}`}>
             {config.label}
         </span>
     );
