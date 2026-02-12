@@ -228,7 +228,7 @@ class PedidoController extends Controller
             $pedido = Pedido::create([
                 'user_id' => $user->id, // Quem pede (Destino)
                 'origem_user_id' => $request->origem_id, // De onde vem (Origem)
-                'status' => 'solicitado', // Status Inicial
+                'status' => 'em_analise', // Status Inicial (Aguardando Aprovação Gestor)
                 'observacao' => $request->observacao,
                 'motivo_solicitacao' => $request->itens[0]['motivo'] ?? 'Estoque Regular (Giro)', // Pega o 1º motivo como geral
                 'itens' => $request->itens, // Salva JSON para histórico/backup
