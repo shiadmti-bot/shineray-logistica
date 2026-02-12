@@ -6,14 +6,10 @@ import axios from 'axios';
 
 export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = [] }) {
     
-    // --- ESTADOS DA v2 (LOGÍSTICA) ---
-    const [modo, setModo] = useState('cd'); // 'cd' ou 'transferencia'
+    const [modo, setModo] = useState('cd'); 
     const [logisticaInfo, setLogisticaInfo] = useState(null);
-    const [carregandoLogistica, setCarregandoLogistica] = useState(false);
+    const [motosDisponiveis, setMotosDisponiveis] = useState([]); 
 
-    const [motosDisponiveis, setMotosDisponiveis] = useState([]);
-
-    // --- LISTA PADRONIZADA DE DESTINOS ---
     const locaisEntrega = [
         "Acará/PA", "Ananindeua/PA", "Barcarena/PA", "Belém/PA", 
         "Bragança/PA", "Breves/PA", "Cametá/PA", "Capanema/PA", "Capitão Poço/PA", 
@@ -29,7 +25,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     ];
 
     const { data, setData, post, processing, errors, reset } = useForm({
-        origem_id: '', // v2: ID da loja de origem (vazio = CD)
+        origem_id: '',
         itens: [
             { 
                 modelo: '', chassi: '', cor: '', ano: '', motivo: '', 
@@ -39,55 +35,38 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         observacao: ''
     });
 
-    // --- LÓGICA LOGÍSTICA (v2) ---
     const verificarLogistica = async (fornecedorId) => {
         if (!fornecedorId) {
             setLogisticaInfo(null);
             return;
         }
-
-        setCarregandoLogistica(true);
         try {
-            // Chama a API que criamos no Backend para calcular as datas
-            const response = await axios.post(route('pedidos.logistica'), {
-                fornecedor_id: fornecedorId
-            });
+            const response = await axios.post(route('pedidos.logistica'), { fornecedor_id: fornecedorId });
             setLogisticaInfo(response.data);
         } catch (error) {
-            console.error("Erro logística:", error);
-            setLogisticaInfo({ erro: 'Não foi possível calcular a rota. Verifique se as lojas possuem rotas definidas.' });
-        } finally {
-            setCarregandoLogistica(false);
+            console.error("Erro validação rota:", error);
         }
     };
 
-    // --- (ATUALIZADO) SELEÇÃO DE FORNECEDOR ---
     const handleFornecedorChange = async (e) => {
         const id = e.target.value;
         setData('origem_id', id);
         
-        // 1. Verifica rota logística (Cálculo de prazo)
         verificarLogistica(id);
 
-        // 2. (NOVO) Busca estoque real da loja se for transferência
         if (modo === 'transferencia' && id) {
             try {
-                // Certifique-se de ter criado a rota '/api/estoque-loja' no web.php
-                const response = await axios.get('/api/estoque-loja', {
-                    params: { loja_id: id }
-                });
+                const response = await axios.get('/api/estoque-loja', { params: { loja_id: id } });
                 setMotosDisponiveis(response.data);
             } catch (error) {
-                console.error("Erro ao buscar estoque:", error);
                 setMotosDisponiveis([]);
-                Swal.fire('Erro', 'Não foi possível carregar o estoque desta loja.', 'error');
+                Swal.fire('Erro', 'Falha ao carregar estoque da loja.', 'error');
             }
         } else {
             setMotosDisponiveis([]);
         }
     };
 
-    // --- MANIPULAÇÃO DE ITENS (MANTIDO) ---
     const addItem = () => {
         setData('itens', [
             ...data.itens, 
@@ -107,44 +86,48 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     const updateItem = (index, field, value) => {
         const novosItens = [...data.itens];
         novosItens[index][field] = value;
+
+        if (field === 'chassi' && modo === 'transferencia') {
+            const motoSelecionada = motosDisponiveis.find(m => m.chassi === value);
+            if (motoSelecionada) {
+                novosItens[index]['modelo'] = motoSelecionada.modelo;
+                novosItens[index]['cor'] = motoSelecionada.cor;
+            }
+        }
         setData('itens', novosItens);
     };
 
     const replicarDestino = () => {
         const primeiroLocal = data.itens[0].local;
-        if (!primeiroLocal) {
-            Swal.fire('Atenção', 'Selecione um destino na primeira linha antes de copiar.', 'warning');
-            return;
-        }
+        if (!primeiroLocal) return Swal.fire('Atenção', 'Selecione um destino na primeira linha.', 'warning');
+        
         const novosItens = data.itens.map(item => ({ ...item, local: primeiroLocal }));
         setData('itens', novosItens);
+        
         const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
         Toast.fire({ icon: 'success', title: `Destino "${primeiroLocal}" copiado!` });
     };
 
-    // --- SUBMIT COM VALIDAÇÃO v2 ---
     const submit = (e) => {
         e.preventDefault();
 
-        // Validação Específica de Transferência
         if (modo === 'transferencia' && !data.origem_id) {
-            Swal.fire('Falta a Origem', 'Selecione de qual loja essas motos virão.', 'warning');
-            return;
+            return Swal.fire('Falta a Origem', 'Selecione de qual loja essas motos virão.', 'warning');
         }
 
         post(route('pedidos.store'), {
             onSuccess: () => {
                 Swal.fire('Sucesso!', 'Solicitação enviada.', 'success');
-                reset(); // Limpa o form após sucesso
-                setModo('cd'); // Reseta para padrão
+                reset(); 
+                setModo('cd'); 
                 setLogisticaInfo(null);
+                setMotosDisponiveis([]);
             },
             onError: (errors) => {
-                const primeiraMensagem = Object.values(errors)[0];
                 Swal.fire({
                     icon: 'error',
                     title: 'Atenção',
-                    text: primeiraMensagem || 'Verifique os campos em vermelho.',
+                    text: Object.values(errors)[0] || 'Verifique os campos obrigatórios.',
                     confirmButtonColor: '#d33'
                 });
             }
@@ -152,37 +135,29 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     };
 
     return (
-        <AuthenticatedLayout 
-            user={auth.user} 
-            header={<h2 className="font-bold text-2xl text-red-700">Nova Solicitação de Despacho</h2>}
-        >
+        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-red-700">Nova Solicitação de Despacho</h2>}>
             <Head title="Nova Solicitação" />
             <div className="py-8 bg-gray-100 min-h-screen pb-32">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     
-                    {/* MENSAGEM DE ERRO GERAL */}
                     {Object.keys(errors).length > 0 && (
-                        <div className="mb-6 bg-red-50 border-l-4 border-red-600 p-4 rounded shadow animate-pulse flex items-center">
+                        <div className="mb-6 bg-red-50 border-l-4 border-red-600 p-4 rounded shadow flex items-center">
                             <span className="text-2xl mr-3">⚠️</span>
                             <div>
                                 <h3 className="font-bold text-red-800">Atenção Necessária</h3>
-                                <p className="text-sm text-red-700">Verifique os campos destacados abaixo.</p>
+                                <p className="text-sm text-red-700">Preencha todos os campos obrigatórios.</p>
                             </div>
                         </div>
                     )}
 
                     <form onSubmit={submit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.type !== 'textarea') e.preventDefault(); }} className="space-y-6">
                         
-                        {/* === BLOCO 1: INTEGRAÇÃO LOGÍSTICA (v2) === */}
                         <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 border-blue-600">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                <span>📦</span> Origem da Carga
-                            </h3>
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><span>📦</span> Origem da Carga</h3>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                {/* Opção CD */}
                                 <div 
-                                    onClick={() => { setModo('cd'); setData('origem_id', ''); setLogisticaInfo(null); }}
+                                    onClick={() => { setModo('cd'); setData('origem_id', ''); setLogisticaInfo(null); setMotosDisponiveis([]); }}
                                     className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${modo === 'cd' ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-200 hover:border-blue-300'}`}
                                 >
                                     <div className="text-3xl">🏭</div>
@@ -193,7 +168,6 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                     {modo === 'cd' && <div className="ml-auto text-blue-600 font-bold">✓</div>}
                                 </div>
 
-                                {/* Opção Transferência */}
                                 <div 
                                     onClick={() => setModo('transferencia')}
                                     className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${modo === 'transferencia' ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500' : 'border-gray-200 hover:border-orange-300'}`}
@@ -207,88 +181,25 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                 </div>
                             </div>
 
-                            {/* Seletor de Loja (Aparece na Transferência) */}
                             {modo === 'transferencia' && (
-                                <div className="animate-fadeIn">
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Selecione a Loja Fornecedora</label>
+                                <div className="animate-fadeIn bg-orange-50 p-4 rounded-lg border border-orange-100">
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Selecione a Loja Fornecedora *</label>
                                     <select
+                                        required
                                         value={data.origem_id}
                                         onChange={handleFornecedorChange}
                                         className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 font-bold text-gray-700"
                                     >
                                         <option value="">-- Escolha a loja que tem a moto --</option>
                                         {lojasDisponiveis.map(loja => (
-                                            <option key={loja.id} value={loja.id}>
-                                                {loja.filial ? `${loja.filial} (${loja.name})` : loja.name}
-                                            </option>
+                                            <option key={loja.id} value={loja.id}>{loja.filial ? `${loja.filial} (${loja.name})` : loja.name}</option>
                                         ))}
                                     </select>
-                                </div>
-                            )}
-
-                            {/* Card de Informação Logística */}
-                        {carregandoLogistica && (
-                            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3 animate-pulse">
-                                <span className="text-xl">⏳</span>
-                                <span className="text-sm text-gray-500 font-bold">Calculando malha logística com o CD...</span>
-                            </div>
-                        )}
-
-                        {!carregandoLogistica && logisticaInfo && !logisticaInfo.erro && (
-                            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 flex flex-col md:flex-row items-start gap-4 animate-fade-in-up">
-                                {/* Ícone do Caminhão */}
-                                <div className="text-3xl bg-white p-2 rounded-full shadow-sm border border-green-100 flex-shrink-0">
-                                    🚚
-                                </div>
-                                
-                                <div className="flex-1 w-full">
-                                    <h4 className="font-black text-green-900 text-xs uppercase tracking-wider mb-2 border-b border-green-200 pb-1">
-                                        Logística Definida
-                                    </h4>
-                                    
-                                    {/* 1. DADOS DA COLETA (Sempre Visível - Capital/CD tem coleta garantida) */}
-                                    <div className="text-sm text-gray-700 mb-3">
-                                        Coleta em <strong className="uppercase text-gray-900">{logisticaInfo.origem}</strong> via Rota <strong className="uppercase text-gray-900">{logisticaInfo.rota_origem}</strong>:
-                                        <div className="mt-1 flex items-center gap-2">
-                                            <span className="text-xs uppercase font-bold text-gray-500">🗓️ Previsão Coleta:</span>
-                                            <span className="font-bold bg-white px-2 py-0.5 rounded border border-green-200 text-green-800">
-                                                {logisticaInfo.data_coleta?.split('-').reverse().join('/')}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* 2. DADOS DA ENTREGA (Condicional: Só aparece se houver rota agendada) */}
-                                    {logisticaInfo.data_entrega ? (
-                                        // CENÁRIO A: Rota Encontrada (Data Prevista existe)
-                                        <div className="pt-2 border-t border-green-200">
-                                            <div className="flex items-center gap-2 text-xs font-bold text-green-800 bg-green-100 px-3 py-2 rounded-lg border border-green-200 w-full md:w-fit shadow-sm">
-                                                <span>📍 Entrega Prevista na sua Loja:</span>
-                                                <span className="text-sm bg-white px-1.5 rounded text-green-900">
-                                                    {logisticaInfo.data_entrega.split('-').reverse().join('/')}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        // CENÁRIO B: Interior sem rota na semana (Hub & Spoke / Milk Run)
-                                        <div className="pt-2 border-t border-green-200">
-                                            <div className="flex items-center gap-2 text-[10px] md:text-xs font-bold text-orange-700 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200 w-full md:w-fit">
-                                                <span>⚠️ Sem rota direta agendada:</span>
-                                                <span className="font-normal text-orange-600">Aguardando definição logística via CD (Transbordo).</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                            {logisticaInfo && logisticaInfo.erro && (
-                                <div className="mt-4 bg-red-50 border border-red-200 rounded p-3 text-red-700 text-sm flex items-center gap-2">
-                                    <span>⚠️</span> {logisticaInfo.erro}
+                                    <p className="text-[10px] text-orange-600 mt-1">* A lista de motos disponíveis será carregada após a seleção.</p>
                                 </div>
                             )}
                         </div>
 
-                        {/* === BLOCO 2: DADOS DAS MOTOS (Mantido e Otimizado) === */}
                         <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-t-4 border-red-600">
                             <div className="mb-6">
                                 <h3 className="text-lg font-bold text-gray-800">Itens do Pedido</h3>
@@ -299,11 +210,10 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                 {listaModelos.map((nome, index) => ( <option key={index} value={nome} /> ))}
                             </datalist>
 
-                            {/* Cabeçalho */}
                             <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
                                 <div className="col-span-1 text-center">#</div>
                                 <div className="col-span-3">Modelo *</div>
-                                <div className="col-span-2">Chassi (11-17)</div>
+                                <div className="col-span-2">Chassi {modo === 'transferencia' && '*'}</div>
                                 <div className="col-span-2">Destino Final *</div>
                                 <div className="col-span-1">Cor *</div>
                                 <div className="col-span-2">Motivo *</div>
@@ -312,66 +222,86 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
 
                             <div className="space-y-3">
                                 {data.itens.map((item, index) => (
-                                    <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all relative ${errors[`itens.${index}.motivo`] || errors[`itens.${index}.local`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                    <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all relative ${errors[`itens.${index}`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                                         
-                                        {/* Index */}
                                         <div className="col-span-1 text-center font-bold text-gray-400 hidden md:block">{index + 1}</div>
                                         <div className="md:hidden absolute top-2 right-2 text-xs font-bold text-gray-300">#{index + 1}</div>
 
-                                        {/* Inputs */}
                                         <div className="col-span-3">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Modelo</label>
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Modelo *</label>
                                             <input 
+                                                required
                                                 type="text" list="opcoes-modelos" placeholder="MODELO..."
                                                 value={item.modelo}
+                                                readOnly={modo === 'transferencia'}
                                                 onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
-                                                className="w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500"
+                                                className={`w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500 ${modo === 'transferencia' ? 'bg-gray-100 text-gray-500' : ''}`}
                                             />
                                         </div>
 
                                         <div className="col-span-2">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi</label>
-                                            <input 
-                                                type="text" placeholder="CHASSI" maxLength={17}
-                                                value={item.chassi}
-                                                onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                                                className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
-                                            />
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi {modo === 'transferencia' && '*'}</label>
+                                            {modo === 'transferencia' ? (
+                                                <select 
+                                                    required
+                                                    value={item.chassi} 
+                                                    onChange={(e) => updateItem(index, 'chassi', e.target.value)}
+                                                    className="w-full rounded text-sm font-mono border-orange-300 bg-orange-50 focus:ring-orange-500 focus:border-orange-500"
+                                                    disabled={!data.origem_id || motosDisponiveis.length === 0}
+                                                >
+                                                    <option value="">
+                                                        {!data.origem_id ? 'Selecione a loja...' : 
+                                                         motosDisponiveis.length === 0 ? 'Sem estoque disponível' : '-- Selecione --'}
+                                                    </option>
+                                                    {motosDisponiveis.map(moto => (
+                                                        <option key={moto.id} value={moto.chassi}>{moto.modelo} ({moto.chassi})</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <input 
+                                                    required
+                                                    type="text" placeholder="CHASSI" maxLength={17}
+                                                    value={item.chassi}
+                                                    onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                                    className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
+                                                />
+                                            )}
                                         </div>
 
                                         <div className="col-span-2 relative">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Destino</label>
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Destino *</label>
                                             <select 
+                                                required
                                                 value={item.local}
                                                 onChange={(e) => updateItem(index, 'local', e.target.value)}
-                                                className={`w-full rounded text-sm bg-yellow-50 focus:bg-white ${errors[`itens.${index}.local`] ? 'border-red-500' : 'border-gray-300'}`}
+                                                className="w-full rounded text-sm bg-yellow-50 focus:bg-white border-gray-300"
                                             >
                                                 <option value="" disabled>Selecione...</option>
                                                 {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
                                             </select>
-                                            {/* Botão Copiar (v2) */}
                                             {index === 0 && data.itens.length > 1 && (
-                                                <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold hidden md:block">
-                                                    Copiar p/ todos ⬇️
-                                                </button>
+                                                <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold hidden md:block">Copiar p/ todos ⬇️</button>
                                             )}
                                         </div>
 
                                         <div className="col-span-1">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Cor</label>
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Cor *</label>
                                             <input 
+                                                required
                                                 type="text" placeholder="COR"
                                                 value={item.cor}
+                                                readOnly={modo === 'transferencia'}
                                                 onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
-                                                className="w-full border-gray-300 rounded uppercase text-sm"
+                                                className={`w-full border-gray-300 rounded uppercase text-sm ${modo === 'transferencia' ? 'bg-gray-100 text-gray-500' : ''}`}
                                             />
                                         </div>
 
                                         <div className="col-span-2">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Motivo</label>
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Motivo *</label>
                                             <select 
+                                                required
                                                 value={item.motivo} onChange={(e) => updateItem(index, 'motivo', e.target.value)}
-                                                className={`w-full rounded text-sm ${errors[`itens.${index}.motivo`] ? 'border-red-500' : 'border-gray-300'}`}
+                                                className="w-full rounded text-sm border-gray-300"
                                             >
                                                 <option value="" disabled>Selecione...</option>
                                                 {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
@@ -402,7 +332,6 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                             </div>
                         </div>
 
-                        {/* --- BARRA FLUTUANTE --- */}
                         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] p-4 z-50">
                             <div className="max-w-7xl mx-auto flex justify-between items-center px-4">
                                 <div>

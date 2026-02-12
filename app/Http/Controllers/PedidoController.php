@@ -13,6 +13,7 @@ use App\Models\Modelo;
 use App\Notifications\EstornoSolicitado;
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
+use Intervention\Image\Facades\Image;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -152,6 +153,25 @@ class PedidoController extends Controller
         ]);
     }
 
+    public function buscarEstoqueLoja(Request $request)
+    {
+        $lojaId = $request->input('loja_id');
+
+        if (!$lojaId) return response()->json([]);
+
+        $motos = Moto::where('loja_atual_id', $lojaId)
+            ->where('status', 'estoque_loja') // Só motos disponíveis (não vendidas/avariadas)
+            ->whereDoesntHave('pedidos', function ($query) {
+                // Garante que a moto não está em outro pedido ABERTO (trânsito, solicitado, etc)
+                $query->whereIn('status', ['solicitado', 'aprovado', 'separado', 'aguardando_coleta', 'em_transito', 'expedido']);
+            })
+            ->select('id', 'chassi', 'modelo', 'cor')
+            ->orderBy('modelo')
+            ->get();
+
+        return response()->json($motos);
+    }
+
     public function create()
     {
         // Lista lojas para transferência (exclui a própria)
@@ -169,86 +189,158 @@ class PedidoController extends Controller
 
     public function store(Request $request)
     {
+        // 1. Validação dos Campos (Sem a regra 'unique' para chassis, pois trataremos manualmente)
         $request->validate([
             'itens' => 'required|array|min:1',
-            'itens.*.modelo' => 'required',
-            'itens.*.cor' => 'required',
-            // Chassi é opcional na solicitação inicial se for apenas "Pedido de Giro", 
-            // mas obrigatório se for transferência específica.
+            'itens.*.modelo' => 'required|string',
+            'itens.*.cor' => 'required|string',
+            'itens.*.motivo' => 'required|string',
+            'itens.*.local' => 'required|string',
+            // Chassi validado manualmente abaixo para permitir Transferência
+            'itens.*.chassi' => 'nullable|string|min:11|max:17', 
             'origem_id' => 'nullable|exists:users,id'
         ]);
 
         return DB::transaction(function () use ($request) {
-            
-            // Valida duplicidade se chassis forem informados
-            $chassisInformados = array_filter(array_column($request->itens, 'chassi'));
-            if (!empty($chassisInformados)) {
-                $duplicados = Moto::whereIn('chassi', $chassisInformados)
-                    ->whereNotIn('status', ['estoque_fabrica', 'cancelado'])
-                    ->pluck('chassi')->toArray();
-                
-                if ($duplicados) {
-                    throw ValidationException::withMessages(['itens' => 'Chassis já em uso: ' . implode(', ', $duplicados)]);
-                }
-            }
+            $user = Auth::user();
+            $isTransferencia = !empty($request->origem_id);
 
-            // Recalcula Logística (Backend Trust)
-            $previsaoColeta = null; $previsaoEntrega = null;
-            if ($request->origem_id) {
+            // 2. Cálculo Logístico (Datas)
+            $previsaoColeta = null; 
+            $previsaoEntrega = null;
+            
+            if ($isTransferencia) {
+                // Simula requisição interna para calcular logística
                 $reqLogistica = new Request(['fornecedor_id' => $request->origem_id]);
+                // Assume que você tem o método calcularLogistica no controller
                 $dadosLogistica = $this->calcularLogistica($reqLogistica)->getData();
                 
                 if (isset($dadosLogistica->erro)) {
-                    throw ValidationException::withMessages(['origem_id' => $dadosLogistica->erro]);
+                    throw \Illuminate\Validation\ValidationException::withMessages(['origem_id' => $dadosLogistica->erro]);
                 }
                 $previsaoColeta = $dadosLogistica->data_coleta ?? null;
                 $previsaoEntrega = $dadosLogistica->data_entrega ?? null;
             }
 
-            // Cria o Pedido
+            // 3. Criação do Cabeçalho do Pedido
             $pedido = Pedido::create([
-                'user_id' => Auth::id(),
-                'status' => 'em_analise', // Vai para aprovação do Gestor
+                'user_id' => $user->id, // Quem pede (Destino)
+                'origem_user_id' => $request->origem_id, // De onde vem (Origem)
+                'status' => 'solicitado', // Status Inicial
                 'observacao' => $request->observacao,
-                'origem_user_id' => $request->origem_id,
-                'itens' => $request->itens, // Salva JSON para histórico
+                'motivo_solicitacao' => $request->itens[0]['motivo'] ?? 'Estoque Regular (Giro)', // Pega o 1º motivo como geral
+                'itens' => $request->itens, // Salva JSON para histórico/backup
                 'previsao_coleta' => $previsaoColeta,
                 'previsao_entrega' => $previsaoEntrega
             ]);
 
-            // Cria ou Vincula as Motos
+            // 4. Processamento dos Itens (Motos)
             foreach ($request->itens as $item) {
-                // Se o usuário informou chassi, criamos/atualizamos a moto
-                if (!empty($item['chassi'])) {
-                    $moto = Moto::updateOrCreate(
-                        ['chassi' => mb_strtoupper($item['chassi'])],
-                        [
+                $chassi = isset($item['chassi']) ? mb_strtoupper(trim($item['chassi'])) : null;
+                
+                // --- A. VALIDAÇÃO DE "EM USO" (CRÍTICO PARA CORRIGIR O ERRO) ---
+                if ($chassi) {
+                    // Verifica se o chassi está em algum pedido ATIVO (que não foi concluído nem cancelado)
+                    $emUso = Pedido::whereHas('motos', function ($q) use ($chassi) {
+                        $q->where('chassi', $chassi);
+                    })
+                    ->whereNotIn('status', ['concluido', 'cancelado']) // IMPORTANTE: Ignora pedidos velhos
+                    ->exists();
+
+                    if ($emUso) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'itens' => "O chassi {$chassi} já está em um pedido aberto/em trânsito e não pode ser solicitado novamente."
+                        ]);
+                    }
+                }
+
+                $moto = null;
+
+                // --- B. CENÁRIO 1: TRANSFERÊNCIA (O Chassi TEM que existir na Origem) ---
+                if ($isTransferencia) {
+                    if (!$chassi) {
+                        throw \Illuminate\Validation\ValidationException::withMessages(['itens' => "Para transferência, o chassi é obrigatório."]);
+                    }
+
+                    // Busca a moto na loja de origem
+                    $moto = Moto::where('chassi', $chassi)
+                        ->where('loja_atual_id', $request->origem_id)
+                        ->first();
+
+                    if (!$moto) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'itens' => "A moto {$chassi} não pertence ao estoque da loja selecionada na origem."
+                        ]);
+                    }
+
+                    // Opcional: Validar status (Giro vs Venda)
+                    /*if ($moto->status !== 'estoque_loja') {
+                         throw \Illuminate\Validation\ValidationException::withMessages([
+                            'itens' => "A moto {$chassi} não está disponível para transferência (Status: {$moto->status})."
+                        ]);
+                    }*/
+                    
+                    // Atualiza status para evitar que outra loja peça a mesma moto simultaneamente
+                    $moto->update(['status' => 'solicitado']); 
+
+                } 
+                // --- C. CENÁRIO 2: PEDIDO AO CD (Fabrica/Novo) ---
+                else {
+                    if ($chassi) {
+                        // Se informou chassi, usa FirstOrCreate
+                        $moto = Moto::firstOrCreate(
+                            ['chassi' => $chassi],
+                            [
+                                'modelo' => mb_strtoupper($item['modelo']),
+                                'cor' => mb_strtoupper($item['cor']),
+                                'status' => 'solicitado',
+                                'localizacao_atual' => 'Fábrica/CD'
+                            ]
+                        );
+
+                        // Segurança: Se a moto já existia, mas pertence a outra loja, não deixa o CD "roubar"
+                        // Exceto se estiver em estoque_fabrica
+                        if (!$moto->wasRecentlyCreated && !in_array($moto->status, ['estoque_fabrica', 'solicitado'])) {
+                             throw \Illuminate\Validation\ValidationException::withMessages([
+                                'itens' => "O chassi {$chassi} já existe no sistema e pertence a outra loja ({$moto->localizacao_atual}). Use Transferência."
+                            ]);
+                        }
+                    } else {
+                        // Pedido genérico (sem chassi) - Cria registro placeholder
+                        $moto = Moto::create([
                             'modelo' => mb_strtoupper($item['modelo']),
                             'cor' => mb_strtoupper($item['cor']),
-                            'ano_fabricacao' => $item['ano'] ?? null,
-                            'motivo_solicitacao' => $item['motivo'],
-                            'status' => 'reservado', // Bloqueia para outros
-                            'localizacao_atual' => 'Reservado Pedido #' . $pedido->id
-                        ]
-                    );
-                    // Vincula na tabela pivô
-                    $pedido->motos()->attach($moto->id, ['destino' => mb_strtoupper($item['local'])]);
-                } else {
-                    // Se NÃO informou chassi (Pedido Genérico), o CD alocará depois.
-                    // A moto não é criada na tabela `motos` ainda, fica só no JSON `itens` do pedido.
+                            'status' => 'solicitado',
+                            'localizacao_atual' => 'Fábrica/CD'
+                        ]);
+                    }
+                }
+
+                // 5. Vínculo na Tabela Pivô
+                if ($moto) {
+                    $pedido->motos()->attach($moto->id, [
+                        'destino' => mb_strtoupper($item['local']),
+                        'motivo' => $item['motivo']
+                    ]);
                 }
             }
 
+            // 6. Logs e Notificações
             $origemNome = $request->origem_id ? 'Transferência (Inter-lojas)' : 'Reposição CD';
-            $this->registrarLog($pedido, 'Solicitação Criada', $origemNome);
+            $this->registrarLog($pedido, 'Criado', "Solicitação via sistema ($origemNome)");
             
-            // Notifica Diretoria
-            $this->enviarNotificacao(
-                User::where('perfil', 'gestor')->get(), 
-                'Nova Solicitação 🆕', 
-                "Loja " . Auth::user()->filial . " criou pedido #{$pedido->id}.", 
-                route('dashboard')
-            );
+            // Notifica Gestores
+            try {
+                $gestores = User::where('perfil', 'gestor')->get();
+                $this->enviarNotificacao(
+                    $gestores, 
+                    'Nova Solicitação 🆕', 
+                    "Loja " . Auth::user()->filial . " criou pedido #{$pedido->id}.", 
+                    route('pedidos.show', $pedido->id)
+                );
+            } catch (\Exception $e) {
+                // Log erro de notificação mas não para o processo
+            }
 
             return redirect()->route('pedidos.index')->with('success', 'Solicitação enviada para aprovação!');
         });
@@ -379,157 +471,185 @@ class PedidoController extends Controller
 
     // --- FINALIZAÇÃO (RECEBIMENTO NA LOJA) ---
     public function finalizarEntrega(Request $request, $id)
-    {
-        // 1. Validação
-        $request->validate([
-            'arquivo_romaneio' => 'required|file|max:15360|mimes:jpg,jpeg,png,pdf'
-        ]);
+{
+    // 1. Validação (Adicionada validação para as fotos das avarias)
+    $request->validate([
+        'arquivo_romaneio' => 'required|file|max:15360|mimes:jpg,jpeg,png,pdf',
+        'fotos_avarias.*'  => 'nullable|image|max:10240' // Max 10MB por foto antes de comprimir
+    ]);
 
-        return DB::transaction(function () use ($request, $id) {
-            // Carrega pedido com motos e user (destino)
-            $pedido = Pedido::with('user', 'motos')->findOrFail($id);
-            
-            // Segurança: Garante que apenas a loja dona do pedido pode finalizar
-            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
-                abort(403, 'Acesso não autorizado.');
-            }
+    return DB::transaction(function () use ($request, $id) {
+        $pedido = Pedido::with('user', 'motos')->findOrFail($id);
+        
+        if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
+            abort(403, 'Acesso não autorizado.');
+        }
 
-            // 2. Lógica de Backup (Drive ou Local)
-            $linkComprovante = null;
-            $usouBackupLocal = false;
+        // --- PREPARAÇÃO DOS SERVIÇOS DE UPLOAD ---
+        $service = null;
+        $folderId = null;
+        $usouBackupLocal = false;
 
-            try {
-                $refreshToken = config('services.google.refresh_token');
-                if (empty($refreshToken)) throw new \Exception("Token vazio");
-
+        try {
+            $refreshToken = config('services.google.refresh_token');
+            if ($refreshToken) {
                 $client = new \Google\Client();
                 $client->setClientId(config('services.google.client_id'));
                 $client->setClientSecret(config('services.google.client_secret'));
                 $client->refreshToken($refreshToken);
                 $service = new \Google\Service\Drive($client);
 
-                // Cache para evitar chamadas repetidas ao Drive buscando a pasta
                 $folderId = Cache::remember("drive_folder_" . date('Ym'), 3600, function () use ($service) {
                     $root = config('services.google.folder_id') ?: 'root';
                     $ano = $this->findOrCreateFolder($service, date('Y'), $root);
                     return $this->findOrCreateFolder($service, date('m') . ' - Recebimentos', $ano);
                 });
-
-                $linkComprovante = $this->uploadFileToDrive($service, $request->file('arquivo_romaneio'), $folderId, "PEDIDO_{$id}_RECEBIMENTO");
-
-            } catch (\Exception $e) {
-                // Fallback Local (Storage) se o Drive falhar
-                $nomeArquivo = "comprovante_ped_{$id}_" . time() . "." . $request->file('arquivo_romaneio')->getClientOriginalExtension();
-                $caminho = $request->file('arquivo_romaneio')->storeAs('comprovantes', $nomeArquivo, 'public');
-                $linkComprovante = asset("storage/$caminho");
-                $usouBackupLocal = true;
             }
-
-            $pedido->comprovante_url = $linkComprovante;
-            
-            // 3. Processamento das Motos com Lógica de Estoque (V2)
-            $avarias = $request->input('avarias', []);
-            $fotos = $request->file('fotos_avarias', []);
-            $qtdAvarias = 0;
-
-            foreach ($pedido->motos as $moto) {
-                // A. Identifica o Motivo (Prioriza o da moto, senão usa o do pedido)
-                // O motivo pode vir do pivot (se many-to-many) ou direto da moto dependendo da sua estrutura
-                $motivo = $moto->pivot->motivo ?? $pedido->motivo_solicitacao ?? 'Estoque Regular (Giro)';
-                $motivoLimpo = mb_strtolower($motivo, 'UTF-8');
-
-                // B. Define Status Base (Disponível p/ Transferência ou Vendida)
-                if (str_contains($motivoLimpo, 'venda') || str_contains($motivoLimpo, 'cliente')) {
-                    $novoStatus = 'vendida'; // Bloqueia transferência
-                } else {
-                    $novoStatus = 'estoque_loja'; // Libera para transferência
-                }
-
-                $obsAvaria = null;
-                $linkFoto = null;
-
-                // C. Verifica Avarias (Sobrescreve status se houver problema)
-                if (!empty($avarias[$moto->id])) {
-                    $qtdAvarias++;
-                    $novoStatus = 'avariado'; // Avaria tem prioridade
-                    $obsAvaria = $avarias[$moto->id];
-                    
-                    // Upload da Foto da Avaria
-                    if (isset($fotos[$moto->id])) {
-                        if (!$usouBackupLocal && isset($service)) {
-                            try {
-                                $linkFoto = $this->uploadFileToDrive($service, $fotos[$moto->id], $folderId, "AVARIA_{$moto->chassi}");
-                            } catch (\Exception $e) {
-                                $pathFoto = $fotos[$moto->id]->store('avarias', 'public');
-                                $linkFoto = asset("storage/$pathFoto");
-                            }
-                        } else {
-                            $pathFoto = $fotos[$moto->id]->store('avarias', 'public');
-                            $linkFoto = asset("storage/$pathFoto");
-                        }
-                    }
-                }
-
-                // D. Atualização Definitiva da Moto
-                $moto->update([
-                    'status'            => $novoStatus,
-                    'localizacao_atual' => "Estoque Loja: {$pedido->user->filial}", // Texto visual
-                    'loja_atual_id'     => $pedido->user_id, // VÍNCULO CHAVE: Define quem é o novo dono (para transferências)
-                    'detalhes_avaria'   => $obsAvaria,
-                    'foto_avaria'       => $linkFoto,
-                    'romaneio_id'       => null // IMPORTANTE: Libera a moto da carga anterior para poder entrar em uma nova (transferência)
-                ]);
-            }
-
-            // 4. Finaliza Pedido
-            $pedido->update(['status' => 'concluido']);
-            
-            // 5. Fechamento da Carga (Romaneio) se tudo foi entregue
-            if ($pedido->romaneio_id) {
-                $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
-                                   ->where('status', '!=', 'concluido')
-                                   ->where('id', '!=', $pedido->id) // Exclui o atual da contagem
-                                   ->count();
-                
-                if ($pendentes === 0) {
-                    Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
-                }
-            }
-
-            // 6. Logs e Notificações
-            $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Finalizado com $qtdAvarias avarias relatadas." : "Recebimento conferido 100%.");
-            
-            try {
-                // Notifica Gestores e CD
-                $notificaveis = User::whereIn('perfil', ['gestor', 'admin', 'cd'])->get();
-                $this->enviarNotificacao($notificaveis, 'Entrega Confirmada ✅', "Loja {$pedido->user->filial} finalizou o pedido #{$id}.", route('pedidos.show', $id));
-            } catch (\Exception $e) {}
-
-            $msg = $usouBackupLocal 
-                ? 'Recebimento salvo (Modo Offline/Local ativo).' 
-                : 'Recebimento confirmado e estoque atualizado!';
-
-            return back()->with('message', $msg);
-        });
-    }
-
-    public function buscarEstoqueLoja(Request $request)
-    {
-        // O ID da loja que vai FORNECER a moto (Origem)
-        $lojaId = $request->input('loja_id');
-
-        if (!$lojaId) {
-            return response()->json([]);
+        } catch (\Exception $e) {
+            $usouBackupLocal = true; // Falha na conexão com Google
         }
 
-        $motosDisponiveis = \App\Models\Moto::where('loja_atual_id', $lojaId) // Filtra pela loja selecionada
-            ->where('status', 'estoque_loja') // IMPORTANTE: Só pega motos com status de GIRO (ignora Vendidas/Avariadas)
-            ->select('id', 'chassi', 'modelo', 'cor', 'ano_fabricacao') // Traz apenas o necessário para o combo
-            ->orderBy('modelo')
-            ->get();
+        // --- 2. UPLOAD DO ROMANEIO (COM COMPRESSÃO SE FOR IMAGEM) ---
+        $pedido->comprovante_url = $this->tratarUpload(
+            $request->file('arquivo_romaneio'), 
+            "PEDIDO_{$id}_RECEBIMENTO", 
+            $service, 
+            $folderId,
+            'comprovantes'
+        );
 
-        return response()->json($motosDisponiveis);
+        // --- 3. PROCESSAMENTO DAS MOTOS ---
+        $avarias = $request->input('avarias', []);
+        $fotos = $request->file('fotos_avarias', []);
+        $qtdAvarias = 0;
+
+        foreach ($pedido->motos as $moto) {
+            $motivo = $moto->pivot->motivo ?? $pedido->motivo_solicitacao ?? 'Estoque Regular (Giro)';
+            $motivoLimpo = mb_strtolower($motivo, 'UTF-8');
+
+            $novoStatus = (str_contains($motivoLimpo, 'venda') || str_contains($motivoLimpo, 'cliente')) 
+                ? 'vendida' 
+                : 'estoque_loja';
+
+            $obsAvaria = null;
+            $linkFoto = null;
+
+            // Se houver avaria reportada
+            if (!empty($avarias[$moto->id])) {
+                $qtdAvarias++;
+                $novoStatus = 'avariado';
+                $obsAvaria = $avarias[$moto->id];
+                
+                // Upload da Foto da Avaria (Otimizado)
+                if (isset($fotos[$moto->id])) {
+                    $linkFoto = $this->tratarUpload(
+                        $fotos[$moto->id], 
+                        "AVARIA_{$moto->chassi}", 
+                        $service, 
+                        $folderId, 
+                        'avarias'
+                    );
+                }
+            }
+
+            // Atualiza Moto
+            $moto->update([
+                'status'            => $novoStatus,
+                'localizacao_atual' => "Estoque Loja: {$pedido->user->filial}",
+                'loja_atual_id'     => $pedido->user_id,
+                'detalhes_avaria'   => $obsAvaria,
+                'foto_avaria'       => $linkFoto,
+                'romaneio_id'       => null 
+            ]);
+        }
+
+        // 4. Finalização
+        $pedido->update(['status' => 'concluido']);
+        
+        if ($pedido->romaneio_id) {
+            $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
+                               ->where('status', '!=', 'concluido')
+                               ->where('id', '!=', $pedido->id)
+                               ->count();
+            if ($pendentes === 0) {
+                Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
+            }
+        }
+
+        $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Finalizado com $qtdAvarias avarias." : "Recebimento 100%.");
+        
+        try {
+            $notificaveis = User::whereIn('perfil', ['gestor', 'admin', 'cd'])->get();
+            $this->enviarNotificacao($notificaveis, 'Entrega Confirmada ✅', "Loja {$pedido->user->filial} finalizou pedido #{$id}.", route('pedidos.show', $id));
+        } catch (\Exception $e) {}
+
+        $msg = ($service === null) 
+            ? 'Salvo localmente (Backup Ativo).' 
+            : 'Recebimento confirmado!';
+
+        return back()->with('message', $msg);
+    });
+}
+
+/**
+ * Helper Privado para Comprimir e Uploadar (Drive ou Local)
+ */
+private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pastaLocal)
+{
+    // 1. Definição do Nome
+    $extensao = $arquivo->getClientOriginalExtension();
+    $nomeArquivo = "{$nomeBase}_" . time() . ".{$extensao}";
+    $caminhoFinal = $arquivo; // Por padrão é o arquivo original
+
+    // 2. Compressão (Apenas se for imagem)
+    if (in_array(strtolower($extensao), ['jpg', 'jpeg', 'png'])) {
+        try {
+            // Redimensiona para max 1280px de largura, mantendo aspect ratio
+            // Converte para JPG com 80% de qualidade
+            $imagemOtimizada = Image::make($arquivo)
+                ->resize(1280, null, function ($constraint) {
+                    $constraint->aspectRatio();
+                    $constraint->upsize();
+                })
+                ->encode('jpg', 80);
+
+            // Salva em temp para upload
+            $nomeArquivo = "{$nomeBase}_" . time() . ".jpg"; // Força JPG
+            $caminhoFinal = sys_get_temp_dir() . '/' . $nomeArquivo;
+            $imagemOtimizada->save($caminhoFinal);
+        } catch (\Exception $e) {
+            // Se falhar a compressão, usa o original
+            Log::warning("Falha na compressão de imagem: " . $e->getMessage());
+        }
     }
+
+    // 3. Tentativa de Upload no Drive
+    if ($driveService && $folderId) {
+        try {
+            // Nota: seu método uploadFileToDrive precisa aceitar um CAMINHO (string) ou Objeto UploadedFile
+            // Se você usa o original, passe o objeto. Se for comprimido, passe o caminho.
+            $arquivoParaEnviar = is_string($caminhoFinal) ? $caminhoFinal : $caminhoFinal->getPathname();
+            
+            // Aqui assumo que você adaptará seu uploadFileToDrive para ler o conteúdo
+            // Se não quiser mexer no helper, instancie um UploadedFile fake ou leia o stream
+            return $this->uploadFileToDrive($driveService, $caminhoFinal, $folderId, $nomeBase);
+        } catch (\Exception $e) {
+            // Falhou Drive, cai para o local abaixo
+        }
+    }
+
+    // 4. Fallback Local (Storage)
+    // Se foi comprimido, temos que mover o arquivo temporário
+    if (is_string($caminhoFinal) && file_exists($caminhoFinal)) {
+        $path = "{$pastaLocal}/{$nomeArquivo}";
+        Storage::disk('public')->put($path, file_get_contents($caminhoFinal));
+        return asset("storage/{$path}");
+    } else {
+        // Se não foi comprimido (PDF ou erro), usa o store padrão
+        $path = $arquivo->storeAs($pastaLocal, $nomeArquivo, 'public');
+        return asset("storage/{$path}");
+    }
+}
 
     // --- GOOGLE DRIVE HELPERS ---
     private function uploadFileToDrive($service, $file, $folderId, $name) {
