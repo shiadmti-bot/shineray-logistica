@@ -51,20 +51,9 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     const handleFornecedorChange = async (e) => {
         const id = e.target.value;
         setData('origem_id', id);
-        
         verificarLogistica(id);
-
-        if (modo === 'transferencia' && id) {
-            try {
-                const response = await axios.get('/api/estoque-loja', { params: { loja_id: id } });
-                setMotosDisponiveis(response.data);
-            } catch (error) {
-                setMotosDisponiveis([]);
-                Swal.fire('Erro', 'Falha ao carregar estoque da loja.', 'error');
-            }
-        } else {
-            setMotosDisponiveis([]);
-        }
+        // Removido carregamento automático de estoque conforme solicitação
+        setMotosDisponiveis([]);
     };
 
     const addItem = () => {
@@ -86,14 +75,6 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     const updateItem = (index, field, value) => {
         const novosItens = [...data.itens];
         novosItens[index][field] = value;
-
-        if (field === 'chassi' && modo === 'transferencia') {
-            const motoSelecionada = motosDisponiveis.find(m => m.chassi === value);
-            if (motoSelecionada) {
-                novosItens[index]['modelo'] = motoSelecionada.modelo;
-                novosItens[index]['cor'] = motoSelecionada.cor;
-            }
-        }
         setData('itens', novosItens);
     };
 
@@ -233,31 +214,13 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                                 required
                                                 type="text" list="opcoes-modelos" placeholder="MODELO..."
                                                 value={item.modelo}
-                                                readOnly={modo === 'transferencia'}
                                                 onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
-                                                className={`w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500 ${modo === 'transferencia' ? 'bg-gray-100 text-gray-500' : ''}`}
+                                                className={`w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500`}
                                             />
                                         </div>
 
                                         <div className="col-span-2">
                                             <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi {modo === 'transferencia' && '*'}</label>
-                                            {modo === 'transferencia' ? (
-                                                <select 
-                                                    required
-                                                    value={item.chassi} 
-                                                    onChange={(e) => updateItem(index, 'chassi', e.target.value)}
-                                                    className="w-full rounded text-sm font-mono border-orange-300 bg-orange-50 focus:ring-orange-500 focus:border-orange-500"
-                                                    disabled={!data.origem_id || motosDisponiveis.length === 0}
-                                                >
-                                                    <option value="">
-                                                        {!data.origem_id ? 'Selecione a loja...' : 
-                                                         motosDisponiveis.length === 0 ? 'Sem estoque disponível' : '-- Selecione --'}
-                                                    </option>
-                                                    {motosDisponiveis.map(moto => (
-                                                        <option key={moto.id} value={moto.chassi}>{moto.modelo} ({moto.chassi})</option>
-                                                    ))}
-                                                </select>
-                                            ) : (
                                                 <input 
                                                     required
                                                     type="text" placeholder="CHASSI" maxLength={17}
@@ -265,7 +228,6 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                                     onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                                                     className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
                                                 />
-                                            )}
                                         </div>
 
                                         <div className="col-span-2 relative">
@@ -290,9 +252,8 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                                 required
                                                 type="text" placeholder="COR"
                                                 value={item.cor}
-                                                readOnly={modo === 'transferencia'}
                                                 onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
-                                                className={`w-full border-gray-300 rounded uppercase text-sm ${modo === 'transferencia' ? 'bg-gray-100 text-gray-500' : ''}`}
+                                                className={`w-full border-gray-300 rounded uppercase text-sm`}
                                             />
                                         </div>
 

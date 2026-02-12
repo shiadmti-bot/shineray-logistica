@@ -13,7 +13,6 @@ use App\Models\Modelo;
 use App\Notifications\EstornoSolicitado;
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
-// use Intervention\Image\Laravel\Facades\Image; // Removido para usar ImageManager direto
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -273,6 +272,14 @@ class PedidoController extends Controller
                     if (!$moto) {
                         throw \Illuminate\Validation\ValidationException::withMessages([
                             'itens' => "A moto {$chassi} não pertence ao estoque da loja selecionada na origem."
+                        ]);
+                    }
+
+                    // Validação de Status (Giro vs Venda)
+                    // A moto só pode ser transferida se estiver no "Estoque Regular (Giro)"
+                    if ($moto->status !== 'estoque_loja') {
+                         throw \Illuminate\Validation\ValidationException::withMessages([
+                            'itens' => "A moto {$chassi} não está disponível para transferência (Status: {$moto->status}). Só é permitido transferir motos de 'Estoque Regular (Giro)'."
                         ]);
                     }
 
