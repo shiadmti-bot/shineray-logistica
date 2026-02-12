@@ -24,7 +24,8 @@ class Moto extends Model
         'foto_avaria',
         'estorno_pendente',
         'motivo_estorno',
-        'user_estorno_id'
+        'user_estorno_id',
+        'loja_atual_id'
 
     ];
 
