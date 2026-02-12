@@ -13,7 +13,7 @@ use App\Models\Modelo;
 use App\Notifications\EstornoSolicitado;
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
-use Intervention\Image\Laravel\Facades\Image; // Importação correta V3
+// use Intervention\Image\Laravel\Facades\Image; // Removido para usar ImageManager direto
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -600,15 +600,17 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
     // 2. Compressão (Apenas se for imagem)
     if (in_array(strtolower($extensao), ['jpg', 'jpeg', 'png'])) {
         try {
-            // SINTAXE INTERVENTION IMAGE V3
+            // SINTAXE INTERVENTION IMAGE V3 (SEM FACADE)
+            // Instancia o gerenciador com driver GD (padrão XAMPP/PHP)
+            $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
+            
             $nomeArquivo = "{$nomeBase}_" . time() . ".jpg"; // Força JPG
             $caminhoFinal = sys_get_temp_dir() . '/' . $nomeArquivo;
 
-            // Lê, Redimensiona (scaleDown mantém aspect ratio e não aumenta se for menor) e Salva
-            Image::read($arquivo)
-                ->scaleDown(width: 1280)
-                ->toJpeg(quality: 80) // V3 agora usa encodeers ou métodos diretos como toJpeg
-                ->save($caminhoFinal);
+            // Lê, Redimensiona e Salva
+            $image = $manager->read($arquivo);
+            $image->scaleDown(width: 1280);
+            $image->toJpeg(quality: 80)->save($caminhoFinal);
             
         } catch (\Exception $e) {
             // Se falhar a compressão, usa o original

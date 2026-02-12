@@ -233,10 +233,13 @@ export default function PedidoShow({ auth, pedido }) {
                         <div className="divide-y divide-gray-100">
                             {(pedido.motos.length > 0 ? pedido.motos : (pedido.itens || [])).map((item, idx) => {
                                 
-                                // === APLICAÇÃO DA LÓGICA DO GESTOR ===
-                                // GestorShow usa: {moto.motivo_solicitacao || 'Venda'}
-                                // Aqui replicamos isso, com um fallback de segurança
-                                const motivoReal = item.motivo_solicitacao || item.motivo || 'Venda';
+                                // === APLICAÇÃO DA LÓGICA DO GESTOR (CORRIGIDA) ===
+                                // Prioridade: 
+                                // 1. Pivot (Tabela de relacionamento real do pedido)
+                                // 2. Item direto (Caso seja leitura do JSON de backup)
+                                // 3. Coluna na tabela Motos (Legado)
+                                // 4. Fallback 'Venda'
+                                const motivoReal = item.pivot?.motivo || item.motivo || item.motivo_solicitacao || 'Venda';
 
                                 return (
                                     <div key={item.id || idx} className="group p-5 flex flex-col md:flex-row items-center gap-6 hover:bg-slate-50 transition duration-150 ease-in-out">

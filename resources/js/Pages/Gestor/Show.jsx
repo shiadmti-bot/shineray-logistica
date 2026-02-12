@@ -205,7 +205,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                                                     <div className="col-span-2 md:col-span-1">
                                                         <span className="text-xs text-gray-400 uppercase block">Motivo</span>
                                                         <span className="font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs inline-block mt-0.5">
-                                                            {moto.motivo_solicitacao || 'Venda'}
+                                                            {moto.pivot?.motivo || moto.motivo_solicitacao || 'Venda'}
                                                         </span>
                                                     </div>
                                                 </div>
