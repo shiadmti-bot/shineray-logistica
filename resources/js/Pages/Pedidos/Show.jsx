@@ -3,7 +3,6 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
-import imageCompression from 'browser-image-compression';
 
 export default function PedidoShow({ auth, pedido }) {
     
@@ -58,96 +57,68 @@ export default function PedidoShow({ auth, pedido }) {
     // --- 4. CONFERÊNCIA DE ENTREGA ---
     const handleConferenciaEntrega = () => {
         Swal.fire({
-            // ... (seu HTML e configurações do Swal mantidos iguais) ...
+            title: '<h3 class="font-bold text-gray-800">Conferência de Entrega 📋</h3>',
+            width: '650px',
+            html: `
+                <div class="text-left text-sm">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4 text-blue-800">
+                        <strong>Instruções:</strong> Verifique fisicamente as motos. Se houver avaria, tire foto. Por fim, anexe o canhoto assinado.
+                    </div>
+                    <div class="bg-gray-50 rounded-lg border border-gray-200 mb-4 max-h-[250px] overflow-y-auto p-2 custom-scrollbar">
+                        ${pedido.motos.map(m => `
+                            <div class="mb-2 bg-white p-3 rounded shadow-sm border border-gray-100 flex flex-col gap-2">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-gray-800">🏍️ ${m.modelo}</span>
+                                    <span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">${m.chassi}</span>
+                                </div>
+                                ${!m.estorno_pendente ? `
+                                    <div class="grid grid-cols-1 gap-2">
+                                        <input type="text" id="avaria-texto-${m.id}" class="swal2-input w-full text-xs h-8 m-0 focus:ring-red-500" placeholder="Houve avaria? Descreva aqui...">
+                                        <label class="flex items-center justify-center w-full text-xs text-gray-500 border border-dashed border-gray-300 p-2 rounded cursor-pointer hover:bg-gray-50 transition">
+                                            <span id="label-foto-${m.id}" class="flex items-center gap-2">📸 Anexar Foto da Avaria</span>
+                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerHTML = '✅ Foto Selecionada'; document.getElementById('label-foto-${m.id}').classList.add('text-green-600', 'font-bold');">
+                                        </label>
+                                    </div>
+                                ` : '<span class="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-bold text-center">🚫 Em análise de corte/estorno</span>'}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <label class="block font-bold text-green-900 mb-2 text-xs uppercase tracking-wide">📄 Foto do Romaneio/Canhoto Assinado *</label>
+                        <input type="file" id="upload-comprovante" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 cursor-pointer" accept="image/*,application/pdf">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true, confirmButtonText: 'Confirmar Recebimento', confirmButtonColor: '#16a34a', cancelButtonText: 'Cancelar',
             preConfirm: () => {
                 const file = document.getElementById('upload-comprovante').files[0];
-                if (!file) return Swal.showValidationMessage('O comprovante é obrigatório!');
+                if (!file) return Swal.showValidationMessage('O comprovante assinado é obrigatório!');
                 
-                const avarias = {};
-                // Pegamos os INPUTS de arquivo aqui, mas processaremos depois
-                const fotosInputs = {}; 
-
+                const avarias = {}, fotos = {};
                 pedido.motos.forEach(m => {
                     if (m.estorno_pendente) return;
                     const txt = document.getElementById(`avaria-texto-${m.id}`)?.value;
-                    const fileInput = document.getElementById(`avaria-foto-${m.id}`);
-                    
-                    if (txt) avarias[m.id] = txt;
-                    if (fileInput?.files[0]) fotosInputs[m.id] = fileInput.files[0];
+                    const img = document.getElementById(`avaria-foto-${m.id}`)?.files[0];
+                    if (txt) { avarias[m.id] = txt; if (img) fotos[m.id] = img; }
                 });
-
-                return { file, avarias, fotosInputs };
+                return { file, avarias, fotos };
             }
-        }).then(async (result) => { // Note o ASYNC aqui
-            if (result.isConfirmed) {
-                const { file, avarias, fotosInputs } = result.value;
-                
-                // Feedback visual de compressão
-                Swal.fire({
-                    title: 'Processando Imagens...',
-                    html: 'Otimizando fotos para envio rápido.',
-                    allowOutsideClick: false,
-                    didOpen: () => Swal.showLoading()
-                });
-
-                try {
-                    // 1. Comprime o Romaneio
-                    const romaneioComprimido = await comprimirImagem(file);
-
-                    // 2. Comprime as Fotos das Avarias (se houver)
-                    const fotosComprimidas = {};
-                    for (const [id, foto] of Object.entries(fotosInputs)) {
-                        fotosComprimidas[id] = await comprimirImagem(foto);
-                    }
-
-                    // 3. Envia para o Backend
-                    processarEnvio(romaneioComprimido, avarias, fotosComprimidas);
-
-                } catch (err) {
-                    Swal.fire('Erro', 'Falha ao processar imagens no dispositivo.', 'error');
-                }
-            }
+        }).then((result) => {
+            if (result.isConfirmed) processarEnvio(result.value.file, result.value.avarias, result.value.fotos);
         });
     };
 
     const processarEnvio = (file, avarias, fotos) => {
-        // Não precisa setCompressing aqui pois o Swal já está aberto do passo anterior
+        setCompressing(true);
+        Swal.fire({ title: 'Enviando...', html: 'Aguarde enquanto processamos as imagens.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         
         router.post(route('pedidos.finalizar', pedido.id), {
-            _method: 'post', 
-            arquivo_romaneio: file, 
-            avarias, 
-            fotos_avarias: fotos
+            _method: 'post', arquivo_romaneio: file, avarias, fotos_avarias: fotos
         }, {
             forceFormData: true,
-            onSuccess: () => { 
-                Swal.fire('Sucesso!', 'Recebimento confirmado.', 'success'); 
-            },
-            onError: (err) => { 
-                console.error(err);
-                // Mensagem amigável para erro 413 (caso a compressão não tenha sido suficiente)
-                Swal.fire('Erro no Envio', 'Os arquivos podem ser muito grandes para a conexão. Tente tirar fotos em qualidade menor.', 'error'); 
-            }
+            onSuccess: () => { setCompressing(false); Swal.fire('Sucesso!', 'Recebimento confirmado.', 'success'); },
+            onError: (err) => { setCompressing(false); Swal.fire('Erro', 'Falha ao enviar.', 'error'); }
         });
-    };
-
-    const comprimirImagem = async (arquivo) => {
-        if (!arquivo || !arquivo.type.startsWith('image/')) return arquivo; // Se for PDF ou null, não mexe
-
-        const options = {
-            maxSizeMB: 1,          // Tenta deixar abaixo de 1MB (Ideal para o Vercel)
-            maxWidthOrHeight: 1280, // Redimensiona para HD
-            useWebWorker: true
-        };
-
-        try {
-            const compressedFile = await imageCompression(arquivo, options);
-            // Retorna um novo arquivo com o nome original (importante para o Laravel)
-            return new File([compressedFile], arquivo.name, { type: compressedFile.type });
-        } catch (error) {
-            console.error("Erro na compressão:", error);
-            return arquivo; // Se falhar, tenta enviar o original
-        }
     };
 
     // --- 5. AÇÕES DE FLUXO ---
