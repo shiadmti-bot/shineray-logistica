@@ -156,14 +156,15 @@ class PedidoController extends Controller
     public function buscarEstoqueLoja(Request $request)
     {
         $lojaId = $request->input('loja_id');
-
         if (!$lojaId) return response()->json([]);
 
+        // CORREÇÃO: Aceita status 'estoque_loja', 'disponivel' (antigo) e 'concluido' (recém entregue)
+        // Desde que pertença à loja selecionada.
         $motos = Moto::where('loja_atual_id', $lojaId)
-            ->where('status', 'estoque_loja') // Só motos disponíveis (não vendidas/avariadas)
+            ->whereIn('status', ['estoque_loja', 'disponivel', 'concluido']) 
             ->whereDoesntHave('pedidos', function ($query) {
-                // Garante que a moto não está em outro pedido ABERTO (trânsito, solicitado, etc)
-                $query->whereIn('status', ['solicitado', 'aprovado', 'separado', 'aguardando_coleta', 'em_transito', 'expedido']);
+                // Garante que não está em nenhum PROCESSO ATIVO de logística
+                $query->whereIn('status', ['solicitado', 'aprovado', 'separado', 'aguardando_coleta', 'em_transito', 'expedido', 'em_transito_cd', 'no_cd']);
             })
             ->select('id', 'chassi', 'modelo', 'cor')
             ->orderBy('modelo')

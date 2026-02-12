@@ -68,14 +68,13 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
 
                             {/* Filtro de Loja */}
                             <div className="md:col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Loja Solicitante</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Loja Solicitante/Atual</label>
                                 <select 
                                     className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                                     value={params.loja_id}
                                     onChange={e => {
                                         const newVal = e.target.value;
                                         setParams(prev => ({...prev, loja_id: newVal}));
-                                        // Auto-submit opcional para melhor UX
                                         router.get(route('motos.index'), { ...params, loja_id: newVal }, { preserveState: true, replace: true });
                                     }}
                                 >
@@ -86,7 +85,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                 </select>
                             </div>
 
-                            {/* Filtro de Status */}
+                            {/* Filtro de Status (ATUALIZADO) */}
                             <div className="md:col-span-1">
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status Atual</label>
                                 <select 
@@ -96,10 +95,11 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                 >
                                     <option value="">Todos</option>
                                     <option value="estoque_fabrica">Estoque Fábrica</option>
+                                    <option value="estoque_loja">Disponível Loja</option> {/* Alterado aqui */}
+                                    <option value="vendida">Vendida</option>
                                     <option value="reservado">Reservado</option>
                                     <option value="separado">Separado (Expedição)</option>
                                     <option value="em_transito">Em Trânsito</option>
-                                    <option value="entregue">Entregue / Em Loja</option>
                                     <option value="avariado">Avariado</option>
                                 </select>
                             </div>
@@ -126,7 +126,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                     <tr>
                                         <th className="px-6 py-3 text-left">Chassi / ID</th>
                                         <th className="px-6 py-3 text-left">Modelo & Detalhes</th>
-                                        <th className="px-6 py-3 text-left">Loja Solicitante</th>
+                                        <th className="px-6 py-3 text-left">Loja Atual/Dono</th>
                                         <th className="px-6 py-3 text-left">Localização / Status</th>
                                         <th className="px-6 py-3 text-right">Ações</th>
                                     </tr>
@@ -134,10 +134,9 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                 <tbody className="bg-white divide-y divide-gray-100 text-sm">
                                     {motos.data.length > 0 ? (
                                         motos.data.map((moto) => {
-                                            // Pega o pedido mais recente (vinculado no controller)
+                                            // Pega o pedido mais recente se existir
                                             const pedidoAtual = moto.pedidos && moto.pedidos.length > 0 ? moto.pedidos[0] : null;
-                                            const loja = pedidoAtual ? pedidoAtual.user : null;
-
+                                            
                                             return (
                                                 <tr key={moto.id} className="hover:bg-gray-50 transition">
                                                     
@@ -156,17 +155,22 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                                         </div>
                                                     </td>
 
-                                                    {/* Coluna 3: Loja (Inteligente) */}
+                                                    {/* Coluna 3: Loja Dona (Baseada no loja_atual_id ou Pedido) */}
                                                     <td className="px-6 py-4">
-                                                        {loja ? (
+                                                        {moto.loja_atual_id ? (
                                                             <div>
-                                                                <div className="font-bold text-blue-800">{loja.filial || 'Matriz'}</div>
-                                                                <div className="text-xs text-gray-500">{loja.name}</div>
-                                                                <div className="text-[10px] text-gray-400 mt-0.5">Pedido #{pedidoAtual.id}</div>
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                                    🏪 Loja ID: {moto.loja_atual_id}
+                                                                </span>
+                                                            </div>
+                                                        ) : (pedidoAtual ? (
+                                                            <div>
+                                                                <div className="font-bold text-blue-800">{pedidoAtual.user.filial || 'Matriz'}</div>
+                                                                <div className="text-xs text-gray-500">{pedidoAtual.user.name}</div>
                                                             </div>
                                                         ) : (
-                                                            <span className="text-gray-400 italic text-xs">Sem pedido ativo</span>
-                                                        )}
+                                                            <span className="text-gray-400 italic text-xs">CD / Fábrica</span>
+                                                        ))}
                                                     </td>
 
                                                     {/* Coluna 4: Status */}
@@ -236,23 +240,24 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
     );
 }
 
-// Helper Visual para Status
+// Helper Visual para Status (ATUALIZADO)
 function StatusBadge({ status }) {
     const config = {
-        'estoque_fabrica': { bg: 'bg-green-100 text-green-800', label: 'Estoque' },
-        'reservado':       { bg: 'bg-yellow-100 text-yellow-800', label: 'Reservado' },
-        'separado':        { bg: 'bg-blue-100 text-blue-800', label: 'Separado' },
-        'em_transito':     { bg: 'bg-orange-100 text-orange-800', label: 'Em Trânsito' },
-        'transito_loja':   { bg: 'bg-orange-100 text-orange-800', label: 'Transp. Loja' },
+        'estoque_fabrica': { bg: 'bg-gray-100 text-gray-800 border border-gray-200', label: 'Estoque Fábrica' },
+        'estoque_loja':    { bg: 'bg-green-50 text-green-700 border border-green-200', label: 'Disponível Loja' }, // Mapeamento correto
+        'disponivel':      { bg: 'bg-green-50 text-green-600 border border-green-200', label: 'Disponível (Antigo)' },
+        'vendida':         { bg: 'bg-blue-900 text-white', label: 'Vendida' },
+        'reservado':       { bg: 'bg-yellow-100 text-yellow-800 border border-yellow-200', label: 'Reservado' },
+        'separado':        { bg: 'bg-blue-100 text-blue-800 border border-blue-200', label: 'Separado CD' },
+        'em_transito':     { bg: 'bg-orange-500 text-white border border-orange-600', label: 'Em Trânsito' },
         'entregue':        { bg: 'bg-gray-800 text-white', label: 'Entregue' },
-        'disponivel':      { bg: 'bg-green-50 text-green-600 border border-green-200', label: 'Disponível Loja' },
-        'avariado':        { bg: 'bg-red-100 text-red-800', label: 'Avariado' },
-        'aguardando_coleta': { bg: 'bg-purple-100 text-purple-800', label: 'Aguard. Coleta' },
-        'no_cd':           { bg: 'bg-indigo-100 text-indigo-800', label: 'No CD (Transbordo)' },
+        'concluido':       { bg: 'bg-gray-800 text-white', label: 'Concluído' },
+        'avariado':        { bg: 'bg-red-100 text-red-800 border border-red-200', label: 'Avariado' },
+        'aguardando_coleta': { bg: 'bg-purple-100 text-purple-800 border border-purple-200', label: 'Aguard. Coleta' },
     }[status] || { bg: 'bg-gray-100 text-gray-600', label: status };
 
     return (
-        <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${config.bg}`}>
+        <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase whitespace-nowrap shadow-sm ${config.bg}`}>
             {config.label}
         </span>
     );
