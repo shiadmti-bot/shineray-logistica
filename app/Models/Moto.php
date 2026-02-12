@@ -48,7 +48,7 @@ class Moto extends Model
     public function pedidos()
     {
         return $this->belongsToMany(Pedido::class, 'pedido_moto')
-                    ->withPivot(['created_at', 'destino']) // Traz dados da tabela pivo
+                    ->withPivot(['created_at', 'destino', 'motivo']) // Traz dados da tabela pivo
                     ->withTimestamps()
                     ->orderByPivot('created_at', 'desc'); // O mais recente primeiro
     }

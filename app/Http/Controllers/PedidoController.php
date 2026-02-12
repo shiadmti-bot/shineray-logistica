@@ -13,11 +13,13 @@ use App\Models\Modelo;
 use App\Notifications\EstornoSolicitado;
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
-use Intervention\Image\Facades\Image;
+use Intervention\Image\Laravel\Facades\Image; // Importação correta V3
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Google\Client;
 use Google\Service\Drive;
@@ -274,13 +276,6 @@ class PedidoController extends Controller
                         ]);
                     }
 
-                    // Opcional: Validar status (Giro vs Venda)
-                    /*if ($moto->status !== 'estoque_loja') {
-                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'itens' => "A moto {$chassi} não está disponível para transferência (Status: {$moto->status})."
-                        ]);
-                    }*/
-                    
                     // Atualiza status para evitar que outra loja peça a mesma moto simultaneamente
                     $moto->update(['status' => 'solicitado']); 
 
@@ -605,22 +600,23 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
     // 2. Compressão (Apenas se for imagem)
     if (in_array(strtolower($extensao), ['jpg', 'jpeg', 'png'])) {
         try {
-            // Redimensiona para max 1280px de largura, mantendo aspect ratio
-            // Converte para JPG com 80% de qualidade
-            $imagemOtimizada = Image::make($arquivo)
-                ->resize(1280, null, function ($constraint) {
-                    $constraint->aspectRatio();
-                    $constraint->upsize();
-                })
-                ->encode('jpg', 80);
-
-            // Salva em temp para upload
+            // SINTAXE INTERVENTION IMAGE V3
             $nomeArquivo = "{$nomeBase}_" . time() . ".jpg"; // Força JPG
             $caminhoFinal = sys_get_temp_dir() . '/' . $nomeArquivo;
-            $imagemOtimizada->save($caminhoFinal);
+
+            // Lê, Redimensiona (scaleDown mantém aspect ratio e não aumenta se for menor) e Salva
+            Image::read($arquivo)
+                ->scaleDown(width: 1280)
+                ->toJpeg(quality: 80) // V3 agora usa encodeers ou métodos diretos como toJpeg
+                ->save($caminhoFinal);
+            
         } catch (\Exception $e) {
             // Se falhar a compressão, usa o original
             Log::warning("Falha na compressão de imagem: " . $e->getMessage());
+            // Verifica se o arquivo foi criado, se não, usa o original
+            if (!file_exists($caminhoFinal)) {
+                $caminhoFinal = $arquivo;
+            }
         }
     }
 
@@ -654,10 +650,15 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
 
     // --- GOOGLE DRIVE HELPERS ---
     private function uploadFileToDrive($service, $file, $folderId, $name) {
-        $meta = new DriveFile(['name' => $name . "." . $file->getClientOriginalExtension(), 'parents' => [$folderId]]);
+        // Correção para permitir caminho de arquivo string (pós compressão) ou UploadedFile
+        $realPath = is_string($file) ? $file : $file->getRealPath();
+        $mimeType = is_string($file) ? mime_content_type($file) : $file->getClientMimeType();
+        $extension = is_string($file) ? 'jpg' : $file->getClientOriginalExtension();
+
+        $meta = new DriveFile(['name' => $name . "." . $extension, 'parents' => [$folderId]]);
         $uploaded = $service->files->create($meta, [
-            'data' => file_get_contents($file->getRealPath()),
-            'mimeType' => $file->getClientMimeType(),
+            'data' => file_get_contents($realPath),
+            'mimeType' => $mimeType,
             'uploadType' => 'multipart',
             'fields' => 'id, webViewLink'
         ]);
