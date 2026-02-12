@@ -381,12 +381,18 @@ class PedidoController extends Controller
     public function finalizarEntrega(Request $request, $id)
     {
         // 1. Validação
-        $request->validate(['arquivo_romaneio' => 'required|file|max:15360']);
+        $request->validate([
+            'arquivo_romaneio' => 'required|file|max:15360|mimes:jpg,jpeg,png,pdf'
+        ]);
 
         return DB::transaction(function () use ($request, $id) {
+            // Carrega pedido com motos e user (destino)
             $pedido = Pedido::with('user', 'motos')->findOrFail($id);
             
-            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) abort(403);
+            // Segurança: Garante que apenas a loja dona do pedido pode finalizar
+            if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
+                abort(403, 'Acesso não autorizado.');
+            }
 
             // 2. Lógica de Backup (Drive ou Local)
             $linkComprovante = null;
@@ -396,12 +402,13 @@ class PedidoController extends Controller
                 $refreshToken = config('services.google.refresh_token');
                 if (empty($refreshToken)) throw new \Exception("Token vazio");
 
-                $client = new Client();
+                $client = new \Google\Client();
                 $client->setClientId(config('services.google.client_id'));
                 $client->setClientSecret(config('services.google.client_secret'));
                 $client->refreshToken($refreshToken);
-                $service = new Drive($client);
+                $service = new \Google\Service\Drive($client);
 
+                // Cache para evitar chamadas repetidas ao Drive buscando a pasta
                 $folderId = Cache::remember("drive_folder_" . date('Ym'), 3600, function () use ($service) {
                     $root = config('services.google.folder_id') ?: 'root';
                     $ano = $this->findOrCreateFolder($service, date('Y'), $root);
@@ -411,7 +418,7 @@ class PedidoController extends Controller
                 $linkComprovante = $this->uploadFileToDrive($service, $request->file('arquivo_romaneio'), $folderId, "PEDIDO_{$id}_RECEBIMENTO");
 
             } catch (\Exception $e) {
-                // Fallback Local
+                // Fallback Local (Storage) se o Drive falhar
                 $nomeArquivo = "comprovante_ped_{$id}_" . time() . "." . $request->file('arquivo_romaneio')->getClientOriginalExtension();
                 $caminho = $request->file('arquivo_romaneio')->storeAs('comprovantes', $nomeArquivo, 'public');
                 $linkComprovante = asset("storage/$caminho");
@@ -420,21 +427,34 @@ class PedidoController extends Controller
 
             $pedido->comprovante_url = $linkComprovante;
             
-            // 3. Processamento das Motos (CORREÇÃO AQUI)
+            // 3. Processamento das Motos com Lógica de Estoque (V2)
             $avarias = $request->input('avarias', []);
             $fotos = $request->file('fotos_avarias', []);
             $qtdAvarias = 0;
 
             foreach ($pedido->motos as $moto) {
-                $statusMoto = 'disponivel'; 
+                // A. Identifica o Motivo (Prioriza o da moto, senão usa o do pedido)
+                // O motivo pode vir do pivot (se many-to-many) ou direto da moto dependendo da sua estrutura
+                $motivo = $moto->pivot->motivo ?? $pedido->motivo_solicitacao ?? 'Estoque Regular (Giro)';
+                $motivoLimpo = mb_strtolower($motivo, 'UTF-8');
+
+                // B. Define Status Base (Disponível p/ Transferência ou Vendida)
+                if (str_contains($motivoLimpo, 'venda') || str_contains($motivoLimpo, 'cliente')) {
+                    $novoStatus = 'vendida'; // Bloqueia transferência
+                } else {
+                    $novoStatus = 'estoque_loja'; // Libera para transferência
+                }
+
                 $obsAvaria = null;
                 $linkFoto = null;
 
+                // C. Verifica Avarias (Sobrescreve status se houver problema)
                 if (!empty($avarias[$moto->id])) {
                     $qtdAvarias++;
-                    $statusMoto = 'avariado';
+                    $novoStatus = 'avariado'; // Avaria tem prioridade
                     $obsAvaria = $avarias[$moto->id];
                     
+                    // Upload da Foto da Avaria
                     if (isset($fotos[$moto->id])) {
                         if (!$usouBackupLocal && isset($service)) {
                             try {
@@ -450,38 +470,44 @@ class PedidoController extends Controller
                     }
                 }
 
+                // D. Atualização Definitiva da Moto
                 $moto->update([
-                    'status' => $statusMoto, // Fica 'disponivel' ou 'avariado'
-                    'localizacao_atual' => "Estoque Loja: {$pedido->user->filial}",
-                    'detalhes_avaria' => $obsAvaria,
-                    'foto_avaria' => $linkFoto,
-                    // REMOVIDO: 'romaneio_id' => null
-                    // Mantemos o ID para que o histórico da carga continue mostrando essa moto.
+                    'status'            => $novoStatus,
+                    'localizacao_atual' => "Estoque Loja: {$pedido->user->filial}", // Texto visual
+                    'loja_atual_id'     => $pedido->user_id, // VÍNCULO CHAVE: Define quem é o novo dono (para transferências)
+                    'detalhes_avaria'   => $obsAvaria,
+                    'foto_avaria'       => $linkFoto,
+                    'romaneio_id'       => null // IMPORTANTE: Libera a moto da carga anterior para poder entrar em uma nova (transferência)
                 ]);
             }
 
+            // 4. Finaliza Pedido
             $pedido->update(['status' => 'concluido']);
             
-            // 4. Fechamento da Carga (Romaneio)
+            // 5. Fechamento da Carga (Romaneio) se tudo foi entregue
             if ($pedido->romaneio_id) {
                 $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
-                                   ->where('status', '!=', 'concluido')->count();
+                                   ->where('status', '!=', 'concluido')
+                                   ->where('id', '!=', $pedido->id) // Exclui o atual da contagem
+                                   ->count();
                 
-                // Se não tem mais pedidos pendentes nesta carga, marca como Concluída
                 if ($pendentes === 0) {
                     Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
                 }
             }
 
-            $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Com $qtdAvarias avarias." : "100% OK.");
+            // 6. Logs e Notificações
+            $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Finalizado com $qtdAvarias avarias relatadas." : "Recebimento conferido 100%.");
             
             try {
-                $this->enviarNotificacao(User::where('perfil', 'gestor')->get(), 'Concluído ✅', "Loja finalizou pedido #{$id}.", route('pedidos.show', $id));
+                // Notifica Gestores e CD
+                $notificaveis = User::whereIn('perfil', ['gestor', 'admin', 'cd'])->get();
+                $this->enviarNotificacao($notificaveis, 'Entrega Confirmada ✅', "Loja {$pedido->user->filial} finalizou o pedido #{$id}.", route('pedidos.show', $id));
             } catch (\Exception $e) {}
 
             $msg = $usouBackupLocal 
-                ? 'Recebimento salvo localmente (Drive indisponível).' 
-                : 'Recebimento confirmado!';
+                ? 'Recebimento salvo (Modo Offline/Local ativo).' 
+                : 'Recebimento confirmado e estoque atualizado!';
 
             return back()->with('message', $msg);
         });
