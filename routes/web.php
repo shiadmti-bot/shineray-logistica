@@ -122,6 +122,15 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
 
         /*
         |--------------------------------------------------------------------------
+        | API INTERNA (SUPORTE AO FRONTEND)
+        |--------------------------------------------------------------------------
+        */
+        // Rota para buscar estoque disponível de uma loja (Transferência)
+        Route::get('/api/estoque-loja', [PedidoController::class, 'buscarEstoqueLoja'])->name('api.estoque.loja');
+
+
+        /*
+        |--------------------------------------------------------------------------
         | MÓDULO 1: PEDIDOS (CORE)
         |--------------------------------------------------------------------------
         */

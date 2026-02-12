@@ -11,6 +11,8 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     const [logisticaInfo, setLogisticaInfo] = useState(null);
     const [carregandoLogistica, setCarregandoLogistica] = useState(false);
 
+    const [motosDisponiveis, setMotosDisponiveis] = useState([]);
+
     // --- LISTA PADRONIZADA DE DESTINOS ---
     const locaisEntrega = [
         "Acará/PA", "Ananindeua/PA", "Barcarena/PA", "Belém/PA", 
@@ -59,10 +61,30 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         }
     };
 
-    const handleFornecedorChange = (e) => {
+    // --- (ATUALIZADO) SELEÇÃO DE FORNECEDOR ---
+    const handleFornecedorChange = async (e) => {
         const id = e.target.value;
         setData('origem_id', id);
+        
+        // 1. Verifica rota logística (Cálculo de prazo)
         verificarLogistica(id);
+
+        // 2. (NOVO) Busca estoque real da loja se for transferência
+        if (modo === 'transferencia' && id) {
+            try {
+                // Certifique-se de ter criado a rota '/api/estoque-loja' no web.php
+                const response = await axios.get('/api/estoque-loja', {
+                    params: { loja_id: id }
+                });
+                setMotosDisponiveis(response.data);
+            } catch (error) {
+                console.error("Erro ao buscar estoque:", error);
+                setMotosDisponiveis([]);
+                Swal.fire('Erro', 'Não foi possível carregar o estoque desta loja.', 'error');
+            }
+        } else {
+            setMotosDisponiveis([]);
+        }
     };
 
     // --- MANIPULAÇÃO DE ITENS (MANTIDO) ---

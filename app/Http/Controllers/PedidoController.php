@@ -513,6 +513,24 @@ class PedidoController extends Controller
         });
     }
 
+    public function buscarEstoqueLoja(Request $request)
+    {
+        // O ID da loja que vai FORNECER a moto (Origem)
+        $lojaId = $request->input('loja_id');
+
+        if (!$lojaId) {
+            return response()->json([]);
+        }
+
+        $motosDisponiveis = \App\Models\Moto::where('loja_atual_id', $lojaId) // Filtra pela loja selecionada
+            ->where('status', 'estoque_loja') // IMPORTANTE: Só pega motos com status de GIRO (ignora Vendidas/Avariadas)
+            ->select('id', 'chassi', 'modelo', 'cor', 'ano_fabricacao') // Traz apenas o necessário para o combo
+            ->orderBy('modelo')
+            ->get();
+
+        return response()->json($motosDisponiveis);
+    }
+
     // --- GOOGLE DRIVE HELPERS ---
     private function uploadFileToDrive($service, $file, $folderId, $name) {
         $meta = new DriveFile(['name' => $name . "." . $file->getClientOriginalExtension(), 'parents' => [$folderId]]);
