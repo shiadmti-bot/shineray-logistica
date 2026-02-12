@@ -14,8 +14,8 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     // --- LISTA PADRONIZADA DE DESTINOS ---
     const locaisEntrega = [
         "Acará/PA", "Ananindeua/PA", "Barcarena/PA", "Belém/PA", 
-        "Bragança/PA", "Breves/PA", "Capanema/PA", "Capitão Poço/PA", 
-        "Castanhal/PA", "Concórdia/PA", "Curuçá/PA", "Icoaraci/PA", 
+        "Bragança/PA", "Breves/PA", "Cametá/PA", "Capanema/PA", "Capitão Poço/PA", 
+        "Castanhal/PA", "Concórdia/PA", "Curuçá/PA", "Icoaraci/PA", "Igarapé Miri/PA", 
         "Moju/PA", "São Miguel/PA", "Tailândia/PA", "Tomé-Açu/PA",
         "Aldeota/CE", "Demócrito Rocha/CE", "Parangaba/CE",
         "Matriz / CD", "PDV Paar/PA", "PDV Barcarena/PA"

@@ -20,6 +20,7 @@ class ModeloSeeder extends Seeder
             'SCOOTER PT3',
             'SCOOTER PT4',
             'SHE3000',
+            'SHI 125 - MOTO NEW JET 125',
             'SHI 175 RS',
             'SHI 175 SS',
             'SHI 175 EFI',
