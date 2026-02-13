@@ -265,26 +265,55 @@ class PedidoController extends Controller
                     }
 
                     // Busca a moto na loja de origem
-                    $moto = Moto::where('chassi', $chassi)
-                        ->where('loja_atual_id', $request->origem_id)
-                        ->first();
+                    // Busca a moto (independente da loja, para validar duplicidade)
+                    $moto = Moto::where('chassi', $chassi)->first();
 
                     if (!$moto) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'itens' => "A moto {$chassi} não pertence ao estoque da loja selecionada na origem."
-                        ]);
-                    }
+                        // C.1 MOTO NÃO CADASTRADA (Fluxo Externo Permitido)
+                        // Cria o registro automaticamente como vindo da Loja de Origem
+                        $lojaOrigem = User::find($request->origem_id);
+                        $nomeLoja = $lojaOrigem ? $lojaOrigem->filial : 'Loja Externa';
 
-                    // Validação de Status (Giro vs Venda)
-                    // A moto só pode ser transferida se estiver no "Estoque Regular (Giro)"
-                    if ($moto->status !== 'estoque_loja') {
-                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'itens' => "A moto {$chassi} não está disponível para transferência (Status: {$moto->status}). Só é permitido transferir motos de 'Estoque Regular (Giro)'."
+                        $moto = Moto::create([
+                            'chassi' => $chassi,
+                            'modelo' => mb_strtoupper($item['modelo']),
+                            'cor' => mb_strtoupper($item['cor']),
+                            'status' => 'solicitado',
+                            'loja_atual_id' => $request->origem_id,
+                            'localizacao_atual' => "Estoque Loja: {$nomeLoja}"
                         ]);
-                    }
+                    } 
+                    else {
+                        // C.2 MOTO JÁ EXISTE NO SISTEMA
+                        // Valida se pertence à loja de origem solicitada
+                        if ($moto->loja_atual_id != $request->origem_id) {
+                            $lojaReal = $moto->loja_atual_id ? (User::find($moto->loja_atual_id)->filial ?? 'Outra Loja') : 'Sem Registro';
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'itens' => "A moto {$chassi} já existe mas pertence a {$lojaReal}, não à loja de origem selecionada."
+                            ]);
+                        }
 
-                    // Atualiza status para evitar que outra loja peça a mesma moto simultaneamente
-                    $moto->update(['status' => 'solicitado']); 
+                        // Validação de Status (Bloqueios)
+                        $statusBloqueados = [
+                            'vendida', 
+                            'reservado', // ADICIONADO: Bloqueia reservados
+                            'solicitado', 
+                            'separado', 
+                            'aguardando_coleta', 
+                            'em_transito', 
+                            'expedido', 
+                            'transito_loja'
+                        ];
+
+                        if (in_array($moto->status, $statusBloqueados)) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'itens' => "A moto {$chassi} está com status '{$moto->status}' e não pode ser transferida."
+                            ]);
+                        }
+
+                        // Atualiza status para evitar concorrência
+                        $moto->update(['status' => 'solicitado']); 
+                    } 
 
                 } 
                 // --- C. CENÁRIO 2: PEDIDO AO CD (Fabrica/Novo) ---
