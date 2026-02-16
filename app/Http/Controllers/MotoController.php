@@ -75,7 +75,9 @@ class MotoController extends Controller
                 // Isso cruza a tabela de logs com a tabela pivo pedido_moto
                 $logsPedidos = PedidoLog::whereHas('pedido.motos', function($q) use ($moto) {
                     $q->where('motos.id', $moto->id);
-                })->with(['pedido.user', 'pedido.origem'])->get();
+                })->with(['pedido.user', 'pedido.origem', 'pedido.motos' => function($q) use ($moto) {
+                    $q->where('motos.id', $moto->id)->withPivot(['detalhes_avaria', 'foto_avaria']);
+                }])->get();
 
                 // B. Monta a Linha do Tempo baseada nos Logs
                 foreach ($logsPedidos as $log) {
@@ -87,6 +89,18 @@ class MotoController extends Controller
                     if (str_contains(strtolower($log->titulo), 'coleta')) $icon = '📦';
                     if (str_contains(strtolower($log->titulo), 'avaria')) $icon = '⚠️';
 
+                    $avariaInfo = null;
+                    if (str_contains(strtolower($log->titulo), 'concluído') || str_contains(strtolower($log->titulo), 'entrega')) {
+                        $motoDoPedido = $log->pedido->motos->first();
+                        if ($motoDoPedido && $motoDoPedido->pivot->detalhes_avaria) {
+                            $icon = '⚠️';
+                            $avariaInfo = [
+                                'texto' => $motoDoPedido->pivot->detalhes_avaria,
+                                'foto'  => $motoDoPedido->pivot->foto_avaria
+                            ];
+                        }
+                    }
+
                     $historico[] = [
                         'data' => $log->created_at,
                         'tipo' => 'log_pedido',
@@ -95,7 +109,8 @@ class MotoController extends Controller
                         // Quem enviou (Origem) e Quem recebeu (Destino) naquele momento
                         'origem' => $log->pedido->origem->filial ?? 'CD (Estoque)',
                         'destino' => $log->pedido->user->filial ?? $log->pedido->user->name,
-                        'icon' => $icon
+                        'icon' => $icon,
+                        'avaria' => $avariaInfo // REPASSA PRO FRONTEND
                     ];
                 }
 

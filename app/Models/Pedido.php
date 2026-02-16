@@ -51,7 +51,7 @@ class Pedido extends Model
     public function motos()
     {
         return $this->belongsToMany(Moto::class, 'pedido_moto')
-                    ->withPivot(['destino', 'motivo']) // Garante que o motivo específico venha junto
+                    ->withPivot(['destino', 'motivo', 'detalhes_avaria', 'foto_avaria']) // Garante que avarias históricas venham junto
                     ->withTimestamps();
     }
 

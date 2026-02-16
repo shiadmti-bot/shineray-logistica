@@ -617,6 +617,14 @@ class PedidoController extends Controller
                 'foto_avaria'       => $linkFoto,
                 // 'romaneio_id'       => null // COMENTADO: Mantém o histórico do último romaneio
             ]);
+
+            // ATUALIZA O PIVOT (Histórico Permanente no Pedido)
+            if ($obsAvaria || $linkFoto) {
+                $pedido->motos()->updateExistingPivot($moto->id, [
+                    'detalhes_avaria' => $obsAvaria,
+                    'foto_avaria'     => $linkFoto
+                ]);
+            }
         }
 
         // 4. Finalização

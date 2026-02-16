@@ -277,10 +277,22 @@ export default function PedidoShow({ auth, pedido }) {
                                             </div>
 
                                             <div className="flex items-center">
-                                                {item.status === 'avariado' ? (
-                                                    <span className="flex items-center gap-1 text-[10px] bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 font-bold uppercase">
-                                                        ⚠️ Avariado
-                                                    </span>
+                                                {item.status === 'avariado' || item.pivot?.detalhes_avaria ? (
+                                                    <div className="flex flex-col gap-2 items-end">
+                                                        <span className="flex items-center gap-1 text-[10px] bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 font-bold uppercase">
+                                                            ⚠️ Avariado
+                                                        </span>
+                                                        {item.pivot?.detalhes_avaria && (
+                                                            <span className="text-[10px] text-red-600 bg-red-50 px-2 py-1 rounded max-w-[200px] text-right">
+                                                                "{item.pivot.detalhes_avaria}"
+                                                            </span>
+                                                        )}
+                                                        {item.pivot?.foto_avaria && (
+                                                            <a href={item.pivot.foto_avaria} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline">
+                                                                📸 Ver Foto
+                                                            </a>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     (souCD || souOrigem) && ['solicitado', 'separado'].includes(item.status) && (
                                                         <button 

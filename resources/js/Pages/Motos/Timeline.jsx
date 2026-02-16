@@ -84,6 +84,18 @@ export default function MotoTimeline({ auth, moto, timeline, filtro }) {
                                             
                                             <p className="text-sm text-gray-600 mb-3">{evento.descricao}</p>
                                             
+                                            {evento.avaria && (
+                                                <div className="mb-3 bg-red-50 p-3 rounded border border-red-100">
+                                                    <p className="text-xs font-bold text-red-700 uppercase mb-1">⚠️ Detalhes da Avaria:</p>
+                                                    <p className="text-sm text-red-800 italic">"{evento.avaria.texto}"</p>
+                                                    {evento.avaria.foto && (
+                                                        <a href={evento.avaria.foto} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline">
+                                                            📸 Ver Foto da Avaria
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
                                             {(evento.origem && evento.destino) && (
                                                 <div className="flex items-center gap-2 text-xs bg-gray-50 p-2 rounded border border-gray-200 w-fit">
                                                     <span className="font-bold text-gray-500">{evento.origem}</span>
