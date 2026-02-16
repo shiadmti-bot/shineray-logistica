@@ -643,8 +643,30 @@ class PedidoController extends Controller
         $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Finalizado com $qtdAvarias avarias." : "Recebimento 100%.");
         
         try {
+            // 1. Notifica Gestores/CD/Admin (Visão Geral)
             $notificaveis = User::whereIn('perfil', ['gestor', 'admin', 'cd'])->get();
             $this->enviarNotificacao($notificaveis, 'Entrega Confirmada ✅', "Loja {$pedido->user->filial} finalizou pedido #{$id}.", route('pedidos.show', $id));
+
+            // 2. Notifica a Loja de Origem (se for transferência)
+            if ($pedido->origem_user_id && $pedido->origem) {
+                $this->enviarNotificacao(
+                    $pedido->origem, 
+                    'Transferência Concluída 🏁', 
+                    "As motos do pedido #{$id} foram recebidas pela {$pedido->user->filial}!", 
+                    route('pedidos.show', $id)
+                );
+            }
+
+            // 3. Notifica o Solicitante (Confirmação) - Caso tenha sido finalizado por outro (ex: Admin)
+            if (Auth::id() !== $pedido->user_id) {
+                $this->enviarNotificacao(
+                    $pedido->user,
+                    'Recebimento Confirmado ✅',
+                    "Seu pedido #{$id} foi marcado como entregue/concluído.",
+                    route('pedidos.show', $id)
+                );
+            }
+
         } catch (\Exception $e) {}
 
         $msg = ($service === null) 

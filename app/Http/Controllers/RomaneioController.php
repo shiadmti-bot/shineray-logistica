@@ -268,6 +268,16 @@ class RomaneioController extends Controller
                         'titulo' => 'Saiu para Entrega 🚚',
                         'descricao' => "Carga #{$romaneio->id} deixou o pátio com motorista {$romaneio->motorista}."
                     ]);
+
+                    // NOTIFICAÇÃO (ONESIGNAL)
+                    try {
+                        (new \App\Services\OneSignalService())->sendToUser(
+                            [$pedido->user->onesignal_id],
+                            'Pedido em Trânsito 🚚',
+                            "Seu pedido #{$pedido->id} saiu para entrega! Acompanhe o rastreio.",
+                            route('pedidos.show', $pedido->id)
+                        );
+                    } catch (\Exception $e) {}
                 }
             }
 
@@ -279,7 +289,7 @@ class RomaneioController extends Controller
     public function receber($id)
     {
         return DB::transaction(function () use ($id) {
-            $romaneio = Romaneio::with(['pedidos.motos'])->findOrFail($id);
+            $romaneio = Romaneio::with(['pedidos.motos', 'pedidos.user'])->findOrFail($id);
             $user = Auth::user();
 
             // --- CASO 1: CHEGADA NO CD (TRANSBORDO) ---
@@ -298,6 +308,23 @@ class RomaneioController extends Controller
                         if ($pedido->origem_user_id) {
                             
                             $pedido->update(['status' => 'no_cd', 'romaneio_id' => null]); // LIBERA PARA NOVA CARGA
+
+                            // LOG E NOTIFICAÇÃO
+                            PedidoLog::create([
+                                'pedido_id' => $pedido->id,
+                                'titulo' => 'Chegou no CD 🏢',
+                                'descricao' => "Transferência recebida no Hub Logístico. Aguardando rota final."
+                            ]);
+
+                            try {
+                                (new \App\Services\OneSignalService())->sendToUser(
+                                    [$pedido->user->onesignal_id],
+                                    'Chegou no CD 🏢',
+                                    "Seu pedido #{$pedido->id} chegou ao Centro de Distribuição e aguarda rota final.",
+                                    route('pedidos.show', $pedido->id)
+                                );
+                            } catch (\Exception $e) {}
+
                             
                             foreach ($pedido->motos as $moto) {
                                 $moto->update([

@@ -24,8 +24,11 @@ export default function Authenticated({ user, header, children }) {
             oneSignalInit.current = true;
 
             try {
+                // Pega ID do Backend (via Inertia Middleware)
+                const appId = props.config?.onesignal_app_id || "a114f37e-c4b7-4fb4-a580-51d78c8bfa57"; // Fallback se falhar
+
                 await OneSignal.init({ 
-                    appId: "a114f37e-c4b7-4fb4-a580-51d78c8bfa57", 
+                    appId: appId, 
                     allowLocalhostAsSecureOrigin: true, 
                     notifyButton: { enable: true }, 
                 });

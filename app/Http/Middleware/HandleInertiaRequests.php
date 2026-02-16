@@ -45,11 +45,16 @@ public function share(Request $request): array
                 ] : null,
             ],
 
-            // 2. MENSAGENS FLASH (Sucesso/Erro) - ISSO DEVIA ESTAR FALTANDO
+            // 2. MENSAGENS FLASH (Sucesso/Erro)
             'flash' => [
                 'success' => fn () => $request->session()->get('success') ?? $request->session()->get('message'),
                 'error' => fn () => $request->session()->get('error'),
                 'warning' => fn () => $request->session()->get('warning'),
+            ],
+
+            // 3. CONFIGURAÇÕES PÚBLICAS
+            'config' => [
+                'onesignal_app_id' => config('services.onesignal.app_id'),
             ],
         ];
     }
