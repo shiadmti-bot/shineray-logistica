@@ -591,7 +591,7 @@ class PedidoController extends Controller
                 'loja_atual_id'     => $pedido->user_id,
                 'detalhes_avaria'   => $obsAvaria,
                 'foto_avaria'       => $linkFoto,
-                'romaneio_id'       => null 
+                // 'romaneio_id'       => null // COMENTADO: Mantém o histórico do último romaneio
             ]);
         }
 

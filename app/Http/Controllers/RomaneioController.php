@@ -19,8 +19,7 @@ class RomaneioController extends Controller
     {
         $termo = $request->input('search');
 
-        $query = Romaneio::withCount('motos')
-            ->with(['motos.pedidos', 'user'])
+        $query = Romaneio::with(['motos.pedidos', 'user', 'pedidos.motos']) // Carrega pedidos.motos para contagem robusta
             ->orderBy('created_at', 'desc');
 
         if ($termo) {
@@ -33,12 +32,18 @@ class RomaneioController extends Controller
         }
 
         $romaneios = $query->paginate(10)->through(function ($romaneio) {
-            $motos = $romaneio->motos;
-            $total = $motos->count();
+            // UNIFICAÇÃO DE MOTOS (Diretas + Via Pedidos)
+            $motosDiretas = $romaneio->motos;
+            $motosViaPedidos = $romaneio->pedidos->flatMap->motos;
+            
+            // Merge usando chassi como chave única para evitar duplicatas
+            $todasMotos = $motosDiretas->merge($motosViaPedidos)->unique('id');
+            
+            $total = $todasMotos->count();
             
             // Lógica visual de conclusão baseada nos itens
             // Considera concluído se o pedido vinculado já foi entregue ou cancelado
-            $concluidas = $motos->filter(function($m) {
+            $concluidas = $todasMotos->filter(function($m) {
                 $pedido = $m->pedidos->first();
                 return $pedido && in_array($pedido->status, ['concluido', 'cancelado', 'no_cd']);
             })->count();
@@ -55,7 +60,7 @@ class RomaneioController extends Controller
                 'rota' => $romaneio->rota,
                 'origem' => $romaneio->user->filial ?? 'CD Matriz',
                 'created_at' => $romaneio->created_at,
-                'motos_count' => $romaneio->motos_count,
+                'motos_count' => $total, // Usa o total unificado
                 'status' => $statusVisual,
                 'tipo' => $romaneio->tipo 
             ];
@@ -196,14 +201,31 @@ class RomaneioController extends Controller
     {
         $romaneio = Romaneio::with([
             'user', 
+            // Carrega motos diretas e seus pedidos
             'motos' => function($query) {
-                $query->orderBy('status', 'asc') // Agrupa 'aguardando_coleta' primeiro
-                      ->orderBy('modelo', 'asc');
-                
-                // Carrega pedidos relacionados para saber Destino/Origem
-                $query->with(['pedidos.user', 'pedidos.origem']); 
+                $query->with(['pedidos.user', 'pedidos.origem']);
+            },
+            // Carrega motos via pedidos (Histórico)
+            'pedidos.motos' => function($query) {
+                $query->with(['pedidos.user', 'pedidos.origem']);
             }
         ])->findOrFail($id);
+
+        // UNIFICAÇÃO (Mesma lógica do Index)
+        $motosDiretas = $romaneio->motos;
+        $motosViaPedidos = $romaneio->pedidos->flatMap->motos;
+        
+        // Merge e Ordenação
+        $todasMotos = $motosDiretas->merge($motosViaPedidos)
+            ->unique('id')
+            ->sortBy(function($moto) {
+                // Ordena por status e depois modelo
+                return sprintf('%s-%s', $moto->status, $moto->modelo);
+            })
+            ->values(); // Reindexa o array
+
+        // Sobrescreve a relação 'motos' para a View receber a lista completa
+        $romaneio->setRelation('motos', $todasMotos);
 
         return Inertia::render('Romaneios/Show', [
             'romaneio' => $romaneio
