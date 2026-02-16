@@ -519,7 +519,7 @@ class PedidoController extends Controller
 
         // --- PREPARAÇÃO DOS SERVIÇOS DE UPLOAD ---
         $service = null;
-        $folderId = null;
+        $folders = ['comprovantes' => null, 'avarias' => null];
         $usouBackupLocal = false;
 
         try {
@@ -531,14 +531,38 @@ class PedidoController extends Controller
                 $client->refreshToken($refreshToken);
                 $service = new \Google\Service\Drive($client);
 
-                $folderId = Cache::remember("drive_folder_" . date('Ym'), 3600, function () use ($service) {
+                $filialNome = "Filial - " . ($pedido->user->filial ?? 'Matriz');
+                
+                // Cache estruturado por filial/ano/mês para evitar chamadas repetitivas
+                $folders = Cache::remember("drive_folders_{$filialNome}_" . date('Ym'), 3600, function () use ($service, $filialNome) {
                     $root = config('services.google.folder_id') ?: 'root';
-                    $ano = $this->findOrCreateFolder($service, date('Y'), $root);
-                    return $this->findOrCreateFolder($service, date('m') . ' - Recebimentos', $ano);
+                    
+                    // 1. Pasta da Filial
+                    $filialId = $this->findOrCreateFolder($service, $filialNome, $root);
+                    
+                    // 2. Pasta do Ano
+                    $anoId = $this->findOrCreateFolder($service, date('Y'), $filialId);
+                    
+                    // 3. Pasta do Mês (Nome: Janeiro, Fevereiro...)
+                    $meses = [
+                        '01' => 'Janeiro', '02' => 'Fevereiro', '03' => 'Março', 
+                        '04' => 'Abril',   '05' => 'Maio',      '06' => 'Junho',
+                        '07' => 'Julho',   '08' => 'Agosto',    '09' => 'Setembro',
+                        '10' => 'Outubro', '11' => 'Novembro',  '12' => 'Dezembro'
+                    ];
+                    $nomeMes = $meses[date('m')];
+                    $mesId = $this->findOrCreateFolder($service, $nomeMes, $anoId);
+
+                    // 4. Subpastas de Organização
+                    return [
+                        'comprovantes' => $this->findOrCreateFolder($service, 'Comprovantes', $mesId),
+                        'avarias'      => $this->findOrCreateFolder($service, 'Avarias', $mesId)
+                    ];
                 });
             }
         } catch (\Exception $e) {
             $usouBackupLocal = true; // Falha na conexão com Google
+            Log::error("Erro Drive: " . $e->getMessage());
         }
 
         // --- 2. UPLOAD DO ROMANEIO (COM COMPRESSÃO SE FOR IMAGEM) ---
@@ -546,7 +570,7 @@ class PedidoController extends Controller
             $request->file('arquivo_romaneio'), 
             "PEDIDO_{$id}_RECEBIMENTO", 
             $service, 
-            $folderId,
+            $folders['comprovantes'], // Usa a pasta de comprovantes
             'comprovantes'
         );
 
@@ -578,7 +602,7 @@ class PedidoController extends Controller
                         $fotos[$moto->id], 
                         "AVARIA_{$moto->chassi}", 
                         $service, 
-                        $folderId, 
+                        $folders['avarias'], // Usa a pasta de avarias
                         'avarias'
                     );
                 }
