@@ -18,7 +18,10 @@ class Romaneio extends Model
         'motorista', 
         'placa', 
         'transportadora', 
-        'observacao'
+        'observacao',
+        'rota',      // Adicionado
+        'tipo',      // Adicionado
+        'saida_em'   // Adicionado
     ];
 
     // Carrega a contagem de motos automaticamente (útil para as listas)
