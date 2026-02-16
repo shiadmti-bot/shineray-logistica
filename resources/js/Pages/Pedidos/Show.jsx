@@ -202,6 +202,15 @@ export default function PedidoShow({ auth, pedido }) {
                                     <span className="text-xs italic text-gray-400">Aguardando...</span>
                                 )}
                             </div>
+                            
+                            {pedido.comprovante_url && (
+                                <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
+                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Comprovante</span>
+                                    <a href={pedido.comprovante_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold hover:bg-green-200 transition">
+                                        📎 Ver Anexo
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -241,6 +250,11 @@ export default function PedidoShow({ auth, pedido }) {
                                 // 4. Fallback 'Venda'
                                 const motivoReal = item.pivot?.motivo || item.motivo || item.motivo_solicitacao || 'Venda';
 
+                                // 5. Avarias (Novo Pivot + Legado Moto)
+                                const avariaTexto = item.pivot?.detalhes_avaria || item.detalhes_avaria;
+                                const avariaFoto = item.pivot?.foto_avaria || item.foto_avaria;
+                                const temAvaria = item.status === 'avariado' || !!avariaTexto;
+
                                 return (
                                     <div key={item.id || idx} className="group p-5 flex flex-col md:flex-row items-center gap-6 hover:bg-slate-50 transition duration-150 ease-in-out">
                                         
@@ -277,18 +291,18 @@ export default function PedidoShow({ auth, pedido }) {
                                             </div>
 
                                             <div className="flex items-center">
-                                                {item.status === 'avariado' || item.pivot?.detalhes_avaria ? (
+                                                {temAvaria ? (
                                                     <div className="flex flex-col gap-2 items-end">
                                                         <span className="flex items-center gap-1 text-[10px] bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 font-bold uppercase">
                                                             ⚠️ Avariado
                                                         </span>
-                                                        {item.pivot?.detalhes_avaria && (
+                                                        {avariaTexto && (
                                                             <span className="text-[10px] text-red-600 bg-red-50 px-2 py-1 rounded max-w-[200px] text-right">
-                                                                "{item.pivot.detalhes_avaria}"
+                                                                "{avariaTexto}"
                                                             </span>
                                                         )}
-                                                        {item.pivot?.foto_avaria && (
-                                                            <a href={item.pivot.foto_avaria} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline">
+                                                        {avariaFoto && (
+                                                            <a href={avariaFoto} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline">
                                                                 📸 Ver Foto
                                                             </a>
                                                         )}

@@ -774,16 +774,18 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
     // --- VIEWS ---
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
     public function show($id) 
-    { 
+    {
         return Inertia::render('Pedidos/Show', [
             'pedido' => Pedido::with([
-                'user', 
+                'user',
                 'origem', // <--- ADICIONADO: Traz os dados da loja de origem
-                'motos.romaneio', 
-                'romaneio', 
+                'motos' => function($q) {
+                    $q->withPivot(['id', 'detalhes_avaria', 'foto_avaria', 'motivo']);
+                },
+                'romaneio',
                 'logs' => fn($q) => $q->latest()
             ])->findOrFail($id)
-        ]); 
+        ]);
     }    
     public function imprimir($id) { return Inertia::render('Pedidos/Romaneio', ['pedido' => Pedido::with(['user', 'motos', 'romaneio'])->findOrFail($id)]); }
 }
