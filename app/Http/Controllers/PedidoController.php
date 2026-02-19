@@ -64,8 +64,8 @@ class PedidoController extends Controller
                 'tipo' => 'reposicao',
                 'origem' => 'CD / Fábrica',
                 'rota_origem' => 'Fluxo CD',
-                'data_coleta' => now()->format('Y-m-d'),
-                'data_entrega' => now()->addDays(2)->format('Y-m-d'), // Estimativa padrão
+                // 'data_coleta' => now()->format('Y-m-d'), // REMOVIDO: Sem previsão
+                // 'data_entrega' => now()->addDays(2)->format('Y-m-d'), // REMOVIDO: Sem previsão
                 'mensagem' => 'Saída direta do estoque do CD.'
             ]);
         }
@@ -80,8 +80,8 @@ class PedidoController extends Controller
                 'tipo' => 'transferencia',
                 'origem' => $origem->filial,
                 'rota_origem' => 'Direta (Capital)',
-                'data_coleta' => now()->format('Y-m-d'),
-                'data_entrega' => now()->addDay()->format('Y-m-d'),
+                // 'data_coleta' => now()->format('Y-m-d'), // REMOVIDO
+                // 'data_entrega' => now()->addDay()->format('Y-m-d'), // REMOVIDO
                 'mensagem' => 'Transferência direta na região metropolitana.'
             ]);
         } 
@@ -105,9 +105,9 @@ class PedidoController extends Controller
             'tipo' => 'transferencia',
             'origem' => $origem->filial,
             'rota_origem' => 'Agendada (Interior)',
-            'data_coleta' => $viagem->date->format('Y-m-d'),
+            // 'data_coleta' => $viagem->date->format('Y-m-d'), // REMOVIDO
             // Entrega = Coleta + 3 dias (Triagem CD)
-            'data_entrega' => Carbon::parse($viagem->date)->addDays(3)->format('Y-m-d')
+            // 'data_entrega' => Carbon::parse($viagem->date)->addDays(3)->format('Y-m-d') // REMOVIDO
         ]);
     }
 
@@ -288,8 +288,8 @@ class PedidoController extends Controller
                 if (isset($dadosLogistica->erro)) {
                     throw \Illuminate\Validation\ValidationException::withMessages(['origem_id' => $dadosLogistica->erro]);
                 }
-                $previsaoColeta = $dadosLogistica->data_coleta ?? null;
-                $previsaoEntrega = $dadosLogistica->data_entrega ?? null;
+                $previsaoColeta = null; // REMOVIDO
+                $previsaoEntrega = null; // REMOVIDO
             }
 
             // 3. Criação do Cabeçalho do Pedido
