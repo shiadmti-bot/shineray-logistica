@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 
-export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = [], cdUserId }) { // Recebe cdUserId
+export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = [], cdUserId, locaisEntrega = [] }) { // Recebe cdUserId e locaisEntrega
     
     const [modo, setModo] = useState('cd'); // 'cd', 'transferencia', 'devolucao'
     const [logisticaInfo, setLogisticaInfo] = useState(null);
