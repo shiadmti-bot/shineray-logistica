@@ -14,6 +14,14 @@ import {
 export default function NoticeBoard({ notices = [], auth }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
+    
+    // Recupera o último ID visto do LocalStorage (ou 0 se não existir)
+    const [lastSeenId, setLastSeenId] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return parseInt(localStorage.getItem('noticeboard_last_seen_id') || '0');
+        }
+        return 0;
+    });
 
     // Verifica permissão (Admin ou Gestor)
     const canManage = auth.user.perfil === 'admin' || auth.user.perfil === 'gestor';
@@ -24,6 +32,20 @@ export default function NoticeBoard({ notices = [], auth }) {
         content: '',
         type: 'info'
     });
+
+    const toggleOpen = () => {
+        const newState = !isOpen;
+        setIsOpen(newState);
+
+        // Se abriu e tem avisos, marca o mais recente como visto
+        if (newState && notices.length > 0) {
+            const latestId = notices[0].id; // Assumindo ordenação DESC (padrão)
+            if (latestId > lastSeenId) {
+                setLastSeenId(latestId);
+                localStorage.setItem('noticeboard_last_seen_id', latestId.toString());
+            }
+        }
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -44,14 +66,16 @@ export default function NoticeBoard({ notices = [], auth }) {
     // Se não tiver avisos e não for admin, não mostra nada
     if ((!notices || notices.length === 0) && !canManage) return null;
 
-    // Check for new notices (< 24h)
-    const hasNewNotices = notices.some(n => new Date() - new Date(n.created_at) < 86400000);
+    // Tem aviso novo se o ID do mais recente for maior que o último visto
+    // E se o mural estiver FECHADO (assim que abre, consome)
+    const latestNoticeId = notices.length > 0 ? notices[0].id : 0;
+    const hasNewNotices = latestNoticeId > lastSeenId;
 
     return (
         <div className="mb-6 bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
             {/* Header / Título */}
             <div className={`bg-gradient-to-r from-indigo-600 to-indigo-800 p-4 flex justify-between items-center transition-all ${!isOpen && hasNewNotices ? 'animate-pulse' : ''}`}>
-                <div className="flex items-center gap-4 cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+                <div className="flex items-center gap-4 cursor-pointer" onClick={toggleOpen}>
                     <h3 className="text-white font-bold flex items-center gap-2 relative">
                         <MegaphoneIcon className="w-6 h-6 text-white" />
                         Mural de Avisos
@@ -82,7 +106,7 @@ export default function NoticeBoard({ notices = [], auth }) {
                             )}
                         </button>
                     )}
-                    <button onClick={() => setIsOpen(!isOpen)} className="text-indigo-200 hover:text-white transition transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                    <button onClick={toggleOpen} className="text-indigo-200 hover:text-white transition transform duration-200" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
                         <ChevronDownIcon className="w-5 h-5" />
                     </button>
                 </div>
