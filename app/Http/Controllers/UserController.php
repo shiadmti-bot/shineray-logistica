@@ -40,6 +40,7 @@ class UserController extends Controller implements HasMiddleware
                       ->orWhere('email', 'like', "%{$search}%")
                       ->orWhere('filial', 'like', "%{$search}%");
             })
+            ->orderBy('last_seen_at', 'desc') // Prioriza quem está online/recente
             ->paginate(10)
             ->through(function ($user) {
                 return [

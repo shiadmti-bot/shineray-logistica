@@ -157,11 +157,12 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
 
                                                     {/* Coluna 3: Loja Dona (Baseada no loja_atual_id ou Pedido) */}
                                                     <td className="px-6 py-4">
-                                                        {moto.loja_atual_id ? (
+                                                        {moto.loja ? (
                                                             <div>
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                                    🏪 Loja ID: {moto.loja_atual_id}
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                                                    🏪 {moto.loja.filial}
                                                                 </span>
+                                                                <div className="text-[10px] text-gray-500 mt-1 ml-1">{moto.loja.name}</div>
                                                             </div>
                                                         ) : (pedidoAtual ? (
                                                             <div>

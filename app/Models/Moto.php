@@ -39,6 +39,14 @@ class Moto extends Model
     }
 
     /**
+     * RELAÇÃO: Loja Atual (Baseada no loja_atual_id)
+     */
+    public function loja()
+    {
+        return $this->belongsTo(User::class, 'loja_atual_id');
+    }
+
+    /**
      * RELAÇÃO: Histórico de Pedidos
      * Uma moto pode ter passado por vários pedidos (Venda, Transferência, Devolução).
      * * ATUALIZAÇÃO IMPORTANTE:

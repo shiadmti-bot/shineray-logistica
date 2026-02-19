@@ -99,7 +99,13 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
                 ];
             }
 
-            return Inertia::render('Dashboard', ['stats' => $stats, 'perfil' => $user->perfil]);
+            $notices = \App\Models\Notice::where('is_active', true)->orderBy('created_at', 'desc')->get(); // Mural de Avisos
+
+            return Inertia::render('Dashboard', [
+                'stats' => $stats, 
+                'perfil' => $user->perfil,
+                'notices' => $notices
+            ]);
         })->name('dashboard');
 
         Route::get('/manual', function () { return Inertia::render('Manual'); })->name('manual');
@@ -243,6 +249,9 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+        // Mural de Avisos (Admin/Gestor)
+        Route::resource('notices', \App\Http\Controllers\NoticeController::class)->only(['store', 'destroy']);
 
 
         /*

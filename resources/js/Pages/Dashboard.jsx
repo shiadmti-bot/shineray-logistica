@@ -1,8 +1,22 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import NoticeBoard from '@/Components/NoticeBoard'; // Novo Componente
+import { 
+    ClockIcon, 
+    TruckIcon, 
+    ClipboardDocumentCheckIcon, 
+    ArchiveBoxIcon, 
+    ArrowPathIcon,
+    ExclamationTriangleIcon,
+    CurrencyDollarIcon,
+    UserIcon,
+    BuildingStorefrontIcon,
+    ArrowRightIcon,
+    ShoppingCartIcon
+} from '@heroicons/react/24/outline';
 
-export default function Dashboard({ auth, stats, perfil }) {
+export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe notices via prop
     
     // Saudação baseada na hora
     const hora = new Date().getHours();
@@ -25,7 +39,7 @@ export default function Dashboard({ auth, stats, perfil }) {
         if (perfil === 'cd' || perfil === 'admin') {
             const timer = setInterval(() => {
                 router.reload({ 
-                    only: ['stats'], 
+                    only: ['stats', 'notices'], // Atualiza avisos também
                     preserveScroll: true, 
                     preserveState: true,
                     onSuccess: () => {
@@ -43,7 +57,10 @@ export default function Dashboard({ auth, stats, perfil }) {
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-bold text-xl text-gray-800 leading-tight">Painel de Controle</h2>
+                    <h2 className="font-bold text-xl text-gray-800 leading-tight flex items-center gap-2">
+                        <BuildingStorefrontIcon className="w-6 h-6 text-gray-400" />
+                        Painel de Controle
+                    </h2>
                     {/* Indicador de Ao Vivo para o CD */}
                     {(perfil === 'cd' || perfil === 'admin') && (
                         <span className="text-xs font-mono text-gray-500 flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100 transition-all">
@@ -65,7 +82,7 @@ export default function Dashboard({ auth, stats, perfil }) {
                             
                             {/* Ícone Animado */}
                             <div className="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-orange-100 mb-6 animate-bounce">
-                                <span className="text-5xl">📦</span>
+                                <ArchiveBoxIcon className="w-12 h-12 text-orange-600" />
                             </div>
 
                             <h3 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tight">
@@ -78,7 +95,7 @@ export default function Dashboard({ auth, stats, perfil }) {
 
                             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-8 text-left">
                                 <p className="text-sm text-orange-800 font-bold flex items-center gap-2">
-                                    <span>🚛</span> O Caminhão vai passar!
+                                    <TruckIcon className="w-5 h-5" /> O Caminhão vai passar!
                                 </p>
                                 <p className="text-xs text-orange-700 mt-1">
                                     Estas motos devem ser separadas fisicamente no pátio para que o motorista possa realizar a coleta.
@@ -90,7 +107,7 @@ export default function Dashboard({ auth, stats, perfil }) {
                                     href={route('pedidos.index')} 
                                     className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform hover:-translate-y-1 transition text-lg flex items-center justify-center gap-2"
                                 >
-                                    IR PARA SEPARAÇÃO AGORA ➔
+                                    IR PARA SEPARAÇÃO AGORA <ArrowRightIcon className="w-5 h-5" />
                                 </Link>
                                 <button 
                                     onClick={() => setShowSeparationModal(false)}
@@ -116,33 +133,37 @@ export default function Dashboard({ auth, stats, perfil }) {
                             </p>
                         </div>
                         <div className="w-full md:w-auto text-left md:text-right">
-                            <span className={`inline-block px-4 py-2 rounded-full text-xs md:text-sm font-bold uppercase tracking-wider border shadow-sm ${
+                            <span className={`px-4 py-2 rounded-full text-xs md:text-sm font-bold uppercase tracking-wider border shadow-sm flex items-center gap-2 ${
                                 perfil === 'cd' ? 'bg-gray-900 text-white border-gray-900' : 
                                 perfil === 'admin' ? 'bg-black text-white border-black' : 
                                 'bg-red-50 text-red-700 border-red-200'
                             }`}>
-                                {perfil === 'cd' ? '🏭 CD / Expedição' : 
-                                 perfil === 'admin' ? '🕵️ Auditoria / Admin' : 
-                                 '🏪 Loja / Revenda'}
+                                {perfil === 'cd' ? <><ArchiveBoxIcon className="w-4 h-4" /> CD / Expedição</> : 
+                                 perfil === 'admin' ? <><ClipboardDocumentCheckIcon className="w-4 h-4" /> Auditoria / Admin</> : 
+                                 <><BuildingStorefrontIcon className="w-4 h-4" /> Loja / Revenda</>}
                             </span>
-                            <p className="text-xs text-gray-400 mt-2 font-mono">
+                            <p className="text-xs text-gray-400 mt-2 font-mono flex items-center justify-end gap-1">
+                                <ClockIcon className="w-3 h-3" />
                                 {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </p>
                         </div>
                     </div>
 
+                    {/* --- MURAL DE AVISOS (NOVO) --- */}
+                    <NoticeBoard notices={notices} auth={auth} />
+
                     {/* --- VISÃO ADMIN / DIRETORIA --- */}
                     {perfil === 'admin' && (
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
-                                <CardStat titulo="Total Histórico" valor={stats.total_pedidos} icon="📊" color="text-gray-600" bg="bg-white border-gray-200" desc="Pedidos processados" />
-                                <CardStat titulo="Em Operação" valor={stats.em_andamento} icon="⚙️" color="text-blue-600" bg="bg-blue-50 border-blue-200" desc="Fluxo ativo agora" />
-                                <CardStat titulo="Cargas na Rua" valor={stats.cargas_transito} icon="🚛" color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Romaneios em trânsito" />
-                                <CardStat titulo="Cancelados" valor={stats.cancelados} icon="🚨" color="text-red-600" bg="bg-red-50 border-red-200" desc="Devoluções/Erros" link={route('pedidos.index')} />
+                                <CardStat titulo="Total Histórico" valor={stats.total_pedidos} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-gray-600" bg="bg-white border-gray-200" desc="Pedidos processados" />
+                                <CardStat titulo="Em Operação" valor={stats.em_andamento} icon={<ArrowPathIcon className="w-8 h-8"/>} color="text-blue-600" bg="bg-blue-50 border-blue-200" desc="Fluxo ativo agora" />
+                                <CardStat titulo="Cargas na Rua" valor={stats.cargas_transito} icon={<TruckIcon className="w-8 h-8"/>} color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Romaneios em trânsito" />
+                                <CardStat titulo="Cancelados" valor={stats.cancelados} icon={<ExclamationTriangleIcon className="w-8 h-8"/>} color="text-red-600" bg="bg-red-50 border-red-200" desc="Devoluções/Erros" link={route('pedidos.index')} />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <ActionCard href={route('pedidos.index')} title="Auditoria de Pedidos" desc="Inspecionar solicitações e tempos." icon="🔍" color="red" btnText="Ver Pedidos" />
-                                <ActionCard href={route('romaneios.index')} title="Monitoramento de Cargas" desc="Rastrear motoristas e entregas." icon="🗺️" color="black" btnText="Ver Cargas" />
+                                <ActionCard href={route('pedidos.index')} title="Auditoria de Pedidos" desc="Inspecionar solicitações e tempos." icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} color="red" btnText="Ver Pedidos" />
+                                <ActionCard href={route('romaneios.index')} title="Monitoramento de Cargas" desc="Rastrear motoristas e entregas." icon={<TruckIcon className="w-6 h-6"/>} color="black" btnText="Ver Cargas" />
                             </div>
                         </>
                     )}
@@ -151,16 +172,16 @@ export default function Dashboard({ auth, stats, perfil }) {
                     {perfil === 'cd' && (
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
-                                <CardStat titulo="Novas Solicitações" valor={stats.pendentes} icon="📝" color="text-yellow-600" bg="bg-yellow-50 border-yellow-200" link={route('pedidos.index')} animate={true} desc="Aguardando Separação" />
-                                <CardStat titulo="Pronto p/ Carga" valor={stats.no_patio} icon="🏍" color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" desc="Pool de Expedição" link={route('romaneios.create')} animate={true} />
-                                <CardStat titulo="Cargas Expedidas" valor={stats.cargas_total} icon="🚛" color="text-blue-600" bg="bg-blue-50 border-blue-200" link={route('romaneios.index')} desc="Total Geral" />
-                                <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon="✅" color="text-green-600" bg="bg-green-50 border-green-200" desc="Meta Diária" />
+                                <CardStat titulo="Novas Solicitações" valor={stats.pendentes} icon={<ClipboardDocumentCheckIcon className="w-8 h-8"/>} color="text-yellow-600" bg="bg-yellow-50 border-yellow-200" link={route('pedidos.index')} animate={true} desc="Aguardando Separação" />
+                                <CardStat titulo="Pronto p/ Carga" valor={stats.no_patio} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" desc="Pool de Expedição" link={route('romaneios.create')} animate={true} />
+                                <CardStat titulo="Cargas Expedidas" valor={stats.cargas_total} icon={<TruckIcon className="w-8 h-8"/>} color="text-blue-600" bg="bg-blue-50 border-blue-200" link={route('romaneios.index')} desc="Total Geral" />
+                                <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon={<ClipboardDocumentCheckIcon className="w-8 h-8"/>} color="text-green-600" bg="bg-green-50 border-green-200" desc="Meta Diária" />
                             </div>
-                            <h3 className="text-lg font-bold text-gray-700 mb-4 px-1 flex items-center gap-2"><span>🏭</span> Mesa de Operações</h3>
+                            <h3 className="text-lg font-bold text-gray-700 mb-4 px-1 flex items-center gap-2"><BuildingStorefrontIcon className="w-5 h-5"/> Mesa de Operações</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <ActionCard href={route('pedidos.index')} title="1. Separação" desc="Conferir estoque e separar motos." icon="📋" color="blue" btnText="Acessar Pedidos" />
-                                <ActionCard href={route('romaneios.create')} title="2. Expedição" desc="Montar cargas e definir rotas." icon="🚛" color="gray" btnText="Nova Carga" />
-                                <ActionCard href={route('romaneios.index')} title="3. Histórico" desc="Consultar cargas antigas." icon="🗂" color="white" btnText="Ver Histórico" />
+                                <ActionCard href={route('pedidos.index')} title="1. Separação" desc="Conferir estoque e separar motos." icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} color="blue" btnText="Acessar Pedidos" />
+                                <ActionCard href={route('romaneios.create')} title="2. Expedição" desc="Montar cargas e definir rotas." icon={<TruckIcon className="w-6 h-6"/>} color="gray" btnText="Nova Carga" />
+                                <ActionCard href={route('romaneios.index')} title="3. Histórico" desc="Consultar cargas antigas." icon={<ArchiveBoxIcon className="w-6 h-6"/>} color="white" btnText="Ver Histórico" />
                             </div>
                         </>
                     )}
@@ -174,16 +195,18 @@ export default function Dashboard({ auth, stats, perfil }) {
                                     <div className="bg-orange-50 border-l-8 border-orange-500 rounded-2xl p-6 shadow-md hover:shadow-lg transition flex flex-col md:flex-row justify-between items-center relative overflow-hidden gap-4">
                                         <div className="relative z-10">
                                             <h3 className="text-xl font-black text-orange-900 flex items-center gap-2">
-                                                <span className="text-2xl animate-bounce">🔔</span> PENDÊNCIA: Separação Necessária!
+                                                <ExclamationTriangleIcon className="w-8 h-8 animate-bounce" /> PENDÊNCIA: Separação Necessária!
                                             </h3>
                                             <p className="text-orange-800 mt-1 font-medium">
                                                 <span className="font-bold text-orange-900 text-lg border-b-2 border-orange-900">{stats.transferencias_saida} pedidos</span> aguardando separação na sua loja.
                                             </p>
                                         </div>
-                                        <div className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg group-hover:bg-orange-700 transition relative z-10 whitespace-nowrap">
-                                            RESOLVER AGORA &rarr;
+                                        <div className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg group-hover:bg-orange-700 transition relative z-10 whitespace-nowrap flex items-center gap-2">
+                                            RESOLVER AGORA <ArrowRightIcon className="w-4 h-4" />
                                         </div>
-                                        <div className="absolute right-0 top-0 opacity-10 text-9xl -mr-6 -mt-6 text-orange-600 rotate-12">📦</div>
+                                        <div className="absolute right-0 top-0 opacity-10 -mr-6 -mt-6 text-orange-600 rotate-12">
+                                            <ArchiveBoxIcon className="w-32 h-32" />
+                                        </div>
                                     </div>
                                 </Link>
                             )}
@@ -199,11 +222,11 @@ export default function Dashboard({ auth, stats, perfil }) {
                                             </p>
                                         </div>
                                         <div className="mt-6 md:mt-8 inline-flex items-center bg-white text-red-700 px-6 py-3 rounded-full font-bold shadow-sm group-hover:bg-gray-100 transition w-max">
-                                            <span className="mr-2 text-xl">➕</span> Nova Solicitação
+                                            <span className="mr-2"><ShoppingCartIcon className="w-5 h-5"/></span> Nova Solicitação
                                         </div>
                                     </div>
                                     <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10 group-hover:translate-x-5 group-hover:translate-y-5 transition duration-500">
-                                        <svg className="w-48 h-48 md:w-64 md:h-64" fill="currentColor" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                                        <ShoppingCartIcon className="w-48 h-48 md:w-64 md:h-64" />
                                     </div>
                                 </Link>
 
@@ -214,7 +237,9 @@ export default function Dashboard({ auth, stats, perfil }) {
                                             <p className="text-4xl font-black text-gray-800 group-hover:text-blue-600 transition">{stats.receber}</p>
                                             <p className="text-xs text-blue-600 font-bold mt-1 bg-blue-50 px-2 py-0.5 rounded w-fit">Motos em trânsito</p>
                                         </div>
-                                        <div className="text-4xl opacity-80 group-hover:scale-110 transition group-hover:-rotate-12">📥</div>
+                                        <div className="opacity-80 group-hover:scale-110 transition group-hover:-rotate-12">
+                                            <TruckIcon className="w-10 h-10 text-gray-400" />
+                                        </div>
                                     </Link>
 
                                     <Link href={route('pedidos.index')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition border-l-4 border-gray-500 flex items-center justify-between group h-full">
@@ -223,7 +248,9 @@ export default function Dashboard({ auth, stats, perfil }) {
                                             <p className="text-4xl font-black text-gray-800 group-hover:text-gray-600 transition">{stats.meus_pedidos}</p>
                                             <p className="text-xs text-gray-500 font-bold mt-1">Histórico completo</p>
                                         </div>
-                                        <div className="text-4xl opacity-80 group-hover:scale-110 transition group-hover:rotate-12">📦</div>
+                                        <div className="opacity-80 group-hover:scale-110 transition group-hover:rotate-12">
+                                            <ClipboardDocumentCheckIcon className="w-10 h-10 text-gray-400" />
+                                        </div>
                                     </Link>
                                 </div>
                             </div>
@@ -269,12 +296,12 @@ function ActionCard({ href, title, desc, icon, color, btnText }) {
                     <h4 className={`text-xl font-bold mb-2 group-hover:text-${color === 'gray' ? 'gray-900' : 'red-600'} transition text-gray-800`}>{title}</h4>
                     <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
                 </div>
-                <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl transition transform group-hover:scale-110 ${bgIcon}`}>{icon}</div>
+                <div className={`h-12 w-12 rounded-full flex items-center justify-center transition transform group-hover:scale-110 ${bgIcon}`}>{icon}</div>
             </div>
             {btnText && (
                 <div className="mt-auto pt-4">
                     <span className="text-sm font-bold text-gray-400 group-hover:text-gray-900 transition flex items-center gap-1">
-                        {btnText} <span className="transform group-hover:translate-x-1 transition">&rarr;</span>
+                        {btnText} <ArrowRightIcon className="w-4 h-4 transform group-hover:translate-x-1 transition" />
                     </span>
                 </div>
             )}

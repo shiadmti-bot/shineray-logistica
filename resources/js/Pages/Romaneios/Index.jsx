@@ -6,7 +6,10 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
     const safeRomaneios = romaneios || { data: [], links: [], total: 0 };
 
     const { data, setData, get, processing } = useForm({
-        search: filters?.search || '', // Proteção contra filters null
+        search: filters?.search || '',
+        data_inicio: filters?.data_inicio || '',
+        data_fim: filters?.data_fim || '',
+        status: filters?.status || '',
     });
 
     const handleSearch = (e) => {
@@ -17,6 +20,17 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
         });
     };
 
+    const clearSearch = () => {
+        setData({
+            search: '',
+            data_inicio: '',
+            data_fim: '',
+            status: ''
+        });
+        // Força limpeza
+        get(route('romaneios.index'), {}, { preserveState: true });
+    };
+
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Histórico de Cargas</h2>}>
             <Head title="Cargas e Romaneios" />
@@ -25,31 +39,92 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
                     
                     {/* --- CABEÇALHO E AÇÕES --- */}
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center transition-all hover:shadow-md">
-                        {auth.user.perfil === 'cd' && (
-                            <Link href={route('romaneios.create')} className="w-full md:w-auto bg-gradient-to-r from-gray-800 to-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:from-black hover:to-gray-800 transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
-                                <span>🚛</span> Nova Expedição
-                            </Link>
-                        )}
-
-                        <form onSubmit={handleSearch} className="flex w-full md:w-auto gap-2 relative">
-                            <div className="relative w-full md:w-80">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4 transition-all hover:shadow-md">
+                        
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                            {auth.user.perfil === 'cd' ? (
+                                <Link href={route('romaneios.create')} className="w-full md:w-auto bg-gradient-to-r from-gray-800 to-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:from-black hover:to-gray-800 transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
+                                    <span>🚛</span> Nova Expedição
+                                </Link>
+                            ) : (
+                                <div className="flex items-center gap-2 text-gray-600">
+                                    <span className="text-xl">🚛</span>
+                                    <h3 className="font-bold text-gray-700">Controle de Expedição</h3>
                                 </div>
+                            )}
+                        </div>
+
+                        <hr className="border-gray-100" />
+
+                        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            {/* Busca Textual */}
+                            <div className="md:col-span-4 relative">
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Busca Rápida</label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        className="pl-9 w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 transition-colors text-sm py-2"
+                                        placeholder="Placa, Motorista, Rota..."
+                                        value={data.search}
+                                        onChange={e => setData('search', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Data Inicio */}
+                            <div className="md:col-span-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">De</label>
                                 <input 
-                                    type="text" 
-                                    className="pl-10 w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 transition-colors"
-                                    placeholder="Buscar placa, motorista..."
-                                    value={data.search}
-                                    onChange={e => setData('search', e.target.value)}
+                                    type="date" 
+                                    className="w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 text-sm py-2 text-gray-600"
+                                    value={data.data_inicio}
+                                    onChange={e => setData('data_inicio', e.target.value)}
                                 />
                             </div>
-                            <button type="submit" className="bg-gray-800 text-white px-5 rounded-lg hover:bg-gray-700 font-bold transition shadow-sm" disabled={processing}>
-                                Buscar
-                            </button>
+
+                            {/* Data Fim */}
+                            <div className="md:col-span-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Até</label>
+                                <input 
+                                    type="date" 
+                                    className="w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 text-sm py-2 text-gray-600"
+                                    value={data.data_fim}
+                                    onChange={e => setData('data_fim', e.target.value)}
+                                />
+                            </div>
+
+                            {/* Status */}
+                            <div className="md:col-span-2">
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Status</label>
+                                <select 
+                                    className="w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 text-sm py-2 text-gray-600"
+                                    value={data.status}
+                                    onChange={e => setData('status', e.target.value)}
+                                >
+                                    <option value="">Todos</option>
+                                    <option value="aberto">Em Aberto</option>
+                                    <option value="expedido">Carregando</option>
+                                    <option value="em_transito">Em Trânsito</option>
+                                    <option value="concluido">Concluído</option>
+                                </select>
+                            </div>
+
+                            {/* Botões */}
+                            <div className="md:col-span-2 flex gap-2">
+                                <button type="submit" className="w-full bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 font-bold transition shadow-sm text-sm" disabled={processing}>
+                                    Filtrar
+                                </button>
+                                {(data.search || data.data_inicio || data.data_fim || data.status) && (
+                                    <button type="button" onClick={clearSearch} className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-300 font-bold transition text-sm" title="Limpar Filtros">
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
                         </form>
                     </div>
 

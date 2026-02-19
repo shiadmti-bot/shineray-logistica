@@ -3,7 +3,7 @@ import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import Swal from 'sweetalert2';
 
-export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
+export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) {
     
     // 1. BLINDAGEM DE DADOS
     const safePedidos = pedidos || { data: [], links: [], total: 0 };
@@ -18,6 +18,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
 
     const { data, setData, get, processing } = useForm({
         search: filters?.search || '',
+        data_inicio: filters?.data_inicio || '',
+        data_fim: filters?.data_fim || '',
+        status: filters?.status || '',
+        loja_id: filters?.loja_id || '',
     });
 
     // --- NOTIFICAÇÕES ---
@@ -49,7 +53,14 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
     };
 
     const clearSearch = () => {
-        setData('search', '');
+        setData({
+            search: '',
+            data_inicio: '',
+            data_fim: '',
+            status: '',
+            loja_id: ''
+        });
+        // Força a limpeza na URL também
         router.get(route('pedidos.index'), {}, { preserveState: true });
     };
 
@@ -99,38 +110,108 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
                     
                     {/* --- 1. BARRA DE AÇÕES E FILTROS --- */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-4 justify-between items-center sticky top-0 z-20 md:static">
-                        {perfil === 'loja' ? (
-                            <Link href={route('solicitar')} className="w-full md:w-auto bg-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
-                                <span>➕</span> Nova Solicitação
-                            </Link>
-                        ) : (
-                            <div className="flex items-center gap-3 text-gray-600 w-full md:w-auto">
-                                <span className="text-2xl bg-gray-100 p-2 rounded-lg">📊</span>
-                                <div>
-                                    <h3 className="font-bold text-lg leading-none text-gray-800">Visão Geral</h3>
-                                    <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total: {safePedidos.total}</span>
-                                </div>
-                            </div>
-                        )}
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-4">
                         
-                        <form onSubmit={handleSearch} className="flex w-full md:w-auto gap-2 relative group">
-                            <div className="relative w-full md:w-80">
+                        {/* Linha Superior: Botão Novo + Status Geral */}
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                            {perfil === 'loja' ? (
+                                <Link href={route('solicitar')} className="w-full md:w-auto bg-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
+                                    <span>➕</span> Nova Solicitação
+                                </Link>
+                            ) : (
+                                <div className="flex items-center gap-3 text-gray-600 w-full md:w-auto">
+                                    <span className="text-2xl bg-gray-100 p-2 rounded-lg">📊</span>
+                                    <div>
+                                        <h3 className="font-bold text-lg leading-none text-gray-800">Visão Geral</h3>
+                                        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total: {safePedidos.total}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <hr className="border-gray-100" />
+
+                        {/* Linha Inferior: Filtros */}
+                        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-12 gap-2">
+                            {/* Busca Textual */}
+                            <div className="md:col-span-4 relative">
                                 <input 
                                     type="text" 
-                                    className="pl-10 pr-10 w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                    className="pl-9 w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2"
                                     placeholder="Buscar ID, Chassi ou Loja..."
                                     value={data.search}
                                     onChange={e => setData('search', e.target.value)}
                                 />
-                                <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
-                                {data.search && (
-                                    <button type="button" onClick={clearSearch} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-red-500 font-bold">✕</button>
-                                )}
+                                <span className="absolute left-3 top-2.5 text-gray-400 text-xs">🔍</span>
                             </div>
-                            <button type="submit" className="bg-blue-600 text-white px-5 rounded-lg hover:bg-blue-700 font-bold transition text-sm" disabled={processing}>
-                                Buscar
-                            </button>
+
+                            {/* Data Inicio */}
+                            <div className="md:col-span-2">
+                                <input 
+                                    type="date" 
+                                    className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2 text-gray-500"
+                                    value={data.data_inicio}
+                                    onChange={e => setData('data_inicio', e.target.value)}
+                                    title="Data Início"
+                                />
+                            </div>
+
+                            {/* Data Fim */}
+                            <div className="md:col-span-2">
+                                <input 
+                                    type="date" 
+                                    className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2 text-gray-500"
+                                    value={data.data_fim}
+                                    onChange={e => setData('data_fim', e.target.value)}
+                                    title="Data Fim"
+                                />
+                            </div>
+
+                            {/* Status */}
+                            <div className="md:col-span-2">
+                                <select 
+                                    className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2"
+                                    value={data.status}
+                                    onChange={e => setData('status', e.target.value)}
+                                >
+                                    <option value="">Status: Todos</option>
+                                    <option value="em_analise">Em Análise</option>
+                                    <option value="solicitado">Solicitado</option>
+                                    <option value="separado">Separado</option>
+                                    <option value="aguardando_coleta">Aguard. Coleta</option>
+                                    <option value="em_transito">Em Trânsito</option>
+                                    <option value="concluido">Concluído</option>
+                                    <option value="cancelado">Cancelado</option>
+                                </select>
+                            </div>
+
+                            {/* Loja (Se Disponível) */}
+                            {lojas && lojas.length > 0 && (
+                                <div className="md:col-span-2">
+                                    <select 
+                                        className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2"
+                                        value={data.loja_id}
+                                        onChange={e => setData('loja_id', e.target.value)}
+                                    >
+                                        <option value="">Loja: Todas</option>
+                                        {lojas.map(l => (
+                                            <option key={l.id} value={l.id}>{l.filial}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Botões */}
+                            <div className="md:col-span-12 flex gap-2 justify-end mt-2">
+                                {(data.search || data.data_inicio || data.data_fim || data.status || data.loja_id) && (
+                                    <button type="button" onClick={clearSearch} className="px-3 py-1 text-xs font-bold text-gray-500 hover:text-red-600 bg-gray-100 rounded hover:bg-gray-200 transition">
+                                        Limpar Filtros
+                                    </button>
+                                )}
+                                <button type="submit" className="px-4 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-700 transition shadow-sm" disabled={processing}>
+                                    Filtrar Resultados
+                                </button>
+                            </div>
                         </form>
                     </div>
 

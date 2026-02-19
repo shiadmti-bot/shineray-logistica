@@ -18,10 +18,21 @@ class RomaneioController extends Controller
     public function index(Request $request)
     {
         $termo = $request->input('search');
+        $status = $request->input('status');
+        $dataInicio = $request->input('data_inicio');
+        $dataFim = $request->input('data_fim');
 
-        $query = Romaneio::with(['motos.pedidos', 'user', 'pedidos.motos']) // Carrega pedidos.motos para contagem robusta
+        $query = Romaneio::with(['motos.pedidos', 'user', 'pedidos.motos']) 
             ->orderBy('created_at', 'desc');
 
+        // Filtro por DATA
+        if ($dataInicio) $query->whereDate('created_at', '>=', $dataInicio);
+        if ($dataFim) $query->whereDate('created_at', '<=', $dataFim);
+
+        // Filtro por STATUS
+        if ($status) $query->where('status', $status);
+
+        // Busca Textual
         if ($termo) {
             $query->where(function($q) use ($termo) {
                 $q->where('id', 'like', "%{$termo}%")

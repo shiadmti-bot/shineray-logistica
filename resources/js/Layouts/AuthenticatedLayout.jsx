@@ -5,6 +5,25 @@ import Dropdown from '@/Components/Dropdown';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import Toast from '@/Components/Toast';
 import { Link, usePage } from '@inertiajs/react';
+import { 
+    HomeIcon, 
+    CalendarIcon, 
+    PlusCircleIcon, 
+    ArchiveBoxIcon, 
+    TruckIcon, 
+    ClipboardDocumentListIcon, 
+    FolderIcon, 
+    CubeIcon, 
+    UsersIcon, 
+    QuestionMarkCircleIcon, 
+    BookOpenIcon,
+    ChartBarIcon, 
+    Cog6ToothIcon,  // Settings
+    ArrowRightOnRectangleIcon, // Logout
+    EnvelopeIcon,
+    PhoneIcon,
+    ClockIcon
+} from '@heroicons/react/24/outline';
 
 export default function Authenticated({ user, header, children }) {
     const { props } = usePage();
@@ -83,7 +102,7 @@ export default function Authenticated({ user, header, children }) {
     const CustomNavLink = ({ active, href, children }) => (
         <Link
             href={href}
-            className={`inline-flex items-center px-3 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-full
+            className={`inline-flex items-center px-3 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-full gap-2
             ${active 
                 ? 'border-white text-white bg-white/10' 
                 : 'border-transparent text-red-100 hover:text-white hover:border-red-300 hover:bg-white/5'
@@ -121,12 +140,12 @@ export default function Authenticated({ user, header, children }) {
                                 
                                 {/* 1. DASHBOARD (TODOS) */}
                                 <CustomNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')}>
-                                    Dashboard
+                                    <HomeIcon className="w-5 h-5" /> Dashboard
                                 </CustomNavLink>
 
                                 {/* 2. CALENDÁRIO (NOVO V2 - TODOS) */}
                                 <CustomNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')}>
-                                    🗓️ Calendário
+                                    <CalendarIcon className="w-5 h-5" /> Calendário
                                 </CustomNavLink>
 
                                 {/* 3. LINKS ESPECÍFICOS POR PERFIL */}
@@ -135,10 +154,10 @@ export default function Authenticated({ user, header, children }) {
                                 {currentUser.perfil === 'loja' && (
                                     <>
                                         <CustomNavLink href={safeRoute('solicitar')} active={isCurrent('solicitar')}>
-                                            ➕ Nova Solicitação
+                                            <PlusCircleIcon className="w-5 h-5" /> Nova Solicitação
                                         </CustomNavLink>
                                         <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
-                                            📦 Meus Pedidos
+                                            <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
                                         </CustomNavLink>
                                     </>
                                 )}
@@ -147,13 +166,13 @@ export default function Authenticated({ user, header, children }) {
                                 {currentUser.perfil === 'cd' && (
                                     <>
                                         <CustomNavLink href={safeRoute('romaneios.create')} active={isCurrent('romaneios.create')}>
-                                            🚛 Expedição
+                                            <TruckIcon className="w-5 h-5" /> Expedição
                                         </CustomNavLink>
                                         <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
-                                            📋 Conferência
+                                            <ClipboardDocumentListIcon className="w-5 h-5" /> Conferência
                                         </CustomNavLink>
                                         <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.index')}>
-                                            🗂 Cargas
+                                            <FolderIcon className="w-5 h-5" /> Cargas
                                         </CustomNavLink>
                                     </>
                                 )}
@@ -162,13 +181,13 @@ export default function Authenticated({ user, header, children }) {
                                 {['admin', 'gestor'].includes(currentUser.perfil) && (
                                     <>
                                         <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
-                                            📊 Pedidos
+                                            <ChartBarIcon className="w-5 h-5" /> Pedidos
                                         </CustomNavLink>
                                         <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.*')}>
-                                            🚛 Cargas
+                                            <TruckIcon className="w-5 h-5" /> Cargas
                                         </CustomNavLink>
                                         <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
-                                            🏍 Base
+                                            <CubeIcon className="w-5 h-5" /> Base
                                         </CustomNavLink>
                                     </>
                                 )}
@@ -176,13 +195,13 @@ export default function Authenticated({ user, header, children }) {
                                 {/* ADMIN MASTER */}
                                 {currentUser.perfil === 'admin' && (
                                     <CustomNavLink href={safeRoute('users.index')} active={isCurrent('users.*')}>
-                                        👥 Usuários
+                                        <UsersIcon className="w-5 h-5" /> Usuários
                                     </CustomNavLink>
                                 )}
 
                                 {/* 4. AJUDA (TODOS) */}
                                 <CustomNavLink href={safeRoute('manual')} active={isCurrent('manual')}>
-                                    ❓ Ajuda
+                                    <QuestionMarkCircleIcon className="w-5 h-5" /> Ajuda
                                 </CustomNavLink>
                             </div>
                         </div>
@@ -208,8 +227,12 @@ export default function Authenticated({ user, header, children }) {
                                             <div className="mt-1">Perfil: <strong className="text-red-600">{currentUser.perfil}</strong></div>
                                             <div className="mt-1 truncate">{currentUser.filial || 'Matriz'}</div>
                                         </div>
-                                        <Dropdown.Link href={safeRoute('profile.edit')}>⚙️ Configurações</Dropdown.Link>
-                                        <Dropdown.Link href={safeRoute('logout')} method="post" as="button" className="text-red-600 font-bold">🚪 Sair do Sistema</Dropdown.Link>
+                                        <Dropdown.Link href={safeRoute('profile.edit')} className="flex items-center gap-2">
+                                            <Cog6ToothIcon className="w-4 h-4" /> Configurações
+                                        </Dropdown.Link>
+                                        <Dropdown.Link href={safeRoute('logout')} method="post" as="button" className="text-red-600 font-bold flex items-center gap-2">
+                                            <ArrowRightOnRectangleIcon className="w-4 h-4" /> Sair do Sistema
+                                        </Dropdown.Link>
                                     </Dropdown.Content>
                                 </Dropdown>
                             </div>
@@ -230,45 +253,65 @@ export default function Authenticated({ user, header, children }) {
                 {/* --- MENU MOBILE --- */}
                 <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden bg-red-900 border-t border-red-800 shadow-inner'}>
                     <div className="pt-2 pb-3 space-y-1">
-                        <ResponsiveNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')} className="text-white bg-red-800/50">
-                            📊 Dashboard
+                        <ResponsiveNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')} className="text-white bg-red-800/50 flex items-center gap-2">
+                            <HomeIcon className="w-5 h-5" /> Dashboard
                         </ResponsiveNavLink>
                         
-                        <ResponsiveNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')} className="text-white">
-                            🗓️ Calendário Logístico
+                        <ResponsiveNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')} className="text-white flex items-center gap-2">
+                            <CalendarIcon className="w-5 h-5" /> Calendário Logístico
                         </ResponsiveNavLink>
 
                         {/* Mobile LOJA */}
                         {currentUser.perfil === 'loja' && (
                             <>
-                                <ResponsiveNavLink href={safeRoute('solicitar')} className="text-red-100">➕ Nova Solicitação</ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100">📦 Meus Pedidos</ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('solicitar')} className="text-red-100 flex items-center gap-2">
+                                    <PlusCircleIcon className="w-5 h-5" /> Nova Solicitação
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
+                                    <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
+                                </ResponsiveNavLink>
                             </>
                         )}
 
                         {/* Mobile CD */}
                         {currentUser.perfil === 'cd' && (
                             <>
-                                <ResponsiveNavLink href={safeRoute('romaneios.create')} className="text-red-100">🚛 Expedição</ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100">📋 Conferência</ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100">🗂 Histórico Cargas</ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('romaneios.create')} className="text-red-100 flex items-center gap-2">
+                                    <TruckIcon className="w-5 h-5" /> Expedição
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
+                                    <ClipboardDocumentListIcon className="w-5 h-5" /> Conferência
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 flex items-center gap-2">
+                                    <FolderIcon className="w-5 h-5" /> Histórico Cargas
+                                </ResponsiveNavLink>
                             </>
                         )}
 
                         {/* Mobile ADMIN/GESTOR */}
                         {['admin', 'gestor'].includes(currentUser.perfil) && (
                             <>
-                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100">Auditoria Pedidos</ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100">Auditoria Cargas</ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100">Base Chassis</ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
+                                    <ChartBarIcon className="w-5 h-5" /> Auditoria Pedidos
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 flex items-center gap-2">
+                                    <TruckIcon className="w-5 h-5" /> Auditoria Cargas
+                                </ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
+                                    <CubeIcon className="w-5 h-5" /> Base Chassis
+                                </ResponsiveNavLink>
                             </>
                         )}
                         
                         {currentUser.perfil === 'admin' && (
-                            <ResponsiveNavLink href={safeRoute('users.index')} className="text-red-100">👥 Usuários</ResponsiveNavLink>
+                            <ResponsiveNavLink href={safeRoute('users.index')} className="text-red-100 flex items-center gap-2">
+                                <UsersIcon className="w-5 h-5" /> Usuários
+                            </ResponsiveNavLink>
                         )}
 
-                        <ResponsiveNavLink href={safeRoute('manual')} className="text-yellow-300">❓ Ajuda / Manual</ResponsiveNavLink>
+                        <ResponsiveNavLink href={safeRoute('manual')} className="text-yellow-300 flex items-center gap-2">
+                            <BookOpenIcon className="w-5 h-5" /> Ajuda / Manual
+                        </ResponsiveNavLink>
                     </div>
 
                     <div className="pt-4 pb-4 border-t border-red-800 bg-red-950/30">
@@ -282,8 +325,12 @@ export default function Authenticated({ user, header, children }) {
                             </div>
                         </div>
                         <div className="mt-3 space-y-1">
-                            <ResponsiveNavLink href={safeRoute('profile.edit')} className="text-red-200">Perfil</ResponsiveNavLink>
-                            <ResponsiveNavLink href={safeRoute('logout')} method="post" as="button" className="text-red-200">Sair</ResponsiveNavLink>
+                            <ResponsiveNavLink href={safeRoute('profile.edit')} className="text-red-200 flex items-center gap-2">
+                                <Cog6ToothIcon className="w-5 h-5" /> Perfil
+                            </ResponsiveNavLink>
+                            <ResponsiveNavLink href={safeRoute('logout')} method="post" as="button" className="text-red-200 flex items-center gap-2">
+                                <ArrowRightOnRectangleIcon className="w-5 h-5" /> Sair
+                            </ResponsiveNavLink>
                         </div>
                     </div>
                 </div>
@@ -342,17 +389,17 @@ export default function Authenticated({ user, header, children }) {
                             <ul className="space-y-3 text-sm text-gray-400">
                                 <li>
                                     <Link href={route('dashboard')} className="hover:text-red-500 transition flex items-center gap-2 group">
-                                        <span className="opacity-50 group-hover:opacity-100 transition">📊</span> Dashboard Geral
+                                        <HomeIcon className="w-4 h-4 opacity-50 group-hover:opacity-100 transition" /> Dashboard Geral
                                     </Link>
                                 </li>
                                 <li>
                                     <Link href={route('pedidos.index')} className="hover:text-red-500 transition flex items-center gap-2 group">
-                                        <span className="opacity-50 group-hover:opacity-100 transition">📦</span> Meus Pedidos
+                                        <ArchiveBoxIcon className="w-4 h-4 opacity-50 group-hover:opacity-100 transition" /> Meus Pedidos
                                     </Link>
                                 </li>
                                 <li>
                                     <Link href={route('manual')} className="hover:text-red-500 transition flex items-center gap-2 group">
-                                        <span className="opacity-50 group-hover:opacity-100 transition">📘</span> Central de Ajuda
+                                        <QuestionMarkCircleIcon className="w-4 h-4 opacity-50 group-hover:opacity-100 transition" /> Central de Ajuda
                                     </Link>
                                 </li>
                             </ul>
@@ -366,7 +413,7 @@ export default function Authenticated({ user, header, children }) {
                             <ul className="space-y-4 text-sm text-gray-400">
                                 <li className="flex items-start gap-3">
                                     <div className="bg-gray-800 p-2 rounded text-red-400 mt-0.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
+                                        <EnvelopeIcon className="w-4 h-4" />
                                     </div>
                                     <div>
                                         <span className="block text-xs text-gray-500 uppercase font-bold">E-mail</span>
@@ -375,7 +422,7 @@ export default function Authenticated({ user, header, children }) {
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <div className="bg-gray-800 p-2 rounded text-green-400 mt-0.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
+                                        <PhoneIcon className="w-4 h-4" />
                                     </div>
                                     <div>
                                         <span className="block text-xs text-gray-500 uppercase font-bold">Telefone / WhatsApp</span>
@@ -384,7 +431,7 @@ export default function Authenticated({ user, header, children }) {
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <div className="bg-gray-800 p-2 rounded text-blue-400 mt-0.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        <ClockIcon className="w-4 h-4" />
                                     </div>
                                     <div>
                                         <span className="block text-xs text-gray-500 uppercase font-bold">Horário de Atendimento</span>
@@ -397,7 +444,7 @@ export default function Authenticated({ user, header, children }) {
 
                     {/* RODAPÉ INFERIOR (CRÉDITOS) */}
                     <div className="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600 gap-4">
-                        <p>&copy; {new Date().getFullYear()} By Sabel Logística. Todos os direitos reservados.</p>
+                        <p>&copy; {new Date().getFullYear()} By Sabel Logística. Todos os direitos reservados. <span className="opacity-50 ml-2">v2.2</span></p>
                         
                         <div className="flex items-center gap-3 bg-gray-800/50 px-4 py-2 rounded-full border border-gray-800">
                             <span className="text-gray-500 uppercase tracking-wider font-bold text-[10px]">Desenvolvimento & Arquitetura</span>

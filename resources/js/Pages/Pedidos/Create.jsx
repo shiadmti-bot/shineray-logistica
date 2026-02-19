@@ -4,24 +4,17 @@ import { useState } from 'react';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 
-export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = [] }) {
+export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = [], cdUserId }) { // Recebe cdUserId
     
-    const [modo, setModo] = useState('cd'); 
+    const [modo, setModo] = useState('cd'); // 'cd', 'transferencia', 'devolucao'
     const [logisticaInfo, setLogisticaInfo] = useState(null);
     const [motosDisponiveis, setMotosDisponiveis] = useState([]); 
 
-    const locaisEntrega = [
-        "Acará/PA", "Ananindeua/PA", "Barcarena/PA", "Belém/PA", 
-        "Bragança/PA", "Breves/PA", "Cametá/PA", "Capanema/PA", "Capitão Poço/PA", 
-        "Castanhal/PA", "Concórdia/PA", "Curuçá/PA", "Icoaraci/PA", "Igarapé Miri/PA", 
-        "Moju/PA", "São Miguel/PA", "Tailândia/PA", "Tomé-Açu/PA",
-        "Aldeota/CE", "Demócrito Rocha/CE", "Parangaba/CE",
-        "Matriz / CD", "PDV Paar/PA", "PDV Barcarena/PA"
-    ].sort();
-
     const motivosOpcoes = [
         "Estoque Regular (Giro)", "Venda Confirmada (Cliente)", "Test Drive / Frota",
-        "Exposição / Showroom", "Reposição de Garantia", "Uso Interno"
+        "Exposição / Showroom", "Reposição de Garantia", "Uso Interno",
+        "Avaria de Transporte", "Defeito de Fabricação", "Excesso de Estoque", "Troca de Modelo",
+        "Manutenção / Reparo" // Novo Motivo Solicitado
     ];
 
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -56,12 +49,28 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         setMotosDisponiveis([]);
     };
 
+    const handleModeChange = (novoModo) => {
+        setModo(novoModo);
+        setLogisticaInfo(null);
+        setMotosDisponiveis([]);
+        
+        if (novoModo === 'devolucao') {
+            setData(data => ({
+                ...data,
+                origem_id: auth.user.id,
+                itens: data.itens.map(item => ({ ...item, local: 'Matriz / CD' }))
+            }));
+        } else if (novoModo === 'cd') {
+            setData(data => ({ ...data, origem_id: '' }));
+        }
+    };
+
     const addItem = () => {
         setData('itens', [
             ...data.itens, 
             { 
                 modelo: '', chassi: '', cor: '', ano: '', motivo: '', 
-                local: data.itens[data.itens.length - 1]?.local || '' 
+                local: modo === 'devolucao' ? 'Matriz / CD' : (data.itens[data.itens.length - 1]?.local || '') 
             }
         ]);
     };
@@ -96,9 +105,22 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
             return Swal.fire('Falta a Origem', 'Selecione de qual loja essas motos virão.', 'warning');
         }
 
+        // Prepara payload
+        const payload = {
+            ...data,
+            modo: modo,
+            cd_user_id: cdUserId // Envia ID do CD para o backend saber quem é o destino na devolução
+        };
+
         post(route('pedidos.store'), {
+            data: payload, // Sobrescreve data padrão
             onSuccess: () => {
-                Swal.fire('Sucesso!', 'Solicitação enviada.', 'success');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Sucesso!',
+                    text: modo === 'devolucao' ? 'Solicitação de Devolução enviada para o CD.' : 'Solicitação enviada.',
+                    confirmButtonColor: modo === 'devolucao' ? '#7e22ce' : '#3085d6'
+                });
                 reset(); 
                 setModo('cd'); 
                 setLogisticaInfo(null);
@@ -116,14 +138,14 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-red-700">Nova Solicitação de Despacho</h2>}>
+        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-red-700">Nova Solicitação / Devolução</h2>}>
             <Head title="Nova Solicitação" />
             <div className="py-8 bg-gray-100 min-h-screen pb-32">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     
                     {Object.keys(errors).length > 0 && (
                         <div className="mb-6 bg-red-50 border-l-4 border-red-600 p-4 rounded shadow flex items-center">
-                            <span className="text-2xl mr-3">⚠️</span>
+                            <span className="mr-3"><ExclamationTriangleIcon className="w-8 h-8 text-red-600" /></span>
                             <div>
                                 <h3 className="font-bold text-red-800">Atenção Necessária</h3>
                                 <p className="text-sm text-red-700">Preencha todos os campos obrigatórios.</p>
@@ -133,32 +155,44 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
 
                     <form onSubmit={submit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.type !== 'textarea') e.preventDefault(); }} className="space-y-6">
                         
-                        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 border-blue-600">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><span>📦</span> Origem da Carga</h3>
+                        <div className={`bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 ${modo === 'devolucao' ? 'border-purple-600' : 'border-blue-600'}`}>
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><ArchiveBoxIcon className="w-5 h-5" /> Tipo de Movimentação</h3>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 <div 
-                                    onClick={() => { setModo('cd'); setData('origem_id', ''); setLogisticaInfo(null); setMotosDisponiveis([]); }}
+                                    onClick={() => handleModeChange('cd')}
                                     className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${modo === 'cd' ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-200 hover:border-blue-300'}`}
                                 >
-                                    <div className="text-3xl">🏭</div>
+                                    <ArchiveBoxIcon className={`w-10 h-10 ${modo === 'cd' ? 'text-blue-600' : 'text-gray-400'}`} />
                                     <div>
                                         <div className="font-bold text-gray-800">Reposição CD</div>
-                                        <div className="text-xs text-gray-500">Solicitar estoque direto da Fábrica/CD.</div>
+                                        <div className="text-xs text-gray-500">Solicitar estoque direto da Fábrica.</div>
                                     </div>
-                                    {modo === 'cd' && <div className="ml-auto text-blue-600 font-bold">✓</div>}
+                                    {modo === 'cd' && <CheckCircleIcon className="w-6 h-6 ml-auto text-blue-600" />}
                                 </div>
 
                                 <div 
-                                    onClick={() => setModo('transferencia')}
+                                    onClick={() => handleModeChange('transferencia')}
                                     className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${modo === 'transferencia' ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500' : 'border-gray-200 hover:border-orange-300'}`}
                                 >
-                                    <div className="text-3xl">🔁</div>
+                                    <ArrowPathIcon className={`w-10 h-10 ${modo === 'transferencia' ? 'text-orange-600' : 'text-gray-400'}`} />
                                     <div>
-                                        <div className="font-bold text-gray-800">Transferência entre Lojas</div>
-                                        <div className="text-xs text-gray-500">Solicitar moto do estoque de outra filial.</div>
+                                        <div className="font-bold text-gray-800">Transferência</div>
+                                        <div className="text-xs text-gray-500">Buscar moto em outra filial.</div>
                                     </div>
-                                    {modo === 'transferencia' && <div className="ml-auto text-orange-600 font-bold">✓</div>}
+                                    {modo === 'transferencia' && <CheckCircleIcon className="w-6 h-6 ml-auto text-orange-600" />}
+                                </div>
+
+                                <div 
+                                    onClick={() => handleModeChange('devolucao')} 
+                                    className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${modo === 'devolucao' ? 'border-purple-600 bg-purple-50 ring-1 ring-purple-600' : 'border-gray-200 hover:border-purple-300'}`}
+                                >
+                                    <ArrowUturnLeftIcon className={`w-10 h-10 ${modo === 'devolucao' ? 'text-purple-600' : 'text-gray-400'}`} />
+                                    <div>
+                                        <div className="font-bold text-purple-800">Devolução CD</div>
+                                        <div className="text-xs text-gray-500">Enviar moto de volta p/ Matriz.</div>
+                                    </div>
+                                    {modo === 'devolucao' && <CheckCircleIcon className="w-6 h-6 ml-auto text-purple-600" />}
                                 </div>
                             </div>
 
@@ -179,12 +213,22 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                     <p className="text-[10px] text-orange-600 mt-1">* A lista de motos disponíveis será carregada após a seleção.</p>
                                 </div>
                             )}
+
+                             {modo === 'devolucao' && (
+                                <div className="animate-fadeIn bg-purple-50 p-4 rounded-lg border border-purple-100 flex items-center gap-3">
+                                    <InformationCircleIcon className="w-8 h-8 text-purple-600" />
+                                    <div>
+                                        <h4 className="font-bold text-purple-800">Processo de Devolução</h4>
+                                        <p className="text-xs text-purple-700">Essa solicitação será enviada para o CD aprovar o recebimento. Você deve informar o CHASSI das motos que estão saindo da sua loja.</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-t-4 border-red-600">
+                        <div className={`bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-t-4 ${modo === 'devolucao' ? 'border-purple-600' : 'border-red-600'}`}>
                             <div className="mb-6">
                                 <h3 className="text-lg font-bold text-gray-800">Itens do Pedido</h3>
-                                <p className="text-sm text-gray-500">Adicione as motos que deseja solicitar.</p>
+                                <p className="text-sm text-gray-500">Adicione as motos que deseja {modo === 'devolucao' ? 'devolver' : 'solicitar'}.</p>
                             </div>
 
                             <datalist id="opcoes-modelos">
@@ -194,8 +238,8 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                             <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
                                 <div className="col-span-1 text-center">#</div>
                                 <div className="col-span-3">Modelo *</div>
-                                <div className="col-span-2">Chassi {modo === 'transferencia' && '*'}</div>
-                                <div className="col-span-2">Destino Final *</div>
+                                <div className="col-span-2">Chassi {['transferencia', 'devolucao'].includes(modo) && '*'}</div>
+                                <div className="col-span-2">{modo === 'devolucao' ? 'Destino Automático' : 'Destino Final *'}</div>
                                 <div className="col-span-1">Cor *</div>
                                 <div className="col-span-2">Motivo *</div>
                                 <div className="col-span-1"></div>
@@ -220,9 +264,9 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                         </div>
 
                                         <div className="col-span-2">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi {modo === 'transferencia' && '*'}</label>
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi {['transferencia', 'devolucao'].includes(modo) && '*'}</label>
                                                 <input 
-                                                    required
+                                                    required={['transferencia', 'devolucao'].includes(modo)}
                                                     type="text" placeholder="CHASSI" maxLength={17}
                                                     value={item.chassi}
                                                     onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
@@ -231,18 +275,29 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                         </div>
 
                                         <div className="col-span-2 relative">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Destino *</label>
-                                            <select 
-                                                required
-                                                value={item.local}
-                                                onChange={(e) => updateItem(index, 'local', e.target.value)}
-                                                className="w-full rounded text-sm bg-yellow-50 focus:bg-white border-gray-300"
-                                            >
-                                                <option value="" disabled>Selecione...</option>
-                                                {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
-                                            </select>
-                                            {index === 0 && data.itens.length > 1 && (
-                                                <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold hidden md:block">Copiar p/ todos ⬇️</button>
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Destino</label>
+                                            {modo === 'devolucao' ? (
+                                                <input 
+                                                    disabled
+                                                    value="Matriz / CD"
+                                                    className="w-full rounded text-sm bg-purple-100 text-purple-800 border-purple-200 font-bold text-center"
+                                                />
+                                            ) : (
+                                                <select 
+                                                    required
+                                                    value={item.local}
+                                                    onChange={(e) => updateItem(index, 'local', e.target.value)}
+                                                    className="w-full rounded text-sm bg-yellow-50 focus:bg-white border-gray-300"
+                                                >
+                                                    <option value="" disabled>Selecione...</option>
+                                                    {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
+                                                </select>
+                                            )}
+                                            
+                                            {index === 0 && data.itens.length > 1 && modo !== 'devolucao' && (
+                                                <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold hidden md:flex items-center gap-1">
+                                                    Copiar p/ todos <ArrowDownIcon className="w-3 h-3 inline" />
+                                                </button>
                                             )}
                                         </div>
 
@@ -271,7 +326,9 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
 
                                         <div className="col-span-1 text-center">
                                             {data.itens.length > 1 && (
-                                                <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 text-xl p-2 transition rounded-full hover:bg-red-50">🗑️</button>
+                                                <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 text-xl p-2 transition rounded-full hover:bg-red-50">
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
                                             )}
                                         </div>
                                     </div>
@@ -302,9 +359,13 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                 <button 
                                     onClick={submit} 
                                     disabled={processing || (modo === 'transferencia' && (!logisticaInfo || logisticaInfo.erro))}
-                                    className="bg-gradient-to-r from-red-600 to-red-700 text-white px-8 py-3 rounded-lg font-bold hover:from-red-700 hover:to-red-800 shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+                                    className={`px-8 py-3 rounded-lg font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 text-white 
+                                    ${modo === 'devolucao' ? 'bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900' : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'}`}
                                 >
-                                    {processing ? 'Processando...' : (modo === 'transferencia' ? 'Solicitar Transferência 🔁' : 'Solicitar Reposição 🚀')}
+                                    {processing ? 'Processando...' : 
+                                        modo === 'devolucao' ? 'Confirmar Devolução ↩️' :
+                                        modo === 'transferencia' ? 'Solicitar Transferência 🔁' : 'Solicitar Reposição 🚀'
+                                    }
                                 </button>
                             </div>
                         </div>

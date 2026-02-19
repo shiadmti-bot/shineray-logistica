@@ -12,8 +12,8 @@ class MotoController extends Controller
     // 1. LISTAGEM GERAL (ESTOQUE E FILTROS)
     public function index(Request $request)
     {
-        // Carrega as motos com o Pedido ATUAL e o Usuário (Loja) desse pedido
-        $query = Moto::with(['pedidos' => function($q) {
+        // Carrega as motos com o Pedido ATUAL e o Usuário (Loja) desse pedido, e a Loja Atual (relação direta)
+        $query = Moto::with(['loja', 'pedidos' => function($q) {
             // Pega apenas o último pedido vinculado para saber quem está com a moto agora
             $q->latest()->limit(1)->with('user');
         }]);

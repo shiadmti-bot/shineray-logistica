@@ -2,6 +2,7 @@
     "$schema": "https://www.schemastore.org/package.json",
     "private": true,
     "type": "module",
+    "version": "2.2.0",
     "scripts": {
         "build": "vite build",
         "dev": "vite"
@@ -30,6 +31,7 @@
         "@fullcalendar/interaction": "^6.1.20",
         "@fullcalendar/react": "^6.1.20",
         "@fullcalendar/timegrid": "^6.1.20",
+        "@heroicons/react": "^2.2.0",
         "browser-image-compression": "^2.0.2",
         "html5-qrcode": "^2.3.8",
         "nprogress": "^0.2.0",

@@ -116,41 +116,62 @@ class PedidoController extends Controller
     {
         $user = Auth::user();
         $termo = $request->input('search');
+        
+        // Filtros Avançados
+        $dataInicio = $request->input('data_inicio');
+        $dataFim = $request->input('data_fim');
+        $statusFiltro = $request->input('status');
+        $lojaFiltro = $request->input('loja_id');
 
         $pedidos = Pedido::with([
-                'user:id,name,filial',    // Quem pediu
-                'origem:id,name,filial',  // Quem fornece
+                'user:id,name,filial',    
+                'origem:id,name,filial',  
                 'romaneio'
             ])
             ->withCount('motos')
-            // LÓGICA V2: Loja vê entrada (meus pedidos) E saída (pedidos de mim)
+            // Visibilidade (Loja vê seus pedidos e pedidos DELE)
             ->when($user->perfil === 'loja', function($q) use ($user) {
                 $q->where(function($sub) use ($user) {
                     $sub->where('user_id', $user->id)
                         ->orWhere('origem_user_id', $user->id);
                 });
             })
+            // Filtro por Texto (ID, Status, Chassi, Loja)
             ->when($termo, function($q) use ($termo) {
                 $q->where(function($sub) use ($termo) {
                     $sub->where('id', 'like', "%{$termo}%")
                         ->orWhere('status', 'like', "%{$termo}%")
-                        // Busca nas motos (JSON ou relação)
                         ->orWhereHas('motos', fn($m) => $m->where('chassi', 'like', "%{$termo}%"))
-                        // Busca quem pediu ou origem
                         ->orWhereHas('user', fn($u) => $u->where('filial', 'like', "%{$termo}%"))
                         ->orWhereHas('origem', fn($o) => $o->where('filial', 'like', "%{$termo}%"));
                 });
             })
-            // Ordenação por urgência de status
-            ->orderByRaw("FIELD(status, 'em_analise', 'solicitado', 'separado') DESC")
-            ->orderBy('created_at', 'desc')
+            // Filtro por STATUS Específico
+            ->when($statusFiltro, fn($q) => $q->where('status', $statusFiltro))
+            // Filtro por DATA DE CRIAÇÃO
+            ->when($dataInicio, fn($q) => $q->whereDate('created_at', '>=', $dataInicio))
+            ->when($dataFim, fn($q) => $q->whereDate('created_at', '<=', $dataFim))
+            // Filtro por LOJA (Apenas para Admin/Gestor/CD)
+            ->when($lojaFiltro && in_array($user->perfil, ['admin', 'gestor', 'cd']), fn($q) => $q->where('user_id', $lojaFiltro))
+            
+            // ORDENAÇÃO POR PRIORIDADE (Ativos Primeiro)
+            ->orderByRaw("
+                CASE 
+                    WHEN status IN ('em_analise', 'solicitado', 'separado', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') THEN 1 
+                    ELSE 2 
+                END ASC,
+                FIELD(status, 'em_analise', 'solicitado', 'separado', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') ASC,
+                created_at DESC
+            ")
             ->paginate(15)
             ->withQueryString();
 
         return Inertia::render('Pedidos/Index', [
             'pedidos' => $pedidos, 
             'perfil' => $user->perfil, 
-            'filters' => $request->only(['search'])
+            'filters' => $request->only(['search', 'data_inicio', 'data_fim', 'status', 'loja_id']),
+            // Enviar lista de lojas para o filtro (apenas se tiver permissão)
+            'lojas' => in_array($user->perfil, ['admin', 'gestor', 'cd']) ? User::where('perfil', 'loja')->orderBy('filial')->get(['id', 'filial']) : []
         ]);
     }
 
@@ -183,38 +204,60 @@ class PedidoController extends Controller
             ->orderBy('filial')
             ->get();
 
+        // Busca ID do CD (ou Admin Admin se não houver CD explícito)
+        // Isso permite que devolvamsos motos para "alguém"
+        $cdUser = User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->first();
+
         return Inertia::render('Pedidos/Create', [
             'listaModelos' => Modelo::orderBy('nome')->pluck('nome'),
-            'lojasDisponiveis' => $lojas
+            'lojasDisponiveis' => $lojas,
+            'cdUserId' => $cdUser ? $cdUser->id : null
         ]);
     }
 
     public function store(Request $request)
     {
-        // 1. Validação dos Campos (Sem a regra 'unique' para chassis, pois trataremos manualmente)
+        // 1. Validação dos Campos
         $request->validate([
             'itens' => 'required|array|min:1',
             'itens.*.modelo' => 'required|string',
             'itens.*.cor' => 'required|string',
             'itens.*.motivo' => 'required|string',
             'itens.*.local' => 'required|string',
-            // Chassi validado manualmente abaixo para permitir Transferência
             'itens.*.chassi' => 'nullable|string|min:11|max:17', 
-            'origem_id' => 'nullable|exists:users,id'
+            'origem_id' => 'nullable|exists:users,id',
+            'modo' => 'nullable|string|in:cd,transferencia,devolucao', // Novo Campo
+            'cd_user_id' => 'nullable|exists:users,id' // ID do CD para Devolução
         ]);
 
         return DB::transaction(function () use ($request) {
             $user = Auth::user();
-            $isTransferencia = !empty($request->origem_id);
+            
+            // Lógica de Modos
+            $modo = $request->modo ?? 'cd'; // default: reposição simples
+            
+            // Variáveis de Origem/Destino
+            $destinoUserId = $user->id; // Padrão: Eu estou pedindo (Sou o Destino)
+            $origemUserId = $request->origem_id; // Padrão: Vem de alguém (Origem)
+
+            // Ajuste para DEVOLUÇÃO (Logística Reversa)
+            if ($modo === 'devolucao') {
+                if (!$request->cd_user_id) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['modo' => 'ID do CD não fornecido para devolução.']);
+                }
+                $destinoUserId = $request->cd_user_id; // O CD é o destino
+                $origemUserId = $user->id; // Eu sou a origem (Estou devolvendo)
+            }
+
+            $isTransferencia = !empty($origemUserId);
 
             // 2. Cálculo Logístico (Datas)
             $previsaoColeta = null; 
             $previsaoEntrega = null;
             
-            if ($isTransferencia) {
-                // Simula requisição interna para calcular logística
-                $reqLogistica = new Request(['fornecedor_id' => $request->origem_id]);
-                // Assume que você tem o método calcularLogistica no controller
+            if ($isTransferencia && $modo !== 'devolucao') {
+                // ... Lógica existente de cálculo de rota para reposição/transferência ...
+                $reqLogistica = new Request(['fornecedor_id' => $origemUserId]);
                 $dadosLogistica = $this->calcularLogistica($reqLogistica)->getData();
                 
                 if (isset($dadosLogistica->erro)) {
@@ -226,12 +269,13 @@ class PedidoController extends Controller
 
             // 3. Criação do Cabeçalho do Pedido
             $pedido = Pedido::create([
-                'user_id' => $user->id, // Quem pede (Destino)
-                'origem_user_id' => $request->origem_id, // De onde vem (Origem)
-                'status' => 'em_analise', // Status Inicial (Aguardando Aprovação Gestor)
+                'user_id' => $destinoUserId, // Quem recebe a moto
+                'origem_user_id' => $origemUserId, // De onde a moto sai
+                'status' => 'em_analise', // Status Inicial
                 'observacao' => $request->observacao,
-                'motivo_solicitacao' => $request->itens[0]['motivo'] ?? 'Estoque Regular (Giro)', // Pega o 1º motivo como geral
-                'itens' => $request->itens, // Salva JSON para histórico/backup
+                // Prefixo [DEVOLUÇÃO] se for o caso, para facilitar identificação visual
+                'motivo_solicitacao' => ($modo === 'devolucao' ? '[DEVOLUÇÃO] ' : '') . ($request->itens[0]['motivo'] ?? 'Estoque Regular'),
+                'itens' => $request->itens, 
                 'previsao_coleta' => $previsaoColeta,
                 'previsao_entrega' => $previsaoEntrega
             ]);
@@ -240,58 +284,74 @@ class PedidoController extends Controller
             foreach ($request->itens as $item) {
                 $chassi = isset($item['chassi']) ? mb_strtoupper(trim($item['chassi'])) : null;
                 
-                // --- A. VALIDAÇÃO DE "EM USO" (CRÍTICO PARA CORRIGIR O ERRO) ---
+                // --- A. VALIDAÇÃO DE "EM USO" ---
                 if ($chassi) {
-                    // Verifica se o chassi está em algum pedido ATIVO (que não foi concluído nem cancelado)
                     $emUso = Pedido::whereHas('motos', function ($q) use ($chassi) {
                         $q->where('chassi', $chassi);
                     })
-                    ->whereNotIn('status', ['concluido', 'cancelado']) // IMPORTANTE: Ignora pedidos velhos
+                    ->whereNotIn('status', ['concluido', 'cancelado'])
                     ->exists();
 
                     if ($emUso) {
                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'itens' => "O chassi {$chassi} já está em um pedido aberto/em trânsito e não pode ser solicitado novamente."
+                            'itens' => "O chassi {$chassi} já está em um pedido aberto/em trânsito."
                         ]);
                     }
                 }
 
                 $moto = null;
 
-                // --- B. CENÁRIO 1: TRANSFERÊNCIA (O Chassi TEM que existir na Origem) ---
+                // --- B. CENÁRIO: TRANSFERÊNCIA OU DEVOLUÇÃO ---
+                // Se tem Origem definida (seja Transferência entre lojas OU Devolução ao CD)
                 if ($isTransferencia) {
                     if (!$chassi) {
-                        throw \Illuminate\Validation\ValidationException::withMessages(['itens' => "Para transferência, o chassi é obrigatório."]);
+                        throw \Illuminate\Validation\ValidationException::withMessages(['itens' => "Para transferência/devolução, o chassi é obrigatório."]);
                     }
 
-                    // Busca a moto na loja de origem
-                    // Busca a moto (independente da loja, para validar duplicidade)
                     $moto = Moto::where('chassi', $chassi)->first();
 
                     if (!$moto) {
-                        // C.1 MOTO NÃO CADASTRADA (Fluxo Externo Permitido)
-                        // Cria o registro automaticamente como vindo da Loja de Origem
-                        $lojaOrigem = User::find($request->origem_id);
+                        // Se não existe e estamos devolvendo, podemos criar?
+                        // Melhor criar apenas se for transferência externa. 
+                        // Para devolução, a moto deveria existir no estoque da loja.
+                        // Mas manteremos a flexibilidade de criar on-the-fly se necessário.
+                        
+                        $lojaOrigem = User::find($origemUserId);
                         $nomeLoja = $lojaOrigem ? $lojaOrigem->filial : 'Loja Externa';
 
                         $moto = Moto::create([
                             'chassi' => $chassi,
                             'modelo' => mb_strtoupper($item['modelo']),
                             'cor' => mb_strtoupper($item['cor']),
-                            'status' => 'solicitado',
-                            'loja_atual_id' => $request->origem_id,
+                            'status' => 'solicitado', // Vai mudar logo abaixo
+                            'loja_atual_id' => $origemUserId,
                             'localizacao_atual' => "Estoque Loja: {$nomeLoja}"
                         ]);
                     } 
                     else {
                         // C.2 MOTO JÁ EXISTE NO SISTEMA
-                        // Valida se pertence à loja de origem solicitada
-                        if ($moto->loja_atual_id != $request->origem_id) {
-                            $lojaReal = $moto->loja_atual_id ? (User::find($moto->loja_atual_id)->filial ?? 'Outra Loja') : 'Sem Registro';
-                            throw \Illuminate\Validation\ValidationException::withMessages([
-                                'itens' => "A moto {$chassi} já existe mas pertence a {$lojaReal}, não à loja de origem selecionada."
-                            ]);
+                        
+                        // CASO DEVOLUÇÃO: A moto deve estar na minha loja
+                        if ($modo === 'devolucao') {
+                            if ($moto->loja_atual_id != $user->id) {
+                                // Se o sistema diz que não está comigo, mas eu tenho o chassi físico,
+                                // assumimos que o sistema estava desafado. Atualizamos para minha loja.
+                                $moto->update([
+                                    'loja_atual_id' => $user->id,
+                                    'localizacao_atual' => "Estoque Loja: " . ($user->filial ?? 'Minha Loja')
+                                ]);
+                            }
                         }
+                        // CASO TRANSFERÊNCIA: A moto deve estar na loja de origem solicitada
+                        else {
+                            if ($moto->loja_atual_id != $request->origem_id) {
+                                $lojaReal = $moto->loja_atual_id ? (User::find($moto->loja_atual_id)->filial ?? 'Outra Loja') : 'Sem Registro';
+                                throw \Illuminate\Validation\ValidationException::withMessages([
+                                    'itens' => "A moto {$chassi} existe mas pertence a {$lojaReal}, não à loja de origem selecionada."
+                                ]);
+                            }
+                        }
+                    }
 
                         // Validação de Status (Bloqueios)
                         $statusBloqueados = [
@@ -305,7 +365,7 @@ class PedidoController extends Controller
                             'transito_loja'
                         ];
 
-                        if (in_array($moto->status, $statusBloqueados)) {
+                        if (in_array($moto->status, $statusBloqueados) && !$moto->wasRecentlyCreated) {
                             throw \Illuminate\Validation\ValidationException::withMessages([
                                 'itens' => "A moto {$chassi} está com status '{$moto->status}' e não pode ser transferida."
                             ]);
@@ -314,8 +374,6 @@ class PedidoController extends Controller
                         // Atualiza status para evitar concorrência
                         $moto->update(['status' => 'solicitado']); 
                     } 
-
-                } 
                 // --- C. CENÁRIO 2: PEDIDO AO CD (Fabrica/Novo) ---
                 else {
                     if ($chassi) {

@@ -23,6 +23,10 @@ Broadcast::channel('chat.pedido.{pedidoId}', function ($user, $pedidoId) {
     // Se o pedido não existir, bloqueia
     if (!$pedido) return false;
 
-    // Permite se for: CD, Admin, Gestor OU o Dono da Loja
-    return in_array($user->perfil, ['cd', 'admin', 'gestor']) || $user->id === $pedido->user_id;
+    // Permite se for: CD, Admin, Gestor 
+    // OU o Dono da Loja (Solicitante) 
+    // OU a Loja de Origem (Fornecedora)
+    return in_array($user->perfil, ['cd', 'admin', 'gestor']) 
+        || $user->id === $pedido->user_id 
+        || $user->id === $pedido->origem_user_id;
 });
