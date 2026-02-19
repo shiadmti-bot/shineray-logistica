@@ -30,7 +30,7 @@ export default function Login({ status, canResetPassword }) {
     return (
         // --- FUNDO: Gradiente Vermelho Intenso (Identidade V2) ---
         <div className="min-h-screen flex flex-col justify-center items-center pt-6 sm:pt-0 bg-gradient-to-br from-red-950 via-red-800 to-red-600">
-            <Head title="Login - Shineray Logística" />
+            <Head title="Login - BySabel Logística" />
 
             {/* --- ÁREA DA LOGO (Adaptada para formato Retangular) --- */}
             {/* Usamos um container branco largo para acomodar o Caminhão + Texto "By Sabel" */}
@@ -183,7 +183,7 @@ export default function Login({ status, canResetPassword }) {
             {/* RODAPÉ */}
             <div className="mt-8 flex flex-col items-center gap-2 opacity-80 text-white">
                 <p className="text-xs font-light tracking-wide">
-                    &copy; {new Date().getFullYear()} Shineray do Brasil.
+                    &copy; {new Date().getFullYear()} BySabel Logística.
                 </p>
                 <div className="flex gap-3 text-[10px] text-red-200 uppercase font-bold tracking-widest border-t border-red-700 pt-2">
                     <span>V2.0</span>
