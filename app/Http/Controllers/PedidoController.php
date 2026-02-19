@@ -208,10 +208,35 @@ class PedidoController extends Controller
         // Isso permite que devolvamsos motos para "alguém"
         $cdUser = User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->first();
 
+        // [CORREÇÃO] Lista de locais de entrega para o dropdown (Injecao Backend)
+        $locaisEntrega = User::where('perfil', 'loja')
+            ->whereNotNull('filial')
+            ->where('filial', '!=', '')
+            ->orderBy('filial')
+            ->pluck('filial')
+            ->toArray();
+        
+        // Adiciona destinos padrão que não são lojas (se necessário)
+        if (!in_array('Matriz / CD', $locaisEntrega)) {
+            array_unshift($locaisEntrega, 'Matriz / CD');
+        }
+
+        // [CORREÇÃO] Adiciona Lojas Especiais (PDVs sem Login)
+        $pdvsExtras = ['PDV Paar/PA', 'PDV Barcarena/PA'];
+        foreach ($pdvsExtras as $pdv) {
+            if (!in_array($pdv, $locaisEntrega)) {
+                $locaisEntrega[] = $pdv;
+            }
+        }
+
+        // Ordena novamente para garantir
+        sort($locaisEntrega);
+
         return Inertia::render('Pedidos/Create', [
             'listaModelos' => Modelo::orderBy('nome')->pluck('nome'),
             'lojasDisponiveis' => $lojas,
-            'cdUserId' => $cdUser ? $cdUser->id : null
+            'cdUserId' => $cdUser ? $cdUser->id : null,
+            'locaisEntrega' => $locaisEntrega // Variável recuperada
         ]);
     }
 
