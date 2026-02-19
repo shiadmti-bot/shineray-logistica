@@ -21,13 +21,16 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     const [motosDisponiveis, setMotosDisponiveis] = useState([]); 
 
     const motivosOpcoes = [
-
-    // ... (rest of the code)
-
-    return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-red-700">Nova Solicitação / Devolução</h2>}>
-            <Head title="Nova Solicitação" />
-            <div className="py-8 bg-gray-100 min-h-screen pb-32">
+        "Estoque Regular (Giro)",
+        "Venda Confirmada (Cliente)",
+        "Test Drive / Frota",
+        "Exposição / Showroom",
+        "Reposição de Garantia",
+        "Uso Interno",
+        "Avaria de Transporte",
+        "Defeito de Fabricação",
+        "Excesso de Estoque",
+        "Troca de Modelo",
         "Manutenção / Reparo"
     ];
 
