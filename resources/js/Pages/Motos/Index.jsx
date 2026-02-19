@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
+import StockTable from '@/Components/Microwork/StockTable';
 
 export default function MotosIndex({ auth, motos, lojas, filters }) {
     
@@ -11,6 +12,8 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
         loja_id: filters.loja_id || ''
     });
 
+    const [activeTab, setActiveTab] = useState('loja'); // 'loja' | 'fabrica'
+
     // Função que aplica os filtros
     const applyFilters = () => {
         router.get(route('motos.index'), params, {
@@ -18,7 +21,6 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
             replace: true,
         });
     };
-
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') applyFilters();
     };
@@ -32,14 +34,29 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
     return (
         <AuthenticatedLayout user={auth.user} 
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                     <h2 className="font-bold text-xl text-gray-800 leading-tight">Base Geral de Motos</h2>
-                    {/* Botão de Acesso Rápido à Timeline */}
+                    
+                    <div className="flex bg-gray-200 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setActiveTab('loja')}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${activeTab === 'loja' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            🏪 Estoque Loja
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('fabrica')}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${activeTab === 'fabrica' ? 'bg-white text-red-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            🏭 Estoque Fábrica
+                        </button>
+                    </div>
+
                     <Link 
                         href={route('motos.timeline')} 
                         className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2"
                     >
-                        <span>🔍</span> Rastrear Vida Útil (Timeline)
+                        <span>🔍</span> Timeline
                     </Link>
                 </div>
             }
@@ -49,9 +66,16 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
             <div className="py-8 bg-gray-100 min-h-screen">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     
-                    {/* --- BARRA DE FILTROS --- */}
-                    <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    {activeTab === 'fabrica' ? (
+                        <div className="animate-fadeIn">
+                            <StockTable />
+                        </div>
+                    ) : (
+                        <div className="animate-fadeIn space-y-6">
+                            {/* --- BARRA DE FILTROS --- */}
+                            <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                                    {/* ... filtros existentes ... */}
                             
                             {/* Busca Texto */}
                             <div className="md:col-span-1">
@@ -95,7 +119,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                 >
                                     <option value="">Todos</option>
                                     <option value="estoque_fabrica">Estoque Fábrica</option>
-                                    <option value="estoque_loja">Disponível Loja</option> {/* Alterado aqui */}
+                                    <option value="estoque_loja">Disponível Loja</option>
                                     <option value="vendida">Vendida</option>
                                     <option value="reservado">Reservado</option>
                                     <option value="separado">Separado (Expedição)</option>
@@ -235,17 +259,19 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                             </div>
                         )}
                     </div>
+                    </div>
+                )}
+                    
                 </div>
             </div>
         </AuthenticatedLayout>
     );
 }
 
-// Helper Visual para Status (ATUALIZADO)
 function StatusBadge({ status }) {
     const config = {
         'estoque_fabrica': { bg: 'bg-gray-100 text-gray-800 border border-gray-200', label: 'Estoque Fábrica' },
-        'estoque_loja':    { bg: 'bg-green-50 text-green-700 border border-green-200', label: 'Disponível Loja' }, // Mapeamento correto
+        'estoque_loja':    { bg: 'bg-green-50 text-green-700 border border-green-200', label: 'Disponível Loja' }, 
         'disponivel':      { bg: 'bg-green-50 text-green-600 border border-green-200', label: 'Disponível (Antigo)' },
         'vendida':         { bg: 'bg-blue-900 text-white', label: 'Vendida' },
         'reservado':       { bg: 'bg-yellow-100 text-yellow-800 border border-yellow-200', label: 'Reservado' },

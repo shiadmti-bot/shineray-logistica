@@ -80,4 +80,20 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Route::class, 'default_route_id');
     }
+
+    /**
+     * Pedidos feitos PELA loja (destino)
+     */
+    public function pedidos()
+    {
+        return $this->hasMany(Pedido::class, 'user_id');
+    }
+
+    /**
+     * Pedidos feitos PARA a loja (origem/transferência)
+     */
+    public function pedidosOrigem()
+    {
+        return $this->hasMany(Pedido::class, 'origem_user_id');
+    }
 }

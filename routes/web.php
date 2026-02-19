@@ -56,7 +56,24 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         | DASHBOARD PRINCIPAL (LÓGICA DE PERFIS)
         |--------------------------------------------------------------------------
         */
+        // BI (Business Intelligence) - Novo Módulo
+        Route::get('/bi', [\App\Http\Controllers\BiController::class, 'index'])
+            ->middleware('check_perfil:admin,gestor') // Apenas Admin e Gestor
+            ->name('bi.index');
+
+        Route::get('/bi-debug', function() {
+            $p = \App\Models\Pedido::where('status', 'concluido')->latest()->with('logs')->first();
+            return $p ? $p->logs : 'Nenhum pedido concluído encontrado.';
+        });
+
+        // Integração Microwork (Estoque CD)
+        Route::get('/api/estoque-cd', [\App\Http\Controllers\Api\EstoqueController::class, 'index'])
+            ->middleware(['auth', 'verified'])
+            ->name('api.estoque.microwork');
+
         Route::get('/dashboard', function () {
+
+
             $user = Auth::user();
 
             // Gestor tem dashboard próprio

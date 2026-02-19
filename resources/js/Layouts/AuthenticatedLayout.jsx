@@ -22,7 +22,8 @@ import {
     ArrowRightOnRectangleIcon, // Logout
     EnvelopeIcon,
     PhoneIcon,
-    ClockIcon
+    ClockIcon,
+    PresentationChartLineIcon
 } from '@heroicons/react/24/outline';
 
 export default function Authenticated({ user, header, children }) {
@@ -102,7 +103,7 @@ export default function Authenticated({ user, header, children }) {
     const CustomNavLink = ({ active, href, children }) => (
         <Link
             href={href}
-            className={`inline-flex items-center px-3 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-full gap-2
+            className={`inline-flex items-center px-2 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-full gap-1
             ${active 
                 ? 'border-white text-white bg-white/10' 
                 : 'border-transparent text-red-100 hover:text-white hover:border-red-300 hover:bg-white/5'
@@ -136,7 +137,7 @@ export default function Authenticated({ user, header, children }) {
                             </div>
 
                             {/* --- MENU DESKTOP --- */}
-                            <div className="hidden space-x-4 sm:-my-px sm:ml-10 sm:flex items-center h-20">
+                            <div className="hidden space-x-1 sm:-my-px sm:ml-6 sm:flex items-center h-20">
                                 
                                 {/* 1. DASHBOARD (TODOS) */}
                                 <CustomNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')}>
@@ -147,6 +148,13 @@ export default function Authenticated({ user, header, children }) {
                                 <CustomNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')}>
                                     <CalendarIcon className="w-5 h-5" /> Calendário
                                 </CustomNavLink>
+
+                                {/* 3. BI (ADMIN/GESTOR) */}
+                                {['admin', 'gestor'].includes(currentUser.perfil) && (
+                                    <CustomNavLink href={safeRoute('bi.index')} active={isCurrent('bi.*')}>
+                                        <PresentationChartLineIcon className="w-5 h-5" /> BI Logística
+                                    </CustomNavLink>
+                                )}
 
                                 {/* 3. LINKS ESPECÍFICOS POR PERFIL */}
                                 
@@ -260,6 +268,12 @@ export default function Authenticated({ user, header, children }) {
                         <ResponsiveNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')} className="text-white flex items-center gap-2">
                             <CalendarIcon className="w-5 h-5" /> Calendário Logístico
                         </ResponsiveNavLink>
+
+                        {['admin', 'gestor'].includes(currentUser.perfil) && (
+                            <ResponsiveNavLink href={safeRoute('bi.index')} active={isCurrent('bi.*')} className="text-yellow-300 font-bold flex items-center gap-2 bg-white/10">
+                                <PresentationChartLineIcon className="w-5 h-5" /> BI Executivo
+                            </ResponsiveNavLink>
+                        )}
 
                         {/* Mobile LOJA */}
                         {currentUser.perfil === 'loja' && (
