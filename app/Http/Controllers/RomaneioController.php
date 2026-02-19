@@ -23,6 +23,7 @@ class RomaneioController extends Controller
         $dataFim = $request->input('data_fim');
 
         $query = Romaneio::with(['motos.pedidos', 'user', 'pedidos.motos']) 
+            ->orderByRaw("CASE WHEN status = 'concluido' THEN 2 ELSE 1 END ASC")
             ->orderBy('created_at', 'desc');
 
         // Filtro por DATA
