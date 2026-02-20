@@ -88,201 +88,254 @@ export default function Manual({ auth }) {
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
                                         title="Manual da Loja (V2)" 
-                                        subtitle="Fluxo Unificado: Reposição de Estoque e Transferência entre Filiais."
+                                        subtitle="Tudo o que você precisa saber para gerenciar seu estoque e transferências."
                                         color="red"
                                     />
                                     
-                                    {/* CENÁRIO A: PEDIR MOTO */}
+                                    {/* PASSO A PASSO GERAL DA LOJA */}
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-8">
+                                        <h3 className="text-xl font-black text-gray-800 border-b pb-4">🔄 Ciclo Completo de uma Moto (Como Pedir e Receber)</h3>
+                                        
+                                        <Step number="1" title="Criando o Pedido">
+                                            <p>Acesse o menu lateral e clique em <strong>Nova Solicitação</strong>. Preencha os dados da moto que você precisa.</p>
+                                            <ul className="list-disc ml-6 mt-3 space-y-2 text-sm text-gray-600">
+                                                <li><strong>Pedindo de outra Loja:</strong> Selecione o nome da loja no campo "Origem", preencha o Modelo, Cor e digite o <strong>Chassi Exato</strong> da moto.</li>
+                                                <li><strong>Pedindo da Fábrica (CD):</strong> Deixe o campo "Origem" vazio. Preencha apenas o Modelo e a Cor. O chassi será definido pelo CD na hora de enviar.</li>
+                                                <li><strong>Qual o Lote?:</strong> O campo "Local" já vem preenchido com a sua loja. Não altere a menos que esteja pedindo para uma loja secundária.</li>
+                                            </ul>
+                                        </Step>
+
+                                        <Step number="2" title="Aguardando a Aprovação (Gestor)">
+                                            <p>Ao salvar, seu pedido entra com o status <span className="text-purple-600 font-bold bg-purple-50 px-2 py-0.5 rounded">Em Análise</span>. <br/>
+                                            Neste momento, a Diretoria (Gestor) receberá um alerta para aprovar ou rejeitar o seu pedido com base no seu limite de crédito ou estoque da rede.</p>
+                                            <p className="mt-2 text-sm text-gray-500 italic">Você não precisa fazer nada além de aguardar.</p>
+                                        </Step>
+
+                                        <Step number="3" title="Logística e Separação">
+                                            <p>Quando aprovado, o status muda para <span className="text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded">Solicitado</span>.</p>
+                                            <ul className="list-disc ml-6 mt-3 space-y-2 text-sm text-gray-600">
+                                                <li>Se for um pedido do CD, a equipe do galpão vai separar a moto e emitir a nota.</li>
+                                                <li>Se for uma transferência de outra loja, a loja de origem precisará confirmar que a moto está separada no pátio dela clicando no botão de Separação.</li>
+                                            </ul>
+                                            <p className="mt-2 text-sm font-semibold text-gray-700">Logo após a separação, a equipe de logística encaixará sua moto na próxima rota de caminhão disponível.</p>
+                                        </Step>
+
+                                        <Step number="4" title="Em Trânsito">
+                                            <p>Assim que o caminhão for carregado e o motorista iniciar a viagem, seu pedido aparecerá como <span className="text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded text-xs"><TruckIcon className="w-3 h-3 inline" /> Em Trânsito</span> no seu Painel.</p>
+                                        </Step>
+
+                                        <Step number="5" title="Recebimento Completo (Finalização e Foto)">
+                                            <p className="font-bold text-red-600 mb-2">Atenção: Esta é a etapa mais importante para a segurança jurídica e financeira da loja!</p>
+                                            <p>Quando o caminhão chegar na frente da sua loja com as motos:</p>
+                                            <ol className="list-decimal ml-6 mt-3 space-y-3 text-sm text-gray-700">
+                                                <li>Desça as motos do caminhão e <strong>confira fisicamente o chassi</strong> de cada uma com o Romaneio de Carga que o motorista tem em mãos.</li>
+                                                <li>Se estiver tudo certo, assine o documento do motorista e bata o carimbo (se a loja tiver).</li>
+                                                <li>Acesse o sistema, abra o Pedido na tela inicial e clique no botão verde <strong>Conferir e Finalizar</strong>.</li>
+                                                <li>O sistema vai pedir o arquivo de <strong>Comprovante do Romaneio</strong>. Use o celular para tirar uma foto do documento assinado (bem legível) e faça o upload.</li>
+                                                <li>Se alguma moto chegou arranhada ou quebrada, preencha o campo de "Avaria" daquela moto específica na mesma tela de finalização e envie uma foto do dano.</li>
+                                                <li>Clique em Salvar. Pronto! O pedido está <strong>Concluído</strong> e as motos já fazem parte do seu saldo de estoque ativo.</li>
+                                            </ol>
+                                        </Step>
+                                    </div>
+
+                                    {/* COMO GERENCIAR O ESTOQUE DA LOJA */}
+                                    <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 mt-8 mb-8">
+                                        <h3 className="text-xl font-black text-blue-800 mb-4 flex items-center gap-2">
+                                            <ArchiveBoxIcon className="w-6 h-6" /> Como Funciona a Aba "Estoque" (Visão Loja)
+                                        </h3>
+                                        <p className="text-sm text-blue-900 mb-4">A tela de Estoque é dividida em duas abas principais na parte superior:</p>
+
+                                        <Step number="A" title="Meu Estoque">
+                                            <p>Mostra as motos que estão <strong>fisicamente na sua loja</strong>.</p>
+                                            <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
+                                                <li>Você vê apenas o que pertence à sua Filial.</li>
+                                                <li>Serve para auditoria rápida. Se a moto foi vendida no Microwork, certifique-se de que o Gestor Comercial altere o status dela para "Vendida" no sistema (se ele ainda não o fez).</li>
+                                                <li>Não é possível transferir a moto daqui (quem pede a transferência é a loja <em>destino</em>, usando o botão "Nova Solicitação").</li>
+                                            </ul>
+                                        </Step>
+
+                                        <Step number="B" title="Estoque Fábrica (Microwork)">
+                                            <p>Mostra as motos que estão <strong>disponíveis no galpão do CD</strong>, lendo os dados diretamente do sistema da Microwork em tempo real (espelho de 15 min).</p>
+                                            <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
+                                                <li><strong>Botão "Reservar":</strong> Ao clicar neste botão em um chassi, a moto fica invisível para as outras filiais. Imediatamente o sistema gera um "Pedido" no seu painel para que o CD separe a moto para você.</li>
+                                                <li><strong>Bloqueio Automático:</strong> Se a loja de Capanema clicar em "Reservar" a última Pop Preta do CD, nos segundos seguintes aquela Pop vai sumir da tela da loja de Belém para evitar que duas lojas comprem o mesmo chassi.</li>
+                                            </ul>
+                                        </Step>
+                                    </div>
+
+                                    {/* COMO DEVOLVER MOTO */}
                                     <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
                                         <h3 className="text-xl font-black text-red-800 mb-4 flex items-center gap-2">
-                                            <ArchiveBoxIcon className="w-6 h-6" /> Como Solicitar Motos (Entrada)
+                                            <ArrowUturnLeftIcon className="w-6 h-6" /> Como Devolver Motos (Para o CD)
                                         </h3>
-                                        
-                                        <Step number="1" title="Nova Solicitação">
-                                            <p>Acesse o menu e clique em <strong>Nova Solicitação</strong>. O formulário é o mesmo para qualquer tipo de pedido.</p>
-                                            <ul className="mt-3 space-y-2 text-sm text-gray-600 bg-white p-4 rounded-lg border border-red-200">
-                                                <li className="flex items-center gap-2"><TruckIcon className="w-4 h-4 text-gray-400" /> <strong>Reposição CD:</strong> Deixe o campo "Origem" vazio.</li>
-                                                <li className="flex items-center gap-2"><ArrowPathIcon className="w-4 h-4 text-gray-400" /> <strong>Transferência:</strong> Selecione a loja de onde a moto virá.</li>
-                                                <li className="flex items-center gap-2"><InformationCircleIcon className="w-4 h-4 text-gray-400" /> <strong>Chassi:</strong> Digite o chassi exato (para transferências).</li>
-                                            </ul>
-                                        </Step>
-
-                                        <Step number="2" title="Aprovação e Rastreio">
-                                            <p>Todo pedido entra como <span className="text-purple-600 font-bold">EM ANÁLISE</span>. O Gestor Comercial precisa aprovar.</p>
-                                            <p className="mt-2 text-sm">Acompanhe pelo Dashboard:</p>
-                                            <div className="flex gap-2 mt-2">
-                                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-200 flex items-center gap-1"><CheckCircleIcon className="w-3 h-3" /> Solicitado</span>
-                                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200 flex items-center gap-1"><TruckIcon className="w-3 h-3" /> Em Trânsito</span>
-                                            </div>
-                                        </Step>
-                                    </div>
-
-                                    {/* CENÁRIO B: ENVIAR MOTO (TRANSFERÊNCIA PASSIVA) */}
-                                    <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
-                                        <h3 className="text-xl font-black text-orange-800 mb-4 flex items-center gap-2">
-                                            <ArrowPathIcon className="w-6 h-6" /> Como Enviar Motos (Saída/Transferência)
-                                        </h3>
-                                        <p className="text-sm text-orange-900 mb-6 flex items-center gap-2">
-                                            <ExclamationTriangleIcon className="w-5 h-5" /> Quando outra loja pede uma moto sua, você receberá um <strong>ALERTA GIGANTE</strong> no seu Dashboard.
-                                        </p>
-
-                                        <Step number="1" title="1. Separar no Pátio">
-                                            <p>Ao ver o alerta "Pendente de Separação", clique no botão. Localize a moto física e clique em <strong>Confirmar Separação</strong>.</p>
-                                            <p className="text-xs text-gray-500 mt-1">O status muda para "Separado". Isso avisa a logística que a moto está pronta.</p>
-                                        </Step>
-
-                                        <Step number="2" title="2. Aguardar o Caminhão (Milk Run)">
-                                            <p>O status mudará para <span className="font-bold text-orange-600">AGUARDANDO COLETA</span>. Isso significa que o romaneio foi gerado e o motorista está vindo.</p>
-                                        </Step>
-
-                                        <Step number="3" title="3. O Caminhão Chegou">
-                                            <p>Entregue a moto ao motorista. Ele ligará para o CD para confirmar a coleta no sistema.</p>
-                                            <p className="text-xs bg-white p-2 rounded border border-orange-200 mt-2 flex items-start gap-2">
-                                                <InformationCircleIcon className="w-4 h-4 text-orange-400 mt-0.5" />
-                                                <span><strong>Nota:</strong> Você não dá baixa na saída. A baixa ocorre automaticamente quando o motorista confirma a coleta.</span>
-                                            </p>
-                                        </Step>
-                                    </div>
-
-                                    {/* CENÁRIO C: DEVOLUÇÃO (LOGÍSTICA REVERSA) */}
-                                    <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
-                                        <h3 className="text-xl font-black text-purple-800 mb-4 flex items-center gap-2">
-                                            <ArrowUturnLeftIcon className="w-6 h-6" /> Devolução ao CD (Logística Reversa)
-                                        </h3>
-                                        
-                                        <Step number="1" title="Solicitar Devolução">
-                                            <p>Para enviar motos de volta para a Matriz (por defeito, avaria grave ou troca):</p>
-                                            <ul className="list-disc ml-6 mt-2 text-sm text-gray-700">
-                                                <li>No formulário de <strong>Nova Solicitação</strong>, escolha a opção <strong className="text-purple-700">Devolução CD</strong>.</li>
-                                                <li>O campo "Destino" será travado em "Matriz / CD".</li>
-                                                <li>Digite o <strong>Chassi</strong> obrigatório e selecione o motivo.</li>
-                                            </ul>
-                                        </Step>
-
-                                        <Step number="2" title="Envie para Análise">
-                                            <p>Assim que clicar em "Confirmar Devolução", o pedido vai para o Gestor Comercial aprovar.</p>
-                                            <p className="mt-1 text-sm">Após aprovado, o CD organizará a coleta no próximo caminhão.</p>
-                                        </Step>
-                                    </div>
-
-                                    <Step number="Final" title="Recebimento e Baixa">
-                                        <p>Quando receber uma moto (seja do CD ou de outra loja):</p>
-                                        <ol className="list-decimal ml-6 mt-3 text-sm text-gray-700 space-y-2">
-                                            <li>Confira o chassi físico.</li>
-                                            <li>Assine o manifesto do motorista.</li>
-                                            <li>No sistema, clique em <strong>Conferir e Finalizar</strong>.</li>
-                                            <li>Tire uma foto legível do documento assinado e anexe.</li>
+                                        <p className="text-sm text-red-900 mb-4">Caso precise devolver uma moto por renegociação, troca ou sucata, o fluxo é uma Transferência ao contrário.</p>
+                                        <ol className="list-decimal ml-6 space-y-2 text-sm text-gray-700">
+                                            <li>Na tela de "Nova Solicitação", mude a chave principal de "Pedido" para <strong>Devolução ao CD</strong>.</li>
+                                            <li>O destino será travado automaticamente em "Matriz / CD".</li>
+                                            <li>Preencha o chassi (obrigatório) da moto que está na sua loja e será mandada embora.</li>
+                                            <li>O Gestor precisará aprovar essa devolução antes do caminhão ir buscar.</li>
                                         </ol>
-                                    </Step>
+                                    </div>
                                 </div>
                             )}
 
                             {activeTab === 'gestor' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Painel do Gestor" 
-                                        subtitle="O Gatekeeper: Nada sai ou entra sem sua aprovação."
+                                        title="Manual do Gestor" 
+                                        subtitle="Gerenciamento comercial, aprovações e liberação de carga."
                                         color="purple"
                                     />
 
-                                    <div className="bg-purple-50 p-4 rounded-xl border border-purple-200 mb-6 flex items-start gap-3">
-                                        <PhoneIcon className="w-8 h-8 text-purple-600" />
-                                        <div>
-                                            <h4 className="font-bold text-purple-900">Mobile First</h4>
-                                            <p className="text-sm text-purple-800">
-                                                O painel foi desenhado para ser usado em Tablets ou Celulares, permitindo aprovações rápidas de qualquer lugar.
-                                            </p>
-                                        </div>
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-8">
+                                        <h3 className="text-xl font-black text-gray-800 border-b pb-4">🛡️ O Fluxo de Aprovação Comercial</h3>
+
+                                        <Step number="1" title="Notificação de Novo Pedido">
+                                            <p>As filiais realizam as solicitações pelo sistema. Assim que a loja salva o carrinho de motos, você (Gestor) recebe uma notificação (no celular pelo app OneSignal e dentro do próprio sistema).</p>
+                                            <p className="text-sm mt-2 text-gray-600">Acesse a aba <strong>Gestão</strong> no menu esquerdo para ver todos os pedidos aguardando o seu carimbo de liberação.</p>
+                                        </Step>
+
+                                        <Step number="2" title="Análise Financeira e de Cadastro">
+                                            <p>Abra o pedido pendente. A tela mostrará os detalhes vitais:</p>
+                                            <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-gray-700">
+                                                <li><strong>Quem pediu:</strong> A loja solicitante (que vai pagar).</li>
+                                                <li><strong>De onde sai:</strong> Se está saindo do CD (Fábrica) ou se é uma transferência roubando estoque de outra loja.</li>
+                                                <li><strong>Quantidade de Motos:</strong> A lista completa com Chassis e Modelos.</li>
+                                            </ul>
+                                            <p className="text-sm mt-2 font-medium text-gray-800">Verifique nos seus controles financeiros (ERP/Planilhas) se a loja possui limite de crédito ou pagou pelo produto.</p>
+                                        </Step>
+
+                                        <Step number="3" title="Aprovação (Total ou Parcial)">
+                                            <p>Se a loja pediu 5 motos, mas só pagou por 3, o sistema permite <strong>Cortes Parciais</strong>.</p>
+                                            <div className="bg-gray-50 p-4 mt-3 rounded-lg border border-gray-200">
+                                                <p className="text-sm mb-2 font-bold text-gray-700">Como fazer cortes de reprovação:</p>
+                                                <ul className="text-sm text-gray-600 space-y-2">
+                                                    <li className="flex items-center gap-2"><CheckCircleIcon className="w-5 h-5 text-green-600" /> Ao lado de cada moto listada existe um ícone Verde. Isso significa que essa unidade passará.</li>
+                                                    <li className="flex items-center gap-2"><XCircleIcon className="w-5 h-5 text-red-600" /> Ao clicar no verde, ele fica Vermelho. As motos vermelhas <strong>serão sumariamente deletadas</strong> do pedido na hora da aprovação final.</li>
+                                                </ul>
+                                            </div>
+                                            <p className="mt-4 text-sm">Após fazer as podas (ou manter tudo verde), clique em <strong>Aprovar Pedido</strong>.</p>
+                                        </Step>
+
+                                        <Step number="4" title="Faturamento vs Logística (Importante)">
+                                            <p className="text-red-600 font-bold mb-1">Aprovar no Sistema Web não é a mesma coisa que faturar no ERP!</p>
+                                            <p className="text-sm text-gray-700">Quando a Diretoria aperta o botão "Aprovar":</p>
+                                            <ul className="list-disc ml-6 text-sm text-gray-600 mt-2 space-y-1">
+                                                <li>A logística do CD é notificada que as motos foram autorizadas para subirem no caminhão.</li>
+                                                <li>O Faturamento (NF-e) deve ser gerado pelo faturista <strong>utilizando o Microwork</strong> antes da saída do caminhão do Galpão. O sistema logístico não emite Notas Fiscais.</li>
+                                            </ul>
+                                        </Step>
+                                        
+                                        <Step number="5" title="Aprovações Restritas (Estornos)">
+                                            <p>As vezes a loja erra no momento do recebimento (ou o cliente devolve no dia seguinte) e pede o "Estorno" da moto para que ela volte ao painel de "Disponível". Essa ação exige a sua senha. Você deverá analisar o "Motivo do Estorno" e clicar em conceder ou negar na mesma tela da Gestão.</p>
+                                        </Step>
                                     </div>
-
-                                    <Step number="1" title="Auditoria de Pedidos">
-                                        <p>Você verá uma lista de solicitações pendentes. Clique em um pedido para ver os detalhes (Cliente, Destino, Chassis).</p>
-                                    </Step>
-
-                                    <Step number="2" title="Cortes (Rejeição Parcial)">
-                                        <p>Se um pedido tem 10 motos e o cliente só tem crédito para 8:</p>
-                                        <ul className="mt-2 text-sm text-gray-700 space-y-1 ml-4">
-                                            <li className="flex items-center gap-2"><CheckCircleIcon className="w-4 h-4 text-green-600" /> <strong>Verde:</strong> Item Aprovado.</li>
-                                            <li className="flex items-center gap-2"><XCircleIcon className="w-4 h-4 text-red-600" /> <strong>Vermelho:</strong> Toque no item para Rejeitar/Cortar.</li>
-                                        </ul>
-                                        <p className="mt-2 text-xs text-red-600 font-bold">Itens vermelhos serão excluídos do pedido ao finalizar.</p>
-                                    </Step>
-
-                                    <Step number="3" title="Estornos">
-                                        <p>Se uma loja pedir o estorno de uma venda ou devolução, a solicitação aparecerá no seu painel para autorização antes de liberar a logística reversa.</p>
-                                    </Step>
                                 </div>
                             )}
 
                             {activeTab === 'cd' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Logística V2: Hub & Spoke" 
-                                        subtitle="Gerenciamento de Cargas, Coletas e Transbordos."
+                                        title="Manual da Logística / Expedição CD" 
+                                        subtitle="Montagem de cargas, controle de rotas e entrega final."
                                         color="blue"
                                     />
 
-                                    <Step number="1" title="Mesa de Operação (Montagem de Carga)">
-                                        <p>Ao criar um novo Romaneio, você verá duas colunas:</p>
-                                        <div className="grid md:grid-cols-2 gap-4 mt-3 text-sm">
-                                            <div className="p-4 bg-blue-50 rounded border border-blue-200">
-                                                <h4 className="font-bold text-blue-800 flex items-center gap-2"><ArchiveBoxIcon className="w-4 h-4" /> Expedição CD</h4>
-                                                <p>Itens que estão fisicamente no seu estoque. <br/>Status ao salvar: <strong>Expedido</strong>.</p>
-                                            </div>
-                                            <div className="p-4 bg-orange-50 rounded border border-orange-200">
-                                                <h4 className="font-bold text-orange-800 flex items-center gap-2"><TruckIcon className="w-4 h-4" /> Coletas (Milk Run)</h4>
-                                                <p>Itens em outras lojas que o caminhão deve buscar. <br/>Status ao salvar: <strong>Aguardando Coleta</strong>.</p>
-                                            </div>
-                                        </div>
-                                    </Step>
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-8">
+                                        <h3 className="text-xl font-black text-gray-800 border-b pb-4">🚚 O Fluxo Físico da Moto (do Galpão ao Caminhão)</h3>
 
-                                    <Step number="2" title="O Processo de Milk Run">
-                                        <p>O caminhão pode sair vazio do CD apenas para realizar coletas.</p>
-                                        <ul className="list-disc ml-6 mt-2 text-gray-600 text-sm">
-                                            <li>O motorista chega na loja de origem.</li>
-                                            <li>Ele confere a moto e liga para o CD.</li>
-                                            <li>O CD acessa o Romaneio e clica em <strong>Confirmar Coleta</strong>.</li>
-                                            <li>A moto passa a constar "A Bordo" do caminhão.</li>
-                                        </ul>
-                                    </Step>
+                                        <Step number="1" title="Motos 'No Radar' (Solicitadas)">
+                                            <p>Assim que o <strong>Gestor</strong> Comercial aprova um pedido (da Fábrica ou de outra loja), o pedido cai no radar logístico com o status de "Solicitado".</p>
+                                            <ul className="list-disc ml-6 mt-2 text-sm text-gray-600 space-y-2">
+                                                <li><strong>Motos do CD:</strong> Cabe à equipe do Pátio do CD separar essa moto do lote, conferir os itens mecânicos e clicar fisicamente em "Separar" confirmando que a moto existe e está ali pronta para embarque.</li>
+                                                <li><strong>Motos em Lojas (Transferência):</strong> A própria loja emitente precisa acessar o painel dela e clicar que já separou a moto no pátio físico de lá.</li>
+                                            </ul>
+                                        </Step>
 
-                                    <Step number="3" title="Transbordo (Hub & Spoke)">
-                                        <p>Se o caminhão coletar uma moto no interior e trouxer para o CD (para depois ir a outra loja):</p>
-                                        <ul className="list-disc ml-6 mt-2 text-gray-600 text-sm">
-                                            <li>Ao chegar no CD, clique em <strong>Receber Carga</strong>.</li>
-                                            <li>Os itens de transbordo ficarão com status <span className="text-purple-600 font-bold">NO CD</span>.</li>
-                                            <li>Eles aparecerão automaticamente na lista de "Expedição" para serem alocados no próximo caminhão de saída.</li>
-                                        </ul>
-                                    </Step>
+                                        <Step number="2" title="Montando o Caminhão (Criando Romaneio)">
+                                            <p>Quando o faturamento foi feito e o caminhão encostou na Doca para as rotas do dia, vá ao menu "Expedição" e clique em <strong>Novo Romaneio</strong>.</p>
+                                            <p className="mt-2 text-sm text-gray-700">A tela mostrará a lista de tudo que está "Separado" no Pará inteiro naquele dia.</p>
+                                            <ol className="list-decimal ml-6 mt-2 text-sm text-gray-600 space-y-2">
+                                                <li>Preencha os dados do Motorista e a Placa do Caminhão.</li>
+                                                <li><strong>Marque as caixinhas</strong> dos pedidos que cabem dentro deste caminhão e farão parte daquela Rota Específica.</li>
+                                                <li>Você pode escolher motos do CD (Saídas) e também motos de outras Lojas (o Caminhão passará lá e fará a coleta milk-run).</li>
+                                                <li>Clique em Salvar e Gerar Carga. O sistema criará as listas de entrega para o motorista imprimir e assinar!</li>
+                                            </ol>
+                                        </Step>
+
+                                        <Step number="3" title="O Caminhão Caiu na Estrada">
+                                            <p>Após imprimir os papéis (manifestos), clique no botão <span className="text-orange-600 font-bold border border-orange-600 px-2 py-0.5 rounded text-xs">Aprovar Saída do Galpão</span> na tela do Romaneio criado.</p>
+                                            <p className="mt-2 text-sm text-gray-600">Nesse momento mágico, todos os pedidos incluídos nessa carga passam para o status "Em Trânsito", e os telefones e telas das Lojas disparam avisando que a moto acabou de sair do CD na placa informada!</p>
+                                        </Step>
+
+                                        <Step number="4" title="Confirmando as Coletas Externas">
+                                            <p>Se o caminhão estiver fazendo <strong>Milk Run</strong> (coletando uma moto numa loja do interior para levar para outra loja):</p>
+                                            <ul className="list-disc ml-6 mt-2 text-sm text-gray-600 space-y-2">
+                                                <li>O motorista chega na loja remota (ex: Castanhal) para retirar uma Pop para levar à Belém.</li>
+                                                <li>O motorista liga pro CD confirmando que colocou a Pop no baú.</li>
+                                                <li>Pelo sistema de expedição, abra o Romaneio em trânsito e aperte no botão verde de <span className="font-bold text-green-700 bg-green-100 px-2 rounded">Coletar Item</span> ao lado daquela moto específica de Castanhal.</li>
+                                                <li>Isso atualiza o sistema oficial dizendo que a loja entregou o produto.</li>
+                                            </ul>
+                                        </Step>
+
+                                        <Step number="5" title="Finalização Fica Por Conta das Lojas">
+                                            <p>O caminhão chega no destino final. Quem encerra as motos no sistema e faz o upload da foto dos documentos assinados (Finalização) é o lojista, acessando a aba dele e checando individualmente cada moto e eventuais arranhões. O CD apenas administra a Rota Física!</p>
+                                        </Step>
+                                    </div>
+
+                                    {/* CONTROLE DE ESTOQUE CD */}
+                                    <div className="bg-green-50 p-6 rounded-2xl border border-green-100 mt-8 mb-8">
+                                        <h3 className="text-xl font-black text-green-800 mb-4 flex items-center gap-2">
+                                            <ArchiveBoxIcon className="w-6 h-6" /> Controle de Estoque (Visão CD)
+                                        </h3>
+                                        <p className="text-sm text-green-900 mb-4">Acesso direto pelo menu "Estoque" (Motos) no painel esquerdo.</p>
+
+                                        <Step number="A" title="Visão Global do Chassi">
+                                            <p>Ao contrário da loja, a equipe do CD enxerga <strong>todas as motos cadastradas</strong> no sistema, independentemente de estarem na loja A, B ou no galpão central.</p>
+                                            <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
+                                                <li>O objetivo central da aba de Estoque para o CD é rastreabilidade.</li>
+                                                <li>Você pode usar as caixas de Filtro para buscar Chassis Específicos ou ver em qual loja física uma moto está alocada.</li>
+                                            </ul>
+                                        </Step>
+
+                                        <Step number="B" title="Consulta Microwork (Estoque CD)">
+                                            <p>Na visualização avançada do Estoque (quando ativa), o CD também tem acesso à aba de "Estoque Microwork", que espelha o sistema local de vendas.</p>
+                                            <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
+                                                <li>Motos que aparecem com tarja "Reservado" significam que alguma loja apertou o botão de Reserva local. Ela não está disponível para faturamento genérico.</li>
+                                                <li>Para qualquer divergência entre o Sistema Sabel e o Microwork de chão de fábrica, a equipe de TI deve ser acionada para re-sincronizar os bancos (via botão de sincronização caso visível).</li>
+                                            </ul>
+                                        </Step>
+                                    </div>
                                 </div>
                             )}
 
                             {activeTab === 'drive' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Arquivamento Digital" 
-                                        subtitle="Backup automático e organização de documentos."
+                                        title="Manuseio de Arquivos & Uploads" 
+                                        subtitle="O que pode dar errado ao enviar recibos de recebimento."
                                         color="green"
                                     />
-
-                                    <Step number="1" title="Upload Obrigatório">
-                                        <p>Nenhum pedido pode ser finalizado sem a foto do comprovante (Romaneio/Canhoto assinado).</p>
-                                    </Step>
-
-                                    <Step number="2" title="Organização Automática">
-                                        <p>O sistema renomeia e organiza os arquivos na nuvem (Google Drive) seguindo a estrutura:</p>
-                                        <div className="mt-4 font-mono text-xs md:text-sm bg-gray-100 p-4 rounded-lg border border-gray-300 text-gray-700 overflow-x-auto shadow-inner flex items-center gap-2">
-                                            <ArchiveBoxIcon className="w-4 h-4" /> 2026 / <ArchiveBoxIcon className="w-4 h-4" /> [Mês] / <ArchiveBoxIcon className="w-4 h-4" /> [Nome da Loja] / <DocumentTextIcon className="w-4 h-4" /> Pedido_[ID].pdf
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6">
+                                        <p className="font-medium text-gray-700">Ao clicar em Conferir e Finalizar, os arquivos fotográficos são automaticamente convertidos e salvos na Nuvem.</p>
+                                        
+                                        <div className="mt-4 bg-gray-50 border border-gray-200 rounded p-4">
+                                            <h4 className="font-bold text-gray-800 mb-2">Erros Comuns no Envio de Foto (Celular):</h4>
+                                            <ul className="list-disc ml-5 space-y-2 text-sm text-gray-600">
+                                                <li><strong>O sistema carrega e não acontece nada:</strong> O arquivo da foto do seu celular é pesado demais (câmeras de 100 Megapixels). O sistema tenta comprimir a foto antes pra enviar, mas alguns celulares antigos travam nisso. Solução: tire print da foto na galeria, o print é mais leve pra enviar!</li>
+                                                <li><strong>Documento Ilegível:</strong> O Gestor não poderá auditar a carga caso você tire uma foto balançada, escura ou borrada da assinatura. Se precisar envie novamente no grupo do Whatsapp pedindo correção, caso contrário pode ter desconto na comissão.</li>
+                                                <li><strong>Backup Ativo:</strong> Se o Google Drive Corporativo cair, o sistema continuará funcionando, salvará as fotos no próprio servidor do painel local sem paralizar as entregas.</li>
+                                            </ul>
                                         </div>
-                                    </Step>
+                                    </div>
                                 </div>
                             )}
 
                             {activeTab === 'faq' && (
                                 <div className="space-y-8 animate-fade-in">
                                     <HeaderSection 
-                                        title="Suporte Técnico" 
-                                        subtitle="Solução de problemas e contato direto."
+                                        title="Suporte TI & Resolução de Problemas" 
+                                        subtitle="Bugs, travas logísticas e contatos."
                                         color="gray"
                                     />
 
