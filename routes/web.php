@@ -49,6 +49,20 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
     // --- PÚBLICO ---
     Route::get('/', function () { return redirect()->route('login'); });
 
+    // Webhook para o Vercel Cron rodar o agendador do Laravel
+    Route::get('/api/cron/schedule', function (\Illuminate\Http\Request $request) {
+        $authHeader = $request->header('Authorization');
+        $cronSecret = env('CRON_SECRET');
+        
+        // Proteção para garantir que só a Vercel através da secret chame o agendador
+        if ($cronSecret && $authHeader !== "Bearer $cronSecret") {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        \Illuminate\Support\Facades\Artisan::call('schedule:run');
+        return response()->json(['message' => 'Cron rodado com sucesso!']);
+    });
+
     // --- AUTENTICADO ---
     Route::middleware(['auth', 'verified'])->group(function () {
 

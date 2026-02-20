@@ -29,11 +29,34 @@ class MicroworkService
      */
     public function getEstoqueCD()
     {
-        // Cache por 5 minutos
-        return Cache::remember('estoque_cd_microwork', 300, function () {
-            $data = $this->fetchFromApi();
-            return $this->filterPatios($data);
-        });
+        // Retorna apenas os dados em cache (Carregados previamente pelo Cron Job)
+        // Isso evita que a requisição do usuário seja penalizada com a latência da API externa
+        // e culmine no Vercel (Timeout)
+        return Cache::get('estoque_cd_microwork', []);
+    }
+
+    /**
+     * Sincroniza o estoque com a API da MicroworkCloud e salva no cache local
+     * Recomendado rodar via console/background job a cada 10 ou 15 min.
+     */
+    public function syncEstoqueFromApi()
+    {
+        Log::info('MicroworkService: Sincronizando estoque a partir da API...');
+        
+        $data = $this->fetchFromApi();
+        
+        if (empty($data)) {
+            Log::warning('MicroworkService: A API retornou vazio ou erro, abortando atualização do cache para não sobrescrever dados válidos.');
+            return false;
+        }
+
+        $filteredData = $this->filterPatios($data);
+        
+        // Salvar por longo período, confiando que o Job rodará frequentemente para mantê-lo atualizado
+        Cache::put('estoque_cd_microwork', $filteredData, now()->addHours(24));
+        
+        Log::info('MicroworkService: Sincronização armazenada em cache com sucesso. Itens filtrados: ' . count($filteredData));
+        return true;
     }
 
     private function filterPatios($data)
