@@ -9,6 +9,7 @@ export default function StockTable({ user }) {
     const [reservas, setReservas] = useState([]);
     const [error, setError] = useState(null);
     const [filtro, setFiltro] = useState('');
+    const [statusFiltro, setStatusFiltro] = useState('todas'); // 'todas', 'reservadas', 'livres'
     const [expandedStatus, setExpandedStatus] = useState({}); // Controla se o bloco "Situação" está aberto ou fechado
     const [expandedModel, setExpandedModel] = useState(null); // Controla qual Modelo está aberto dentro da Situação
     const [selectedMotos, setSelectedMotos] = useState([]); // Array com os objetos das motos selecionadas
@@ -45,6 +46,10 @@ export default function StockTable({ user }) {
         const chassi = item.Chassi || item.chassi || '';
         const isDisponivel = patioStr.includes('MOTOS MONTADAS') || patioStr.includes('DESMONTADA CD');
         const isReservado = reservas.includes(chassi);
+
+        // Filtro de Status Reservada
+        if (statusFiltro === 'reservadas' && !isReservado) return false;
+        if (statusFiltro === 'livres' && isReservado) return false;
 
         // Lojas comerciais só podem ver o que está com status "Disponível" e NÃO "Reservado"
         if (isLoja && (!isDisponivel || isReservado)) {
@@ -143,6 +148,9 @@ export default function StockTable({ user }) {
     };
 
     const handlePrintConference = async () => {
+        const anosUnicos = [...new Set(estoqueFiltrado.map(m => m.AnoFabricacao || m.anofabricacao || '').filter(Boolean))].sort();
+        const anosOptions = anosUnicos.map(ano => `<option value="${ano}">Ano: ${ano}</option>`).join('');
+
         const { value: formValues } = await Swal.fire({
             title: 'Imprimir Conferência',
             html: `
@@ -156,6 +164,13 @@ export default function StockTable({ user }) {
                             <option value="lista">Lista Simples (Sem agrupamento)</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Filtrar por Ano</label>
+                        <select id="swal-print-ano" class="w-full border-gray-300 rounded-lg shadow-sm text-sm p-3">
+                            <option value="todos">Todos os Anos</option>
+                            ${anosOptions}
+                        </select>
+                    </div>
                     <p class="text-xs text-gray-500 mt-2 text-center">Serão impressas apenas as motos (<b>${estoqueFiltrado.length}</b>) atualmente visíveis em tela pelos filtros de busca.</p>
                 </div>
             `,
@@ -165,17 +180,45 @@ export default function StockTable({ user }) {
             cancelButtonText: 'Cancelar',
             preConfirm: () => {
                 return {
-                    grupo: document.getElementById('swal-print-group').value
+                    grupo: document.getElementById('swal-print-group').value,
+                    ano: document.getElementById('swal-print-ano').value
                 }
             }
         });
 
         if (formValues) {
-            generatePrint(formValues.grupo);
+            generatePrint(formValues.grupo, formValues.ano);
         }
     };
 
-    const generatePrint = (agrupamento) => {
+    const generatePrint = (agrupamento, anoFiltro) => {
+        let itemsParaImprimir = estoqueFiltrado;
+        if (anoFiltro && anoFiltro !== 'todos') {
+            itemsParaImprimir = itemsParaImprimir.filter(m => (m.AnoFabricacao || m.anofabricacao) == anoFiltro);
+        }
+
+        // Re-agrupar baseado apenas nos itemsParaImprimir para o agrupamento por "situação"
+        const gruposImprimir = itemsParaImprimir.reduce((acc, moto) => {
+            const patioStr = (moto.patio || '').toUpperCase();
+            let situacao = 'Indisponível';
+            if (patioStr.includes('MOTOS MONTADAS') || patioStr.includes('DESMONTADA CD')) situacao = 'Disponível';
+            else if (patioStr.includes('CD EXPEDI')) situacao = 'Separada / Solicitada';
+            else if (patioStr.includes('AVARIA')) situacao = 'Em Conserto';
+            else if (patioStr.includes('INATIVADA')) situacao = 'Parada';
+
+            if (!acc[situacao]) acc[situacao] = { total: 0, modelos: {} };
+            const modelo = moto.Modelo || moto.modelo || 'Outros Modelos / N/A';
+            if (!acc[situacao].modelos[modelo]) acc[situacao].modelos[modelo] = { motos: [], total: 0 };
+
+            acc[situacao].modelos[modelo].motos.push(moto);
+            acc[situacao].modelos[modelo].total++;
+            acc[situacao].total++;
+            return acc;
+        }, {});
+
+        const orderSituacoes = ['Disponível', 'Separada / Solicitada', 'Em Conserto', 'Parada', 'Indisponível'];
+        const situacoesAgrupadasImprimir = Object.entries(gruposImprimir).sort((a, b) => orderSituacoes.indexOf(a[0]) - orderSituacoes.indexOf(b[0]));
+
         let html = `
             <!DOCTYPE html>
             <html>
@@ -208,7 +251,7 @@ export default function StockTable({ user }) {
                     <div class="header-info">
                         Impresso em: ${new Date().toLocaleString('pt-BR')}<br/>
                         Usuário: ${user?.name || 'Sistema'}<br/>
-                        Total de Veículos na Busca: <b>${estoqueFiltrado.length}</b>
+                        Total de Veículos Impressos: <b>${itemsParaImprimir.length}</b>${anoFiltro !== 'todos' ? ` (Ano: ${anoFiltro})` : ''}
                     </div>
                 </div>
         `;
@@ -242,11 +285,11 @@ export default function StockTable({ user }) {
             `;
         };
 
-        if (estoqueFiltrado.length === 0) {
+        if (itemsParaImprimir.length === 0) {
             html += '<p>Nenhuma moto encontrada com os filtros atuais.</p>';
         } else {
             if (agrupamento === 'situacao') {
-                situacoesAgrupadas.forEach(([sitName, sitData]) => {
+                situacoesAgrupadasImprimir.forEach(([sitName, sitData]) => {
                     html += `<h3>${sitName} (Total: ${sitData.total})</h3>`;
                     Object.entries(sitData.modelos).sort().forEach(([modName, modData]) => {
                         html += `<h4>Modelo: ${modName} (QTD: ${modData.total})</h4>`;
@@ -257,7 +300,7 @@ export default function StockTable({ user }) {
                 });
             } else if (agrupamento === 'patio') {
                 const porPatio = {};
-                estoqueFiltrado.forEach(m => {
+                itemsParaImprimir.forEach(m => {
                     const p = m.patio || 'NÃO LOCALIZADO';
                     if (!porPatio[p]) porPatio[p] = { motos: [], total: 0 };
                     porPatio[p].motos.push(m);
@@ -282,7 +325,7 @@ export default function StockTable({ user }) {
                 });
             } else if (agrupamento === 'modelo') {
                 const porModelo = {};
-                estoqueFiltrado.forEach(m => {
+                itemsParaImprimir.forEach(m => {
                     const model = m.Modelo || m.modelo || 'Outros';
                     if (!porModelo[model]) porModelo[model] = [];
                     porModelo[model].push(m);
@@ -295,7 +338,7 @@ export default function StockTable({ user }) {
                 });
             } else {
                 html += `<table>${renderTableHead()}`;
-                estoqueFiltrado.forEach((m, idx) => html += renderTableRow(m, idx));
+                itemsParaImprimir.forEach((m, idx) => html += renderTableRow(m, idx));
                 html += `</tbody></table>`;
             }
         }
@@ -315,7 +358,17 @@ export default function StockTable({ user }) {
                     {loading && <ArrowPathIcon className="w-5 h-5 animate-spin text-gray-500" />}
                 </h2>
                 
-                <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                    <select
+                        className="w-full md:w-auto border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        value={statusFiltro}
+                        onChange={(e) => setStatusFiltro(e.target.value)}
+                    >
+                        <option value="todas">Todas as Motos</option>
+                        <option value="reservadas">Apenas Reservadas</option>
+                        <option value="livres">Apenas Livres</option>
+                    </select>
+
                     <input 
                         type="text" 
                         placeholder="Filtrar por Modelo, Cor ou Chassi..." 
