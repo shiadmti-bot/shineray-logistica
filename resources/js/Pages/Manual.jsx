@@ -138,42 +138,52 @@ export default function Manual({ auth }) {
                                         </Step>
                                     </div>
 
-                                    {/* COMO GERENCIAR O ESTOQUE DA LOJA */}
-                                    <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 mt-8 mb-8">
-                                        <h3 className="text-xl font-black text-blue-800 mb-4 flex items-center gap-2">
-                                            <ArchiveBoxIcon className="w-6 h-6" /> Como Funciona a Aba "Estoque" (Visão Loja)
+                                    {/* CENÁRIO B: ENVIAR MOTO (TRANSFERÊNCIA PASSIVA) */}
+                                    <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100 mt-8 mb-8">
+                                        <h3 className="text-xl font-black text-orange-800 mb-4 flex items-center gap-2">
+                                            <ArrowPathIcon className="w-6 h-6" /> Como Enviar Motos (Saída / Transferência)
                                         </h3>
-                                        <p className="text-sm text-blue-900 mb-4">A tela de Estoque é dividida em duas abas principais na parte superior:</p>
+                                        <p className="text-sm text-orange-900 mb-6 flex items-center gap-2">
+                                            <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" /> Quando outra loja pede uma moto sua (ou o Gestor manda transferir), você receberá um <strong>ALERTA MÁXIMO</strong> no Dashboard informando que você tem motos pendentes de envio.
+                                        </p>
 
-                                        <Step number="A" title="Meu Estoque">
-                                            <p>Mostra as motos que estão <strong>fisicamente na sua loja</strong>.</p>
+                                        <Step number="1" title="Ação Urgente: Separar no Pátio">
+                                            <p>Ao ver o alerta <span className="text-red-600 font-bold bg-white px-2 py-0.5 rounded border border-red-200">Ação Necessária: X Motos Pendentes de Separação</span> no painel inicial:</p>
                                             <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
-                                                <li>Você vê apenas o que pertence à sua Filial.</li>
-                                                <li>Serve para auditoria rápida. Se a moto foi vendida no Microwork, certifique-se de que o Gestor Comercial altere o status dela para "Vendida" no sistema (se ele ainda não o fez).</li>
-                                                <li>Não é possível transferir a moto daqui (quem pede a transferência é a loja <em>destino</em>, usando o botão "Nova Solicitação").</li>
+                                                <li>Clique no botão de alerta para abrir a lista de chassis que estão sendo solicitados.</li>
+                                                <li>Vá até o pátio/estoque físico da sua loja, localize a moto específica pedida.</li>
+                                                <li>Volte ao sistema e clique no botão <strong>Confirmar Separação</strong> referente àquela moto.</li>
+                                                <li><strong>Importante:</strong> Isso muda o status dela para "Separado", sinalizando para a logística (CD) de que o seu gerente já bateu o olho nela e ela está pronta na porta da loja esperando o caminhão.</li>
                                             </ul>
                                         </Step>
 
-                                        <Step number="B" title="Estoque Fábrica (Microwork)">
-                                            <p>Mostra as motos que estão <strong>disponíveis no galpão do CD</strong>, lendo os dados diretamente do sistema da Microwork em tempo real (espelho de 15 min).</p>
+                                        <Step number="2" title="Logística (Aguardando o Milk Run)">
+                                            <p>A partir do momento em que a moto foi separada, o CD vai gerar um Romaneio e colocar o seu endereço na Rota do Caminhão.</p>
                                             <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
-                                                <li><strong>Botão "Reservar":</strong> Ao clicar neste botão em um chassi, a moto fica invisível para as outras filiais. Imediatamente o sistema gera um "Pedido" no seu painel para que o CD separe a moto para você.</li>
-                                                <li><strong>Bloqueio Automático:</strong> Se a loja de Capanema clicar em "Reservar" a última Pop Preta do CD, nos segundos seguintes aquela Pop vai sumir da tela da loja de Belém para evitar que duas lojas comprem o mesmo chassi.</li>
+                                                <li>O status do pedido mudará para <strong className="text-orange-600">Aguardando Coleta</strong>.</li>
+                                                <li>Quando o caminhão chegar, entregue a moto ao motorista. Ele ligará para o CD (Central) pedindo para a logística "dar o clique" de confirmação de coleta.</li>
                                             </ul>
+                                        </Step>
+
+                                        <Step number="3" title="Baixa Automática">
+                                            <p className="text-sm bg-white p-3 rounded border border-orange-200 flex items-start gap-2">
+                                                <InformationCircleIcon className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                                                <span><strong>Você não precisa fazer mais nada!</strong> Assim que o CD confirma que o motorista coletou, a moto entra em status de Trânsito para a loja destino e a responsabilidade sai do seu colo.</span>
+                                            </p>
                                         </Step>
                                     </div>
 
                                     {/* COMO DEVOLVER MOTO */}
                                     <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
                                         <h3 className="text-xl font-black text-red-800 mb-4 flex items-center gap-2">
-                                            <ArrowUturnLeftIcon className="w-6 h-6" /> Como Devolver Motos (Para o CD)
+                                            <ArrowUturnLeftIcon className="w-6 h-6" /> Como Devolver Motos (Logística Reversa)
                                         </h3>
-                                        <p className="text-sm text-red-900 mb-4">Caso precise devolver uma moto por renegociação, troca ou sucata, o fluxo é uma Transferência ao contrário.</p>
+                                        <p className="text-sm text-red-900 mb-4">Caso precise devolver uma moto para o CD (Matriz) por renegociação, troca, defeito de fábrica ou sucata, o fluxo é o mesmo de pedir uma moto, só que ao contrário.</p>
                                         <ol className="list-decimal ml-6 space-y-2 text-sm text-gray-700">
-                                            <li>Na tela de "Nova Solicitação", mude a chave principal de "Pedido" para <strong>Devolução ao CD</strong>.</li>
+                                            <li>Na tela de "Nova Solicitação", mude a chave principal de "Pedido Regular" para <strong>Devolução ao CD</strong>.</li>
                                             <li>O destino será travado automaticamente em "Matriz / CD".</li>
-                                            <li>Preencha o chassi (obrigatório) da moto que está na sua loja e será mandada embora.</li>
-                                            <li>O Gestor precisará aprovar essa devolução antes do caminhão ir buscar.</li>
+                                            <li>Preencha o chassi (obrigatório) da moto que está fisicamente na sua loja e será devolvida.</li>
+                                            <li>O Gestor precisará aprovar essa devolução antes do CD mandar o caminhão ir buscar.</li>
                                         </ol>
                                     </div>
                                 </div>
