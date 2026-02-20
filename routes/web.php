@@ -39,6 +39,20 @@ Route::get('/manutencao', function () {
 })->name('maintenance');
 
 
+
+// Webhook para o Vercel Cron rodar o agendador do Laravel
+Route::any('/webhook/microwork', function (\Illuminate\Http\Request $request) {
+    $authHeader = $request->header('Authorization');
+    $cronSecret = env('CRON_SECRET');
+    
+    if ($cronSecret && $authHeader !== "Bearer $cronSecret") {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    \Illuminate\Support\Facades\Artisan::call('microwork:sync-estoque');
+    return response()->json(['message' => 'Estoque sincronizado via webhook com sucesso!']);
+});
+
 /*
 |--------------------------------------------------------------------------
 | ROTAS DO SISTEMA (PROTEGIDAS PELO MIDDLEWARE DE MANUTENÇÃO)
@@ -48,20 +62,6 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
 
     // --- PÚBLICO ---
     Route::get('/', function () { return redirect()->route('login'); });
-
-    // Webhook para o Vercel Cron rodar o agendador do Laravel
-    Route::get('/api/cron/schedule', function (\Illuminate\Http\Request $request) {
-        $authHeader = $request->header('Authorization');
-        $cronSecret = env('CRON_SECRET');
-        
-        // Proteção para garantir que só a Vercel através da secret chame o agendador
-        if ($cronSecret && $authHeader !== "Bearer $cronSecret") {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
-        \Illuminate\Support\Facades\Artisan::call('schedule:run');
-        return response()->json(['message' => 'Cron rodado com sucesso!']);
-    });
 
     // --- AUTENTICADO ---
     Route::middleware(['auth', 'verified'])->group(function () {
@@ -82,11 +82,11 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         });
 
         // Integração Microwork (Estoque CD)
-        Route::get('/api/estoque-cd', [\App\Http\Controllers\Api\EstoqueController::class, 'index'])
+        Route::get('/microwork/estoque-cd', [\App\Http\Controllers\Api\EstoqueController::class, 'index'])
             ->middleware(['auth', 'verified'])
             ->name('api.estoque.microwork');
             
-        Route::post('/api/estoque-cd/reservar', [\App\Http\Controllers\Api\EstoqueController::class, 'reservar'])
+        Route::post('/microwork/estoque-cd/reservar', [\App\Http\Controllers\Api\EstoqueController::class, 'reservar'])
             ->middleware(['auth', 'verified'])
             ->name('api.estoque.reservar');
 
@@ -168,7 +168,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         |--------------------------------------------------------------------------
         */
         // Rota para buscar estoque disponível de uma loja (Transferência)
-        Route::get('/api/estoque-loja', [PedidoController::class, 'buscarEstoqueLoja'])->name('api.estoque.loja');
+        Route::get('/interno/estoque-loja', [PedidoController::class, 'buscarEstoqueLoja'])->name('api.estoque.loja');
 
 
         /*
