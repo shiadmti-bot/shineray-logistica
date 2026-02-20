@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\MicroworkService;
 use App\Models\ReservaMicrowork;
 use App\Models\Pedido;
+use App\Models\Moto;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,18 @@ class EstoqueController extends Controller
         $reservasAtivas = ReservaMicrowork::whereIn('status', ['pendente', 'faturada'])
                             ->pluck('chassi')
                             ->toArray();
+
+        // Buscar motos que já foram solicitadas em pedidos (em trânsito, separadas, no estoque de loja, etc)
+        $motosEmAndamento = Moto::whereIn('status', [
+            'solicitado', 'separado', 'aguardando_coleta', 'em_transito', 'expedido', 
+            'em_transito_cd', 'no_cd', 'estoque_loja', 'vendida', 'transito_loja', 'reservado', 'avariado'
+        ])
+        ->whereNotNull('chassi')
+        ->pluck('chassi')
+        ->toArray();
+
+        // Une as reservas ativas com as motos que já estão em andamento ou em lojas
+        $reservasAtivas = array_unique(array_merge($reservasAtivas, $motosEmAndamento));
         
         Log::info("EstoqueController: Retornando " . count($estoque) . " itens. Reservas ocultadas: " . count($reservasAtivas));
         
