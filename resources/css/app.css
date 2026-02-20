@@ -4,13 +4,59 @@
 
 /* Customização NProgress */
 #nprogress .bar {
-    background: #DC2626 !important; /* Vermelho Shineray */
+    background: #dc2626 !important; /* Vermelho Shineray */
     height: 4px !important;
 }
 #nprogress .peg {
-    box-shadow: 0 0 10px #DC2626, 0 0 5px #DC2626 !important;
+    box-shadow:
+        0 0 10px #dc2626,
+        0 0 5px #dc2626 !important;
 }
 #nprogress .spinner-icon {
-    border-top-color: #DC2626 !important;
-    border-left-color: #DC2626 !important;
+    border-top-color: #dc2626 !important;
+    border-left-color: #dc2626 !important;
+}
+
+/* Estilos para o Editor de Texto do Mural de Avisos (React Quill) */
+.notice-content ul {
+    list-style-type: disc !important;
+    padding-left: 1.5rem !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.notice-content ol {
+    list-style-type: decimal !important;
+    padding-left: 1.5rem !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.notice-content li {
+    margin-bottom: 0.25rem !important;
+}
+
+.notice-content p {
+    margin-bottom: 0.5rem !important;
+}
+
+.notice-content a {
+    color: #4f46e5 !important;
+    text-decoration: underline !important;
+}
+
+.notice-content strong {
+    font-weight: 700 !important;
+}
+
+.notice-content em {
+    font-style: italic !important;
+}
+
+.notice-content u {
+    text-decoration: underline !important;
+}
+
+.notice-content s {
+    text-decoration: line-through !important;
 }

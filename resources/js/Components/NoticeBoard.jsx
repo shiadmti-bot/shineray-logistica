@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useForm, router } from '@inertiajs/react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { 
     MegaphoneIcon, 
     ChevronDownIcon, 
@@ -128,9 +130,9 @@ export default function NoticeBoard({ notices = [], auth }) {
                             {errors.title && <div className="text-red-500 text-xs mt-1">{errors.title}</div>}
                         </div>
                         
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-3">
                             <select 
-                                className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                className="w-1/3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                                 value={data.type}
                                 onChange={e => setData('type', e.target.value)}
                             >
@@ -140,14 +142,23 @@ export default function NoticeBoard({ notices = [], auth }) {
                                 <option value="danger">Perigo / Urgente</option>
                             </select>
                             
-                            <textarea 
-                                placeholder="Conteúdo da mensagem (suporta HTML básico)..."
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
-                                rows="2"
-                                value={data.content}
-                                onChange={e => setData('content', e.target.value)}
-                                required
-                            ></textarea>
+                            <div className="w-full bg-white rounded-md mb-8">
+                                <ReactQuill
+                                    theme="snow"
+                                    value={data.content}
+                                    onChange={content => setData('content', content)}
+                                    placeholder="Conteúdo da mensagem..."
+                                    className="h-32"
+                                    modules={{
+                                        toolbar: [
+                                            ['bold', 'italic', 'underline', 'strike'],
+                                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                            ['link'],
+                                            ['clean']
+                                        ]
+                                    }}
+                                />
+                            </div>
                         </div>
                         
                         <div className="flex justify-end">
@@ -192,7 +203,7 @@ export default function NoticeBoard({ notices = [], auth }) {
                                                 )}
                                             </h4>
                                             <div 
-                                                className="text-gray-600 text-sm mt-1 leading-relaxed prose prose-sm max-w-none"
+                                                className="text-gray-600 text-sm mt-2 leading-relaxed max-w-none notice-content list-disc"
                                                 dangerouslySetInnerHTML={{ __html: notice.content }} 
                                             />
                                             

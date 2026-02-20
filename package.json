@@ -38,6 +38,7 @@
         "nprogress": "^0.2.0",
         "react-apexcharts": "^2.0.1",
         "react-onesignal": "^3.4.6",
+        "react-quill": "^2.0.0",
         "sweetalert2": "^11.26.17"
     }
 }
