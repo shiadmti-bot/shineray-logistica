@@ -264,7 +264,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::prefix('chat')->name('chat.')->group(function () {
             Route::get('/{pedidoId}/messages', [ChatController::class, 'index'])->name('index');
             Route::post('/{pedidoId}/messages', [ChatController::class, 'store'])->name('store');
-            Route::post('/{pedidoId}/read', [ChatController::class, 'markAsRead'])->name('read');
+            Route::post('/{pedidoId}/read', [ChatController::class, 'markAsRead'])->name('markRead');
         });
 
         // Cadastro de Usuários (Lojas)
