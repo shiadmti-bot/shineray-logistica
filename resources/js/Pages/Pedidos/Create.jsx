@@ -34,14 +34,37 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         "Manutenção / Reparo"
     ];
 
-    const { data, setData, post, processing, errors, reset } = useForm({
-        origem_id: '',
-        itens: [
+    const initPrefill = () => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const prefill = params.get('prefill_motos');
+            if (prefill) {
+                try {
+                    const parsed = JSON.parse(decodeURIComponent(prefill));
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed.map(m => ({
+                            modelo: m.modelo || '',
+                            chassi: m.chassi || '',
+                            cor: m.cor || '',
+                            ano: m.ano || '',
+                            motivo: '',
+                            local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : ''
+                        }));
+                    }
+                } catch(e) { console.error("Error parsing prefill motos", e); }
+            }
+        }
+        return [
             { 
                 modelo: '', chassi: '', cor: '', ano: '', motivo: '', 
                 local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : '' 
             }
-        ],
+        ];
+    };
+
+    const { data, setData, post, processing, errors, reset } = useForm({
+        origem_id: '',
+        itens: initPrefill(),
         observacao: '',
         modo: 'cd', // Inicializa no useForm
         cd_user_id: cdUserId // Passa prop para o form

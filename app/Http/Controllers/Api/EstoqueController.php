@@ -4,7 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\MicroworkService;
+use App\Models\ReservaMicrowork;
+use App\Models\Pedido;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class EstoqueController extends Controller
 {
@@ -17,9 +23,85 @@ class EstoqueController extends Controller
 
     public function index(Request $request)
     {
-        // Aqui podemos adicionar filtros extras vindos do Request se necessário
         $estoque = $this->microworkService->getEstoqueCD();
         
-        return response()->json($estoque);
+        // Buscar todos os chassis que estão reservados localmente (pendente ou faturada temporariamente)
+        $reservasAtivas = ReservaMicrowork::whereIn('status', ['pendente', 'faturada'])
+                            ->pluck('chassi')
+                            ->toArray();
+        
+        Log::info("EstoqueController: Retornando " . count($estoque) . " itens. Reservas ocultadas: " . count($reservasAtivas));
+        
+        return response()->json([
+            'data' => $estoque,
+            'reservas_ativas' => $reservasAtivas
+        ]);
+    }
+
+    public function reservar(Request $request)
+    {
+        $request->validate([
+            'chassi' => 'required|string|max:30',
+            'modelo' => 'required|string',
+            'cor' => 'required|string',
+            'observacao' => 'nullable|string'
+        ]);
+
+        $user = Auth::user();
+
+        // Evitar reserva duplicada
+        $existe = ReservaMicrowork::where('chassi', $request->chassi)
+                    ->whereIn('status', ['pendente', 'faturada'])
+                    ->first();
+                    
+        if ($existe) {
+            return response()->json(['error' => 'Este chassi acabou de ser reservado por outra loja.'], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $cdUser = User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->first();
+
+            // 1. Criar o Pedido Padrão do Sistema
+            $itens = [
+                [
+                    'modelo' => $request->modelo,
+                    'cor' => $request->cor,
+                    'chassi' => $request->chassi,
+                    'motivo' => 'Reserva Microwork',
+                    'local' => $user->filial ?? 'Loja Oculta',
+                    'quantidade' => 1
+                ]
+            ];
+
+            $pedido = Pedido::create([
+                'user_id' => $user->id,
+                'origem_user_id' => $cdUser ? $cdUser->id : null,
+                'status' => 'em_analise',
+                'observacao' => $request->observacao ?? 'Solicitação direta do Estoque de Fábrica',
+                'itens' => $itens
+            ]);
+
+            // 2. Gravar o "Lock" do Chassi na tabela de reservas
+            ReservaMicrowork::create([
+                'chassi' => $request->chassi,
+                'user_id' => $user->id,
+                'pedido_id' => $pedido->id,
+                'status' => 'pendente'
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Moto bloqueada e Pedido gerado com sucesso!',
+                'pedido_id' => $pedido->id
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Erro ao reservar chassi Microwork: " . $e->getMessage());
+            return response()->json(['error' => 'Falha interna ao processar a solicitação.'], 500);
+        }
     }
 }

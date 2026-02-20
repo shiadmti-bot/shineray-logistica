@@ -2,6 +2,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import Swal from 'sweetalert2';
+import { 
+    BuildingOffice2Icon, BuildingStorefrontIcon, MapPinIcon, PlusIcon, ChartBarIcon, 
+    MagnifyingGlassIcon, ExclamationTriangleIcon, ArrowUpOnSquareIcon, 
+    ArrowDownOnSquareIcon, ArrowsRightLeftIcon
+} from '@heroicons/react/24/outline';
 
 export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) {
     
@@ -77,11 +82,11 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                     <span className="text-gray-400 font-bold uppercase text-[10px]">Origem</span>
                     {ehReposicao ? (
                         <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-1">
-                            🏭 CD MATRIZ
+                            <BuildingOffice2Icon className="w-3 h-3" /> CD MATRIZ
                         </span>
                     ) : (
                         <span className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${souOrigem ? 'bg-yellow-50 text-yellow-800 border-yellow-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-                            🏪 {pedido.origem?.filial} {souOrigem && '(Você)'}
+                            <BuildingStorefrontIcon className="w-3 h-3" /> {pedido.origem?.filial} {souOrigem && '(Você)'}
                         </span>
                     )}
                 </div>
@@ -95,7 +100,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                 <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400 font-bold uppercase text-[10px]">Destino</span>
                     <span className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${souDestino ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-50 text-gray-800 border-gray-200'}`}>
-                        📍 {pedido.user?.filial || pedido.user?.name} {souDestino && '(Você)'}
+                        <MapPinIcon className="w-3 h-3" /> {pedido.user?.filial || pedido.user?.name} {souDestino && '(Você)'}
                     </span>
                 </div>
             </div>
@@ -116,11 +121,11 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                             {perfil === 'loja' ? (
                                 <Link href={route('solicitar')} className="w-full md:w-auto bg-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
-                                    <span>➕</span> Nova Solicitação
+                                    <PlusIcon className="w-5 h-5" /> Nova Solicitação
                                 </Link>
                             ) : (
                                 <div className="flex items-center gap-3 text-gray-600 w-full md:w-auto">
-                                    <span className="text-2xl bg-gray-100 p-2 rounded-lg">📊</span>
+                                    <span className="bg-gray-100 p-2 rounded-lg"><ChartBarIcon className="w-6 h-6" /></span>
                                     <div>
                                         <h3 className="font-bold text-lg leading-none text-gray-800">Visão Geral</h3>
                                         <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total: {safePedidos.total}</span>
@@ -142,7 +147,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                                     value={data.search}
                                     onChange={e => setData('search', e.target.value)}
                                 />
-                                <span className="absolute left-3 top-2.5 text-gray-400 text-xs">🔍</span>
+                                <span className="absolute left-3 top-2 text-gray-400"><MagnifyingGlassIcon className="w-4 h-4" /></span>
                             </div>
 
                             {/* Data Inicio */}
@@ -221,7 +226,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 relative z-10">
                                 <div>
                                     <h3 className="text-lg font-black text-orange-900 flex items-center gap-2 uppercase">
-                                        📢 Atenção: Transferências Pendentes
+                                        <ExclamationTriangleIcon className="w-5 h-5" /> Atenção: Transferências Pendentes
                                     </h3>
                                     <p className="text-sm text-orange-800 mt-1 font-medium">
                                         Você precisa preparar estas motos para envio.
@@ -375,12 +380,12 @@ function TipoBadge({ pedido, authId }) {
         const souOrigem = pedido.origem_user_id === authId;
         const souDestino = pedido.user_id === authId;
         
-        if(souOrigem) return <span className="text-[9px] bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200 font-bold uppercase shadow-sm">📤 Saída</span>;
-        if(souDestino) return <span className="text-[9px] bg-green-100 text-green-800 px-2 py-1 rounded border border-green-200 font-bold uppercase shadow-sm">📥 Entrada</span>;
+        if(souOrigem) return <span className="text-[9px] bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><ArrowUpOnSquareIcon className="w-3 h-3" /> Saída</span>;
+        if(souDestino) return <span className="text-[9px] bg-green-100 text-green-800 px-2 py-1 rounded border border-green-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><ArrowDownOnSquareIcon className="w-3 h-3" /> Entrada</span>;
         
-        return <span className="text-[9px] bg-purple-100 text-purple-800 px-2 py-1 rounded border border-purple-200 font-bold uppercase shadow-sm">🔁 Transf.</span>;
+        return <span className="text-[9px] bg-purple-100 text-purple-800 px-2 py-1 rounded border border-purple-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><ArrowsRightLeftIcon className="w-3 h-3" /> Transf.</span>;
     }
-    return <span className="text-[9px] bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-200 font-bold uppercase shadow-sm">🏭 Reposição</span>;
+    return <span className="text-[9px] bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><BuildingOffice2Icon className="w-3 h-3" /> Reposição</span>;
 }
 
 function safeString(value) { return String(value || '').toLowerCase(); }

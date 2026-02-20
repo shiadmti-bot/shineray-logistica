@@ -8,7 +8,8 @@ import {
     CheckBadgeIcon, 
     XCircleIcon,
     FunnelIcon,
-    BuildingStorefrontIcon
+    BuildingStorefrontIcon,
+    ChartBarIcon
 } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 
@@ -82,7 +83,7 @@ export default function BiIndex({ auth, kpis, status_chart, ranking_lojas, slas,
         <AuthenticatedLayout
             user={auth.user}
             header={<h2 className="font-bold text-2xl text-gray-800 leading-tight flex items-center gap-2">
-                <span className="text-red-600">📊 BI</span> Logística Integrada
+                <span className="text-red-600 flex items-center gap-1"><ChartBarIcon className="w-6 h-6"/> BI</span> Logística Integrada
             </h2>}
         >
             <Head title="BI - Dashboard Executivo" />

@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import StockTable from '@/Components/Microwork/StockTable';
+import { BuildingStorefrontIcon, BuildingOffice2Icon, MagnifyingGlassIcon, XMarkIcon, FunnelIcon, MapPinIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 export default function MotosIndex({ auth, motos, lojas, filters }) {
     
@@ -12,7 +13,8 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
         loja_id: filters.loja_id || ''
     });
 
-    const [activeTab, setActiveTab] = useState('loja'); // 'loja' | 'fabrica'
+    const isLoja = auth.user.perfil === 'loja';
+    const [activeTab, setActiveTab] = useState(isLoja ? 'fabrica' : 'loja'); // Loja só vê CD
 
     // Função que aplica os filtros
     const applyFilters = () => {
@@ -35,29 +37,33 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
         <AuthenticatedLayout user={auth.user} 
             header={
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <h2 className="font-bold text-xl text-gray-800 leading-tight">Base Geral de Motos</h2>
+                    <h2 className="font-bold text-xl text-gray-800 leading-tight">Estoque e Histórico de Movimentos</h2>
                     
                     <div className="flex bg-gray-200 p-1 rounded-lg">
-                        <button 
-                            onClick={() => setActiveTab('loja')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${activeTab === 'loja' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            🏪 Estoque Loja
-                        </button>
+                        {!isLoja && (
+                            <button 
+                                onClick={() => setActiveTab('loja')}
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${activeTab === 'loja' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                <BuildingStorefrontIcon className="w-5 h-5"/> Histórico do Sistema
+                            </button>
+                        )}
                         <button 
                             onClick={() => setActiveTab('fabrica')}
                             className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${activeTab === 'fabrica' ? 'bg-white text-red-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
-                            🏭 Estoque Fábrica
+                            <BuildingOffice2Icon className="w-5 h-5"/> CD (Tempo Real)
                         </button>
                     </div>
 
-                    <Link 
-                        href={route('motos.timeline')} 
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2"
-                    >
-                        <span>🔍</span> Timeline
-                    </Link>
+                    {!isLoja && (
+                        <Link 
+                            href={route('motos.timeline')} 
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2"
+                        >
+                            <span><MagnifyingGlassIcon className="w-5 h-5"/></span> Timeline
+                        </Link>
+                    )}
                 </div>
             }
         >
@@ -65,10 +71,9 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
 
             <div className="py-8 bg-gray-100 min-h-screen">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    
                     {activeTab === 'fabrica' ? (
                         <div className="animate-fadeIn">
-                            <StockTable />
+                            <StockTable user={auth.user} />
                         </div>
                     ) : (
                         <div className="animate-fadeIn space-y-6">
@@ -130,12 +135,12 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
 
                             {/* Botões */}
                             <div className="flex gap-2 h-10">
-                                <button onClick={applyFilters} className="bg-gray-800 text-white px-4 rounded-md text-sm font-bold hover:bg-gray-700 transition flex-1 h-full">
-                                    Filtrar
+                                <button onClick={applyFilters} className="bg-gray-800 text-white px-4 rounded-md text-sm font-bold hover:bg-gray-700 transition flex-1 h-full flex items-center justify-center gap-2">
+                                    <FunnelIcon className="w-4 h-4" /> Filtrar
                                 </button>
                                 {(params.search || params.status || params.loja_id) && (
-                                    <button onClick={clearFilters} className="bg-white border border-gray-300 text-gray-500 px-3 rounded-md text-sm hover:bg-gray-50 h-full">
-                                        ✕
+                                    <button onClick={clearFilters} className="bg-white border border-gray-300 text-gray-500 px-3 rounded-md text-sm hover:bg-gray-50 h-full flex items-center justify-center">
+                                        <XMarkIcon className="w-4 h-4" />
                                     </button>
                                 )}
                             </div>
@@ -183,8 +188,8 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                                     <td className="px-6 py-4">
                                                         {moto.loja ? (
                                                             <div>
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                                                    🏪 {moto.loja.filial}
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 gap-1">
+                                                                    <BuildingStorefrontIcon className="w-3 h-3"/> {moto.loja.filial}
                                                                 </span>
                                                                 <div className="text-[10px] text-gray-500 mt-1 ml-1">{moto.loja.name}</div>
                                                             </div>
@@ -201,8 +206,8 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                                     {/* Coluna 4: Status */}
                                                     <td className="px-6 py-4">
                                                         <StatusBadge status={moto.status} />
-                                                        <div className="text-xs text-gray-500 mt-1 max-w-[200px] truncate" title={moto.localizacao_atual}>
-                                                            📍 {moto.localizacao_atual || 'Não informado'}
+                                                        <div className="text-xs text-gray-500 mt-1 max-w-[200px] truncate flex items-center gap-1" title={moto.localizacao_atual}>
+                                                            <MapPinIcon className="w-3 h-3"/> {moto.localizacao_atual || 'Não informado'}
                                                         </div>
                                                     </td>
 
@@ -219,10 +224,10 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                                             )}
                                                             <Link 
                                                                 href={route('motos.timeline', { chassi: moto.chassi })}
-                                                                className="text-gray-500 hover:text-gray-900"
+                                                                className="text-gray-500 hover:text-gray-900 flex items-center justify-center p-1 rounded hover:bg-gray-100"
                                                                 title="Ver Histórico Completo"
                                                             >
-                                                                🕒
+                                                                <ClockIcon className="w-5 h-5" />
                                                             </Link>
                                                         </div>
                                                     </td>
@@ -232,7 +237,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                     ) : (
                                         <tr>
                                             <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                                                <div className="text-3xl mb-2">🔍</div>
+                                                <div className="mb-2 flex justify-center text-gray-300"><MagnifyingGlassIcon className="w-10 h-10"/></div>
                                                 <p>Nenhuma moto encontrada com estes filtros.</p>
                                             </td>
                                         </tr>

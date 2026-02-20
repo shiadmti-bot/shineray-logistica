@@ -11,6 +11,7 @@ use App\Http\Controllers\CalendarController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Pedido;
@@ -70,6 +71,10 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::get('/api/estoque-cd', [\App\Http\Controllers\Api\EstoqueController::class, 'index'])
             ->middleware(['auth', 'verified'])
             ->name('api.estoque.microwork');
+            
+        Route::post('/api/estoque-cd/reservar', [\App\Http\Controllers\Api\EstoqueController::class, 'reservar'])
+            ->middleware(['auth', 'verified'])
+            ->name('api.estoque.reservar');
 
         Route::get('/dashboard', function () {
 
@@ -223,8 +228,8 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::post('/motos/{id}/solicitar-retirada', [PedidoController::class, 'solicitarRetiradaItem'])->name('motos.solicitarRetirada');
         
         // Resource Padrão (Index, Store, Update, Destroy)
-        // Apenas Admin, CD e Gestor podem acessar a listagem completa
-        Route::resource('motos', MotoController::class)->middleware('check_perfil:admin,cd,gestor');
+        // Admin, CD, Gestor e Loja (Loja terá view restrita no Front)
+        Route::resource('motos', MotoController::class)->middleware('check_perfil:admin,cd,gestor,loja');
 
 
         /*

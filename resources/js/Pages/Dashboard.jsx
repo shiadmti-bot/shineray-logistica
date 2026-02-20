@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import NoticeBoard from '@/Components/NoticeBoard'; // Novo Componente
+import axios from 'axios';
 import { 
     ClockIcon, 
     TruckIcon, 
@@ -13,7 +14,11 @@ import {
     UserIcon,
     BuildingStorefrontIcon,
     ArrowRightIcon,
-    ShoppingCartIcon
+    ShoppingCartIcon,
+    CubeIcon,
+    WrenchScrewdriverIcon,
+    PauseCircleIcon,
+    CheckCircleIcon
 } from '@heroicons/react/24/outline';
 
 export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe notices via prop
@@ -25,6 +30,10 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
     // Estados visuais
     const [animatePulse, setAnimatePulse] = useState(false);
     const [showSeparationModal, setShowSeparationModal] = useState(false);
+    
+    // Estados do Estoque CD (Microwork)
+    const [estoqueCD, setEstoqueCD] = useState(null);
+    const [loadingEstoque, setLoadingEstoque] = useState(false);
 
     // --- LÓGICA: POP-UP DE SEPARAÇÃO PENDENTE (LOJA) ---
     useEffect(() => {
@@ -51,6 +60,43 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
             return () => clearInterval(timer);
         }
     }, [perfil]);
+
+    // --- LÓGICA: FETCH ESTOQUE CD (ADMIN E CD) ---
+    useEffect(() => {
+        if (perfil === 'admin' || perfil === 'gestor' || perfil === 'cd') {
+            setLoadingEstoque(true);
+            axios.get(route('api.estoque.microwork'))
+                .then(res => {
+                    const dados = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+                    setEstoqueCD(dados);
+                })
+                .catch(err => console.error("Erro API Microwork (Dashboard)", err))
+                .finally(() => setLoadingEstoque(false));
+        }
+    }, [perfil]);
+
+    // --- CALCULOS KPI DO ESTOQUE ---
+    const kpisEstoque = {
+        disponivel: 0,
+        separada: 0,
+        conserto: 0,
+        parada: 0
+    };
+
+    if (estoqueCD) {
+        estoqueCD.forEach(moto => {
+            const patioStr = (moto.patio || '').toUpperCase();
+            if (patioStr.includes('MOTOS MONTADAS') || patioStr.includes('DESMONTADA CD')) {
+                kpisEstoque.disponivel++;
+            } else if (patioStr.includes('CD EXPEDI')) {
+                kpisEstoque.separada++;
+            } else if (patioStr.includes('AVARIA')) {
+                kpisEstoque.conserto++;
+            } else if (patioStr.includes('INATIVADA')) {
+                kpisEstoque.parada++;
+            }
+        });
+    }
 
     return (
         <AuthenticatedLayout
@@ -155,13 +201,32 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                     {/* --- VISÃO ADMIN / DIRETORIA --- */}
                     {perfil === 'admin' && (
                         <>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
+                            <div className="flex justify-between items-center mb-4 mt-2">
+                                <h3 className="text-lg uppercase tracking-wider font-black text-gray-500 flex items-center gap-2">
+                                    <ClipboardDocumentCheckIcon className="w-5 h-5" /> Movimentação de Pedidos
+                                </h3>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                                 <CardStat titulo="Total Histórico" valor={stats.total_pedidos} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-gray-600" bg="bg-white border-gray-200" desc="Pedidos processados" />
                                 <CardStat titulo="Em Operação" valor={stats.em_andamento} icon={<ArrowPathIcon className="w-8 h-8"/>} color="text-blue-600" bg="bg-blue-50 border-blue-200" desc="Fluxo ativo agora" />
                                 <CardStat titulo="Cargas na Rua" valor={stats.cargas_transito} icon={<TruckIcon className="w-8 h-8"/>} color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Romaneios em trânsito" />
                                 <CardStat titulo="Cancelados" valor={stats.cancelados} icon={<ExclamationTriangleIcon className="w-8 h-8"/>} color="text-red-600" bg="bg-red-50 border-red-200" desc="Devoluções/Erros" link={route('pedidos.index')} />
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                            <div className="flex justify-between items-center mb-4 mt-8">
+                                <h3 className="text-lg uppercase tracking-wider font-black text-gray-500 flex items-center gap-2">
+                                    <CubeIcon className="w-5 h-5" /> Estoque Físico CD (Real-time ERP)
+                                </h3>
+                                {loadingEstoque && <span className="text-sm font-bold text-gray-400 flex items-center gap-2"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
+                                <CardStat titulo="Disponível" valor={estoqueCD ? kpisEstoque.disponivel : '...'} icon={<CheckCircleIcon className="w-8 h-8"/>} color="text-green-700" bg="bg-green-50 border-green-200" desc="Motos prontas para faturar" />
+                                <CardStat titulo="Separada" valor={estoqueCD ? kpisEstoque.separada : '...'} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-blue-700" bg="bg-blue-50 border-blue-200" desc="Aguardando carga/NF" />
+                                <CardStat titulo="Em Conserto" valor={estoqueCD ? kpisEstoque.conserto : '...'} icon={<WrenchScrewdriverIcon className="w-8 h-8"/>} color="text-orange-700" bg="bg-orange-50 border-orange-200" desc="Avarias e retrabalho" />
+                                <CardStat titulo="Parada" valor={estoqueCD ? kpisEstoque.parada : '...'} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-gray-700" bg="bg-gray-100 border-gray-300" desc="Inativadas / bloqueadas" />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                                 <ActionCard href={route('pedidos.index')} title="Auditoria de Pedidos" desc="Inspecionar solicitações e tempos." icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} color="red" btnText="Ver Pedidos" />
                                 <ActionCard href={route('romaneios.index')} title="Monitoramento de Cargas" desc="Rastrear motoristas e entregas." icon={<TruckIcon className="w-6 h-6"/>} color="black" btnText="Ver Cargas" />
                             </div>
@@ -177,6 +242,19 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                 <CardStat titulo="Cargas Expedidas" valor={stats.cargas_total} icon={<TruckIcon className="w-8 h-8"/>} color="text-blue-600" bg="bg-blue-50 border-blue-200" link={route('romaneios.index')} desc="Total Geral" />
                                 <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon={<ClipboardDocumentCheckIcon className="w-8 h-8"/>} color="text-green-600" bg="bg-green-50 border-green-200" desc="Meta Diária" />
                             </div>
+                            <div className="flex justify-between items-center mb-4 mt-8">
+                                <h3 className="text-lg uppercase tracking-wider font-black text-gray-500 flex items-center gap-2">
+                                    <CubeIcon className="w-5 h-5" /> Estoque Físico CD (Real-time ERP)
+                                </h3>
+                                {loadingEstoque && <span className="text-sm font-bold text-gray-400 flex items-center gap-2"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
+                                <CardStat titulo="Disponível" valor={estoqueCD ? kpisEstoque.disponivel : '...'} icon={<CheckCircleIcon className="w-8 h-8"/>} color="text-green-700" bg="bg-green-50 border-green-200" desc="Motos prontas para faturar" />
+                                <CardStat titulo="Separada" valor={estoqueCD ? kpisEstoque.separada : '...'} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-blue-700" bg="bg-blue-50 border-blue-200" desc="Aguardando carga/NF" />
+                                <CardStat titulo="Em Conserto" valor={estoqueCD ? kpisEstoque.conserto : '...'} icon={<WrenchScrewdriverIcon className="w-8 h-8"/>} color="text-orange-700" bg="bg-orange-50 border-orange-200" desc="Avarias e retrabalho" />
+                                <CardStat titulo="Parada" valor={estoqueCD ? kpisEstoque.parada : '...'} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-gray-700" bg="bg-gray-100 border-gray-300" desc="Inativadas / bloqueadas" />
+                            </div>
+
                             <h3 className="text-lg font-bold text-gray-700 mb-4 px-1 flex items-center gap-2"><BuildingStorefrontIcon className="w-5 h-5"/> Mesa de Operações</h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <ActionCard href={route('pedidos.index')} title="1. Separação" desc="Conferir estoque e separar motos." icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} color="blue" btnText="Acessar Pedidos" />

@@ -13,7 +13,15 @@ class MicroworkService
 
     public function __construct()
     {
-        $this->token = env('MICROWORK_TOKEN');
+        $this->token = config('services.microwork.token', env('MICROWORK_TOKEN'));
+        
+        // Fallback: Se o php artisan serve não recarregou o .env, lemos na marra
+        if (!$this->token && file_exists(base_path('.env'))) {
+            $envContent = file_get_contents(base_path('.env'));
+            if (preg_match('/^MICROWORK_TOKEN=(.*)$/m', $envContent, $matches)) {
+                $this->token = trim(trim($matches[1], '"\''));
+            }
+        }
     }
 
     /**
@@ -30,25 +38,29 @@ class MicroworkService
 
     private function filterPatios($data)
     {
-        // Nomes de Pátios mapeados que correspondem ao CD
-        // Baseado na coleta de dados reais:
-        // 50 -> CD EXPEDIÇÃO
-        // 22 -> DESMONTADA CD
-        // 6  -> INATIVADA GALPÃO
-        // 7  -> GALPÃO MOTOS MONTADAS
-        // 15 -> AVARIA CD (Assumindo este como o principal do CD)
-        
-        $patiosPermitidos = [
-            'CD EXPEDIÇÃO', 
+        // Pátios que queremos filtrar baseados rigorosamente na imagem do Microwork.
+        // Usamos substrings chave garantidas para evitar qualquer problema de charset (UTF-8, ISO, etc).
+        $patiosDesejados = [
+            'AVARIA CD', 
+            'CD EXPEDI', 
             'DESMONTADA CD', 
-            'INATIVADA GALPÃO', 
-            'GALPÃO MOTOS MONTADAS', 
-            'AVARIA CD'
+            'GALPÃO MOTOS', 
+            'INATIVADA GALP'
         ];
 
-        return array_values(array_filter($data, function ($item) use ($patiosPermitidos) {
-            // Verifica se o campo 'patio' existe e está na lista permitida
-            return isset($item['patio']) && in_array(strtoupper(trim($item['patio'])), $patiosPermitidos);
+        return array_values(array_filter($data, function ($item) use ($patiosDesejados) {
+            if (!isset($item['patio']) || empty($item['patio'])) {
+                return false;
+            }
+            
+            $patioNome = mb_strtoupper(trim($item['patio']), 'UTF-8');
+            
+            foreach ($patiosDesejados as $desejado) {
+                if (mb_strpos($patioNome, mb_strtoupper($desejado, 'UTF-8'), 0, 'UTF-8') !== false) {
+                    return true;
+                }
+            }
+            return false;
         }));
     }
 

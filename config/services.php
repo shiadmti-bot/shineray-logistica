@@ -45,5 +45,8 @@ return [
             'refresh_token' => env('GOOGLE_DRIVE_REFRESH_TOKEN'),
             'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID', env('GOOGLE_DRIVE_FOLDER')),
     ],
+    'microwork' => [
+        'token' => env('MICROWORK_TOKEN'),
+    ],
 
 ];

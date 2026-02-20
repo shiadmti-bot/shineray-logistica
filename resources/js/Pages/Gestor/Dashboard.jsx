@@ -15,7 +15,8 @@ import {
     ScissorsIcon, 
     CheckCircleIcon, 
     HandThumbUpIcon, 
-    BuildingStorefrontIcon 
+    BuildingStorefrontIcon,
+    ArrowRightIcon
 } from '@heroicons/react/24/outline';
 
 export default function GestorDashboard({ auth, pedidos, estornos }) {
@@ -37,7 +38,7 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
             Swal.fire({
                 toast: true, position: 'top-end', showConfirmButton: false, timer: 5000, timerProgressBar: true,
                 icon: isEstorno ? 'warning' : 'info', 
-                title: isEstorno ? '⚠️ Estorno Solicitado!' : '🆕 Nova Solicitação!', 
+                title: isEstorno ? 'Estorno Solicitado!' : 'Nova Solicitação!', 
                 text: notification.mensagem 
             });
 
@@ -153,7 +154,7 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
                                                 <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Motos</p>
                                             </div>
                                             <span className="text-gray-400 text-xs font-bold group-hover:underline flex items-center gap-1 group-hover:text-black">
-                                                Analisar <span>→</span>
+                                                Analisar <ArrowRightIcon className="w-4 h-4" />
                                             </span>
                                         </div>
                                     </div>

@@ -164,6 +164,9 @@ export default function Authenticated({ user, header, children }) {
                                         <CustomNavLink href={safeRoute('solicitar')} active={isCurrent('solicitar')}>
                                             <PlusCircleIcon className="w-5 h-5" /> Nova Solicitação
                                         </CustomNavLink>
+                                        <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
+                                            <CubeIcon className="w-5 h-5" /> Estoque
+                                        </CustomNavLink>
                                         <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
                                             <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
                                         </CustomNavLink>
@@ -182,6 +185,9 @@ export default function Authenticated({ user, header, children }) {
                                         <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.index')}>
                                             <FolderIcon className="w-5 h-5" /> Cargas
                                         </CustomNavLink>
+                                        <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
+                                            <CubeIcon className="w-5 h-5" /> Estoque
+                                        </CustomNavLink>
                                     </>
                                 )}
 
@@ -195,7 +201,7 @@ export default function Authenticated({ user, header, children }) {
                                             <TruckIcon className="w-5 h-5" /> Cargas
                                         </CustomNavLink>
                                         <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
-                                            <CubeIcon className="w-5 h-5" /> Base
+                                            <CubeIcon className="w-5 h-5" /> Estoque
                                         </CustomNavLink>
                                     </>
                                 )}
@@ -281,6 +287,9 @@ export default function Authenticated({ user, header, children }) {
                                 <ResponsiveNavLink href={safeRoute('solicitar')} className="text-red-100 flex items-center gap-2">
                                     <PlusCircleIcon className="w-5 h-5" /> Nova Solicitação
                                 </ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
+                                    <CubeIcon className="w-5 h-5" /> Estoque
+                                </ResponsiveNavLink>
                                 <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
                                     <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
                                 </ResponsiveNavLink>
@@ -299,6 +308,9 @@ export default function Authenticated({ user, header, children }) {
                                 <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 flex items-center gap-2">
                                     <FolderIcon className="w-5 h-5" /> Histórico Cargas
                                 </ResponsiveNavLink>
+                                <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
+                                    <CubeIcon className="w-5 h-5" /> Estoque
+                                </ResponsiveNavLink>
                             </>
                         )}
 
@@ -312,7 +324,7 @@ export default function Authenticated({ user, header, children }) {
                                     <TruckIcon className="w-5 h-5" /> Auditoria Cargas
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
-                                    <CubeIcon className="w-5 h-5" /> Base Chassis
+                                    <CubeIcon className="w-5 h-5" /> Estoque
                                 </ResponsiveNavLink>
                             </>
                         )}
