@@ -234,32 +234,91 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                     )}
 
                     {/* --- VISÃO CD --- */}
+                    {/* --- VISÃO CD --- */}
                     {perfil === 'cd' && (
                         <>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
-                                <CardStat titulo="Novas Solicitações" valor={stats.pendentes} icon={<ClipboardDocumentCheckIcon className="w-8 h-8"/>} color="text-yellow-600" bg="bg-yellow-50 border-yellow-200" link={route('pedidos.index')} animate={true} desc="Aguardando Separação" />
-                                <CardStat titulo="Pronto p/ Carga" valor={stats.no_patio} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" desc="Pool de Expedição" link={route('romaneios.create')} animate={true} />
-                                <CardStat titulo="Cargas Expedidas" valor={stats.cargas_total} icon={<TruckIcon className="w-8 h-8"/>} color="text-blue-600" bg="bg-blue-50 border-blue-200" link={route('romaneios.index')} desc="Total Geral" />
-                                <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon={<ClipboardDocumentCheckIcon className="w-8 h-8"/>} color="text-green-600" bg="bg-green-50 border-green-200" desc="Meta Diária" />
-                            </div>
-                            <div className="flex justify-between items-center mb-4 mt-8">
-                                <h3 className="text-lg uppercase tracking-wider font-black text-gray-500 flex items-center gap-2">
-                                    <CubeIcon className="w-5 h-5" /> Estoque Físico CD (Real-time ERP)
-                                </h3>
-                                {loadingEstoque && <span className="text-sm font-bold text-gray-400 flex items-center gap-2"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>}
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
-                                <CardStat titulo="Disponível" valor={estoqueCD ? kpisEstoque.disponivel : '...'} icon={<CheckCircleIcon className="w-8 h-8"/>} color="text-green-700" bg="bg-green-50 border-green-200" desc="Motos prontas para faturar" />
-                                <CardStat titulo="Separada" valor={estoqueCD ? kpisEstoque.separada : '...'} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-blue-700" bg="bg-blue-50 border-blue-200" desc="Aguardando carga/NF" />
-                                <CardStat titulo="Em Conserto" valor={estoqueCD ? kpisEstoque.conserto : '...'} icon={<WrenchScrewdriverIcon className="w-8 h-8"/>} color="text-orange-700" bg="bg-orange-50 border-orange-200" desc="Avarias e retrabalho" />
-                                <CardStat titulo="Parada" valor={estoqueCD ? kpisEstoque.parada : '...'} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-gray-700" bg="bg-gray-100 border-gray-300" desc="Inativadas / bloqueadas" />
+                            {/* ALERTA PRINCIPAL SE HOUVER PEDIDOS PENDENTES */}
+                            {stats.pendentes > 0 && (
+                                <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-lg flex items-center justify-between shadow-sm animate-pulse-slow">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-yellow-100 p-2 rounded-full">
+                                            <ExclamationTriangleIcon className="w-8 h-8 text-yellow-600" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-yellow-800 font-bold text-lg">Ação Necessária: Separação de Pedidos!</h4>
+                                            <p className="text-sm text-yellow-700">Existem <strong>{stats.pendentes} solicitações</strong> de chassi aguardando separação pelo CD.</p>
+                                        </div>
+                                    </div>
+                                    <Link href={route('pedidos.index')} className="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 whitespace-nowrap">
+                                        Ir para Separação
+                                    </Link>
+                                </div>
+                            )}
+
+                            {/* MESA DE OPERAÇÕES PRINCIPAL (AÇÕES DIRETAS) */}
+                            <h3 className="text-lg font-black text-gray-800 mb-4 px-1 flex items-center gap-2"><BuildingStorefrontIcon className="w-5 h-5 text-gray-500"/> Mesa de Operações Logísticas (O que deseja fazer?)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                <ActionCard 
+                                    href={route('pedidos.index')} 
+                                    title="1. Separar Pedidos" 
+                                    desc={`${stats.pendentes} pedidos pendentes. Auditar e confirmar chassis no pátio físico.`} 
+                                    icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} 
+                                    color="blue" 
+                                    btnText="Acessar Solicitações" 
+                                />
+                                <ActionCard 
+                                    href={route('romaneios.create')} 
+                                    title="2. Montar Expedição" 
+                                    desc={`${stats.no_patio} itens em Pool (Separados). Criar novo romaneio de carga para rota.`} 
+                                    icon={<TruckIcon className="w-6 h-6"/>} 
+                                    color="black" 
+                                    btnText="Nova Carga" 
+                                />
+                                <ActionCard 
+                                    href={route('romaneios.index')} 
+                                    title="3. Romaneios / Rotas" 
+                                    desc={`${stats.cargas_total} cargas já montadas. Monitorar trânsito, coletas remotas e histórico.`} 
+                                    icon={<ArchiveBoxIcon className="w-6 h-6"/>} 
+                                    color="gray" 
+                                    btnText="Painel de Trânsito" 
+                                />
                             </div>
 
-                            <h3 className="text-lg font-bold text-gray-700 mb-4 px-1 flex items-center gap-2"><BuildingStorefrontIcon className="w-5 h-5"/> Mesa de Operações</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <ActionCard href={route('pedidos.index')} title="1. Separação" desc="Conferir estoque e separar motos." icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} color="blue" btnText="Acessar Pedidos" />
-                                <ActionCard href={route('romaneios.create')} title="2. Expedição" desc="Montar cargas e definir rotas." icon={<TruckIcon className="w-6 h-6"/>} color="gray" btnText="Nova Carga" />
-                                <ActionCard href={route('romaneios.index')} title="3. Histórico" desc="Consultar cargas antigas." icon={<ArchiveBoxIcon className="w-6 h-6"/>} color="white" btnText="Ver Histórico" />
+                            {/* PAINEL COMPACTO DE ESTOQUE ERP (REAL-TIME) */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8">
+                                <div className="flex justify-between items-center mb-6 border-b pb-4">
+                                    <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
+                                        <CubeIcon className="w-6 h-6 text-gray-400" /> Resumo do Estoque Físico Microwork (Tempo Real)
+                                    </h3>
+                                    {loadingEstoque ? (
+                                        <span className="text-xs font-bold text-gray-400 flex items-center gap-1"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>
+                                    ) : (
+                                        <Link href={route('estoque.cd')} className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition">Ver Tabela Completa <ArrowRightIcon className="w-3 h-3"/></Link>
+                                    )}
+                                </div>
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                                    <div className="bg-green-50 rounded-2xl p-4 border border-green-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
+                                        <CheckCircleIcon className="w-6 h-6 text-green-600 mb-2 opacity-80" />
+                                        <span className="text-3xl font-black text-green-800 tracking-tight">{estoqueCD ? kpisEstoque.disponivel : '...'}</span>
+                                        <span className="text-xs font-bold text-green-700 uppercase tracking-widest mt-1 opacity-80">Prontas p/ Fatura</span>
+                                    </div>
+                                    <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
+                                        <ArchiveBoxIcon className="w-6 h-6 text-blue-600 mb-2 opacity-80" />
+                                        <span className="text-3xl font-black text-blue-800 tracking-tight">{estoqueCD ? kpisEstoque.separada : '...'}</span>
+                                        <span className="text-xs font-bold text-blue-700 uppercase tracking-widest mt-1 opacity-80">Separadas / Pool</span>
+                                    </div>
+                                    <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
+                                        <WrenchScrewdriverIcon className="w-6 h-6 text-orange-600 mb-2 opacity-80" />
+                                        <span className="text-3xl font-black text-orange-800 tracking-tight">{estoqueCD ? kpisEstoque.conserto : '...'}</span>
+                                        <span className="text-xs font-bold text-orange-700 uppercase tracking-widest mt-1 opacity-80">Em Conserto/Avaria</span>
+                                    </div>
+                                    <div className="bg-gray-100 rounded-2xl p-4 border border-gray-200 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
+                                        <PauseCircleIcon className="w-6 h-6 text-gray-500 mb-2 opacity-80" />
+                                        <span className="text-3xl font-black text-gray-700 tracking-tight">{estoqueCD ? kpisEstoque.parada : '...'}</span>
+                                        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest mt-1 opacity-80">Bloqueadas/Inativas</span>
+                                    </div>
+                                </div>
                             </div>
                         </>
                     )}
