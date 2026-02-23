@@ -293,7 +293,7 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                     {loadingEstoque ? (
                                         <span className="text-xs font-bold text-gray-400 flex items-center gap-1"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>
                                     ) : (
-                                        <Link href={route('estoque.cd')} className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition">Ver Tabela Completa <ArrowRightIcon className="w-3 h-3"/></Link>
+                                        <Link href={route('motos.index')} className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition">Ver Tabela Completa <ArrowRightIcon className="w-3 h-3"/></Link>
                                     )}
                                 </div>
                                 
