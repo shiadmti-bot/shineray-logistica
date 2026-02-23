@@ -234,7 +234,6 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                     )}
 
                     {/* --- VISÃO CD --- */}
-                    {/* --- VISÃO CD --- */}
                     {perfil === 'cd' && (
                         <>
                             {/* ALERTA PRINCIPAL SE HOUVER PEDIDOS PENDENTES */}
@@ -254,6 +253,14 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                     </Link>
                                 </div>
                             )}
+
+                            {/* --- STATUS GERAL DA OPERAÇÃO (KPIs) --- */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+                                <CardStat titulo="Total Expedido" valor={stats.cargas_total} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-gray-600" bg="bg-white border-gray-200" desc="Motos enviadas" />
+                                <CardStat titulo="Na Fila p/ Carga" valor={stats.no_patio} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" desc="Separadas no Pool" link={route('romaneios.create')} />
+                                <CardStat titulo="Trânsito Ativo" valor={stats.cargas_transito} icon={<TruckIcon className="w-8 h-8"/>} color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Romaneios na rua" link={route('romaneios.index')} animate={true} />
+                                <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon={<ClipboardDocumentCheckIcon className="w-8 h-8"/>} color="text-green-600" bg="bg-green-50 border-green-200" desc="Meta diária atingida" />
+                            </div>
 
                             {/* MESA DE OPERAÇÕES PRINCIPAL (AÇÕES DIRETAS) */}
                             <h3 className="text-lg font-black text-gray-800 mb-4 px-1 flex items-center gap-2"><BuildingStorefrontIcon className="w-5 h-5 text-gray-500"/> Mesa de Operações Logísticas (O que deseja fazer?)</h3>
