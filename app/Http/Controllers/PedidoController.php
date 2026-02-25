@@ -8,6 +8,7 @@ use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\Romaneio;
 use App\Models\User;
+use App\Models\ReservaMicrowork;
 use App\Models\Schedule; // Modelo do Calendário V2
 use App\Models\Modelo;
 use App\Notifications\EstornoSolicitado;
@@ -306,6 +307,7 @@ class PedidoController extends Controller
             ]);
 
             // 4. Processamento dos Itens (Motos)
+            $syncLogs = []; // Array para registrar ajustes automáticos no DB para a Timeline
             foreach ($request->itens as $item) {
                 $chassi = isset($item['chassi']) ? mb_strtoupper(trim($item['chassi'])) : null;
                 
@@ -370,10 +372,19 @@ class PedidoController extends Controller
                         // CASO TRANSFERÊNCIA: A moto deve estar na loja de origem solicitada
                         else {
                             if ($moto->loja_atual_id != $request->origem_id) {
-                                $lojaReal = $moto->loja_atual_id ? (User::find($moto->loja_atual_id)->filial ?? 'Outra Loja') : 'Sem Registro';
-                                throw \Illuminate\Validation\ValidationException::withMessages([
-                                    'itens' => "A moto {$chassi} existe mas pertence a {$lojaReal}, não à loja de origem selecionada."
+                                // O usuário solicitou a remoção da trava que impedia a transferência
+                                // quando o pátio no DB está diferente do pátio real informado pelo usuário.
+                                // Em vez de dar erro, sincronizamos o DB e registramos no Log da Timeline:
+                                $lojaReal = User::find($request->origem_id);
+                                $oldPatio = $moto->localizacao_atual;
+                                $newPatio = "Estoque Loja: " . ($lojaReal->filial ?? 'Sincronizada via Transferência');
+                                
+                                $moto->update([
+                                    'loja_atual_id' => $request->origem_id,
+                                    'localizacao_atual' => $newPatio
                                 ]);
+
+                                $syncLogs[] = "✓ Chassi {$chassi} ajustado sistemicamente: de '{$oldPatio}' para '{$newPatio}'.";
                             }
                         }
                     }
@@ -442,7 +453,13 @@ class PedidoController extends Controller
 
             // 6. Logs e Notificações
             $origemNome = $request->origem_id ? 'Transferência (Inter-lojas)' : 'Reposição CD';
-            $this->registrarLog($pedido, 'Criado', "Solicitação via sistema ($origemNome)");
+            $logDesc = "Solicitação via sistema ($origemNome)";
+            
+            if (!empty($syncLogs)) {
+                $logDesc .= "\n\n📝 Ajustes Automáticos na Abertura do Pedido:\n" . implode("\n", $syncLogs);
+            }
+            
+            $this->registrarLog($pedido, 'Criado', $logDesc);
             
             // Notifica Gestores
             try {
@@ -868,6 +885,11 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
                 $moto->update(['status' => $statusVolta, 'localizacao_atual' => $localVolta]);
             }
             $pedido->motos()->detach();
+
+            // Libera qualquer reserva de chassi do Microwork atrelada a este pedido
+            \App\Models\ReservaMicrowork::where('pedido_id', $pedido->id)
+                ->whereIn('status', ['pendente', 'faturada'])
+                ->update(['status' => 'cancelada']);
             
             $this->enviarNotificacao($pedido->user, ucfirst($tipo), "Pedido #$id $tipo: $motivo", route('dashboard'));
             

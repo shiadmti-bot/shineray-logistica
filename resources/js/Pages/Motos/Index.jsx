@@ -186,7 +186,13 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
 
                                                     {/* Coluna 3: Loja Dona (Baseada no loja_atual_id ou Pedido) */}
                                                     <td className="px-6 py-4">
-                                                        {moto.loja ? (
+                                                        {(!moto.loja_atual_id && !moto.loja && (!pedidoAtual || pedidoAtual.status === 'em_analise' || pedidoAtual.status === 'cancelado')) || moto.status === 'estoque_fabrica'
+                                                            ? (
+                                                                <span className="text-gray-500 font-bold text-xs bg-gray-100 px-2 py-1 rounded border border-gray-200 flex items-center gap-1 w-max">
+                                                                    <BuildingOffice2Icon className="w-3 h-3" /> CD / Fábrica
+                                                                </span>
+                                                            ) 
+                                                            : moto.loja ? (
                                                             <div>
                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 gap-1">
                                                                     <BuildingStorefrontIcon className="w-3 h-3"/> {moto.loja.filial}
@@ -195,8 +201,10 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                                                             </div>
                                                         ) : (pedidoAtual ? (
                                                             <div>
-                                                                <div className="font-bold text-blue-800">{pedidoAtual.user.filial || 'Matriz'}</div>
-                                                                <div className="text-xs text-gray-500">{pedidoAtual.user.name}</div>
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200 gap-1">
+                                                                    <BuildingStorefrontIcon className="w-3 h-3"/> {pedidoAtual.user.filial || 'Matriz'}
+                                                                </span>
+                                                                <div className="text-[10px] text-gray-500 mt-1 ml-1">{pedidoAtual.user.name}</div>
                                                             </div>
                                                         ) : (
                                                             <span className="text-gray-400 italic text-xs">CD / Fábrica</span>
