@@ -424,12 +424,20 @@ class PedidoController extends Controller
                             ]
                         );
 
-                        // Segurança: Se a moto já existia, mas pertence a outra loja, não deixa o CD "roubar"
-                        // Exceto se estiver em estoque_fabrica
+                        // Segurança: Se a moto já existia, mas o sistema achava que ainda pertencia a outra loja,
+                        // e o CD/Usuário está comandando uma nova saída do CD físico, assumimos que o 
+                        // físico prevalece sobre o sistêmico e corrigimos o status silenciosamente.
                         if (!$moto->wasRecentlyCreated && !in_array($moto->status, ['estoque_fabrica', 'solicitado'])) {
-                             throw \Illuminate\Validation\ValidationException::withMessages([
-                                'itens' => "O chassi {$chassi} já existe no sistema e pertence a outra loja ({$moto->localizacao_atual}). Use Transferência."
+                            $oldPatio = $moto->localizacao_atual;
+                            $newPatio = 'Fábrica/CD (Sincronizado na Saída)';
+                            
+                            $moto->update([
+                                'status' => 'solicitado',
+                                'loja_atual_id' => null,
+                                'localizacao_atual' => $newPatio
                             ]);
+                            
+                            $syncLogs[] = "✓ Chassi {$chassi} devolvido sistemicamente ao CD: de '{$oldPatio}' para 'Fábrica/CD'.";
                         }
                     } else {
                         // Pedido genérico (sem chassi) - Cria registro placeholder
