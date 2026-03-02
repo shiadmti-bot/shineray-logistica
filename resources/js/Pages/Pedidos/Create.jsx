@@ -159,6 +159,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                 // VERIFICAÇÃO RÍGIDA: Garante que o backend DE FATO criou o pedido
                 // Não confia apenas num status HTTP 200/302 que pode ser timeout ou logout
                 const successMsg = page.props.flash?.success || page.props.flash?.message;
+                const errorMsg = page.props.flash?.error; // CAPTURA O ERRO OCULTO
 
                 if (successMsg) {
                     Swal.fire({
@@ -169,13 +170,20 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                     }).then(() => {
                         router.visit(route('pedidos.index'));
                     });
+                } else if (errorMsg) {
+                    // SE LARAVEL REDIRECIONOU COM ERRO FLASH SESSÃO, CAI AQUI!
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Falha no Servidor',
+                        text: typeof errorMsg === 'string' ? errorMsg : 'Erro desconhecido retornado pelo servidor.'
+                    });
                 } else if (!page.props.auth?.user) {
                     Swal.fire('Sessão Expirada', 'Você ficou muito tempo inativo. Faça login novamente.', 'error');
                 } else {
                     Swal.fire({
                         icon: 'error',
                         title: 'Erro de Comunicação',
-                        text: 'A conexão expirou devido ao tempo excessivo ou a um erro no servidor. O seu pedido NÃO foi criado. Por favor, atualize a página e tente de novo subdividindo o pedido.'
+                        text: 'A resposta do servidor foi incompleta (timeout ou erro severo). O seu pedido NÃO foi criado. Atualize a página e tente de novo subdividindo o pedido.'
                     });
                 }
             },
