@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { Head, useForm, router } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import { 
@@ -16,6 +16,15 @@ import {
 
 export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = [], cdUserId, locaisEntrega = [] }) { // Recebe cdUserId e locaisEntrega
     
+    // Configura um "Anti-Dormida" para manter a sessão ativa enquanto o usuário demora digitando
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Chamamos uma rota que possui middleware 'web' para renovar a sessão e o CSRF
+            axios.get(route('api.estoque.loja')).catch(() => {});
+        }, 14 * 60 * 1000); // Ping a cada 14 minutos
+        return () => clearInterval(interval);
+    }, []);
+
     // const [modo, setModo] = useState('cd'); // REMOVED: Using useForm data instead
     const [logisticaInfo, setLogisticaInfo] = useState(null);
     const [motosDisponiveis, setMotosDisponiveis] = useState([]); 
@@ -146,19 +155,29 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
         }
 
         post(route('pedidos.store'), {
-            onSuccess: () => {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Sucesso!',
-                    text: data.modo === 'devolucao' ? 'Solicitação de Devolução enviada para o CD.' : 'Solicitação enviada.',
-                    confirmButtonColor: data.modo === 'devolucao' ? '#7e22ce' : '#3085d6'
-                });
-                reset(); 
-                setLogisticaInfo(null);
-                setMotosDisponiveis([]);
-                // Modo reseta para 'cd' automaticamente pelo reset() se for o valor inicial, 
-                // mas garantimos aqui caso logic mude.
-                setData('modo', 'cd');
+            onSuccess: (page) => {
+                // VERIFICAÇÃO RÍGIDA: Garante que o backend DE FATO criou o pedido
+                // Não confia apenas num status HTTP 200/302 que pode ser timeout ou logout
+                const successMsg = page.props.flash?.success || page.props.flash?.message;
+
+                if (successMsg) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Sucesso!',
+                        text: typeof successMsg === 'string' ? successMsg : (data.modo === 'devolucao' ? 'Solicitação de Devolução enviada para o CD.' : 'Solicitação enviada.'),
+                        confirmButtonColor: data.modo === 'devolucao' ? '#7e22ce' : '#3085d6'
+                    }).then(() => {
+                        router.visit(route('pedidos.index'));
+                    });
+                } else if (!page.props.auth?.user) {
+                    Swal.fire('Sessão Expirada', 'Você ficou muito tempo inativo. Faça login novamente.', 'error');
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Erro de Comunicação',
+                        text: 'A conexão expirou devido ao tempo excessivo ou a um erro no servidor. O seu pedido NÃO foi criado. Por favor, atualize a página e tente de novo subdividindo o pedido.'
+                    });
+                }
             },
             onError: (errors) => {
                 Swal.fire({
@@ -391,7 +410,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                     <span className="ml-2 text-2xl font-bold text-red-600">{data.itens.length} motos</span>
                                 </div>
                                 <button 
-                                    onClick={submit} 
+                                    type="submit"
                                     disabled={processing || (data.modo === 'transferencia' && (!logisticaInfo || logisticaInfo.erro))}
                                     className={`px-8 py-3 rounded-lg font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 text-white 
                                     ${data.modo === 'devolucao' ? 'bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900' : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'}`}
