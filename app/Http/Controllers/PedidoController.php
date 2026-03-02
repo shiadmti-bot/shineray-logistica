@@ -41,17 +41,19 @@ class PedidoController extends Controller
     }
 
     private function enviarNotificacao($usuarios, $titulo, $mensagem, $link) {
-        $usuarios = is_iterable($usuarios) ? $usuarios : collect([$usuarios]);
-        
-        foreach ($usuarios as $user) {
-            if($user) $user->notify(new PedidoAtualizado($titulo, $mensagem, $link));
-        }
+        \Illuminate\Support\defer(function() use ($usuarios, $titulo, $mensagem, $link) {
+            $usuarios = is_iterable($usuarios) ? $usuarios : collect([$usuarios]);
+            
+            foreach ($usuarios as $user) {
+                if($user) $user->notify(new PedidoAtualizado($titulo, $mensagem, $link));
+            }
 
-        $ids = collect($usuarios)->pluck('onesignal_id')->filter()->toArray();
-        if (!empty($ids)) {
-            try { (new OneSignalService())->sendToUser($ids, $titulo, $mensagem, $link); } 
-            catch (\Exception $e) { \Illuminate\Support\Facades\Log::warning("OneSignal: " . $e->getMessage()); }
-        }
+            $ids = collect($usuarios)->pluck('onesignal_id')->filter()->toArray();
+            if (!empty($ids)) {
+                try { (new OneSignalService())->sendToUser($ids, $titulo, $mensagem, $link); } 
+                catch (\Exception $e) { \Illuminate\Support\Facades\Log::warning("OneSignal: " . $e->getMessage()); }
+            }
+        });
     }
 
     // --- API v2: CÉREBRO LOGÍSTICO ---
@@ -306,30 +308,35 @@ class PedidoController extends Controller
                 'previsao_entrega' => $previsaoEntrega
             ]);
 
+            // --- 3.5 OTIMIZAÇÃO: Validação em Lote (Evita 1 query por Moto no Vercel Timeout) ---
+            $chassisRecebidos = array_filter(array_map(function($item) {
+                return isset($item['chassi']) && trim($item['chassi']) !== '' ? mb_strtoupper(trim($item['chassi'])) : null;
+            }, $request->itens));
+
+            if (!empty($chassisRecebidos)) {
+                $motosEmUso = Moto::whereIn('chassi', $chassisRecebidos)
+                    ->whereHas('pedidos', function ($q) {
+                        $q->whereNotIn('status', ['concluido', 'cancelado']);
+                    })->pluck('chassi')->toArray();
+
+                if (!empty($motosEmUso)) {
+                    $listaErro = implode(', ', $motosEmUso);
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'itens' => "Os seguintes chassis já estão em trânsito/pedidos ativos: {$listaErro}"
+                    ]);
+                }
+            }
+            // ----------------------------------------------------------------------------------
+
             // 4. Processamento dos Itens (Motos)
             $syncLogs = []; // Array para registrar ajustes automáticos no DB para a Timeline
+            $motosParaAttach = []; // Array para vínculo dinâmico em lote (Bulk Insert)
+
             foreach ($request->itens as $item) {
                 $chassi = isset($item['chassi']) ? mb_strtoupper(trim($item['chassi'])) : null;
-                
-                // --- A. VALIDAÇÃO DE "EM USO" ---
-                if ($chassi) {
-                    $emUso = Pedido::whereHas('motos', function ($q) use ($chassi) {
-                        $q->where('chassi', $chassi);
-                    })
-                    ->whereNotIn('status', ['concluido', 'cancelado'])
-                    ->exists();
-
-                    if ($emUso) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'itens' => "O chassi {$chassi} já está em um pedido aberto/em trânsito."
-                        ]);
-                    }
-                }
-
                 $moto = null;
 
                 // --- B. CENÁRIO: TRANSFERÊNCIA OU DEVOLUÇÃO ---
-                // Se tem Origem definida (seja Transferência entre lojas OU Devolução ao CD)
                 if ($isTransferencia) {
                     if (!$chassi) {
                         throw \Illuminate\Validation\ValidationException::withMessages(['itens' => "Para transferência/devolução, o chassi é obrigatório."]);
@@ -338,11 +345,6 @@ class PedidoController extends Controller
                     $moto = Moto::where('chassi', $chassi)->first();
 
                     if (!$moto) {
-                        // Se não existe e estamos devolvendo, podemos criar?
-                        // Melhor criar apenas se for transferência externa. 
-                        // Para devolução, a moto deveria existir no estoque da loja.
-                        // Mas manteremos a flexibilidade de criar on-the-fly se necessário.
-                        
                         $lojaOrigem = User::find($origemUserId);
                         $nomeLoja = $lojaOrigem ? $lojaOrigem->filial : 'Loja Externa';
 
@@ -357,24 +359,16 @@ class PedidoController extends Controller
                     } 
                     else {
                         // C.2 MOTO JÁ EXISTE NO SISTEMA
-                        
-                        // CASO DEVOLUÇÃO: A moto deve estar na minha loja
                         if ($modo === 'devolucao') {
                             if ($moto->loja_atual_id != $user->id) {
-                                // Se o sistema diz que não está comigo, mas eu tenho o chassi físico,
-                                // assumimos que o sistema estava desafado. Atualizamos para minha loja.
                                 $moto->update([
                                     'loja_atual_id' => $user->id,
                                     'localizacao_atual' => "Estoque Loja: " . ($user->filial ?? 'Minha Loja')
                                 ]);
                             }
                         }
-                        // CASO TRANSFERÊNCIA: A moto deve estar na loja de origem solicitada
                         else {
                             if ($moto->loja_atual_id != $request->origem_id) {
-                                // O usuário solicitou a remoção da trava que impedia a transferência
-                                // quando o pátio no DB está diferente do pátio real informado pelo usuário.
-                                // Em vez de dar erro, sincronizamos o DB e registramos no Log da Timeline:
                                 $lojaReal = User::find($request->origem_id);
                                 $oldPatio = $moto->localizacao_atual;
                                 $newPatio = "Estoque Loja: " . ($lojaReal->filial ?? 'Sincronizada via Transferência');
@@ -387,19 +381,9 @@ class PedidoController extends Controller
                                 $syncLogs[] = "✓ Chassi {$chassi} ajustado sistemicamente: de '{$oldPatio}' para '{$newPatio}'.";
                             }
                         }
-                    }
 
                         // Validação de Status (Bloqueios)
-                        $statusBloqueados = [
-                            'vendida', 
-                            'reservado', // ADICIONADO: Bloqueia reservados
-                            'solicitado', 
-                            'separado', 
-                            'aguardando_coleta', 
-                            'em_transito', 
-                            'expedido', 
-                            'transito_loja'
-                        ];
+                        $statusBloqueados = ['vendida', 'reservado', 'solicitado', 'separado', 'aguardando_coleta', 'em_transito', 'expedido', 'transito_loja'];
 
                         if (in_array($moto->status, $statusBloqueados) && !$moto->wasRecentlyCreated) {
                             throw \Illuminate\Validation\ValidationException::withMessages([
@@ -410,10 +394,10 @@ class PedidoController extends Controller
                         // Atualiza status para evitar concorrência
                         $moto->update(['status' => 'solicitado']); 
                     } 
+                }
                 // --- C. CENÁRIO 2: PEDIDO AO CD (Fabrica/Novo) ---
                 else {
                     if ($chassi) {
-                        // Se informou chassi, usa FirstOrCreate
                         $moto = Moto::firstOrCreate(
                             ['chassi' => $chassi],
                             [
@@ -424,9 +408,6 @@ class PedidoController extends Controller
                             ]
                         );
 
-                        // Segurança: Se a moto já existia, mas o sistema achava que ainda pertencia a outra loja,
-                        // e o CD/Usuário está comandando uma nova saída do CD físico, assumimos que o 
-                        // físico prevalece sobre o sistêmico e corrigimos o status silenciosamente.
                         if (!$moto->wasRecentlyCreated && !in_array($moto->status, ['estoque_fabrica', 'solicitado'])) {
                             $oldPatio = $moto->localizacao_atual;
                             $newPatio = 'Fábrica/CD (Sincronizado na Saída)';
@@ -450,13 +431,18 @@ class PedidoController extends Controller
                     }
                 }
 
-                // 5. Vínculo na Tabela Pivô
+                // Vincula ao Array Lote (Evita N+1 Insert do Pivot!)
                 if ($moto) {
-                    $pedido->motos()->attach($moto->id, [
+                    $motosParaAttach[$moto->id] = [
                         'destino' => mb_strtoupper($item['local']),
                         'motivo' => $item['motivo']
-                    ]);
+                    ];
                 }
+            } // Fim Loop de Itens
+
+            // 5. Executa Bulk Insert na tabela Pivô de uma vez (Redução maciça de queries)
+            if (!empty($motosParaAttach)) {
+                $pedido->motos()->attach($motosParaAttach);
             }
 
             // 6. Logs e Notificações
