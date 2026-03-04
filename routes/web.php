@@ -112,10 +112,11 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             // CD
             elseif ($user->perfil === 'cd') {
                 $stats = [
-                    'pendentes'    => Pedido::whereIn('status', ['solicitado', 'aprovado', 'no_cd', 'aguardando_coleta'])->count(),
-                    'no_patio'     => Moto::whereIn('status', ['separado', 'no_cd'])->count(),
-                    'cargas_total' => Romaneio::count(),
-                    'hoje'         => Pedido::where('status', 'concluido')->whereDate('updated_at', now())->count(),
+                    'pendentes'       => Pedido::whereIn('status', ['solicitado', 'aprovado', 'no_cd', 'aguardando_coleta'])->count(),
+                    'no_patio'        => Moto::whereIn('status', ['separado', 'no_cd'])->count(),
+                    'cargas_transito' => Romaneio::whereIn('status', ['em_transito', 'em_transito_cd'])->count(),
+                    'cargas_total'    => Romaneio::count(),
+                    'hoje'            => Pedido::where('status', 'concluido')->whereDate('updated_at', now())->count(),
                 ];
             } 
             // LOJA
