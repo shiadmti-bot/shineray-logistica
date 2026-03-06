@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import imageCompression from 'browser-image-compression';
 import { 
     CalendarIcon, MapPinIcon, DocumentTextIcon, PaperClipIcon, 
     ExclamationTriangleIcon, BoltIcon, CheckCircleIcon, XCircleIcon, 
@@ -115,17 +116,47 @@ export default function PedidoShow({ auth, pedido }) {
         });
     };
 
-    const processarEnvio = (file, avarias, fotos) => {
+    const processarEnvio = async (file, avarias, fotos) => {
         setCompressing(true);
-        Swal.fire({ title: 'Enviando...', html: 'Aguarde enquanto processamos as imagens.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({ title: 'Comprimindo Arquivos...', html: 'Ajustando imagens para envio rápido...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         
-        router.post(route('pedidos.finalizar', pedido.id), {
-            _method: 'post', arquivo_romaneio: file, avarias, fotos_avarias: fotos
-        }, {
-            forceFormData: true,
-            onSuccess: () => { setCompressing(false); Swal.fire('Sucesso!', 'Recebimento confirmado.', 'success'); },
-            onError: (err) => { setCompressing(false); Swal.fire('Erro', 'Falha ao enviar.', 'error'); }
-        });
+        try {
+            const options = { maxSizeMB: 1, maxWidthOrHeight: 1280, useWebWorker: true };
+            
+            // 1. Comprimir Canhoto/Romaneio
+            let compressedFile = file;
+            if (file && file.type.startsWith('image/')) {
+                compressedFile = await imageCompression(file, options);
+            }
+
+            // 2. Comprimir Fotos das Avarias (se houver)
+            const compressedFotos = {};
+            if (fotos) {
+                for (const motoId in fotos) {
+                    const fotoFile = fotos[motoId];
+                    if (fotoFile && fotoFile.type.startsWith('image/')) {
+                        compressedFotos[motoId] = await imageCompression(fotoFile, options);
+                    } else {
+                        compressedFotos[motoId] = fotoFile;
+                    }
+                }
+            }
+
+            Swal.fire({ title: 'Enviando...', html: 'Salvando entrega no sistema...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            
+            router.post(route('pedidos.finalizar', pedido.id), {
+                _method: 'post', arquivo_romaneio: compressedFile, avarias, fotos_avarias: compressedFotos
+            }, {
+                forceFormData: true,
+                onSuccess: () => { setCompressing(false); Swal.fire('Sucesso!', 'Recebimento confirmado.', 'success'); },
+                onError: (err) => { setCompressing(false); Swal.fire('Erro', 'Falha ao enviar. Tente novamente.', 'error'); }
+            });
+
+        } catch (error) {
+            console.error("Erro ao comprimir imagem:", error);
+            setCompressing(false);
+            Swal.fire('Erro', 'Falha ao processar as fotos. Tente enviar uma imagem menor.', 'error');
+        }
     };
 
     // --- 5. AÇÕES DE FLUXO ---
