@@ -589,6 +589,7 @@ export default function PedidoShow({ auth, pedido }) {
                                                     [
                                                         "solicitado",
                                                         "separado",
+                                                        "estoque_fabrica",
                                                     ].includes(item.status) && (
                                                         <button
                                                             onClick={() =>
