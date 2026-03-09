@@ -528,7 +528,7 @@ class PedidoController extends Controller
         $user = Auth::user();
         
         // Validações básicas de permissão e status
-        if ($user->perfil === 'cd' && !in_array($moto->status, ['solicitado', 'separado'])) 
+        if ($user->perfil === 'cd' && !in_array($moto->status, ['solicitado', 'separado', 'estoque_fabrica'])) 
             return back()->withErrors('CD só cancela item em separação.');
         
         $moto->update([
