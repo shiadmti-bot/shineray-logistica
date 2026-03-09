@@ -126,10 +126,16 @@ class PedidoController extends Controller
         $statusFiltro = $request->input('status');
         $lojaFiltro = $request->input('loja_id');
 
-        $pedidos = Pedido::with([
+        $pedidos = Pedido::select('pedidos.*')
+            ->with([
                 'user:id,name,filial',    
                 'origem:id,name,filial',  
                 'romaneio'
+            ])
+            ->addSelect(['destino_final' => \App\Models\Moto::select('pedido_moto.destino')
+                ->join('pedido_moto', 'motos.id', '=', 'pedido_moto.moto_id')
+                ->whereColumn('pedido_moto.pedido_id', 'pedidos.id')
+                ->limit(1)
             ])
             ->withCount('motos')
             // Visibilidade (Loja vê seus pedidos e pedidos DELE)

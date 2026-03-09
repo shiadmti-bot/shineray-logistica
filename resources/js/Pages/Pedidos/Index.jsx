@@ -100,7 +100,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                 <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400 font-bold uppercase text-[10px]">Destino</span>
                     <span className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${souDestino ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-50 text-gray-800 border-gray-200'}`}>
-                        <MapPinIcon className="w-3 h-3" /> {pedido.user?.filial || pedido.user?.name} {souDestino && '(Você)'}
+                        <MapPinIcon className="w-3 h-3" /> {pedido.destino_final || pedido.user?.filial || pedido.user?.name} {souDestino && '(Você)'}
                     </span>
                 </div>
             </div>

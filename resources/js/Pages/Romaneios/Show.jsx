@@ -21,7 +21,11 @@ export default function RomaneioShow({ auth, romaneio }) {
 
             if (moto.pedidos && moto.pedidos.length > 0) {
                 pedidoAtivo = moto.pedidos[0]; 
-                if (pedidoAtivo.user) {
+                // Prioridade: pivot.destino (destino real selecionado) > user.filial (loja solicitante)
+                const pivotDestino = pedidoAtivo.pivot?.destino;
+                if (pivotDestino && pivotDestino.trim() !== '') {
+                    destino = pivotDestino;
+                } else if (pedidoAtivo.user) {
                     destino = pedidoAtivo.user.filial || pedidoAtivo.user.name;
                 }
             } 
@@ -240,6 +244,7 @@ export default function RomaneioShow({ auth, romaneio }) {
                                                     <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-400 uppercase">Modelo</th>
                                                     <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-400 uppercase">Cor</th>
                                                     <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-400 uppercase">Chassi</th>
+                                                    <th className="px-6 py-3 text-center text-xs font-extrabold text-gray-400 uppercase">Pedido</th>
                                                     <th className="px-6 py-3 text-right text-xs font-extrabold text-gray-400 uppercase">Origem</th>
                                                 </tr>
                                             </thead>
@@ -254,6 +259,15 @@ export default function RomaneioShow({ auth, romaneio }) {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-3 text-sm font-mono text-gray-600 bg-gray-50/50">{moto.chassi}</td>
+                                                        <td className="px-6 py-3 text-center">
+                                                            {moto._pedido_info?.id ? (
+                                                                <Link href={route('pedidos.show', moto._pedido_info.id)} className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 hover:text-blue-900 transition">
+                                                                    #{moto._pedido_info.id}
+                                                                </Link>
+                                                            ) : (
+                                                                <span className="text-[10px] text-gray-400 italic">—</span>
+                                                            )}
+                                                        </td>
                                                         <td className="px-6 py-3 text-right">
                                                             {moto._pedido_info?.origem_user_id ? (
                                                                 <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-200">TRANSF.</span>

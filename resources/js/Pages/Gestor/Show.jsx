@@ -12,6 +12,10 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
         ? (pedido.origem?.filial ? `${pedido.origem.filial} (${pedido.origem.name})` : 'Loja de Origem') 
         : 'CENTRO DE DISTRIBUIÇÃO (CD)';
 
+    // Calcula destinos reais a partir do pivot
+    const destinosReais = [...new Set((pedido.motos || []).map(m => m.pivot?.destino).filter(Boolean))];
+    const destinoFinalLabel = destinosReais.length > 0 ? destinosReais.join(', ') : (pedido.user?.filial || 'Matriz');
+
     // Inicializa todos como aprovados (true)
     const [aprovacoes, setAprovacoes] = useState(
         pedido.motos.reduce((acc, moto) => ({ ...acc, [moto.id]: true }), {})
@@ -149,8 +153,8 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                             {/* Destino */}
                             <div className="flex-1 text-center md:text-right w-full">
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">PARA (DESTINO)</p>
-                                <h3 className="text-xl font-black text-gray-800">{pedido.user.filial || 'Matriz'}</h3>
-                                <p className="text-sm text-gray-600">{pedido.user.name}</p>
+                                <h3 className="text-xl font-black text-gray-800">{destinoFinalLabel}</h3>
+                                <p className="text-sm text-gray-600">Solicitado por: {pedido.user.name}</p>
                             </div>
                         </div>
 
