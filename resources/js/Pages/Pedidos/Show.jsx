@@ -357,11 +357,10 @@ export default function PedidoShow({ auth, pedido }) {
                             <div className="text-lg font-bold text-gray-800 leading-tight">
                                 {pedido.origem
                                     ? pedido.origem.filial
-                                    : "Centro de Distribuição"}
+                                    : "Matriz Shineray By Sabel (Ananindeua)"}
                             </div>
                             <div className="text-sm text-gray-500 mt-1 font-medium">
-                                {pedido.origem?.name ||
-                                    "Matriz Shineray Brasil"}
+                                {pedido.origem?.name || 'CD / Fábrica'}
                             </div>
 
                             {pedido.previsao_coleta && (

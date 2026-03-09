@@ -10,7 +10,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
     const isTransferencia = !!pedido.origem_user_id;
     const nomeOrigem = isTransferencia 
         ? (pedido.origem?.filial ? `${pedido.origem.filial} (${pedido.origem.name})` : 'Loja de Origem') 
-        : 'CENTRO DE DISTRIBUIÇÃO (CD)';
+        : 'MATRIZ SHINERAY BY SABEL (ANANINDEUA)';
 
     // Calcula destinos reais a partir do pivot
     const destinosReais = [...new Set((pedido.motos || []).map(m => m.pivot?.destino).filter(Boolean))];
