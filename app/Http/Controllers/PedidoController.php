@@ -314,21 +314,48 @@ class PedidoController extends Controller
                 'previsao_entrega' => $previsaoEntrega
             ]);
 
-            // --- 3.5 OTIMIZAÇÃO: Validação em Lote (Evita 1 query por Moto no Vercel Timeout) ---
+            // --- 3.5 OTIMIZAÇÃO E TRAVAS GLOBAIS DE CHASSI (Evita lentidão e erros graves) ---
             $chassisRecebidos = array_filter(array_map(function($item) {
                 return isset($item['chassi']) && trim($item['chassi']) !== '' ? mb_strtoupper(trim($item['chassi'])) : null;
             }, $request->itens));
 
             if (!empty($chassisRecebidos)) {
+                
+                // TRAVA 1: Motos Presas em Outros Pedidos (Não concluídos/cancelados/rejeitados)
                 $motosEmUso = Moto::whereIn('chassi', $chassisRecebidos)
                     ->whereHas('pedidos', function ($q) {
-                        $q->whereNotIn('status', ['concluido', 'cancelado']);
+                        $q->whereNotIn('status', ['concluido', 'cancelado', 'rejeitado']);
                     })->pluck('chassi')->toArray();
 
                 if (!empty($motosEmUso)) {
                     $listaErro = implode(', ', $motosEmUso);
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        'itens' => "Os seguintes chassis já estão em trânsito/pedidos ativos: {$listaErro}"
+                        'itens' => "CHASSI PRESO: Os seguintes chassis já estão vinculados a outro pedido ativo: {$listaErro}"
+                    ]);
+                }
+
+                // TRAVA 2: Motos Historicamente Vendidas
+                $motosVendidas = Moto::whereIn('chassi', $chassisRecebidos)
+                    ->where(function($query) {
+                        // Condição A: O status atual da moto cravou como "vendida"
+                        $query->where('status', 'vendida')
+                              // Condição B: Possui um pedido 100% concluído cujo motivo da transferência declarava 'Venda' ou 'Cliente'
+                              ->orWhereHas('pedidos', function ($q) {
+                                  $q->where('pedidos.status', 'concluido')
+                                    ->where(function ($subQ) {
+                                        // Verifica o motivo no pivot (preferencial) ou no cabeçalho do pedido (fallback)
+                                        $subQ->where('pedido_moto.motivo', 'LIKE', '%venda%')
+                                             ->orWhere('pedido_moto.motivo', 'LIKE', '%cliente%')
+                                             ->orWhere('pedidos.motivo_solicitacao', 'LIKE', '%venda%')
+                                             ->orWhere('pedidos.motivo_solicitacao', 'LIKE', '%cliente%');
+                                    });
+                              });
+                    })->pluck('chassi')->toArray();
+
+                if (!empty($motosVendidas)) {
+                    $listaErroVendidas = implode(', ', $motosVendidas);
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'itens' => "VENDA JÁ CONFIRMADA: O sistema não permite re-encomendar motos de clientes. Verifique: {$listaErroVendidas}"
                     ]);
                 }
             }
