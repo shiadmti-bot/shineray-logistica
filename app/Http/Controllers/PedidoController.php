@@ -339,15 +339,15 @@ class PedidoController extends Controller
                     ->where(function($query) {
                         // Condição A: O status atual da moto cravou como "vendida"
                         $query->where('status', 'vendida')
-                              // Condição B: Possui um pedido 100% concluído cujo motivo da transferência declarava 'Venda' ou 'Cliente'
+                              // Condição B: A moto tem motivo_solicitacao indicando venda
+                              ->orWhere('motivo_solicitacao', 'LIKE', '%venda%')
+                              ->orWhere('motivo_solicitacao', 'LIKE', '%cliente%')
+                              // Condição C: Possui um pedido concluído cujo pivot declara Venda/Cliente
                               ->orWhereHas('pedidos', function ($q) {
                                   $q->where('pedidos.status', 'concluido')
                                     ->where(function ($subQ) {
-                                        // Verifica o motivo no pivot (preferencial) ou no cabeçalho do pedido (fallback)
                                         $subQ->where('pedido_moto.motivo', 'LIKE', '%venda%')
-                                             ->orWhere('pedido_moto.motivo', 'LIKE', '%cliente%')
-                                             ->orWhere('pedidos.motivo_solicitacao', 'LIKE', '%venda%')
-                                             ->orWhere('pedidos.motivo_solicitacao', 'LIKE', '%cliente%');
+                                             ->orWhere('pedido_moto.motivo', 'LIKE', '%cliente%');
                                     });
                               });
                     })->pluck('chassi')->toArray();
