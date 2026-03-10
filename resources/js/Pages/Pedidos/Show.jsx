@@ -480,9 +480,11 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
 
                         <div className="divide-y divide-gray-100">
-                            {(pedido.motos.length > 0
-                                ? pedido.motos
-                                : pedido.itens || []
+                            {/* Apenas mostra os itens do JSON de backup se o pedido for NOVO (em análise). 
+                                Caso contrário, confia 100% no banco de dados pivot (motos reais). */}
+                            {((pedido.status === 'em_analise' && pedido.motos.length === 0) 
+                                ? (pedido.itens || []) 
+                                : pedido.motos
                             ).map((item, idx) => {
                                 // === APLICAÇÃO DA LÓGICA DO GESTOR (CORRIGIDA) ===
                                 // Prioridade:
@@ -613,6 +615,18 @@ export default function PedidoShow({ auth, pedido }) {
                                     </div>
                                 );
                             })}
+
+                            {/* Empty State se não houver motos reais após análise */}
+                            {((pedido.status === 'em_analise' && pedido.motos.length === 0) 
+                                ? (pedido.itens || []) 
+                                : pedido.motos
+                            ).length === 0 && (
+                                <div className="p-8 text-center text-gray-500">
+                                    <ExclamationTriangleIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                                    <p className="font-bold text-gray-600 text-lg">Nenhuma motocicleta neste pedido.</p>
+                                    <p className="text-sm text-gray-400 mt-1">Todos os itens foram estornados ou rejeitados na etapa de análise.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -800,6 +814,7 @@ function Timeline({ status, isTransferencia }) {
     let steps = [];
     if (isTransferencia) {
         steps = [
+            { id: "em_analise", label: "Em Análise" },
             { id: "solicitado", label: "Aprovado" },
             { id: "separado", label: "Separado" },
             { id: "aguardando_coleta", label: "Aguard. Coleta" },
@@ -808,6 +823,7 @@ function Timeline({ status, isTransferencia }) {
         ];
     } else {
         steps = [
+            { id: "em_analise", label: "Em Análise" },
             { id: "solicitado", label: "Solicitado" },
             { id: "separado", label: "Separado" },
             { id: "expedido", label: "Expedido" },

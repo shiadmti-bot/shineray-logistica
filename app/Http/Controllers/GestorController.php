@@ -122,9 +122,17 @@ class GestorController extends Controller
 
                 $pedido->motos()->detach($moto->id);
                 
-                // IMPORTANTE: Exclui a moto pois foi um "erro" de solicitação da loja
-                // Se fosse estoque real, mudaria status para 'disponivel', mas aqui limpamos o dado.
-                $moto->delete(); 
+                // IMPORTANTE: Se o pedido for de transferência/devolução (origem_user_id existe), 
+                // a moto é de uma loja e não pode ser apagada. Deve apenas voltar a ficar disponível.
+                if ($pedido->origem_user_id) {
+                    $moto->update([
+                        'status' => 'disponivel',
+                        'localizacao_atual' => "Estoque Loja"
+                    ]);
+                } else {
+                    // Se for um pedido do CD, a moto foi criada como placeholder. Pode apagar.
+                    $moto->delete(); 
+                }
             }
         }
 
@@ -178,8 +186,27 @@ class GestorController extends Controller
     {
         $moto = Moto::findOrFail($id);
         
-        // 1. Remove a moto dos pedidos (Desvincula da loja)
-        $moto->pedidos()->detach();
+        // 1. Guarda apenas os pedidos ATIVOS aos quais ela pertencia (para não apagar histórico de concluídos)
+        $pedidosAtivos = $moto->pedidos()->whereNotIn('status', ['concluido', 'cancelado', 'rejeitado'])->get();
+        
+        // Remove a moto APENAS desses pedidos (evita conflitar com outros pedidos caso houvesse duplicidade)
+        foreach ($pedidosAtivos as $pedido) {
+            $pedido->motos()->detach($moto->id);
+        }
+
+        // 1.5. Verifica se os pedidos ficaram vazios e limpa se necessário
+        foreach ($pedidosAtivos as $pedido) {
+            if ($pedido->motos()->count() === 0) {
+                // Se o pedido ficou com 0 motos reais, ele é inútil. Cancela.
+                PedidoLog::create([
+                    'pedido_id' => $pedido->id,
+                    'titulo' => 'Pedido Cancelado Automaticamente',
+                    'descricao' => "O pedido foi cancelado porque seu último item foi removido/estornado."
+                ]);
+                $pedido->update(['status' => 'cancelado']);
+                $pedido->delete();
+            }
+        }
 
         // 2. Tira do romaneio se por acaso já tivesse sido bipada (segurança)
         $moto->romaneio_id = null;

@@ -1,0 +1,16 @@
+CREATE TABLE `pedido_moto` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `pedido_id` bigint unsigned NOT NULL,
+  `moto_id` bigint unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `destino` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Local específico de entrega deste item',
+  `motivo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `detalhes_avaria` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `foto_avaria` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `pedido_moto_pedido_id_foreign` (`pedido_id`),
+  KEY `pedido_moto_moto_id_foreign` (`moto_id`),
+  CONSTRAINT `pedido_moto_pedido_id_foreign` FOREIGN KEY (`pedido_id`) REFERENCES `pedidos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `pedido_moto_moto_id_foreign` FOREIGN KEY (`moto_id`) REFERENCES `motos` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=7950423
