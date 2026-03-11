@@ -283,21 +283,23 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
 
 function StatusBadge({ status }) {
     const config = {
-        'estoque_fabrica': { bg: 'bg-gray-100 text-gray-800 border border-gray-200', label: 'Estoque Fábrica' },
-        'estoque_loja':    { bg: 'bg-green-50 text-green-700 border border-green-200', label: 'Disponível Loja' }, 
-        'disponivel':      { bg: 'bg-green-50 text-green-600 border border-green-200', label: 'Disponível (Antigo)' },
-        'vendida':         { bg: 'bg-blue-900 text-white', label: 'Vendida' },
-        'reservado':       { bg: 'bg-yellow-100 text-yellow-800 border border-yellow-200', label: 'Reservado' },
-        'separado':        { bg: 'bg-blue-100 text-blue-800 border border-blue-200', label: 'Separado CD' },
-        'em_transito':     { bg: 'bg-orange-500 text-white border border-orange-600', label: 'Em Trânsito' },
-        'entregue':        { bg: 'bg-gray-800 text-white', label: 'Entregue' },
-        'concluido':       { bg: 'bg-gray-800 text-white', label: 'Concluído' },
-        'avariado':        { bg: 'bg-red-100 text-red-800 border border-red-200', label: 'Avariado' },
-        'aguardando_coleta': { bg: 'bg-purple-100 text-purple-800 border border-purple-200', label: 'Aguard. Coleta' },
-    }[status] || { bg: 'bg-gray-100 text-gray-600', label: status };
+        'estoque_fabrica': { bg: 'bg-gray-50 text-gray-700 border-gray-200', dot: 'bg-gray-500', label: 'Estoque Fábrica' },
+        'estoque_loja':    { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500', label: 'Disponível Loja' }, 
+        'disponivel':      { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-400', label: 'Disponível (Antigo)' },
+        'vendida':         { bg: 'bg-blue-900 text-white border-blue-900 shadow-md', dot: 'bg-blue-300', label: 'Vendida' },
+        'reservado':       { bg: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500', label: 'Reservado' },
+        'separado':        { bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', label: 'Separado' },
+        'aguardando_rota': { bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500', label: 'Aguard. Rota' },
+        'aguardando_coleta':{ bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-400', label: 'Aguard. Coleta' },
+        'em_transito':     { bg: 'bg-orange-500 text-white border-orange-600 shadow-md', dot: 'bg-white', label: 'Em Trânsito' },
+        'entregue':        { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500', label: 'Entregue' },
+        'concluido':       { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500', label: 'Concluído' },
+        'avariado':        { bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500', label: 'Avariado' },
+    }[status] || { bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400', label: status };
 
     return (
-        <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase whitespace-nowrap shadow-sm ${config.bg}`}>
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase border tracking-wider whitespace-nowrap ${config.bg}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></span>
             {config.label}
         </span>
     );

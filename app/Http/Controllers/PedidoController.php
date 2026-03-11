@@ -90,27 +90,13 @@ class PedidoController extends Controller
         } 
         
         // Interior: Depende do Calendário (Schedule)
-        // Busca a próxima viagem confirmada onde a origem é Destino ou Escala
-        $viagem = Schedule::where(function($q) use ($origemId) {
-                $q->where('target_user_id', $origemId)
-                  ->orWhere('secondary_user_id', $origemId);
-            })
-            ->where('date', '>=', now())
-            ->where('status', 'confirmed')
-            ->orderBy('date', 'asc')
-            ->first();
-
-        if (!$viagem) {
-            return response()->json(['erro' => "A loja {$origem->filial} não tem viagens confirmadas no calendário para coleta."], 404);
-        }
-
+        // A loja pode solicitar a transferência normalmente a qualquer momento.
+        // A matriz/CD fará o agendamento através do Calendário posteriormente.
         return response()->json([
             'tipo' => 'transferencia',
             'origem' => $origem->filial,
             'rota_origem' => 'Agendada (Interior)',
-            // 'data_coleta' => $viagem->date->format('Y-m-d'), // REMOVIDO
-            // Entrega = Coleta + 3 dias (Triagem CD)
-            // 'data_entrega' => Carbon::parse($viagem->date)->addDays(3)->format('Y-m-d') // REMOVIDO
+            'mensagem' => 'Aguardando definição de rota de envio pelo CD.'
         ]);
     }
 
@@ -582,32 +568,42 @@ class PedidoController extends Controller
                 return back()->withErrors(['erro' => 'Status inválido para separação.']);
             }
 
-            // LÓGICA V2: QUEM SEPARA?
+            // LÓGICA V2: QUEM SEPARA E PARA ONDE VAI O STATUS?
+            $novoStatus = 'aguardando_coleta'; // Padrão: Separou, está pronto pra coletar
+            
             // Cenário A: Transferência (Origem definida) -> Quem separa é a Loja de Origem
             if ($pedido->origem_user_id) {
                 if ($user->id !== $pedido->origem_user_id && $user->perfil !== 'admin') {
                     return back()->withErrors(['erro' => 'Apenas a loja de origem (' . $pedido->origem->filial . ') pode confirmar a separação desta moto.']);
                 }
-                $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando coleta do CD.";
+                
+                // Exceção Organizacional: Lojas do Interior separam a moto e entram em "Aguardando Rota" do CD
+                if ($pedido->origem && $pedido->origem->is_interior) {
+                    $novoStatus = 'aguardando_rota';
+                    $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando a Matriz/CD definir uma rota de coleta.";
+                } else {
+                    $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando coleta direta.";
+                }
             } 
             // Cenário B: Reposição (Origem NULL) -> Quem separa é o CD
             else {
                 if ($user->perfil !== 'cd' && $user->perfil !== 'admin') {
                     return back()->withErrors(['erro' => 'Apenas o CD pode separar pedidos de reposição.']);
                 }
-                $msgLog = "Separado no estoque do CD.";
+                $msgLog = "Separado no estoque do CD. Pronto para embarque.";
             }
 
             // Atualiza
-            $pedido->update(['status' => 'separado']);
-            $pedido->motos()->update(['status' => 'separado']);
+            $pedido->update(['status' => $novoStatus]);
+            $pedido->motos()->update(['status' => $novoStatus]);
             
             $this->registrarLog($pedido, 'Separado 📦', $msgLog);
             
-            // Notifica o CD que existe uma coleta pronta (apenas se for transferência)
+            // Notifica o CD que existe uma carga pronta no interior/capital aguardando frete
             if ($pedido->origem_user_id) {
                 $cdUsers = User::where('perfil', 'cd')->get();
-                $this->enviarNotificacao($cdUsers, 'Coleta Pronta 🚚', "Loja {$pedido->origem->filial} separou as motos do pedido #{$pedido->id}. Pode agendar coleta.", route('romaneios.create'));
+                $assunto = $novoStatus === 'aguardando_rota' ? 'Aguardando Rota 🚚' : 'Coleta Pronta 🚚';
+                $this->enviarNotificacao($cdUsers, $assunto, "Loja {$pedido->origem->filial} separou as motos do pedido #{$pedido->id}. Pode agendar coleta.", route('romaneios.create'));
             }
 
             return back()->with('success', 'Itens separados e prontos para logística!');
@@ -827,7 +823,7 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             // Lê, Redimensiona e Salva
             $image = $manager->read($arquivo);
             $image->scaleDown(width: 1280);
-            $image->toJpeg(quality: 80)->save($caminhoFinal);
+            $image->toJpeg(80)->save($caminhoFinal);
             
         } catch (\Exception $e) {
             // Se falhar a compressão, usa o original

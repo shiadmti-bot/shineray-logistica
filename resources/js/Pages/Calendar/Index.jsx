@@ -183,6 +183,16 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
             containerClass = "bg-gray-100 border-l-4 border-gray-300 text-gray-400 grayscale opacity-60";
             icon = "🔒";
             label = "EXTERNA";
+        } else if (props.is_past) {
+            if (isConfirmed) {
+                containerClass = "bg-gray-200 border-l-4 border-gray-500 text-gray-700 opacity-80";
+                icon = "✅";
+                label = "PASSADO (CONFIRMADO)";
+            } else {
+                containerClass = "bg-gray-50 border-l-4 border-gray-300 text-gray-400 opacity-60 border-dashed text-opacity-80";
+                icon = "⚠️";
+                label = "PASSADO (NÃO CONFIRMADO)";
+            }
         }
 
         return (
@@ -217,6 +227,8 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
                     <div className="mb-6 flex flex-wrap gap-4 justify-end text-xs font-bold uppercase text-gray-500">
                         <div className="flex items-center gap-2"><span className="w-3 h-3 bg-green-500 rounded"></span> Confirmado</div>
                         <div className="flex items-center gap-2"><span className="w-3 h-3 bg-yellow-400 rounded border border-yellow-500 border-dashed"></span> Planejamento</div>
+                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-400 rounded"></span> Passado (Conf.)</div>
+                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-200 rounded border border-gray-300 border-dashed"></span> Passado (Pend.)</div>
                     </div>
 
                     <div className="bg-white p-2 md:p-6 rounded-2xl shadow-xl border-t-4 border-red-800 overflow-hidden">

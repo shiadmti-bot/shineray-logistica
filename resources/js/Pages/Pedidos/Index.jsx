@@ -392,7 +392,7 @@ function safeString(value) { return String(value || '').toLowerCase(); }
 
 function safeGetStepNumber(status) {
     const map = { 
-        'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_coleta': 3, 
+        'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_rota': 2.5, 'aguardando_coleta': 3, 
         'expedido': 3, 'em_transito': 4, 'em_transito_cd': 4, 'no_cd': 4.5, 'concluido': 5 
     };
     return map[String(status).toLowerCase()] || 1;
@@ -400,9 +400,10 @@ function safeGetStepNumber(status) {
 
 function safeGetStatusColor(status) {
     const map = {
-        'em_analise': 'bg-purple-500', 'solicitado': 'bg-yellow-500', 'separado': 'bg-blue-500',
-        'aguardando_coleta': 'bg-orange-400', 'expedido': 'bg-cyan-500', 'em_transito': 'bg-orange-500', 
-        'em_transito_cd': 'bg-indigo-500', 'no_cd': 'bg-purple-600', 'concluido': 'bg-green-500', 'cancelado': 'bg-red-500'
+        'em_analise': 'bg-purple-500', 'solicitado': 'bg-yellow-500', 'separado': 'bg-blue-500', 
+        'aguardando_rota': 'bg-pink-500', 'aguardando_coleta': 'bg-orange-400', 'expedido': 'bg-cyan-500', 
+        'em_transito': 'bg-orange-500', 'em_transito_cd': 'bg-indigo-500', 'no_cd': 'bg-purple-600', 
+        'concluido': 'bg-green-500', 'cancelado': 'bg-red-500'
     };
     return map[safeString(status)] || 'bg-gray-400';
 }
@@ -410,20 +411,22 @@ function safeGetStatusColor(status) {
 function StatusBadge({ status }) {
     const s = safeString(status);
     const config = {
-        'em_analise':      { label: 'Em Análise',    bg: 'bg-purple-100 text-purple-800 border-purple-200' },
-        'solicitado':      { label: 'Solicitado',    bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        'separado':        { label: 'Separado',      bg: 'bg-blue-100 text-blue-800 border-blue-200' },
-        'expedido':        { label: 'Expedido',      bg: 'bg-cyan-100 text-cyan-800 border-cyan-200' },
-        'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-100 text-orange-800 border-orange-300' },
-        'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600' },
-        'em_transito_cd':  { label: 'Indo p/ CD',    bg: 'bg-indigo-500 text-white border-indigo-600' },
-        'no_cd':           { label: 'No Hub/CD',     bg: 'bg-purple-600 text-white border-purple-700' },
-        'concluido':       { label: 'Concluído',     bg: 'bg-green-100 text-green-800 border-green-200' },
-        'cancelado':       { label: 'Cancelado',     bg: 'bg-red-100 text-red-800 border-red-200' },
-    }[s] || { label: s.toUpperCase(), bg: 'bg-gray-100 text-gray-600' };
+        'em_analise':      { label: 'Em Análise',    bg: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+        'solicitado':      { label: 'Solicitado',    bg: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500' },
+        'separado':        { label: 'Separado',      bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+        'aguardando_rota': { label: 'Aguard. Rota',  bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
+        'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+        'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
+        'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-md shadow-orange-500/20', dot: 'bg-white' },
+        'em_transito_cd':  { label: 'Indo p/ CD',    bg: 'bg-indigo-500 text-white border-indigo-600 shadow-md shadow-indigo-500/20', dot: 'bg-white' },
+        'no_cd':           { label: 'No Hub/CD',     bg: 'bg-purple-600 text-white border-purple-700 shadow-md shadow-purple-600/20', dot: 'bg-purple-300' },
+        'concluido':       { label: 'Concluído',     bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
+        'cancelado':       { label: 'Cancelado',     bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
+    }[s] || { label: s.toUpperCase(), bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400' };
 
     return (
-        <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase border tracking-wide whitespace-nowrap shadow-sm ${config.bg}`}>
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase border tracking-wider whitespace-nowrap ${config.bg}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></span>
             {config.label}
         </span>
     );

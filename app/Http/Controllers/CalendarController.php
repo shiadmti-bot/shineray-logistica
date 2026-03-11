@@ -48,7 +48,8 @@ class CalendarController extends Controller
                         'description' => $isDestinoFinal ? 'Descarga Total' : "Parada {$stop->sequence}",
                         'rota_completa' => $this->formatarRotaCompleta($sched->stops),
                         // IMPORTANTE: Enviar a lista de IDs das paradas para o modal saber quem são
-                        'stops_ids' => $stopsIds 
+                        'stops_ids' => $stopsIds,
+                        'is_past' => Carbon::parse($sched->date)->startOfDay()->lt(now()->startOfDay())
                     ]
                 ];
             }

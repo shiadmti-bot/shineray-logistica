@@ -171,7 +171,27 @@ export default function GestorHistory({ auth, logs, filters }) {
 }
 
 function StatusBadge({ status }) {
-    if (!status) return <span className="ml-2 bg-gray-200 text-gray-500 text-[10px] px-2 py-0.5 rounded font-bold">N/D</span>;
-    // ... mapeamento de cores igual ao anterior ...
-    return <span className="ml-2 bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded font-bold uppercase">{status}</span>;
+    if (!status) return <span className="ml-2 bg-gray-50 text-gray-500 text-[10px] px-2 py-0.5 rounded font-bold border border-gray-200">N/D</span>;
+
+    const s = String(status).toLowerCase();
+    const config = {
+        'em_analise':      { label: 'Em Análise',    bg: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+        'solicitado':      { label: 'Solicitado',    bg: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500' },
+        'separado':        { label: 'Separado',      bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
+        'aguardando_rota': { label: 'Aguard. Rota',  bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
+        'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+        'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
+        'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-sm', dot: 'bg-white' },
+        'em_transito_cd':  { label: 'Indo p/ CD',    bg: 'bg-indigo-500 text-white border-indigo-600 shadow-sm', dot: 'bg-white' },
+        'no_cd':           { label: 'No Hub/CD',     bg: 'bg-purple-600 text-white border-purple-700 shadow-sm', dot: 'bg-purple-300' },
+        'concluido':       { label: 'Concluído',     bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
+        'cancelado':       { label: 'Cancelado',     bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
+    }[s] || { label: s.toUpperCase(), bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400' };
+
+    return (
+        <span className={`ml-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase border tracking-wider whitespace-nowrap align-middle ${config.bg}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></span>
+            {config.label}
+        </span>
+    );
 }
