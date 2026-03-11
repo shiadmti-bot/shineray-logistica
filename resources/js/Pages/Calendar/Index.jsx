@@ -63,9 +63,9 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
     const handleEventClick = (info) => {
         const props = info.event.extendedProps;
 
-        // 1. Apenas Visualização (Loja)
-        if (!canEdit) {
-            if (!props.is_my_route) {
+        // 1. Apenas Visualização (Loja OU Data Passada)
+        if (!canEdit || props.is_past) {
+            if (!canEdit && !props.is_my_route) {
                 Swal.fire({ title: 'Rota Externa', text: 'Esta carga não passa pela sua loja.', icon: 'info' });
                 return;
             }
@@ -83,6 +83,7 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
                         <div class="mt-3 pt-3 border-t border-gray-200 font-mono text-xs text-gray-600">
                             <strong>Rota:</strong><br/>${props.rota_completa}
                         </div>
+                        ${props.is_past ? '<div class="mt-3 text-xs text-red-500 font-bold border-t border-red-100 pt-2">📅 Rota passada (Edição bloqueada)</div>' : ''}
                     </div>
                 `,
                 confirmButtonColor: '#1f2937'
@@ -185,13 +186,14 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
             label = "EXTERNA";
         } else if (props.is_past) {
             if (isConfirmed) {
-                containerClass = "bg-gray-200 border-l-4 border-gray-500 text-gray-700 opacity-80";
+                // User requirement: Keep original green color instead of gray, just slightly dimmed
+                containerClass = "bg-green-100 border-l-4 border-green-500 text-green-800 opacity-85 cursor-not-allowed";
                 icon = "✅";
-                label = "PASSADO (CONFIRMADO)";
+                label = "PASSADO (CONF.)";
             } else {
-                containerClass = "bg-gray-50 border-l-4 border-gray-300 text-gray-400 opacity-60 border-dashed text-opacity-80";
+                containerClass = "bg-gray-50 border-l-4 border-gray-300 text-gray-400 opacity-60 border-dashed text-opacity-80 cursor-not-allowed";
                 icon = "⚠️";
-                label = "PASSADO (NÃO CONFIRMADO)";
+                label = "PASSADO (PEND.)";
             }
         }
 
@@ -227,7 +229,7 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
                     <div className="mb-6 flex flex-wrap gap-4 justify-end text-xs font-bold uppercase text-gray-500">
                         <div className="flex items-center gap-2"><span className="w-3 h-3 bg-green-500 rounded"></span> Confirmado</div>
                         <div className="flex items-center gap-2"><span className="w-3 h-3 bg-yellow-400 rounded border border-yellow-500 border-dashed"></span> Planejamento</div>
-                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-400 rounded"></span> Passado (Conf.)</div>
+                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-green-300 opacity-80 rounded"></span> Passado (Conf.)</div>
                         <div className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-200 rounded border border-gray-300 border-dashed"></span> Passado (Pend.)</div>
                     </div>
 

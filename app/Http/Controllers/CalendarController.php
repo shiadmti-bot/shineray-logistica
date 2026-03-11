@@ -90,11 +90,24 @@ class CalendarController extends Controller
             'stops.*' => 'exists:users,id'
         ]);
 
+        // Proteção Retroativa: Trancar edição/criação de rotas já passadas
+        if (Carbon::parse($request->date)->startOfDay()->lt(now()->startOfDay())) {
+            return back()->withErrors(['erro' => 'Não é possível salvar agendamentos para dias que já passaram.']);
+        }
+
+        if ($request->id) {
+            $existing = Schedule::find($request->id);
+            if ($existing && Carbon::parse($existing->date)->startOfDay()->lt(now()->startOfDay())) {
+                return back()->withErrors(['erro' => 'Este agendamento já ocorreu e não pode ser modificado.']);
+            }
+        }
+
         // 1. REMOVIDO O "return" DAQUI DA FRENTE DO DB::transaction
         DB::transaction(function () use ($request) {
             
             // Atualiza ou Cria
-            $schedule = Schedule::updateOrCreate(
+            $schedule = Schedule::updateOrCreate
+(
                 ['id' => $request->id], 
                 [
                     'date' => $request->date,
@@ -135,7 +148,9 @@ class CalendarController extends Controller
         $schedule = Schedule::findOrFail($realId);
         
         // Opcional: Bloquear exclusão de passado
-        // if (Carbon::parse($schedule->date)->isPast()) { ... }
+        if (Carbon::parse($schedule->date)->startOfDay()->lt(now()->startOfDay())) {
+             return back()->withErrors(['erro' => 'Não é possível excluir rotas que já ocorreram no passado.']);
+        }
 
         $schedule->delete(); 
         // Certifique-se que sua migration de schedule_stops tem ->onDelete('cascade') 
