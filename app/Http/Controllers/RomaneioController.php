@@ -204,7 +204,7 @@ class RomaneioController extends Controller
             }
 
             return redirect()->route('romaneios.show', $romaneio->id)
-                ->with('success', 'Carga atualizada com sucesso!');
+                ->with('success', 'Romaneio salvo! Itens vinculados à carga com sucesso.');
         });
     }
 

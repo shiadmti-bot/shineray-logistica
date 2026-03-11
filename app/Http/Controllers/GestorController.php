@@ -160,17 +160,22 @@ class GestorController extends Controller
                 'descricao' => $textoLog
             ]);
 
-            // Notifica usuários do CD
-            $cds = User::where('perfil', 'cd')->get();
-            foreach ($cds as $cd) {
-                $cd->notify(new PedidoAtualizado(
-                    'Pedido #' . $pedido->id . ' Aprovado', 
-                    'Nova solicitação liberada para separação.', 
-                    route('pedidos.show', $pedido->id)
-                ));
+            // Notificações Direcionadas: Quem deve separar as motos?
+            $tituloNotific = 'Pedido #' . $pedido->id . ' Aprovado';
+            $msgNotific = 'Solicitação aprovada comercialmente e liberada para separação.';
+
+            if ($pedido->origem_user_id && $pedido->origem) {
+                // Se for Transferência, notifica a loja de origem para separar as motos
+                $pedido->origem->notify(new PedidoAtualizado($tituloNotific, $msgNotific, route('pedidos.show', $pedido->id)));
+            } else {
+                // Se for Reposição (sem origem de loja), notifica a equipe do CD
+                $cds = User::where('perfil', 'cd')->get();
+                foreach ($cds as $cd) {
+                    $cd->notify(new PedidoAtualizado($tituloNotific, $msgNotific, route('pedidos.show', $pedido->id)));
+                }
             }
 
-            return redirect()->route('gestor.index')->with('success', 'Análise concluída com sucesso.');
+            return redirect()->route('gestor.index')->with('success', 'Análise concluída! Pedido liberado para separação física.');
         } else {
             // Se tudo foi rejeitado, apaga o pedido
             $pedido->delete();

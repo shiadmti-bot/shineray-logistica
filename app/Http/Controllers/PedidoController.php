@@ -152,10 +152,10 @@ class PedidoController extends Controller
             // ORDENAÇÃO POR PRIORIDADE (Ativos Primeiro)
             ->orderByRaw("
                 CASE 
-                    WHEN status IN ('em_analise', 'solicitado', 'separado', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') THEN 1 
+                    WHEN status IN ('em_analise', 'solicitado', 'separado', 'aguardando_rota', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') THEN 1 
                     ELSE 2 
                 END ASC,
-                FIELD(status, 'em_analise', 'solicitado', 'separado', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') ASC,
+                FIELD(status, 'em_analise', 'solicitado', 'separado', 'aguardando_rota', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') ASC,
                 created_at DESC
             ")
             ->paginate(15)
@@ -181,7 +181,7 @@ class PedidoController extends Controller
             ->whereIn('status', ['estoque_loja', 'disponivel', 'concluido']) 
             ->whereDoesntHave('pedidos', function ($query) {
                 // Garante que não está em nenhum PROCESSO ATIVO de logística
-                $query->whereIn('status', ['solicitado', 'aprovado', 'separado', 'aguardando_coleta', 'em_transito', 'expedido', 'em_transito_cd', 'no_cd']);
+                $query->whereIn('status', ['solicitado', 'aprovado', 'separado', 'aguardando_rota', 'aguardando_coleta', 'em_transito', 'expedido', 'em_transito_cd', 'no_cd']);
             })
             ->select('id', 'chassi', 'modelo', 'cor')
             ->orderBy('modelo')
@@ -578,7 +578,8 @@ class PedidoController extends Controller
                 }
                 
                 // Exceção Organizacional: Lojas do Interior separam a moto e entram em "Aguardando Rota" do CD
-                if ($pedido->origem && $pedido->origem->is_interior) {
+                // REGRA DE TRANSIÇÃO (12/03/2026): Apenas pedidos novos entram nessa regra para não travar os antigos.
+                if ($pedido->origem && $pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
                     $novoStatus = 'aguardando_rota';
                     $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando a Matriz/CD definir uma rota de coleta.";
                 } else {
@@ -606,7 +607,7 @@ class PedidoController extends Controller
                 $this->enviarNotificacao($cdUsers, $assunto, "Loja {$pedido->origem->filial} separou as motos do pedido #{$pedido->id}. Pode agendar coleta.", route('romaneios.create'));
             }
 
-            return back()->with('success', 'Itens separados e prontos para logística!');
+            return back()->with('success', 'Motos separadas fisicamente! O fluxo agora segue para a logística (coleta/agendamento).');
         });
     }
 
