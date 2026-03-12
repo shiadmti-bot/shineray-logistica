@@ -569,25 +569,27 @@ class PedidoController extends Controller
             }
 
             // LÓGICA V2: QUEM SEPARA E PARA ONDE VAI O STATUS?
-            $novoStatus = 'aguardando_coleta'; // Padrão: Separou, está pronto pra coletar
-            
-            // Cenário A: Transferência (Origem definida) -> Quem separa é a Loja de Origem
-            if ($pedido->origem_user_id) {
+            // CORREÇÃO: Reposições do CD não podem cair na coleta.
+            $isTransferenciaVerdadeira = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+
+            // Cenário A: Transferência (Origem é de uma loja) -> Quem separa é a Loja de Origem
+            if ($isTransferenciaVerdadeira) {
+                $novoStatus = 'aguardando_coleta'; // Padrão: Separou, está pronto pra coletar
                 if ($user->id !== $pedido->origem_user_id && $user->perfil !== 'admin') {
                     return back()->withErrors(['erro' => 'Apenas a loja de origem (' . $pedido->origem->filial . ') pode confirmar a separação desta moto.']);
                 }
                 
                 // Exceção Organizacional: Lojas do Interior separam a moto e entram em "Aguardando Rota" do CD
-                // REGRA DE TRANSIÇÃO (12/03/2026): Apenas pedidos novos entram nessa regra para não travar os antigos.
-                if ($pedido->origem && $pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
+                if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
                     $novoStatus = 'aguardando_rota';
                     $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando a Matriz/CD definir uma rota de coleta.";
                 } else {
                     $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando coleta direta.";
                 }
             } 
-            // Cenário B: Reposição (Origem NULL) -> Quem separa é o CD
+            // Cenário B: Reposição (Origem NULL ou Origem CD) -> Quem separa é o CD
             else {
+                $novoStatus = 'separado'; // Para o CD, continua separado até virar romaneio (expedido)
                 if ($user->perfil !== 'cd' && $user->perfil !== 'admin') {
                     return back()->withErrors(['erro' => 'Apenas o CD pode separar pedidos de reposição.']);
                 }
@@ -601,7 +603,7 @@ class PedidoController extends Controller
             $this->registrarLog($pedido, 'Separado 📦', $msgLog);
             
             // Notifica o CD que existe uma carga pronta no interior/capital aguardando frete
-            if ($pedido->origem_user_id) {
+            if ($isTransferenciaVerdadeira) {
                 $cdUsers = User::where('perfil', 'cd')->get();
                 $assunto = $novoStatus === 'aguardando_rota' ? 'Aguardando Rota 🚚' : 'Coleta Pronta 🚚';
                 $this->enviarNotificacao($cdUsers, $assunto, "Loja {$pedido->origem->filial} separou as motos do pedido #{$pedido->id}. Pode agendar coleta.", route('romaneios.create'));

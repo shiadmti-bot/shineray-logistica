@@ -88,17 +88,24 @@ class RomaneioController extends Controller
     public function create()
     {
         // 1. EXPEDIÇÃO (Saindo do CD)
-        // Pedidos que estão 'separado' e são saída de estoque próprio (sem origem de outra loja)
+        // Pedidos que estão 'separado' e são saída de estoque próprio (origem nula ou Origem = CD)
         // OU pedidos que estão 'no_cd' (Transbordos que chegaram e vão sair de novo)
         $expedicao = Pedido::whereIn('status', ['separado', 'no_cd'])
-            ->whereNull('origem_user_id') // É estoque do CD ou Transbordo já processado
+            ->where(function ($query) {
+                $query->whereNull('origem_user_id')
+                      ->orWhereHas('origem', function ($q) {
+                          $q->where('perfil', '!=', 'loja'); // CD ou Admin
+                      });
+            })
             ->with(['user', 'motos']) // Carrega cliente e motos
             ->get();
 
         // 2. COLETAS (Milk Run)
-        // Pedidos que são transferências (tem origem definida) e ainda não foram coletados
-        // Status pode ser 'separado' (na loja de origem) ou 'solicitado' (aprovado comercial)
+        // Pedidos que são transferências (tem origem em uma Loja definida)
         $coletas = Pedido::whereNotNull('origem_user_id')
+            ->whereHas('origem', function ($q) {
+                $q->where('perfil', 'loja');
+            })
             ->whereIn('status', ['solicitado', 'separado'])
             ->with(['user', 'origem', 'motos'])
             ->get();
@@ -162,7 +169,8 @@ class RomaneioController extends Controller
 
                 // --- LÓGICA INTELIGENTE (MILK RUN) ---
                 
-                $isColeta = ($pedido->origem_user_id != null);
+                // CORREÇÃO: Só é coleta de loja se a origem for uma loja. Origem nula ou CD é Expedição direta do CD.
+                $isColeta = ($pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja');
                 
                 if ($isColeta) {
                     // Cenário 1: Coleta (Milk Run) - Motorista vai buscar na loja
