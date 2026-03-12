@@ -376,7 +376,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
 // --- HELPERS VISUAIS ATUALIZADOS ---
 
 function TipoBadge({ pedido, authId }) {
-    if (pedido.origem_user_id) {
+    // CORREÇÃO: Só é transferência se a origem existir e for uma loja
+    const isGenuinaTransferencia = pedido.origem_user_id && pedido.origem && pedido.origem.perfil === 'loja';
+
+    if (isGenuinaTransferencia) {
         const souOrigem = pedido.origem_user_id === authId;
         const souDestino = pedido.user_id === authId;
         

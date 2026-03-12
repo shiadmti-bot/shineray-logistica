@@ -37,7 +37,9 @@ export default function PedidoShow({ auth, pedido }) {
     const souCD = auth.user.perfil === "cd";
     const souAdmin =
         auth.user.perfil === "admin" || auth.user.perfil === "gestor";
-    const isTransferencia = !!pedido.origem_user_id;
+        
+    // CORREÇÃO: Só é transferência se houver origem E a origem for uma loja (evita que envios do CD sejam rotulados como transferência visualmente)
+    const isTransferencia = !!(pedido.origem_user_id && pedido.origem && pedido.origem.perfil === "loja");
 
     // Calcula destinos reais a partir do pivot
     const destinosReais = [
