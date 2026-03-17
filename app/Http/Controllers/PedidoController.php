@@ -378,6 +378,12 @@ class PedidoController extends Controller
                     } 
                     else {
                         // C.2 MOTO JÁ EXISTE NO SISTEMA
+                        // Atualiza modelo e cor para garantir que dados antigos (de cancelamentos) sejam sobrescritos
+                        $moto->update([
+                            'modelo' => mb_strtoupper($item['modelo']),
+                            'cor' => mb_strtoupper($item['cor'])
+                        ]);
+
                         if ($modo === 'devolucao') {
                             if ($moto->loja_atual_id != $user->id) {
                                 $moto->update([
@@ -427,17 +433,24 @@ class PedidoController extends Controller
                             ]
                         );
 
-                        if (!$moto->wasRecentlyCreated && !in_array($moto->status, ['estoque_fabrica', 'solicitado'])) {
-                            $oldPatio = $moto->localizacao_atual;
-                            $newPatio = 'Fábrica/CD (Sincronizado na Saída)';
+                        if (!$moto->wasRecentlyCreated) {
+                            $updData = [
+                                'modelo' => mb_strtoupper($item['modelo']),
+                                'cor' => mb_strtoupper($item['cor'])
+                            ];
+
+                            if (!in_array($moto->status, ['estoque_fabrica', 'solicitado'])) {
+                                $oldPatio = $moto->localizacao_atual;
+                                $newPatio = 'Fábrica/CD (Sincronizado na Saída)';
+                                
+                                $updData['status'] = 'solicitado';
+                                $updData['loja_atual_id'] = null;
+                                $updData['localizacao_atual'] = $newPatio;
+                                
+                                $syncLogs[] = "✓ Chassi {$chassi} devolvido sistemicamente ao CD: de '{$oldPatio}' para 'Fábrica/CD'.";
+                            }
                             
-                            $moto->update([
-                                'status' => 'solicitado',
-                                'loja_atual_id' => null,
-                                'localizacao_atual' => $newPatio
-                            ]);
-                            
-                            $syncLogs[] = "✓ Chassi {$chassi} devolvido sistemicamente ao CD: de '{$oldPatio}' para 'Fábrica/CD'.";
+                            $moto->update($updData);
                         }
                     } else {
                         // Pedido genérico (sem chassi) - Cria registro placeholder
