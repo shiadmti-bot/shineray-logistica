@@ -395,8 +395,8 @@ function safeString(value) { return String(value || '').toLowerCase(); }
 
 function safeGetStepNumber(status) {
     const map = { 
-        'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_rota': 2.5, 'rota_confirmada': 2.8, 'aguardando_coleta': 3, 
-        'expedido': 3, 'em_transito': 4, 'concluido': 5 
+        'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_rota': 2.5, 'rota_confirmada': 2.8, 'aguardando_coleta': 3, 'coletado': 3.5, 
+        'expedido': 3.5, 'em_transito': 4, 'concluido': 5 
     };
     return map[String(status).toLowerCase()] || 1;
 }
@@ -404,7 +404,7 @@ function safeGetStepNumber(status) {
 function safeGetStatusColor(status) {
     const map = {
         'em_analise': 'bg-purple-500', 'solicitado': 'bg-yellow-500', 'separado': 'bg-blue-500', 
-        'aguardando_rota': 'bg-pink-500', 'rota_confirmada': 'bg-teal-500', 'aguardando_coleta': 'bg-orange-400', 'expedido': 'bg-cyan-500', 
+        'aguardando_rota': 'bg-pink-500', 'rota_confirmada': 'bg-teal-500', 'aguardando_coleta': 'bg-orange-400', 'coletado': 'bg-emerald-500', 'expedido': 'bg-cyan-500', 
         'em_transito': 'bg-orange-500', 
         'concluido': 'bg-green-500', 'cancelado': 'bg-red-500'
     };
@@ -420,6 +420,7 @@ function StatusBadge({ status }) {
         'aguardando_rota': { label: 'Aguard. Rota',  bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
         'rota_confirmada': { label: 'Rota Confirmada', bg: 'bg-teal-50 text-teal-700 border-teal-200', dot: 'bg-teal-500' },
         'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
+        'coletado':        { label: 'Coletado (P/ Rota)', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
         'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
         'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-md shadow-orange-500/20', dot: 'bg-white' },
         'concluido':       { label: 'Concluído',     bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },

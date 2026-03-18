@@ -263,14 +263,20 @@ class RomaneioController extends Controller
                 return back()->withErrors(['erro' => 'Esta carga já saiu ou foi concluída.']);
             }
 
+            // Valida se há itens pendentes de coleta neste romaneio
+            $pendentesColeta = $romaneio->pedidos()->where('status', 'aguardando_coleta')->count();
+            if ($pendentesColeta > 0) {
+                return back()->withErrors(['erro' => 'Existem coletas pendentes. O motorista deve confirmar a bipagem das coletas antes de liberar a carga para trânsito final.']);
+            }
+
             // 1. Atualiza o Romaneio
             $romaneio->update(['status' => 'em_transito']);
 
-            // 2. Atualiza os Itens (Apenas os que estavam 'expedido')
-            // Itens 'aguardando_coleta' NÃO mudam aqui, pois o motorista ainda vai buscar.
+            // 2. Atualiza os Itens (Expedidos do CD ou já Coletados na Loja)
+            // Agora eles entram em trânsito real rumo ao destino final
             foreach ($romaneio->pedidos as $pedido) {
                 
-                if ($pedido->status === 'expedido') {
+                if (in_array($pedido->status, ['expedido', 'coletado'])) {
                     // Vira Em Trânsito Real
                     $pedido->update(['status' => 'em_transito']);
                     
@@ -321,7 +327,7 @@ class RomaneioController extends Controller
                 foreach ($romaneio->pedidos as $pedido) {
                     // Só processa o que estava previsto para vir ao CD (Coletas Interior ou Transbordo)
                     // Ou pedidos que estavam 'aguardando_coleta' e agora chegaram fisicamente
-                    if (in_array($pedido->status, ['aguardando_coleta', 'em_transito', 'em_transito_cd'])) {
+                    if (in_array($pedido->status, ['aguardando_coleta', 'coletado', 'em_transito', 'em_transito_cd'])) {
                         
                         // Verifica se este pedido é uma transferência (tem origem)
                         // Se for transferência, ao chegar no CD, ele fica 'no_cd' aguardando nova rota.
@@ -449,7 +455,7 @@ class RomaneioController extends Controller
         DB::transaction(function () use ($moto) {
             // 1. Atualiza a Moto -> Agora ela está física no caminhão
             $moto->update([
-                'status' => 'transito_loja', 
+                'status' => 'coletado', 
                 'localizacao_atual' => 'A Bordo do Caminhão (Coletado)'
             ]);
 
@@ -463,9 +469,9 @@ class RomaneioController extends Controller
                                     ->where('status', 'aguardando_coleta')
                                     ->count();
                 
-                // Se não tem mais nada pendente (todas coletadas), o pedido inteiro vira "Em Trânsito"
+                // Se não tem mais nada pendente (todas coletadas), o pedido inteiro vira "Coletado"
                 if ($pendentes === 0) {
-                    $pedido->update(['status' => 'em_transito']);
+                    $pedido->update(['status' => 'coletado']);
                     
                     // Log
                     PedidoLog::create([
