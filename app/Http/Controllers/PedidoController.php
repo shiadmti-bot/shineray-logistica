@@ -599,22 +599,33 @@ class PedidoController extends Controller
                 if ($user->id !== $pedido->origem_user_id && $user->perfil !== 'admin') {
                     return back()->withErrors(['erro' => 'Apenas a loja de origem (' . $pedido->origem->filial . ') pode confirmar a separação desta moto.']);
                 }
-                
+                // Se a previsão de entrega/rota já foi anexada na aprovação, o status deve pular direto para rota_confirmada
+                if ($pedido->previsao_entrega != null) {
+                    $novoStatus = 'rota_confirmada';
+                    $msgLog = "Separado na origem ({$pedido->origem->filial}). Rota já estava previamente confirmada para entrega.";
+                } 
                 // Exceção Organizacional: Lojas do Interior separam a moto e entram em "Aguardando Rota" do CD
-                if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
+                else if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
                     $novoStatus = 'aguardando_rota';
                     $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando a Matriz/CD definir uma rota de coleta.";
                 } else {
+                    $novoStatus = 'aguardando_coleta';
                     $msgLog = "Separado na origem ({$pedido->origem->filial}). Aguardando coleta direta.";
                 }
             } 
             // Cenário B: Reposição (Origem NULL ou Origem CD) -> Quem separa é o CD
             else {
-                $novoStatus = 'separado'; // Para o CD, continua separado até virar romaneio (expedido)
+                if ($pedido->previsao_entrega != null) {
+                    $novoStatus = 'rota_confirmada';
+                    $msgLog = "Separado no CD. Rota já havia sido confirmada pelo calendário.";
+                } else {
+                    $novoStatus = 'separado'; // Para o CD, continua separado até virar romaneio (expedido)
+                    $msgLog = "Separado no estoque do CD. Pronto para embarque.";
+                }
+                
                 if ($user->perfil !== 'cd' && $user->perfil !== 'admin') {
                     return back()->withErrors(['erro' => 'Apenas o CD pode separar pedidos de reposição.']);
                 }
-                $msgLog = "Separado no estoque do CD. Pronto para embarque.";
             }
 
             // Atualiza
