@@ -521,13 +521,20 @@ class PedidoController extends Controller
             // Aprova
             $pedido->update(['status' => 'solicitado']);
             
+            // --- PREVISÃO DE ENTREGA: Busca a rota mais próxima no calendário ---
+            $this->anexarPrevisaoRota($pedido);
+            
             $this->registrarLog($pedido, 'Aprovado', 'Movimentação autorizada pelo Gestor.');
 
             // Notifica solicitante
+            $previsaoMsg = $pedido->previsao_entrega 
+                ? " Previsão de saída: " . \Carbon\Carbon::parse($pedido->previsao_entrega)->format('d/m/Y') . "."
+                : "";
+            
             $this->enviarNotificacao(
                 $pedido->user, 
                 'Aprovado ✅', 
-                "Sua solicitação #{$pedido->id} foi aprovada.", 
+                "Sua solicitação #{$pedido->id} foi aprovada.{$previsaoMsg}", 
                 route('pedidos.show', $pedido->id)
             );
 
@@ -879,6 +886,34 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
         return asset("storage/{$path}");
     }
 }
+
+    // --- PREVISÃO DE ROTA (CALENDÁRIO V2) ---
+    private function anexarPrevisaoRota(Pedido $pedido)
+    {
+        try {
+            // Busca a próxima rota (Schedule) que tenha uma parada (ScheduleStop)
+            // correspondente à loja destino do pedido (user_id)
+            $proximaRota = Schedule::whereHas('stops', function ($q) use ($pedido) {
+                    $q->where('user_id', $pedido->user_id);
+                })
+                ->where('date', '>=', now()->toDateString())
+                ->orderBy('date', 'asc')
+                ->first();
+
+            if ($proximaRota) {
+                $pedido->update(['previsao_entrega' => $proximaRota->date]);
+                
+                $this->registrarLog(
+                    $pedido, 
+                    'Previsão de Rota 📅', 
+                    "Rota mais próxima encontrada para " . Carbon::parse($proximaRota->date)->format('d/m/Y') . ". Esta é uma estimativa baseada no calendário."
+                );
+            }
+        } catch (\Exception $e) {
+            // Não bloqueia a aprovação se houver erro na busca de previsão
+            Log::warning("Erro ao buscar previsão de rota para pedido #{$pedido->id}: " . $e->getMessage());
+        }
+    }
 
     // --- GOOGLE DRIVE HELPERS ---
     private function uploadFileToDrive($service, $file, $folderId, $name) {

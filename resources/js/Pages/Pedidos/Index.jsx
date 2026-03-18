@@ -396,7 +396,7 @@ function safeString(value) { return String(value || '').toLowerCase(); }
 function safeGetStepNumber(status) {
     const map = { 
         'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_rota': 2.5, 'aguardando_coleta': 3, 
-        'expedido': 3, 'em_transito': 4, 'em_transito_cd': 4, 'no_cd': 4.5, 'concluido': 5 
+        'expedido': 3, 'em_transito': 4, 'concluido': 5 
     };
     return map[String(status).toLowerCase()] || 1;
 }
@@ -405,7 +405,7 @@ function safeGetStatusColor(status) {
     const map = {
         'em_analise': 'bg-purple-500', 'solicitado': 'bg-yellow-500', 'separado': 'bg-blue-500', 
         'aguardando_rota': 'bg-pink-500', 'aguardando_coleta': 'bg-orange-400', 'expedido': 'bg-cyan-500', 
-        'em_transito': 'bg-orange-500', 'em_transito_cd': 'bg-indigo-500', 'no_cd': 'bg-purple-600', 
+        'em_transito': 'bg-orange-500', 
         'concluido': 'bg-green-500', 'cancelado': 'bg-red-500'
     };
     return map[safeString(status)] || 'bg-gray-400';
@@ -421,8 +421,6 @@ function StatusBadge({ status }) {
         'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
         'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
         'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-md shadow-orange-500/20', dot: 'bg-white' },
-        'em_transito_cd':  { label: 'Indo p/ CD',    bg: 'bg-indigo-500 text-white border-indigo-600 shadow-md shadow-indigo-500/20', dot: 'bg-white' },
-        'no_cd':           { label: 'No Hub/CD',     bg: 'bg-purple-600 text-white border-purple-700 shadow-md shadow-purple-600/20', dot: 'bg-purple-300' },
         'concluido':       { label: 'Concluído',     bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
         'cancelado':       { label: 'Cancelado',     bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
     }[s] || { label: s.toUpperCase(), bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400' };

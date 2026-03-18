@@ -389,6 +389,16 @@ export default function PedidoShow({ auth, pedido }) {
                             <div className="text-sm text-gray-500 mt-1 font-medium">
                                 Solicitado por: {pedido.user.name}
                             </div>
+
+                            {pedido.previsao_entrega && (
+                                <div className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-100">
+                                    <CalendarIcon className="w-4 h-4" />{" "}
+                                    Previsão Saída:{" "}
+                                    {new Date(
+                                        pedido.previsao_entrega,
+                                    ).toLocaleDateString('pt-BR')}
+                                </div>
+                            )}
                         </div>
 
                         {/* Info Logística */}
@@ -799,8 +809,6 @@ function BadgeStatus({ status }) {
         'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
         'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
         'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-md shadow-orange-500/20', dot: 'bg-white' },
-        'em_transito_cd':  { label: 'Indo p/ CD',    bg: 'bg-indigo-500 text-white border-indigo-600 shadow-md shadow-indigo-500/20', dot: 'bg-white' },
-        'no_cd':           { label: 'No Hub/CD',     bg: 'bg-purple-600 text-white border-purple-700 shadow-md shadow-purple-600/20', dot: 'bg-purple-300' },
         'concluido':       { label: 'Concluído',     bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
         'cancelado':       { label: 'Cancelado',     bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
     }[s] || { label: s.toUpperCase(), bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400' };
@@ -816,34 +824,18 @@ function BadgeStatus({ status }) {
 function Timeline({ status, isTransferencia }) {
     let steps = [];
     
-    // Detect if this is an interior transfer going through the CD hub
-    const isHubFlow = ['em_transito_cd', 'no_cd'].includes(status);
-    
     if (isTransferencia) {
-        if (isHubFlow || status === 'aguardando_rota') {
-            // Interior Transfer (Via CD Hub): Full 8-step flow
-            steps = [
-                { id: "em_analise", label: "Em Análise" },
-                { id: "solicitado", label: "Aprovado" },
-                { id: "aguardando_rota", label: "Aguard. Rota" },
-                { id: "aguardando_coleta", label: "Aguard. Coleta" },
-                { id: "em_transito_cd", label: "Indo p/ CD" },
-                { id: "no_cd", label: "No Hub/CD" },
-                { id: "em_transito", label: "Em Trânsito" },
-                { id: "concluido", label: "Entregue" },
-            ];
-        } else {
-            // Capital Transfer (Direct): 6-step flow
-            steps = [
-                { id: "em_analise", label: "Em Análise" },
-                { id: "solicitado", label: "Aprovado" },
-                { id: status === 'separado' ? "separado" : "aguardando_coleta", label: status === 'separado' ? "Separado" : "Aguard. Coleta" },
-                { id: "em_transito", label: "Em Trânsito" },
-                { id: "concluido", label: "Entregue" },
-            ];
-        }
+        // Transferência: Fluxo padronizado
+        steps = [
+            { id: "em_analise", label: "Em Análise" },
+            { id: "solicitado", label: "Aprovado" },
+            { id: "separado", label: "Separado" },
+            { id: status === 'aguardando_rota' ? "aguardando_rota" : "aguardando_coleta", label: status === 'aguardando_rota' ? "Aguard. Rota" : "Aguard. Coleta" },
+            { id: "em_transito", label: "Em Trânsito" },
+            { id: "concluido", label: "Entregue" },
+        ];
     } else {
-        // Reposição (CD → Loja): 6-step flow
+        // Reposição (CD → Loja): Fluxo padronizado
         steps = [
             { id: "em_analise", label: "Em Análise" },
             { id: "solicitado", label: "Solicitado" },
@@ -861,15 +853,11 @@ function Timeline({ status, isTransferencia }) {
         aguardando_rota: 2.5,
         aguardando_coleta: 3,
         expedido: 3,
-        em_transito_cd: 3.5,
-        no_cd: 3.8,
         em_transito: 4,
         concluido: 5,
         cancelado: -1,
     };
     const currentWeight = statusWeight[status] || 0;
-    
-    // Calculate max weight from the actual steps in the timeline
     const maxWeight = Math.max(...steps.map(s => statusWeight[s.id] || 0));
 
     return (
