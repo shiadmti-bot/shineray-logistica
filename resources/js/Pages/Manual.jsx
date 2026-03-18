@@ -120,11 +120,19 @@ export default function Manual({ auth }) {
                                             <p className="mt-2 text-sm font-semibold text-gray-700">Logo após a separação, a equipe de logística encaixará sua moto na próxima rota de caminhão disponível.</p>
                                         </Step>
 
-                                        <Step number="4" title="Em Trânsito">
-                                            <p>Assim que o caminhão for carregado e o motorista iniciar a viagem, seu pedido aparecerá como <span className="text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded text-xs"><TruckIcon className="w-3 h-3 inline" /> Em Trânsito</span> no seu Painel.</p>
+                                        <Step number="4" title="Agendamento e Coleta (Novo)">
+                                            <p>A equipe de logística do CD usará o <strong>Calendário</strong> para agendar as entregas da semana.</p>
+                                            <ul className="list-disc ml-6 mt-3 space-y-2 text-sm text-gray-600">
+                                                <li>Assim que a data for definida pelo CD, o pedido muda para <span className="text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded text-xs">Rota Confirmada</span> e você já saberá a previsão exata de chegada.</li>
+                                                <li>Se for transferência, o motorista vai até a loja de origem. Lá, o motorista bipe a carga e o sistema muda o status para <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded text-xs">Coletado</span> automaticamente. Nenhuma loja precisa apertar botão para confirmar coleta!</li>
+                                            </ul>
                                         </Step>
 
-                                        <Step number="5" title="Recebimento Completo (Finalização e Foto)">
+                                        <Step number="5" title="Em Trânsito">
+                                            <p>Assim que o caminhão for todo carregado (coletas concluídas) e o motorista iniciar a viagem no sistema, seu pedido aparecerá como <span className="text-orange-600 font-bold border border-orange-500 shadow-sm px-2 py-0.5 rounded text-xs"><TruckIcon className="w-3 h-3 inline" /> Em Trânsito</span> no seu Painel.</p>
+                                        </Step>
+
+                                        <Step number="6" title="Recebimento Completo (Finalização e Foto)">
                                             <p className="font-bold text-red-600 mb-2">Atenção: Esta é a etapa mais importante para a segurança jurídica e financeira da loja!</p>
                                             <p>Quando o caminhão chegar na frente da sua loja com as motos:</p>
                                             <ol className="list-decimal ml-6 mt-3 space-y-3 text-sm text-gray-700">
@@ -157,11 +165,12 @@ export default function Manual({ auth }) {
                                             </ul>
                                         </Step>
 
-                                        <Step number="2" title="Logística (Aguardando o Milk Run)">
-                                            <p>A partir do momento em que a moto foi separada, o CD vai gerar um Romaneio e colocar o seu endereço na Rota do Caminhão.</p>
+                                        <Step number="2" title="Logística (Agendamento e Milk Run)">
+                                            <p>A partir do momento em que a moto foi separada, o pedido fica <span className="text-pink-600 font-bold bg-pink-50 px-2 py-0.5 rounded">Aguardando Rota</span>.</p>
                                             <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
-                                                <li>O status do pedido mudará para <strong className="text-orange-600">Aguardando Coleta</strong>.</li>
-                                                <li>Quando o caminhão chegar, entregue a moto ao motorista. Ele ligará para o CD (Central) pedindo para a logística "dar o clique" de confirmação de coleta.</li>
+                                                <li>O CD central vai gerar um agendamento no Calendário para a Loja Destino. Nisso, o status já pula para <span className="text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded">Rota Confirmada</span> para você ter previsibilidade.</li>
+                                                <li>O status evolui para <strong className="text-orange-600">Aguardando Coleta</strong> quando a viagem da semana for gerada no Romaneio.</li>
+                                                <li>Quando o caminhão chegar na sua loja, <strong>entregue a moto presencialmente ao motorista</strong>. O motorista informará via aplicativo/rádio ao CD, que dará o "bip" de confirmação de coleta no painel gerencial.</li>
                                             </ul>
                                         </Step>
 
@@ -258,8 +267,9 @@ export default function Manual({ auth }) {
                                             <p>Assim que o <strong>Gestor</strong> Comercial aprova um pedido (da Fábrica ou de outra loja), o pedido cai no radar logístico com o status de "Solicitado".</p>
                                             <ul className="list-disc ml-6 mt-2 text-sm text-gray-600 space-y-2">
                                                 <li><strong>Motos do CD:</strong> Cabe à equipe do Pátio do CD separar essa moto do lote, conferir os itens mecânicos e clicar fisicamente em "Separar" confirmando que a moto existe e está ali pronta para embarque.</li>
-                                                <li><strong>Motos em Lojas (Transferência):</strong> A própria loja emitente precisa acessar o painel dela e clicar que já separou a moto no pátio físico de lá.</li>
+                                                <li><strong>Motos em Lojas (Transferência):</strong> A loja emitente clica em "Separar". O sistema coloca a moto como "Aguardando Rota".</li>
                                             </ul>
+                                            <p className="mt-3 text-sm font-semibold text-gray-700">💡 <strong>NOVO: Agendamento de Rota:</strong> Acesse o módulo de Calendário e agende o dia de visita na Loja de Destino. Ao arrastar a data, os pedidos pulam automaticamente para <strong>Rota Confirmada</strong> e a loja já recebe a previsão de entrega!</p>
                                         </Step>
 
                                         <Step number="2" title="Montando o Caminhão (Criando Romaneio)">
@@ -281,10 +291,10 @@ export default function Manual({ auth }) {
                                         <Step number="4" title="Confirmando as Coletas Externas">
                                             <p>Se o caminhão estiver fazendo <strong>Milk Run</strong> (coletando uma moto numa loja do interior para levar para outra loja):</p>
                                             <ul className="list-disc ml-6 mt-2 text-sm text-gray-600 space-y-2">
-                                                <li>O motorista chega na loja remota (ex: Castanhal) para retirar uma Pop para levar à Belém.</li>
-                                                <li>O motorista liga pro CD confirmando que colocou a Pop no baú.</li>
-                                                <li>Pelo sistema de expedição, abra o Romaneio em trânsito e aperte no botão verde de <span className="font-bold text-green-700 bg-green-100 px-2 rounded">Coletar Item</span> ao lado daquela moto específica de Castanhal.</li>
-                                                <li>Isso atualiza o sistema oficial dizendo que a loja entregou o produto.</li>
+                                                <li>O motorista chega na loja remota (ex: Castanhal) para retirar uma Pop para levar à Belém. Ao subir na rampa do baú, ele entra em contato.</li>
+                                                <li>Pelo sistema de expedição no CD, abra o respectivo Romaneio (já em trânsito).</li>
+                                                <li>Acione o botão verde de <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 border border-emerald-300 rounded">Coletar Item</span> ao lado daquela moto específica.</li>
+                                                <li>Isso atualiza o sistema e avisa a loja compradora que a moto dela finalmente virou <span className="text-emerald-700 font-bold">Coletada</span> e começará o percurso de chegada!</li>
                                             </ul>
                                         </Step>
 
