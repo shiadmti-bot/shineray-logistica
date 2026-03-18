@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import imageCompression from "browser-image-compression";
 import {
     CalendarIcon,
+    ClockIcon,
     MapPinIcon,
     DocumentTextIcon,
     PaperClipIcon,
@@ -454,10 +455,63 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     </div>
 
-                    {/* --- 2. ALERTAS --- */}
+                    {/* --- 2. ALERTAS CONTEXTUAIS --- */}
+                    
+                    {/* Alerta: Transferência aguardando separação pela loja de origem */}
+                    {isTransferencia && pedido.status === "solicitado" && souOrigem && (
+                        <div className="bg-amber-50 border-l-4 border-amber-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4 animate-pulse-once">
+                            <div className="bg-amber-100 p-2 rounded-full text-amber-600 flex-shrink-0">
+                                <ExclamationTriangleIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-amber-900 text-sm uppercase tracking-wide">
+                                    Ação Necessária: Separação Pendente
+                                </h4>
+                                <p className="text-sm text-amber-800 mt-1">
+                                    Você deve separar as motos fisicamente e confirmar a separação para que elas fiquem disponíveis para coleta pelo CD.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Alerta: Transferência aguardando separação (visão CD/Admin) */}
+                    {isTransferencia && pedido.status === "solicitado" && (souCD || souAdmin) && !souOrigem && (
+                        <div className="bg-blue-50 border-l-4 border-blue-400 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
+                            <div className="bg-blue-100 p-2 rounded-full text-blue-600 flex-shrink-0">
+                                <ClockIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-blue-900 text-sm uppercase tracking-wide">
+                                    Aguardando Separação da Origem
+                                </h4>
+                                <p className="text-sm text-blue-800 mt-1">
+                                    A loja <strong>{pedido.origem?.filial}</strong> precisa separar as motos antes de ficarem disponíveis para coleta.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Alerta: Aguardando Rota (Interior) */}
+                    {pedido.status === "aguardando_rota" && (
+                        <div className="bg-pink-50 border-l-4 border-pink-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
+                            <div className="bg-pink-100 p-2 rounded-full text-pink-600 flex-shrink-0">
+                                <TruckIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-pink-900 text-sm uppercase tracking-wide">
+                                    Aguardando Rota de Coleta
+                                </h4>
+                                <p className="text-sm text-pink-800 mt-1">
+                                    Motos separadas. O CD precisa definir uma rota de coleta no calendário para buscar na origem.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Alerta: Aguardando Coleta */}
                     {pedido.status === "aguardando_coleta" && (
                         <div className="bg-orange-50 border-l-4 border-orange-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
-                            <div className="bg-orange-100 p-2 rounded-full text-orange-600">
+                            <div className="bg-orange-100 p-2 rounded-full text-orange-600 flex-shrink-0">
                                 <ExclamationTriangleIcon className="w-6 h-6" />
                             </div>
                             <div>
@@ -465,9 +519,27 @@ export default function PedidoShow({ auth, pedido }) {
                                     Aguardando Coleta
                                 </h4>
                                 <p className="text-sm text-orange-800 mt-1">
-                                    As motos devem estar separadas para coleta.
+                                    Motos separadas e prontas. Aguardando motorista do CD realizar a coleta na loja de origem.
                                 </p>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Previsão de Entrega (Banner destacado) */}
+                    {pedido.previsao_entrega && !['concluido', 'cancelado'].includes(pedido.status) && (
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 p-4 rounded-xl shadow-sm flex items-center gap-4">
+                            <div className="bg-green-100 p-2.5 rounded-full text-green-600 flex-shrink-0">
+                                <CalendarIcon className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1">
+                                <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Previsão de Saída</span>
+                                <div className="text-lg font-black text-green-800 mt-0.5">
+                                    {new Date(pedido.previsao_entrega).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-bold text-green-500 bg-green-100 px-3 py-1 rounded-full border border-green-200 uppercase tracking-wide">
+                                Baseado no Calendário
+                            </span>
                         </div>
                     )}
 

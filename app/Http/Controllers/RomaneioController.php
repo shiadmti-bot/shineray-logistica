@@ -106,7 +106,7 @@ class RomaneioController extends Controller
             ->whereHas('origem', function ($q) {
                 $q->where('perfil', 'loja');
             })
-            ->whereIn('status', ['solicitado', 'separado', 'aguardando_rota', 'aguardando_coleta'])
+            ->whereIn('status', ['aguardando_rota', 'aguardando_coleta'])
             ->with(['user', 'origem', 'motos'])
             ->get();
 
@@ -187,7 +187,7 @@ class RomaneioController extends Controller
 
                 // 1. Atualiza a MOTO (Item Individual)
                 // Só atualiza se ela estiver disponível para movimentação
-                if (in_array($moto->status, ['separado', 'disponivel', 'no_cd', 'solicitado', 'aguardando_rota', 'aguardando_coleta'])) {
+                if (in_array($moto->status, ['separado', 'disponivel', 'no_cd', 'aguardando_rota', 'aguardando_coleta'])) {
                     $moto->update([
                         'status'            => $novoStatusMoto,
                         'romaneio_id'       => $romaneio->id,
