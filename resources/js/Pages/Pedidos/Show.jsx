@@ -499,10 +499,10 @@ export default function PedidoShow({ auth, pedido }) {
                             </div>
                             <div>
                                 <h4 className="font-bold text-pink-900 text-sm uppercase tracking-wide">
-                                    Aguardando Rota de Coleta
+                                    Aguardando Rota (Agendamento do Destino)
                                 </h4>
                                 <p className="text-sm text-pink-800 mt-1">
-                                    Motos separadas. O CD precisa definir uma rota de coleta no calendário para buscar na origem.
+                                    Motos separadas. Aguarde o CD definir a rota para a <strong>Loja de Destino</strong> no calendário. Assim que a entrega final for agendada, a coleta nesta origem será automaticamente confirmada pelo sistema.
                                 </p>
                             </div>
                         </div>
