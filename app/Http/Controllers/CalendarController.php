@@ -149,7 +149,7 @@ class CalendarController extends Controller
                 \App\Models\PedidoLog::create([
                     'pedido_id' => $pedido->id,
                     'user_id' => Auth::id(),
-                    'acao' => 'Rota Confirmada 🗺️',
+                    'titulo' => 'Rota Confirmada 🗺️',
                     'descricao' => "O CD agendou uma rota que passa nesta loja para o dia " . Carbon::parse($request->date)->format('d/m/Y') . ".",
                 ]);
             }
@@ -201,7 +201,7 @@ class CalendarController extends Controller
                     \App\Models\PedidoLog::create([
                         'pedido_id' => $pedido->id,
                         'user_id' => Auth::id(),
-                        'acao' => 'Mudança de Rota 📅',
+                        'titulo' => 'Mudança de Rota 📅',
                         'descricao' => "A rota original foi cancelada, mas o pedido foi reengatado na próxima viagem prevista para " . Carbon::parse($outraRota->date)->format('d/m/Y') . "."
                     ]);
                 } else {
@@ -228,7 +228,7 @@ class CalendarController extends Controller
                     \App\Models\PedidoLog::create([
                         'pedido_id' => $pedido->id,
                         'user_id' => Auth::id(),
-                        'acao' => 'Rota Cancelada ❌',
+                        'titulo' => 'Rota Cancelada ❌',
                         'descricao' => $msg
                     ]);
                 }
