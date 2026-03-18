@@ -372,7 +372,7 @@ export default function PedidoShow({ auth, pedido }) {
                                     <CalendarIcon className="w-4 h-4" />{" "}
                                     Previsão Coleta:{" "}
                                     {new Date(
-                                        pedido.previsao_coleta + "T12:00:00",
+                                        pedido.previsao_coleta.substring(0, 10) + "T12:00:00",
                                     ).toLocaleDateString()}
                                 </div>
                             )}
@@ -396,7 +396,7 @@ export default function PedidoShow({ auth, pedido }) {
                                     <CalendarIcon className="w-4 h-4" />{" "}
                                     Previsão Saída:{" "}
                                     {new Date(
-                                        pedido.previsao_entrega + "T12:00:00",
+                                        pedido.previsao_entrega.substring(0, 10) + "T12:00:00",
                                     ).toLocaleDateString('pt-BR')}
                                 </div>
                             )}
@@ -551,7 +551,7 @@ export default function PedidoShow({ auth, pedido }) {
                             <div className="flex-1">
                                 <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Previsão de Saída</span>
                                 <div className="text-lg font-black text-green-800 mt-0.5">
-                                    {new Date(pedido.previsao_entrega + "T12:00:00").toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                                    {new Date(pedido.previsao_entrega.substring(0, 10) + "T12:00:00").toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
                                 </div>
                             </div>
                             <span className="text-[10px] font-bold text-green-500 bg-green-100 px-3 py-1 rounded-full border border-green-200 uppercase tracking-wide">
