@@ -725,9 +725,7 @@ export default function PedidoShow({ auth, pedido }) {
                             className="pointer-events-auto bg-gray-900 hover:bg-black text-white font-bold py-4 px-8 rounded-full shadow-2xl transition transform hover:-translate-y-1 hover:scale-105 flex items-center gap-3 border-4 border-white/20 backdrop-blur-md"
                         >
                             {compressing ? (
-                                <span className="animate-spin">
-                                    <ArrowPathIcon className="w-5 h-5" />
-                                </span>
+                                <span className="animate-spin inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
                             ) : (
                                 <DocumentTextIcon className="w-6 h-6" />
                             )}{" "}
@@ -817,16 +815,35 @@ function BadgeStatus({ status }) {
 
 function Timeline({ status, isTransferencia }) {
     let steps = [];
+    
+    // Detect if this is an interior transfer going through the CD hub
+    const isHubFlow = ['em_transito_cd', 'no_cd'].includes(status);
+    
     if (isTransferencia) {
-        steps = [
-            { id: "em_analise", label: "Em Análise" },
-            { id: "solicitado", label: "Aprovado" },
-            { id: "separado", label: "Separado" },
-            { id: status === 'aguardando_rota' ? "aguardando_rota" : "aguardando_coleta", label: status === 'aguardando_rota' ? "Aguard. Rota" : "Aguard. Coleta" },
-            { id: "em_transito", label: "Em Trânsito" },
-            { id: "concluido", label: "Entregue" },
-        ];
+        if (isHubFlow || status === 'aguardando_rota') {
+            // Interior Transfer (Via CD Hub): Full 8-step flow
+            steps = [
+                { id: "em_analise", label: "Em Análise" },
+                { id: "solicitado", label: "Aprovado" },
+                { id: "aguardando_rota", label: "Aguard. Rota" },
+                { id: "aguardando_coleta", label: "Aguard. Coleta" },
+                { id: "em_transito_cd", label: "Indo p/ CD" },
+                { id: "no_cd", label: "No Hub/CD" },
+                { id: "em_transito", label: "Em Trânsito" },
+                { id: "concluido", label: "Entregue" },
+            ];
+        } else {
+            // Capital Transfer (Direct): 6-step flow
+            steps = [
+                { id: "em_analise", label: "Em Análise" },
+                { id: "solicitado", label: "Aprovado" },
+                { id: status === 'separado' ? "separado" : "aguardando_coleta", label: status === 'separado' ? "Separado" : "Aguard. Coleta" },
+                { id: "em_transito", label: "Em Trânsito" },
+                { id: "concluido", label: "Entregue" },
+            ];
+        }
     } else {
+        // Reposição (CD → Loja): 6-step flow
         steps = [
             { id: "em_analise", label: "Em Análise" },
             { id: "solicitado", label: "Solicitado" },
@@ -836,6 +853,7 @@ function Timeline({ status, isTransferencia }) {
             { id: "concluido", label: "Entregue" },
         ];
     }
+
     const statusWeight = {
         em_analise: 0,
         solicitado: 1,
@@ -850,7 +868,9 @@ function Timeline({ status, isTransferencia }) {
         cancelado: -1,
     };
     const currentWeight = statusWeight[status] || 0;
-    const maxWeight = 5;
+    
+    // Calculate max weight from the actual steps in the timeline
+    const maxWeight = Math.max(...steps.map(s => statusWeight[s.id] || 0));
 
     return (
         <div className="w-full py-8">
@@ -860,7 +880,7 @@ function Timeline({ status, isTransferencia }) {
                     <div
                         className="absolute left-0 top-[15px] h-1 bg-green-500 -z-10 rounded-full transition-all duration-1000 ease-out"
                         style={{
-                            width: `${(currentWeight / maxWeight) * 100}%`,
+                            width: `${Math.min((currentWeight / maxWeight) * 100, 100)}%`,
                         }}
                     ></div>
                 )}
@@ -868,18 +888,31 @@ function Timeline({ status, isTransferencia }) {
                     const stepWeight = statusWeight[step.id];
                     const isActive =
                         status !== "cancelado" && currentWeight >= stepWeight;
+                    const isCurrent = step.id === status;
                     return (
                         <div
                             key={step.id}
                             className="flex flex-col items-center relative group cursor-default"
                         >
                             <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-4 transition-all duration-500 z-20 ${isActive ? "border-green-500 bg-white text-green-600 scale-110 shadow-lg" : "border-gray-200 bg-gray-100 text-gray-300"}`}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-4 transition-all duration-500 z-20 ${
+                                    isCurrent 
+                                        ? "border-blue-500 bg-blue-500 text-white scale-110 shadow-lg ring-4 ring-blue-200" 
+                                        : isActive 
+                                            ? "border-green-500 bg-white text-green-600 scale-110 shadow-lg" 
+                                            : "border-gray-200 bg-gray-100 text-gray-300"
+                                }`}
                             >
-                                {isActive ? "✓" : index + 1}
+                                {isActive && !isCurrent ? "✓" : index + 1}
                             </div>
                             <span
-                                className={`absolute top-10 w-24 text-center text-[10px] font-bold uppercase transition-all duration-300 ${isActive ? "text-green-700 translate-y-0 opacity-100" : "text-gray-400 translate-y-1 opacity-80"}`}
+                                className={`absolute top-10 w-24 text-center text-[10px] font-bold uppercase transition-all duration-300 ${
+                                    isCurrent 
+                                        ? "text-blue-700 translate-y-0 opacity-100 font-black" 
+                                        : isActive 
+                                            ? "text-green-700 translate-y-0 opacity-100" 
+                                            : "text-gray-400 translate-y-1 opacity-80"
+                                }`}
                             >
                                 {step.label}
                             </span>

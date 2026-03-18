@@ -115,7 +115,7 @@ class PedidoController extends Controller
         $pedidos = Pedido::select('pedidos.*')
             ->with([
                 'user:id,name,filial',    
-                'origem:id,name,filial',  
+                'origem:id,name,filial,perfil',  
                 'romaneio'
             ])
             ->addSelect(['destino_final' => \App\Models\Moto::select('pedido_moto.destino')
@@ -478,7 +478,8 @@ class PedidoController extends Controller
             }
 
             // 6. Logs e Notificações
-            $origemNome = $request->origem_id ? 'Transferência (Inter-lojas)' : 'Reposição CD';
+            $modo = $request->modo ?? 'cd';
+            $origemNome = $modo === 'devolucao' ? 'Devolução (Logística Reversa)' : ($request->origem_id ? 'Transferência (Inter-lojas)' : 'Reposição CD');
             $logDesc = "Solicitação via sistema ($origemNome)";
             
             if (!empty($syncLogs)) {

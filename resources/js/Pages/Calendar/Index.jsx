@@ -45,10 +45,11 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
     // --- CLIQUE NA DATA (CRIAR NOVO) ---
     const handleDateClick = (arg) => {
         if (!canEdit) return;
-        const clickedDate = new Date(arg.dateStr);
-        clickedDate.setHours(23, 59, 59);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const clickedDate = new Date(arg.dateStr + 'T00:00:00');
         
-        if (clickedDate < new Date()) {
+        if (clickedDate < today) {
             Swal.fire({ icon: 'error', title: 'Data Passada', text: 'Não é possível agendar no passado.', timer: 2000, showConfirmButton: false });
             return;
         }
