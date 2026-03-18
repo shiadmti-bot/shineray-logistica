@@ -175,10 +175,66 @@ class CalendarController extends Controller
              return back()->withErrors(['erro' => 'Não é possível excluir rotas que já ocorreram no passado.']);
         }
 
-        $schedule->delete(); 
-        // Certifique-se que sua migration de schedule_stops tem ->onDelete('cascade') 
-        // Se não tiver, precisa rodar $schedule->stops()->delete() antes.
+        // --- REGRESSÃO DE STATUS ---
+        $lojasId = $schedule->stops()->pluck('user_id')->toArray();
 
-        return back()->with('success', 'Viagem removida.');
+        // Deletar a rota (garante a limpeza manual)
+        $schedule->stops()->delete();
+        $schedule->delete(); 
+
+        // Recuperar pedidos ligados a essas lojas que estão em 'rota_confirmada'
+        if (!empty($lojasId)) {
+            $pedidos = \App\Models\Pedido::with('origem')->whereIn('user_id', $lojasId)
+                ->where('status', 'rota_confirmada')
+                ->get();
+
+            foreach ($pedidos as $pedido) {
+                // Tenta achar outra rota futura para o mesmo destino
+                $outraRota = \App\Models\ScheduleStop::where('user_id', $pedido->user_id)
+                    ->join('schedules', 'schedule_stops.schedule_id', '=', 'schedules.id')
+                    ->whereDate('schedules.date', '>=', now()->startOfDay())
+                    ->orderBy('schedules.date', 'asc')
+                    ->first();
+
+                if ($outraRota) {
+                    $pedido->update(['previsao_entrega' => $outraRota->date]);
+                    \App\Models\PedidoLog::create([
+                        'pedido_id' => $pedido->id,
+                        'user_id' => Auth::id(),
+                        'acao' => 'Mudança de Rota 📅',
+                        'descricao' => "A rota original foi cancelada, mas o pedido foi reengatado na próxima viagem prevista para " . Carbon::parse($outraRota->date)->format('d/m/Y') . "."
+                    ]);
+                } else {
+                    $pedido->update(['previsao_entrega' => null]);
+                    
+                    $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+                    
+                    if ($isTransferencia) {
+                        if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
+                            $novoStatus = 'aguardando_rota';
+                            $msg = "A rota de envio foi cancelada pelo CD. O pedido retornou para a fila de espera do calendário.";
+                        } else {
+                            $novoStatus = 'aguardando_coleta';
+                            $msg = "A previsão de rota foi cancelada pelo calendário. A coleta ainda segue pendente aguardando o CD.";
+                        }
+                    } else {
+                        $novoStatus = 'separado';
+                        $msg = "A rota de envio programada pelo CD foi excluída. O pedido retornou ao status de separado aguardando nova programação.";
+                    }
+                    
+                    $pedido->update(['status' => $novoStatus]);
+                    $pedido->motos()->update(['status' => $novoStatus]);
+                    
+                    \App\Models\PedidoLog::create([
+                        'pedido_id' => $pedido->id,
+                        'user_id' => Auth::id(),
+                        'acao' => 'Rota Cancelada ❌',
+                        'descricao' => $msg
+                    ]);
+                }
+            }
+        }
+
+        return back()->with('success', 'Viagem removida e pedidos reajustados para a fila.');
     }
 }
