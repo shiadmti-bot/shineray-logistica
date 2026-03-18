@@ -395,7 +395,7 @@ function safeString(value) { return String(value || '').toLowerCase(); }
 
 function safeGetStepNumber(status) {
     const map = { 
-        'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_rota': 2.5, 'rota_confirmada': 2.8, 'aguardando_coleta': 3, 'coletado': 3.5, 
+        'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_rota': 2.3, 'rota_confirmada': 2.6, 'aguardando_coleta': 2.8, 'coletado': 3.5, 
         'expedido': 3.5, 'em_transito': 4, 'concluido': 5 
     };
     return map[String(status).toLowerCase()] || 1;
