@@ -132,6 +132,29 @@ class CalendarController extends Controller
                 ]);
             }
             
+            // --- NOVA REGRA GESTOR: ATUALIZAR STATUS PARA 'ROTA CONFIRMADA' ---
+            // Encontra pedidos pendentes que têm como destino as lojas dessa rota
+            $pedidos = \App\Models\Pedido::whereIn('user_id', $request->stops)
+                ->whereIn('status', ['separado', 'aguardando_rota'])
+                ->get();
+
+            foreach ($pedidos as $pedido) {
+                $pedido->update([
+                    'status' => 'rota_confirmada',
+                    'previsao_entrega' => $request->date
+                ]);
+                
+                $pedido->motos()->update(['status' => 'rota_confirmada']);
+                
+                \App\Models\PedidoLog::create([
+                    'pedido_id' => $pedido->id,
+                    'user_id' => Auth::id(),
+                    'acao' => 'Rota Confirmada 🗺️',
+                    'descricao' => "O CD agendou uma rota que passa nesta loja para o dia " . Carbon::parse($request->date)->format('d/m/Y') . ".",
+                ]);
+            }
+            
+            
             // Não precisa retornar nada aqui dentro, ou se retornar, não use esse valor fora.
         });
 

@@ -372,7 +372,7 @@ export default function PedidoShow({ auth, pedido }) {
                                     <CalendarIcon className="w-4 h-4" />{" "}
                                     Previsão Coleta:{" "}
                                     {new Date(
-                                        pedido.previsao_coleta,
+                                        pedido.previsao_coleta + "T12:00:00",
                                     ).toLocaleDateString()}
                                 </div>
                             )}
@@ -396,7 +396,7 @@ export default function PedidoShow({ auth, pedido }) {
                                     <CalendarIcon className="w-4 h-4" />{" "}
                                     Previsão Saída:{" "}
                                     {new Date(
-                                        pedido.previsao_entrega,
+                                        pedido.previsao_entrega + "T12:00:00",
                                     ).toLocaleDateString('pt-BR')}
                                 </div>
                             )}
@@ -508,6 +508,23 @@ export default function PedidoShow({ auth, pedido }) {
                         </div>
                     )}
 
+                    {/* Alerta: Rota Confirmada */}
+                    {pedido.status === "rota_confirmada" && (
+                        <div className="bg-teal-50 border-l-4 border-teal-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
+                            <div className="bg-teal-100 p-2 rounded-full text-teal-600 flex-shrink-0">
+                                <MapPinIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-teal-900 text-sm uppercase tracking-wide">
+                                    Rota Confirmada
+                                </h4>
+                                <p className="text-sm text-teal-800 mt-1">
+                                    O CD agendou uma viagem que passará na loja de destino. Aguardando a carga ser montada.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Alerta: Aguardando Coleta */}
                     {pedido.status === "aguardando_coleta" && (
                         <div className="bg-orange-50 border-l-4 border-orange-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
@@ -534,7 +551,7 @@ export default function PedidoShow({ auth, pedido }) {
                             <div className="flex-1">
                                 <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Previsão de Saída</span>
                                 <div className="text-lg font-black text-green-800 mt-0.5">
-                                    {new Date(pedido.previsao_entrega).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                                    {new Date(pedido.previsao_entrega + "T12:00:00").toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
                                 </div>
                             </div>
                             <span className="text-[10px] font-bold text-green-500 bg-green-100 px-3 py-1 rounded-full border border-green-200 uppercase tracking-wide">
@@ -878,6 +895,7 @@ function BadgeStatus({ status }) {
         'solicitado':      { label: 'Solicitado',    bg: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500' },
         'separado':        { label: 'Separado',      bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
         'aguardando_rota': { label: 'Aguard. Rota',  bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
+        'rota_confirmada': { label: 'Rota Confirmada', bg: 'bg-teal-50 text-teal-700 border-teal-200', dot: 'bg-teal-500' },
         'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
         'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
         'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-md shadow-orange-500/20', dot: 'bg-white' },
@@ -903,6 +921,7 @@ function Timeline({ status, isTransferencia }) {
             { id: "solicitado", label: "Aprovado" },
             { id: "separado", label: "Separado" },
             { id: status === 'aguardando_rota' ? "aguardando_rota" : "aguardando_coleta", label: status === 'aguardando_rota' ? "Aguard. Rota" : "Aguard. Coleta" },
+            { id: "rota_confirmada", label: "Rota Confirm." },
             { id: "em_transito", label: "Em Trânsito" },
             { id: "concluido", label: "Entregue" },
         ];
@@ -912,6 +931,7 @@ function Timeline({ status, isTransferencia }) {
             { id: "em_analise", label: "Em Análise" },
             { id: "solicitado", label: "Solicitado" },
             { id: "separado", label: "Separado" },
+            { id: "rota_confirmada", label: "Rota Confirm." },
             { id: "expedido", label: "Expedido" },
             { id: "em_transito", label: "Em Trânsito" },
             { id: "concluido", label: "Entregue" },
@@ -923,6 +943,7 @@ function Timeline({ status, isTransferencia }) {
         solicitado: 1,
         separado: 2,
         aguardando_rota: 2.5,
+        rota_confirmada: 2.8,
         aguardando_coleta: 3,
         expedido: 3,
         em_transito: 4,

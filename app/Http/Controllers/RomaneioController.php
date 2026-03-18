@@ -90,7 +90,7 @@ class RomaneioController extends Controller
         // 1. EXPEDIÇÃO (Saindo do CD)
         // Pedidos que estão 'separado' e são saída de estoque próprio (origem nula ou Origem = CD)
         // OU pedidos que estão 'no_cd' (Transbordos que chegaram e vão sair de novo)
-        $expedicao = Pedido::whereIn('status', ['separado', 'no_cd'])
+        $expedicao = Pedido::whereIn('status', ['separado', 'no_cd', 'rota_confirmada'])
             ->where(function ($query) {
                 $query->whereNull('origem_user_id')
                       ->orWhereHas('origem', function ($q) {
@@ -106,7 +106,7 @@ class RomaneioController extends Controller
             ->whereHas('origem', function ($q) {
                 $q->where('perfil', 'loja');
             })
-            ->whereIn('status', ['aguardando_rota', 'aguardando_coleta'])
+            ->whereIn('status', ['aguardando_rota', 'aguardando_coleta', 'rota_confirmada'])
             ->with(['user', 'origem', 'motos'])
             ->get();
 
@@ -187,7 +187,7 @@ class RomaneioController extends Controller
 
                 // 1. Atualiza a MOTO (Item Individual)
                 // Só atualiza se ela estiver disponível para movimentação
-                if (in_array($moto->status, ['separado', 'disponivel', 'no_cd', 'aguardando_rota', 'aguardando_coleta'])) {
+                if (in_array($moto->status, ['separado', 'disponivel', 'no_cd', 'aguardando_rota', 'aguardando_coleta', 'rota_confirmada'])) {
                     $moto->update([
                         'status'            => $novoStatusMoto,
                         'romaneio_id'       => $romaneio->id,
