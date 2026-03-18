@@ -152,10 +152,10 @@ class PedidoController extends Controller
             // ORDENAÇÃO POR PRIORIDADE (Ativos Primeiro)
             ->orderByRaw("
                 CASE 
-                    WHEN status IN ('em_analise', 'solicitado', 'separado', 'aguardando_rota', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') THEN 1 
+                    WHEN status IN ('em_analise', 'solicitado', 'separado', 'aguardando_rota', 'rota_confirmada', 'aguardando_coleta', 'coletado', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') THEN 1 
                     ELSE 2 
                 END ASC,
-                FIELD(status, 'em_analise', 'solicitado', 'separado', 'aguardando_rota', 'aguardando_coleta', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') ASC,
+                FIELD(status, 'em_analise', 'solicitado', 'separado', 'aguardando_rota', 'rota_confirmada', 'aguardando_coleta', 'coletado', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') ASC,
                 created_at DESC
             ")
             ->paginate(15)
