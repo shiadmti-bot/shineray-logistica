@@ -50,7 +50,9 @@ Route::any('/webhook/microwork', function (\Illuminate\Http\Request $request) {
     }
 
     \Illuminate\Support\Facades\Artisan::call('microwork:sync-estoque');
-    return response()->json(['message' => 'Estoque sincronizado via webhook com sucesso!']);
+    \App\Http\Controllers\CalendarController::limparRotasVencidas();
+    
+    return response()->json(['message' => 'Estoque e rotas expiradas sincronizados via webhook com sucesso!']);
 });
 
 /*

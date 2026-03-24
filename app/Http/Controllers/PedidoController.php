@@ -103,7 +103,13 @@ class PedidoController extends Controller
     // --- CRUD PEDIDOS ---
     public function index(Request $request)
     {
+        // 1. AUTO-HEALING: Limpa rotas vencidas que não foram despachadas pelo CD
+        // Se a data de agendamento passou e o caminhão não saiu, o pedido regride.
+        \App\Http\Controllers\CalendarController::limparRotasVencidas();
+
         $user = Auth::user();
+        
+        // 2. BUSCA BASE
         $termo = $request->input('search');
         
         // Filtros Avançados

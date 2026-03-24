@@ -132,26 +132,65 @@ class CalendarController extends Controller
                 ]);
             }
             
-            // --- NOVA REGRA GESTOR: ATUALIZAR STATUS PARA 'ROTA CONFIRMADA' ---
-            // Encontra pedidos pendentes que têm como destino as lojas dessa rota
-            $pedidos = \App\Models\Pedido::whereIn('user_id', $request->stops)
-                ->whereIn('status', ['separado', 'aguardando_rota'])
+            // --- GATILHO DE FLUXO DE ROTA ---
+            // Só muda para 'rota_confirmada' SE o calendário for 'confirmed' (Verde).
+            // Se for 'scheduled' (Amarelo), apenas aloca a data, e o status recua ou se mantém.
+            $pedidos = \App\Models\Pedido::with('origem')->whereIn('user_id', $request->stops)
+                ->whereIn('status', ['separado', 'aguardando_rota', 'rota_confirmada'])
                 ->get();
 
             foreach ($pedidos as $pedido) {
-                $pedido->update([
-                    'status' => 'rota_confirmada',
-                    'previsao_entrega' => $request->date
-                ]);
-                
-                $pedido->motos()->update(['status' => 'rota_confirmada']);
-                
-                \App\Models\PedidoLog::create([
-                    'pedido_id' => $pedido->id,
-                    'user_id' => Auth::id(),
-                    'titulo' => 'Rota Confirmada 🗺️',
-                    'descricao' => "O CD agendou uma rota que passa nesta loja para o dia " . Carbon::parse($request->date)->format('d/m/Y') . ".",
-                ]);
+                if ($request->status === 'confirmed') {
+                    if ($pedido->status !== 'rota_confirmada') {
+                        $pedido->update(['status' => 'rota_confirmada', 'previsao_entrega' => $request->date]);
+                        $pedido->motos()->update(['status' => 'rota_confirmada']);
+                        
+                        \App\Models\PedidoLog::create([
+                            'pedido_id' => $pedido->id,
+                            'user_id' => Auth::id(),
+                            'titulo' => 'Rota Confirmada 🗺️',
+                            'descricao' => "O CD confirmou a viagem oficial para esta loja no dia " . Carbon::parse($request->date)->format('d/m/Y') . ".",
+                        ]);
+                    } else if ($pedido->previsao_entrega !== $request->date) {
+                        $pedido->update(['previsao_entrega' => $request->date]);
+                        \App\Models\PedidoLog::create([
+                            'pedido_id' => $pedido->id,
+                            'user_id' => Auth::id(),
+                            'titulo' => 'Remarcação de Rota 📅',
+                            'descricao' => "A viagem confirmada sofreu alteração e foi transferida para " . Carbon::parse($request->date)->format('d/m/Y') . "."
+                        ]);
+                    }
+                } else {
+                    // É apenas Amarelo (Scheduled)
+                    if ($pedido->status === 'rota_confirmada') {
+                        // Rebaixamento do status do calendário. O pedido deve regredir da Rota Confirmada.
+                        $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+                        
+                        if ($isTransferencia) {
+                            $novoStatus = ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') ? 'aguardando_rota' : 'aguardando_coleta';
+                        } else {
+                            $novoStatus = 'separado';
+                        }
+
+                        $pedido->update(['status' => $novoStatus, 'previsao_entrega' => $request->date]);
+                        $pedido->motos()->update(['status' => $novoStatus]);
+                        
+                        \App\Models\PedidoLog::create([
+                            'pedido_id' => $pedido->id,
+                            'user_id' => Auth::id(),
+                            'titulo' => 'Rebaixamento de Rota 🗓️',
+                            'descricao' => "O CD rebaixou a viagem de volta para 'Pré-agendado'. Aguardando nova confirmação final de partida para " . Carbon::parse($request->date)->format('d/m/Y') . ".",
+                        ]);
+                    } else if ($pedido->previsao_entrega !== $request->date) {
+                        $pedido->update(['previsao_entrega' => $request->date]);
+                        \App\Models\PedidoLog::create([
+                            'pedido_id' => $pedido->id,
+                            'user_id' => Auth::id(),
+                            'titulo' => 'Pré-agendamento de Rota 🗓️',
+                            'descricao' => "O CD inseriu um pré-agendamento de logística para " . Carbon::parse($request->date)->format('d/m/Y') . ". Aguardando validação final de caminhões."
+                        ]);
+                    }
+                }
             }
             
             
@@ -236,5 +275,42 @@ class CalendarController extends Controller
         }
 
         return back()->with('success', 'Viagem removida e pedidos reajustados para a fila.');
+    }
+
+    // --- SWEEPER: Auto-regressão de rotas vencidas ---
+    public static function limparRotasVencidas()
+    {
+        $pedidosVencidos = \App\Models\Pedido::with('origem')->where('status', 'rota_confirmada')
+            ->whereDate('previsao_entrega', '<', now()->startOfDay())
+            ->get();
+            
+        foreach ($pedidosVencidos as $pedido) {
+            $pedido->update(['previsao_entrega' => null]);
+            
+            $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+            
+            if ($isTransferencia) {
+                if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
+                    $novoStatus = 'aguardando_rota';
+                    $msg = 'A rota agendada expirou (passou da data sem despacho oficial). O pedido retornou automaticamente para fila aguardando nova rota.';
+                } else {
+                    $novoStatus = 'aguardando_coleta';
+                    $msg = 'A rota agendada expirou. O item segue pendente de coleta presencial pela frota.';
+                }
+            } else {
+                $novoStatus = 'separado';
+                $msg = 'A rota do CD expirou sem ser embarcada. O pedido retornou automaticamente para o patamar de Separado aguardando nova carga.';
+            }
+            
+            $pedido->update(['status' => $novoStatus]);
+            $pedido->motos()->update(['status' => $novoStatus]);
+            
+            \App\Models\PedidoLog::create([
+                'pedido_id' => $pedido->id,
+                'user_id' => 1, // System
+                'titulo' => 'Rota Vencida 🕰️',
+                'descricao' => $msg
+            ]);
+        }
     }
 }
