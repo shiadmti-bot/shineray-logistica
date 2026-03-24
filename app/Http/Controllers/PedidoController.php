@@ -253,6 +253,19 @@ class PedidoController extends Controller
         return DB::transaction(function () use ($request) {
             $user = Auth::user();
             
+            // --- TRAVA DE GESTÃO: BLOQUEIO POR PENDÊNCIA EM TRÂNSITO ---
+            if ($user->perfil === 'loja') {
+                $pendentes = \App\Models\Pedido::where('user_id', $user->id)
+                    ->whereIn('status', ['em_transito', 'em_transito_cd'])
+                    ->count();
+                
+                if ($pendentes > 0) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'itens' => "BLOQUEIO DE SISTEMA: Sua loja possui $pendentes carga(s) 'Em Trânsito'. Por determinação da diretoria, você deve realizar a Conferência e Finalização de todos os pedidos que já chegaram fisicamente na sua loja antes de poder solicitar novas motos."
+                    ]);
+                }
+            }
+            
             // Lógica de Modos
             $modo = $request->modo ?? 'cd'; // default: reposição simples
             
