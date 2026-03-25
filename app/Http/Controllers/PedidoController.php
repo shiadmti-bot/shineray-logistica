@@ -696,13 +696,15 @@ class PedidoController extends Controller
 
         // --- TRAVA DE ENTREGA PARCIAL (REQUISIÇÃO DA GESTÃO) ---
         // Impede que a loja finalize o pedido se ainda houver motos presas no CD aguardando rota/coleta.
-        $motosPendentes = $pedido->motos()->whereNotIn('status', [
-            'em_transito', 'em_transito_cd', 'concluido', 'estoque_loja', 'vendida', 'cancelado', 'rejeitado', 'avariado'
+        // IMPORTANTE: Qualificar com 'motos.status' para evitar ambiguidade com a pivot table 'pedido_moto'.
+        $motosPendentes = $pedido->motos()->whereNotIn('motos.status', [
+            'em_transito', 'em_transito_cd', 'expedido', 'coletado',
+            'concluido', 'estoque_loja', 'vendida', 'cancelado', 'rejeitado', 'avariado'
         ])->count();
 
         if ($motosPendentes > 0) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'geral' => "BLOQUEIO DE RECEBIMENTO: Não é possível finalizar este pedido pois $motosPendentes moto(s) ainda se encontra(m) no CD/Origem aguardando logística. A diretoria determinou que a baixa no sistema só pode ser efetuada quando 100% da carga do pedido for despachada."
+                'arquivo_romaneio' => "BLOQUEIO DE RECEBIMENTO: Não é possível finalizar este pedido pois $motosPendentes moto(s) ainda se encontra(m) no CD/Origem aguardando logística. A diretoria determinou que a baixa no sistema só pode ser efetuada quando 100% da carga do pedido for despachada."
             ]);
         }
 
