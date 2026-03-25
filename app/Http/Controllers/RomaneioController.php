@@ -44,12 +44,8 @@ class RomaneioController extends Controller
         }
 
         $romaneios = $query->paginate(10)->through(function ($romaneio) {
-            // UNIFICAÇÃO DE MOTOS (Diretas + Via Pedidos)
-            $motosDiretas = $romaneio->motos;
-            $motosViaPedidos = $romaneio->pedidos->flatMap->motos;
-            
-            // Merge usando chassi como chave única para evitar duplicatas
-            $todasMotos = $motosDiretas->merge($motosViaPedidos)->unique('id');
+            // Usa apenas as motos especificamente vinculadas a este romaneio logístico (Impede puxar o pedido pai inteiro)
+            $todasMotos = $romaneio->motos;
             
             $total = $todasMotos->count();
             
@@ -224,20 +220,11 @@ class RomaneioController extends Controller
             // Carrega motos diretas e seus pedidos
             'motos' => function($query) {
                 $query->with(['pedidos.user', 'pedidos.origem']);
-            },
-            // Carrega motos via pedidos (Histórico)
-            'pedidos.motos' => function($query) {
-                $query->with(['pedidos.user', 'pedidos.origem']);
             }
         ])->findOrFail($id);
 
-        // UNIFICAÇÃO (Mesma lógica do Index)
-        $motosDiretas = $romaneio->motos;
-        $motosViaPedidos = $romaneio->pedidos->flatMap->motos;
-        
-        // Merge e Ordenação
-        $todasMotos = $motosDiretas->merge($motosViaPedidos)
-            ->unique('id')
+        // Apenas as motos vinculadas diretamente
+        $todasMotos = $romaneio->motos
             ->sortBy(function($moto) {
                 // Ordena por status e depois modelo
                 return sprintf('%s-%s', $moto->status, $moto->modelo);
