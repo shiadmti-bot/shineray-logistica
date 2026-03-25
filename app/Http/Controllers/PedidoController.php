@@ -698,7 +698,7 @@ class PedidoController extends Controller
         // Impede que a loja finalize o pedido se ainda houver motos presas no CD aguardando rota/coleta.
         // IMPORTANTE: Qualificar com 'motos.status' para evitar ambiguidade com a pivot table 'pedido_moto'.
         $motosPendentes = $pedido->motos()->whereNotIn('motos.status', [
-            'em_transito', 'em_transito_cd', 'expedido', 'coletado',
+            'em_transito', 'em_transito_cd', 'expedido', 'coletado', 'transito_loja',
             'concluido', 'estoque_loja', 'vendida', 'cancelado', 'rejeitado', 'avariado'
         ])->count();
 
