@@ -250,7 +250,7 @@ class PedidoController extends Controller
             'itens.*.cor' => 'required|string',
             'itens.*.motivo' => 'required|string',
             'itens.*.local' => 'required|string',
-            'itens.*.chassi' => 'nullable|string|min:11|max:17', 
+            'itens.*.chassi' => 'required|string|min:11|max:17', 
             'origem_id' => 'nullable|exists:users,id',
             'modo' => 'nullable|string|in:cd,transferencia,devolucao', // Novo Campo
             'cd_user_id' => 'nullable|exists:users,id' // ID do CD para Devolução
@@ -472,12 +472,9 @@ class PedidoController extends Controller
                             $moto->update($updData);
                         }
                     } else {
-                        // Pedido genérico (sem chassi) - Cria registro placeholder
-                        $moto = Moto::create([
-                            'modelo' => mb_strtoupper($item['modelo']),
-                            'cor' => mb_strtoupper($item['cor']),
-                            'status' => 'solicitado',
-                            'localizacao_atual' => 'Fábrica/CD'
+                        // Sem chassi em pedido ao CD — a validação já bloqueia, mas por segurança:
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'itens' => 'O campo Chassi é obrigatório para todas as motos. Preencha o número do chassi antes de enviar.'
                         ]);
                     }
                 }

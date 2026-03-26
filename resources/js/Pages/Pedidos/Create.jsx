@@ -150,8 +150,25 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
     const submit = (e) => {
         e.preventDefault();
 
-        if (data.modo === 'transferencia' && !data.origem_id) {
-            return Swal.fire('Falta a Origem', 'Selecione de qual loja essas motos virão.', 'warning');
+        // Validação de campos obrigatórios no cliente
+        const camposFaltando = [];
+        data.itens.forEach((item, i) => {
+            if (!item.chassi || item.chassi.trim().length < 11) {
+                camposFaltando.push(`Moto #${i + 1}: Chassi inválido ou vazio (mínimo 11 caracteres)`);
+            }
+            if (!item.modelo) camposFaltando.push(`Moto #${i + 1}: Modelo não preenchido`);
+            if (!item.cor) camposFaltando.push(`Moto #${i + 1}: Cor não preenchida`);
+            if (!item.motivo) camposFaltando.push(`Moto #${i + 1}: Motivo não selecionado`);
+            if (!item.local && data.modo !== 'devolucao') camposFaltando.push(`Moto #${i + 1}: Destino não selecionado`);
+        });
+
+        if (camposFaltando.length > 0) {
+            return Swal.fire({
+                icon: 'warning',
+                title: 'Campos Obrigatórios',
+                html: `<div style="text-align:left;font-size:13px;"><ul style="list-style:disc;padding-left:20px;">${camposFaltando.map(c => `<li>${c}</li>`).join('')}</ul></div>`,
+                confirmButtonColor: '#d33'
+            });
         }
 
         post(route('pedidos.store'), {
@@ -299,7 +316,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                             <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
                                 <div className="col-span-1 text-center">#</div>
                                 <div className="col-span-3">Modelo *</div>
-                                <div className="col-span-2">Chassi {['transferencia', 'devolucao'].includes(data.modo) && '*'}</div>
+                                <div className="col-span-2">Chassi *</div>
                                 <div className="col-span-2">{data.modo === 'devolucao' ? 'Destino Automático' : 'Destino Final *'}</div>
                                 <div className="col-span-1">Cor *</div>
                                 <div className="col-span-2">Motivo *</div>
@@ -325,13 +342,13 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                         </div>
 
                                         <div className="col-span-2">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi {['transferencia', 'devolucao'].includes(data.modo) && '*'}</label>
+                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi *</label>
                                                 <input 
-                                                    required={['transferencia', 'devolucao'].includes(data.modo)}
-                                                    type="text" placeholder="CHASSI" minLength={17} maxLength={17}
+                                                    required
+                                                    type="text" placeholder="CHASSI (OBRIGATÓRIO)" minLength={11} maxLength={17}
                                                     value={item.chassi}
                                                     onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                                                    className={`w-full rounded font-mono tracking-widest text-sm ${item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}
+                                                    className={`w-full rounded font-mono tracking-widest text-sm ${!item.chassi ? 'border-red-300 bg-red-50' : item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-orange-300 bg-orange-50'}`}
                                                 />
                                         </div>
 

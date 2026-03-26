@@ -50,7 +50,7 @@ export default function Manual({ auth }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento V2</h2>}
+            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento V2.4</h2>}
         >
             <Head title="Manual do Sistema" />
 
@@ -87,8 +87,8 @@ export default function Manual({ auth }) {
                             {activeTab === 'loja' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Manual da Loja (V2)" 
-                                        subtitle="Tudo o que você precisa saber para gerenciar seu estoque e transferências."
+                                        title="Manual da Loja (V2.4)" 
+                                        subtitle="Tudo o que você precisa saber para gerenciar seu estoque, transferências e regras de recebimento."
                                         color="red"
                                     />
                                     
@@ -99,10 +99,13 @@ export default function Manual({ auth }) {
                                         <Step number="1" title="Criando o Pedido">
                                             <p>Acesse o menu lateral e clique em <strong>Nova Solicitação</strong>. Preencha os dados da moto que você precisa.</p>
                                             <ul className="list-disc ml-6 mt-3 space-y-2 text-sm text-gray-600">
-                                                <li><strong>Pedindo de outra Loja:</strong> Selecione o nome da loja no campo "Origem", preencha o Modelo, Cor e digite o <strong>Chassi Exato</strong> da moto.</li>
-                                                <li><strong>Pedindo da Fábrica (CD):</strong> Deixe o campo "Origem" vazio. Preencha apenas o Modelo e a Cor. O chassi será definido pelo CD na hora de enviar.</li>
-                                                <li><strong>Qual o Lote?:</strong> O campo "Local" já vem preenchido com a sua loja. Não altere a menos que esteja pedindo para uma loja secundária.</li>
+                                                <li><strong>Pedindo de outra Loja (Transferência):</strong> Selecione o nome da loja no campo "Origem", preencha o Modelo, Cor e digite o <strong>Chassi Exato</strong> da moto.</li>
+                                                <li><strong>Pedindo da Fábrica (CD/Reposição):</strong> Selecione o modo "Reposição CD". Preencha o Modelo, Cor e o <strong>Chassi</strong> da moto disponível no estoque do CD.</li>
+                                                <li><strong>Qual o Lote?:</strong> O campo "Destino" já vem preenchido com a sua loja. Não altere a menos que esteja pedindo para uma loja secundária.</li>
                                             </ul>
+                                            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                                                <p className="text-sm text-red-800 font-bold">⚠️ OBRIGATÓRIO: O campo Chassi agora é obrigatório para TODOS os tipos de pedido (Reposição, Transferência e Devolução). O sistema não permitirá salvar sem o número do chassi preenchido (mínimo 11 caracteres).</p>
+                                            </div>
                                         </Step>
 
                                         <Step number="2" title="Aguardando a Aprovação (Gestor)">
@@ -120,16 +123,22 @@ export default function Manual({ auth }) {
                                             <p className="mt-2 text-sm font-semibold text-gray-700">Logo após a separação, a equipe de logística encaixará sua moto na próxima rota de caminhão disponível.</p>
                                         </Step>
 
-                                        <Step number="4" title="Agendamento e Coleta (Novo)">
-                                            <p>A equipe de logística do CD usará o <strong>Calendário</strong> para agendar as entregas da semana.</p>
+                                        <Step number="4" title="Agendamento e Confirmação de Rota">
+                                            <p>A equipe de logística do CD usará o <strong>Calendário</strong> para agendar as entregas da semana. Existem <strong>duas etapas</strong> de agendamento:</p>
                                             <ul className="list-disc ml-6 mt-3 space-y-2 text-sm text-gray-600">
-                                                <li>Assim que a data for definida pelo CD, o pedido muda para <span className="text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded text-xs">Rota Confirmada</span> e você já saberá a previsão exata de chegada.</li>
-                                                <li>Se for transferência, o motorista vai até a loja de origem. Lá, o motorista bipe a carga e o sistema muda o status para <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded text-xs">Coletado</span> automaticamente. Nenhuma loja precisa apertar botão para confirmar coleta!</li>
+                                                <li><span className="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1"></span> <strong>Agendado (Amarelo):</strong> O CD reservou uma data provisória para a sua rota. Seu pedido <strong>NÃO</strong> muda de status ainda, apenas recebe uma previsão de entrega. A rota pode mudar.</li>
+                                                <li><span className="inline-block w-3 h-3 rounded-full bg-green-500 mr-1"></span> <strong>Confirmado (Verde):</strong> O CD confirmou oficialmente a viagem. SÓ agora o pedido muda para <span className="text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded text-xs">Rota Confirmada</span> e a data de chegada é garantida.</li>
                                             </ul>
+                                            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                                <p className="text-sm text-amber-800">🕐 <strong>Expiração Automática:</strong> Se o dia da rota confirmada chegar e o caminhão NÃO sair, o sistema automaticamente desfaz a confirmação e retorna o pedido para a fila de espera ("Aguardando Rota" ou "Separado"). Você será notificado caso isso aconteça.</p>
+                                            </div>
                                         </Step>
 
-                                        <Step number="5" title="Em Trânsito">
-                                            <p>Assim que o caminhão for todo carregado (coletas concluídas) e o motorista iniciar a viagem no sistema, seu pedido aparecerá como <span className="text-orange-600 font-bold border border-orange-500 shadow-sm px-2 py-0.5 rounded text-xs"><TruckIcon className="w-3 h-3 inline" /> Em Trânsito</span> no seu Painel.</p>
+                                        <Step number="5" title="Coleta e Trânsito">
+                                            <ul className="list-disc ml-6 space-y-2 text-sm text-gray-600">
+                                                <li>Se for transferência, o motorista vai até a loja de origem. Lá, o motorista bipa a carga e o sistema muda o status para <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded text-xs">Coletado</span> automaticamente. Nenhuma loja precisa apertar botão!</li>
+                                                <li>Assim que o caminhão for carregado e o CD liberar a saída, seu pedido aparecerá como <span className="text-orange-600 font-bold border border-orange-500 shadow-sm px-2 py-0.5 rounded text-xs"><TruckIcon className="w-3 h-3 inline" /> Em Trânsito</span> no seu Painel.</li>
+                                            </ul>
                                         </Step>
 
                                         <Step number="6" title="Recebimento Completo (Finalização e Foto)">
@@ -143,7 +152,20 @@ export default function Manual({ auth }) {
                                                 <li>Se alguma moto chegou arranhada ou quebrada, preencha o campo de "Avaria" daquela moto específica na mesma tela de finalização e envie uma foto do dano.</li>
                                                 <li>Clique em Salvar. Pronto! O pedido está <strong>Concluído</strong> e as motos já fazem parte do seu saldo de estoque ativo.</li>
                                             </ol>
+                                            <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+                                                <p className="text-sm text-red-800 font-bold">🔒 TRAVA DE RECEBIMENTO PARCIAL:</p>
+                                                <p className="text-sm text-red-700">Se o seu pedido tem 4 motos, mas o CD só enviou 2 neste caminhão (entrega parcial), o sistema <strong>NÃO</strong> vai permitir que você clique em "Finalizar". Você terá que aguardar o CD despachar as motos restantes. Só quando 100% da carga do pedido for enviada é que a finalização será liberada.</p>
+                                            </div>
                                         </Step>
+
+                                        {/* ALERTA CRUCIAL: BLOQUEIO EM TRÂNSITO */}
+                                        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-5 mt-4">
+                                            <h4 className="text-lg font-black text-yellow-800 flex items-center gap-2 mb-3">
+                                                <ExclamationTriangleIcon className="w-6 h-6" /> REGRA IMPORTANTE: Bloqueio de Novo Pedido
+                                            </h4>
+                                            <p className="text-sm text-yellow-900">Por determinação da gestão, se a sua loja possuir <strong>qualquer pedido</strong> com status <span className="font-bold text-orange-600">"Em Trânsito"</span> (ou seja, motos a caminho que ainda não foram finalizadas/recebidas no sistema), você estará <strong>BLOQUEADO</strong> de criar novos pedidos, transferências ou devoluções.</p>
+                                            <p className="text-sm text-yellow-800 mt-2 font-bold">👉 Solução: Abra os pedidos com status "Em Trânsito", tire a foto do comprovante do motorista e finalize a entrega. Só assim o sistema liberará novas solicitações.</p>
+                                        </div>
                                     </div>
 
                                     {/* CENÁRIO B: ENVIAR MOTO (TRANSFERÊNCIA PASSIVA) */}
@@ -168,7 +190,7 @@ export default function Manual({ auth }) {
                                         <Step number="2" title="Logística (Agendamento e Milk Run)">
                                             <p>A partir do momento em que a moto foi separada, o pedido fica <span className="text-pink-600 font-bold bg-pink-50 px-2 py-0.5 rounded">Aguardando Rota</span>.</p>
                                             <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-gray-700">
-                                                <li>O CD central vai gerar um agendamento no Calendário para a Loja Destino. Nisso, o status já pula para <span className="text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded">Rota Confirmada</span> para você ter previsibilidade.</li>
+                                                <li>O CD central vai gerar um agendamento no Calendário. Se a rota for <span className="inline-block w-3 h-3 rounded-full bg-yellow-400 mr-1"></span><strong>Amarela (Pré-Agendada)</strong>, o pedido continua aguardando. Quando o CD confirmar a rota como <span className="inline-block w-3 h-3 rounded-full bg-green-500 mr-1"></span><strong>Verde</strong>, aí sim o status muda para <span className="text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded">Rota Confirmada</span>.</li>
                                                 <li>O status evolui para <strong className="text-orange-600">Aguardando Coleta</strong> quando a viagem da semana for gerada no Romaneio.</li>
                                                 <li>Quando o caminhão chegar na sua loja, <strong>entregue a moto presencialmente ao motorista</strong>. O motorista informará via aplicativo/rádio ao CD, que dará o "bip" de confirmação de coleta no painel gerencial.</li>
                                             </ul>
@@ -269,26 +291,41 @@ export default function Manual({ auth }) {
                                                 <li><strong>Motos do CD:</strong> Cabe à equipe do Pátio do CD separar essa moto do lote, conferir os itens mecânicos e clicar fisicamente em "Separar" confirmando que a moto existe e está ali pronta para embarque.</li>
                                                 <li><strong>Motos em Lojas (Transferência):</strong> A loja emitente clica em "Separar". O sistema coloca a moto como "Aguardando Rota".</li>
                                             </ul>
-                                            <p className="mt-3 text-sm font-semibold text-gray-700">💡 <strong>NOVO: Agendamento de Rota:</strong> Acesse o módulo de Calendário e agende o dia de visita na Loja de Destino. Ao arrastar a data, os pedidos pulam automaticamente para <strong>Rota Confirmada</strong> e a loja já recebe a previsão de entrega!</p>
                                         </Step>
 
-                                        <Step number="2" title="Montando o Caminhão (Criando Romaneio)">
+                                        <Step number="2" title="Agendamento de Rota no Calendário">
+                                            <p>Acesse o módulo de <strong>Calendário</strong> e agende o dia de visita na Loja de Destino.</p>
+                                            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                                                <p className="text-sm text-blue-900 font-bold">🟡 Agendado (Amarelo):</p>
+                                                <p className="text-sm text-blue-800">Pré-reserva de data. Os pedidos recebem a previsão de entrega como informativo, mas <strong>NÃO</strong> mudam de status. A rota ainda pode ser cancelada ou remarcada.</p>
+                                                <p className="text-sm text-blue-900 font-bold">🟢 Confirmado (Verde):</p>
+                                                <p className="text-sm text-blue-800">Confirmação oficial. Os pedidos daquela rota mudam automaticamente para <span className="text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded text-xs">Rota Confirmada</span> e a loja já visualiza a previsão do dia de chegada.</p>
+                                            </div>
+                                            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                                <p className="text-sm text-amber-800">⏰ <strong>Rotas Expiradas:</strong> Se o dia da rota confirmada chegar e o caminhão não sair, o sistema AUTOMATICAMENTE regride os pedidos para a fila de espera e registra o motivo no log. Nenhuma ação manual é necessária.</p>
+                                            </div>
+                                        </Step>
+
+                                        <Step number="3" title="Montando o Caminhão (Criando Romaneio)">
                                             <p>Quando o faturamento foi feito e o caminhão encostou na Doca para as rotas do dia, vá ao menu "Expedição" e clique em <strong>Novo Romaneio</strong>.</p>
                                             <p className="mt-2 text-sm text-gray-700">A tela mostrará a lista de tudo que está "Separado" no Pará inteiro naquele dia.</p>
                                             <ol className="list-decimal ml-6 mt-2 text-sm text-gray-600 space-y-2">
                                                 <li>Preencha os dados do Motorista e a Placa do Caminhão.</li>
-                                                <li><strong>Marque as caixinhas</strong> dos pedidos que cabem dentro deste caminhão e farão parte daquela Rota Específica.</li>
-                                                <li>Você pode escolher motos do CD (Saídas) e também motos de outras Lojas (o Caminhão passará lá e fará a coleta milk-run).</li>
-                                                <li>Clique em Salvar e Gerar Carga. O sistema criará as listas de entrega para o motorista imprimir e assinar!</li>
+                                                <li><strong>Marque as caixinhas</strong> das motos individuais que subirão neste caminhão.</li>
+                                                <li>Você pode escolher motos do CD (Saídas) e também motos de outras Lojas (Milk Run).</li>
+                                                <li>Clique em Salvar e Gerar Carga.</li>
                                             </ol>
+                                            <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
+                                                <p className="text-sm text-green-800">🔧 <strong>Entregas Parciais:</strong> Agora é possível enviar PARTE de um pedido num caminhão e a outra parte depois. O romaneio trabalha por moto individual, não por pedido inteiro. Se um pedido tem 4 motos e só 2 cabem no caminhão de hoje, selecione apenas essas 2. As motos restantes continuarão na fila para a próxima viagem.</p>
+                                            </div>
                                         </Step>
 
-                                        <Step number="3" title="O Caminhão Caiu na Estrada">
+                                        <Step number="4" title="O Caminhão Caiu na Estrada">
                                             <p>Após imprimir os papéis (manifestos), clique no botão <span className="text-orange-600 font-bold border border-orange-600 px-2 py-0.5 rounded text-xs">Aprovar Saída do Galpão</span> na tela do Romaneio criado.</p>
                                             <p className="mt-2 text-sm text-gray-600">Nesse momento mágico, todos os pedidos incluídos nessa carga passam para o status "Em Trânsito", e os telefones e telas das Lojas disparam avisando que a moto acabou de sair do CD na placa informada!</p>
                                         </Step>
 
-                                        <Step number="4" title="Confirmando as Coletas Externas">
+                                        <Step number="5" title="Confirmando as Coletas Externas">
                                             <p>Se o caminhão estiver fazendo <strong>Milk Run</strong> (coletando uma moto numa loja do interior para levar para outra loja):</p>
                                             <ul className="list-disc ml-6 mt-2 text-sm text-gray-600 space-y-2">
                                                 <li>O motorista chega na loja remota (ex: Castanhal) para retirar uma Pop para levar à Belém. Ao subir na rampa do baú, ele entra em contato.</li>
@@ -298,8 +335,9 @@ export default function Manual({ auth }) {
                                             </ul>
                                         </Step>
 
-                                        <Step number="5" title="Finalização Fica Por Conta das Lojas">
-                                            <p>O caminhão chega no destino final. Quem encerra as motos no sistema e faz o upload da foto dos documentos assinados (Finalização) é o lojista, acessando a aba dele e checando individualmente cada moto e eventuais arranhões. O CD apenas administra a Rota Física!</p>
+                                        <Step number="6" title="Finalização Fica Por Conta das Lojas">
+                                            <p>O caminhão chega no destino final. Quem encerra as motos no sistema e faz o upload da foto dos documentos assinados (Finalização) é o lojista.</p>
+                                            <p className="text-sm text-gray-600 mt-2"><strong>Atenção:</strong> A loja só consegue finalizar o pedido quando 100% das motos forem despachadas pelo CD. Se o CD enviou parcialmente, o botão Finalizar ficará bloqueado até a entrega total.</p>
                                         </Step>
                                     </div>
 
@@ -360,8 +398,20 @@ export default function Manual({ auth }) {
                                     />
 
                                     <div className="grid gap-4">
-                                        <FaqItem question="O sistema diz 'Chassi Inválido'.">
-                                            Verifique se o chassi possui entre <strong>11 e 17 caracteres</strong>. Não use traços ou espaços. O sistema valida se o chassi já está em outro pedido ativo.
+                                        <FaqItem question="O sistema diz 'Chassi Inválido' ou não deixa salvar o pedido.">
+                                            O chassi é <strong>obrigatório</strong> para todos os tipos de pedido (Reposição, Transferência e Devolução). Verifique se possui entre <strong>11 e 17 caracteres</strong>. Não use traços ou espaços. O campo aparecerá com borda vermelha se estiver vazio.
+                                        </FaqItem>
+
+                                        <FaqItem question="Estou bloqueado de fazer novos pedidos. O que aconteceu?">
+                                            A gestão ativou um bloqueio automático: se a sua loja tiver <strong>qualquer pedido com status 'Em Trânsito'</strong> (motos que já saíram do CD mas ainda não foram finalizadas no sistema), você não poderá criar novos pedidos. <strong>Solução:</strong> Abra os pedidos Em Trânsito, tire a foto do comprovante assinado do motorista e finalize a entrega.
+                                        </FaqItem>
+
+                                        <FaqItem question="Não consigo finalizar um pedido mesmo com as motos na loja.">
+                                            O sistema exige que <strong>100% das motos do pedido</strong> sejam despachadas pelo CD antes da finalização. Se o CD fez uma entrega parcial (enviou 2 de 4 motos), o botão ficará bloqueado até que as motos restantes também sejam colocadas num caminhão e despachadas.
+                                        </FaqItem>
+
+                                        <FaqItem question="A rota foi confirmada mas o caminhão não saiu. O que acontece?">
+                                            O sistema possui uma <strong>limpeza automática de rotas vencidas</strong>. Se o dia programado passar sem o caminhão sair, o pedido volta automaticamente para "Aguardando Rota" ou "Separado" e uma anotação é registrada no histórico: "Rota Vencida 🕰️".
                                         </FaqItem>
 
                                         <FaqItem question="Errei a solicitação e o Gestor aprovou.">
@@ -369,7 +419,13 @@ export default function Manual({ auth }) {
                                         </FaqItem>
 
                                         <FaqItem question="Como desfaço uma carga errada?">
-                                            No menu Expedição, entre no Romaneio e clique no botão vermelho <strong><TrashIcon className="w-4 h-4 inline" /> Desfazer</strong>. As motos voltarão para o status "Separado" nas lojas de origem.
+                                            No menu Expedição, entre no Romaneio e clique no botão vermelho <strong><TrashIcon className="w-4 h-4 inline" /> Desfazer</strong>. As motos voltarão para o status "Separado" nas lojas de origem. Se uma rota do Calendário for excluída, os pedidos vinculados também voltam para a fila automaticamente.
+                                        </FaqItem>
+
+                                        <FaqItem question="O que significam as cores do Calendário?">
+                                            <strong className="text-yellow-600">🟡 Amarelo = Agendado (Pré-reserva)</strong> — O CD reservou a data, mas não confirmou. Pode mudar.<br/>
+                                            <strong className="text-green-600">🟢 Verde = Confirmado</strong> — Viagem oficializada. Os pedidos mudam para "Rota Confirmada".<br/>
+                                            <strong className="text-red-600">🔴 Vermelho = Cancelado/Expirado</strong> — A rota foi desfeita ou a data venceu.
                                         </FaqItem>
                                     </div>
 
