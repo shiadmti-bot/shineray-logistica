@@ -130,6 +130,10 @@ class PedidoController extends Controller
                 ->limit(1)
             ])
             ->withCount('motos')
+            ->withCount(['motos as motos_separadas_count' => function ($query) {
+                // Conta quantas motos AINDA não entraram no fluxo logístico prático
+                $query->whereIn('status', ['em_analise', 'solicitado', 'separado', 'aguardando_rota', 'estoque_fabrica']);
+            }])
             // Visibilidade (Loja vê seus pedidos e pedidos DELE)
             ->when($user->perfil === 'loja', function($q) use ($user) {
                 $q->where(function($sub) use ($user) {

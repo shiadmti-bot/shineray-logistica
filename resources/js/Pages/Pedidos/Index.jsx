@@ -289,14 +289,13 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
 
                                             {/* Quantidade */}
                                             <td className="px-6 py-4 text-center align-middle">
-                                                <span className="inline-flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200">
-                                                    {pedido.motos_count || 0}
-                                                </span>
+                                                <VolumeIndicator pedido={pedido} />
                                             </td>
 
                                             {/* Status */}
                                             <td className="px-6 py-4 align-middle">
                                                 <StatusBadge status={pedido.status} />
+                                                <PartialShipmentBadge pedido={pedido} />
                                                 <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden mt-2">
                                                     <div className={`h-full ${safeGetStatusColor(pedido.status)} transition-all duration-700`} style={{ width: `${(safeGetStepNumber(pedido.status) / 5) * 100}%` }}></div>
                                                 </div>
@@ -346,14 +345,15 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                                 </div>
 
                                 {/* FOOTER DO CARD */}
-                                <div className="flex justify-between items-center border-t border-gray-100 pt-3">
-                                    <StatusBadge status={pedido.status} />
-                                    
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-gray-800">{pedido.motos_count || 0}</span>
-                                        <span className="text-[9px] font-bold uppercase text-gray-400">Motos</span>
-                                        <span className="text-gray-300 ml-1 text-lg">›</span>
+                                <div className="flex flex-col gap-2 border-t border-gray-100 pt-3">
+                                    <div className="flex justify-between items-center">
+                                        <StatusBadge status={pedido.status} />
+                                        <div className="flex items-center gap-2">
+                                            <VolumeIndicator pedido={pedido} />
+                                            <span className="text-gray-300 ml-1 text-lg">›</span>
+                                        </div>
                                     </div>
+                                    <PartialShipmentBadge pedido={pedido} />
                                 </div>
                             </Link>
                         ))}
@@ -392,6 +392,65 @@ function TipoBadge({ pedido, authId }) {
 }
 
 function safeString(value) { return String(value || '').toLowerCase(); }
+
+// Verifica se o pedido é um embarque parcial (algumas motos já embarcaram, outras não)
+function isPartialShipment(pedido) {
+    const total = pedido.motos_count || 0;
+    const pendentes = pedido.motos_separadas_count ?? 0;
+    const embarcadas = total - pendentes;
+    return ['em_transito', 'expedido', 'coletado', 'em_transito_cd'].includes(safeString(pedido.status)) 
+        && pendentes > 0 && embarcadas > 0;
+}
+
+// Indicador de Volume com suporte a embarque parcial
+function VolumeIndicator({ pedido }) {
+    const total = pedido.motos_count || 0;
+    const pendentes = pedido.motos_separadas_count ?? 0;
+    const embarcadas = total - pendentes;
+    const partial = isPartialShipment(pedido);
+
+    if (partial) {
+        return (
+            <div className="flex flex-col items-center gap-0.5">
+                <div className="relative inline-flex items-center justify-center h-9 w-9">
+                    {/* Background ring */}
+                    <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="15" fill="none" stroke="#f97316" strokeWidth="3"
+                            strokeDasharray={`${(embarcadas / total) * 94.2} 94.2`}
+                            strokeLinecap="round" className="transition-all duration-700" />
+                    </svg>
+                    <span className="absolute text-[10px] font-black text-orange-600">{embarcadas}/{total}</span>
+                </div>
+                <span className="text-[8px] font-bold text-orange-500 uppercase leading-none">Parcial</span>
+            </div>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200">
+            {total}
+        </span>
+    );
+}
+
+// Badge de Embarque Parcial
+function PartialShipmentBadge({ pedido }) {
+    if (!isPartialShipment(pedido)) return null;
+    const total = pedido.motos_count || 0;
+    const pendentes = pedido.motos_separadas_count ?? 0;
+
+    return (
+        <div className="mt-1.5 flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 animate-pulse">
+            <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+            <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wide">
+                Embarque Parcial · {pendentes} no CD
+            </span>
+        </div>
+    );
+}
 
 function safeGetStepNumber(status) {
     const map = { 
