@@ -152,13 +152,16 @@ class CalendarController extends Controller
                             'descricao' => "O CD confirmou a viagem oficial para esta loja no dia " . Carbon::parse($request->date)->format('d/m/Y') . ".",
                         ]);
                     } else if ($pedido->previsao_entrega !== $request->date) {
-                        $pedido->update(['previsao_entrega' => $request->date]);
-                        \App\Models\PedidoLog::create([
-                            'pedido_id' => $pedido->id,
-                            'user_id' => Auth::id(),
-                            'titulo' => 'Remarcação de Rota 📅',
-                            'descricao' => "A viagem confirmada sofreu alteração e foi transferida para " . Carbon::parse($request->date)->format('d/m/Y') . "."
-                        ]);
+                        // Só atualiza se a nova data for MAIS PRÓXIMA que a previsão atual
+                        if (!$pedido->previsao_entrega || Carbon::parse($request->date)->lt(Carbon::parse($pedido->previsao_entrega))) {
+                            $pedido->update(['previsao_entrega' => $request->date]);
+                            \App\Models\PedidoLog::create([
+                                'pedido_id' => $pedido->id,
+                                'user_id' => Auth::id(),
+                                'titulo' => 'Remarcação de Rota 📅',
+                                'descricao' => "A viagem confirmada sofreu alteração e foi transferida para " . Carbon::parse($request->date)->format('d/m/Y') . "."
+                            ]);
+                        }
                     }
                 } else {
                     // É apenas Amarelo (Scheduled)
@@ -182,13 +185,16 @@ class CalendarController extends Controller
                             'descricao' => "O CD rebaixou a viagem de volta para 'Pré-agendado'. Aguardando nova confirmação final de partida para " . Carbon::parse($request->date)->format('d/m/Y') . ".",
                         ]);
                     } else if ($pedido->previsao_entrega !== $request->date) {
-                        $pedido->update(['previsao_entrega' => $request->date]);
-                        \App\Models\PedidoLog::create([
-                            'pedido_id' => $pedido->id,
-                            'user_id' => Auth::id(),
-                            'titulo' => 'Pré-agendamento de Rota 🗓️',
-                            'descricao' => "O CD inseriu um pré-agendamento de logística para " . Carbon::parse($request->date)->format('d/m/Y') . ". Aguardando validação final de caminhões."
-                        ]);
+                        // Só atualiza se a nova data for MAIS PRÓXIMA que a previsão atual
+                        if (!$pedido->previsao_entrega || Carbon::parse($request->date)->lt(Carbon::parse($pedido->previsao_entrega))) {
+                            $pedido->update(['previsao_entrega' => $request->date]);
+                            \App\Models\PedidoLog::create([
+                                'pedido_id' => $pedido->id,
+                                'user_id' => Auth::id(),
+                                'titulo' => 'Pré-agendamento de Rota 🗓️',
+                                'descricao' => "O CD inseriu um pré-agendamento de logística para " . Carbon::parse($request->date)->format('d/m/Y') . ". Aguardando validação final de caminhões."
+                            ]);
+                        }
                     }
                 }
             }
