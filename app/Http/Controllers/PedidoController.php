@@ -198,9 +198,8 @@ class PedidoController extends Controller
 
     public function create()
     {
-        // Lista lojas para transferência (exclui a própria)
+        // Lista lojas para transferência (inclui a própria, conforme solicitado)
         $lojas = User::where('perfil', 'loja')
-            ->where('id', '!=', Auth::id())
             ->select('id', 'name', 'filial')
             ->orderBy('filial')
             ->get();

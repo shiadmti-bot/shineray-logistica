@@ -84,26 +84,35 @@ class RomaneioController extends Controller
     public function create()
     {
         // 1. EXPEDIÇÃO (Saindo do CD)
-        // Pedidos que estão 'separado' e são saída de estoque próprio (origem nula ou Origem = CD)
-        // OU pedidos que estão 'no_cd' (Transbordos que chegaram e vão sair de novo)
-        $expedicao = Pedido::whereIn('status', ['separado', 'no_cd', 'rota_confirmada'])
+        // Pedidos que possuem motos que estão 'separado', 'no_cd', etc e são saída de CD
+        $expedicao = Pedido::whereHas('motos', function ($q) {
+                $q->whereIn('status', ['separado', 'no_cd', 'rota_confirmada']);
+            })
             ->where(function ($query) {
                 $query->whereNull('origem_user_id')
                       ->orWhereHas('origem', function ($q) {
                           $q->where('perfil', '!=', 'loja'); // CD ou Admin
                       });
             })
-            ->with(['user', 'motos']) // Carrega cliente e motos
+            ->with(['user', 'motos' => function ($q) {
+                // Apenas carrega as motos que ainda estão aptas a serem expedidas
+                $q->whereIn('status', ['separado', 'no_cd', 'rota_confirmada']);
+            }])
             ->get();
 
         // 2. COLETAS (Milk Run)
-        // Pedidos que são transferências (tem origem em uma Loja definida)
+        // Pedidos que são transferências (tem origem em uma Loja definida) e possuem motos aptas
         $coletas = Pedido::whereNotNull('origem_user_id')
             ->whereHas('origem', function ($q) {
                 $q->where('perfil', 'loja');
             })
-            ->whereIn('status', ['aguardando_rota', 'aguardando_coleta', 'rota_confirmada'])
-            ->with(['user', 'origem', 'motos'])
+            ->whereHas('motos', function ($q) {
+                $q->whereIn('status', ['aguardando_rota', 'aguardando_coleta', 'rota_confirmada']);
+            })
+            ->with(['user', 'origem', 'motos' => function ($q) {
+                // Apenas carrega as motos que precisam ser coletadas
+                $q->whereIn('status', ['aguardando_rota', 'aguardando_coleta', 'rota_confirmada']);
+            }])
             ->get();
 
         // 3. Cargas em Aberto (Para adicionar itens nelas)
@@ -243,15 +252,15 @@ class RomaneioController extends Controller
     public function iniciarTransito($id)
     {
         return DB::transaction(function () use ($id) {
-            // Carrega o romaneio com pedidos E as motos desses pedidos
-            $romaneio = Romaneio::with(['pedidos.motos'])->findOrFail($id);
+            // Carrega o romaneio com as motos e seus pedidos
+            $romaneio = Romaneio::with(['motos.pedidos.user'])->findOrFail($id);
             
             if ($romaneio->status !== 'aberto') {
                 return back()->withErrors(['erro' => 'Esta carga já saiu ou foi concluída.']);
             }
 
             // Valida se há itens pendentes de coleta neste romaneio
-            $pendentesColeta = $romaneio->pedidos()->where('status', 'aguardando_coleta')->count();
+            $pendentesColeta = $romaneio->motos()->where('status', 'aguardando_coleta')->count();
             if ($pendentesColeta > 0) {
                 return back()->withErrors(['erro' => 'Existem coletas pendentes. O motorista deve confirmar a bipagem das coletas antes de liberar a carga para trânsito final.']);
             }
@@ -260,21 +269,28 @@ class RomaneioController extends Controller
             $romaneio->update(['status' => 'em_transito']);
 
             // 2. Atualiza os Itens (Expedidos do CD ou já Coletados na Loja)
-            // Agora eles entram em trânsito real rumo ao destino final
-            foreach ($romaneio->pedidos as $pedido) {
-                
-                if (in_array($pedido->status, ['expedido', 'coletado'])) {
-                    // Vira Em Trânsito Real
+            $pedidosAfetados = [];
+
+            foreach ($romaneio->motos as $moto) {
+                if (in_array($moto->status, ['expedido', 'coletado'])) {
+                    $pedido = $moto->pedidos->first();
+                    if (!$pedido) continue;
+
+                    // Atualiza apenas a moto vinculada a ESTE romaneio
+                    $moto->update([
+                        'status' => 'transito_loja',
+                        'localizacao_atual' => "Em Trânsito para {$pedido->user->filial}"
+                    ]);
+
+                    $pedidosAfetados[$pedido->id] = $pedido;
+                }
+            }
+
+            // Atualiza os pedidos vinculados
+            foreach ($pedidosAfetados as $pedido) {
+                if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado'])) {
                     $pedido->update(['status' => 'em_transito']);
                     
-                    // Atualiza as motos deste pedido
-                    foreach ($pedido->motos as $moto) {
-                        $moto->update([
-                            'status' => 'transito_loja',
-                            'localizacao_atual' => "Em Trânsito para {$pedido->user->filial}"
-                        ]);
-                    }
-
                     // Log de Auditoria
                     PedidoLog::create([
                         'pedido_id' => $pedido->id,
@@ -287,7 +303,7 @@ class RomaneioController extends Controller
                         (new \App\Services\OneSignalService())->sendToUser(
                             [$pedido->user->onesignal_id],
                             'Pedido em Trânsito 🚚',
-                            "Seu pedido #{$pedido->id} saiu para entrega! Acompanhe o rastreio.",
+                            "O(s) item(ns) do seu pedido #{$pedido->id} saiu/saíram para entrega! Acompanhe o rastreio.",
                             route('pedidos.show', $pedido->id)
                         );
                     } catch (\Exception $e) {}
@@ -302,62 +318,57 @@ class RomaneioController extends Controller
     public function receber($id)
     {
         return DB::transaction(function () use ($id) {
-            $romaneio = Romaneio::with(['pedidos.motos', 'pedidos.user'])->findOrFail($id);
+            $romaneio = Romaneio::with(['motos.pedidos.user'])->findOrFail($id);
             $user = Auth::user();
 
             // --- CASO 1: CHEGADA NO CD (TRANSBORDO) ---
-            // O motorista trouxe coletas do interior para o Hub (CD/Admin)
             if ($user->perfil === 'cd' || $user->perfil === 'admin') {
-                
                 $itensRecebidos = 0;
+                $pedidosAfetados = [];
 
-                foreach ($romaneio->pedidos as $pedido) {
-                    // Só processa o que estava previsto para vir ao CD (Coletas Interior ou Transbordo)
-                    // Ou pedidos que estavam 'aguardando_coleta' e agora chegaram fisicamente
-                    if (in_array($pedido->status, ['aguardando_coleta', 'coletado', 'em_transito', 'em_transito_cd'])) {
-                        
-                        // Verifica se este pedido é uma transferência (tem origem)
-                        // Se for transferência, ao chegar no CD, ele fica 'no_cd' aguardando nova rota.
+                foreach ($romaneio->motos as $moto) {
+                    if (in_array($moto->status, ['aguardando_coleta', 'coletado', 'transito_loja', 'em_transito'])) {
+                        $pedido = $moto->pedidos->first();
+                        if (!$pedido) continue;
+
                         if ($pedido->origem_user_id) {
-                            
-                            $pedido->update(['status' => 'no_cd', 'romaneio_id' => null]); // LIBERA PARA NOVA CARGA
-
-                            // LOG E NOTIFICAÇÃO
-                            PedidoLog::create([
-                                'pedido_id' => $pedido->id,
-                                'titulo' => 'Chegou no CD 🏢',
-                                'descricao' => "Transferência recebida no Hub Logístico. Aguardando rota final."
+                            $moto->update([
+                                'status' => 'no_cd',
+                                'localizacao_atual' => 'Depósito CD (Aguardando Rota Final)',
+                                'romaneio_id' => null
                             ]);
-
-                            try {
-                                (new \App\Services\OneSignalService())->sendToUser(
-                                    [$pedido->user->onesignal_id],
-                                    'Chegou no CD 🏢',
-                                    "Seu pedido #{$pedido->id} chegou ao Centro de Distribuição e aguarda rota final.",
-                                    route('pedidos.show', $pedido->id)
-                                );
-                            } catch (\Exception $e) {}
-
-                            
-                            foreach ($pedido->motos as $moto) {
-                                $moto->update([
-                                    'status' => 'no_cd',
-                                    'localizacao_atual' => 'Depósito CD (Aguardando Rota Final)',
-                                    'romaneio_id' => null
-                                ]);
-                            }
                             $itensRecebidos++;
+                            $pedidosAfetados[$pedido->id] = $pedido;
                         }
                     }
                 }
 
+                foreach ($pedidosAfetados as $pedido) {
+                    $pedido->update(['status' => 'no_cd', 'romaneio_id' => null]); // LIBERA PARA NOVA CARGA
+
+                    // LOG E NOTIFICAÇÃO
+                    PedidoLog::create([
+                        'pedido_id' => $pedido->id,
+                        'titulo' => 'Chegou no CD 🏢',
+                        'descricao' => "Transferência recebida no Hub Logístico. Aguardando rota final."
+                    ]);
+
+                    try {
+                        (new \App\Services\OneSignalService())->sendToUser(
+                            [$pedido->user->onesignal_id],
+                            'Chegou no CD 🏢',
+                            "Seus itens do pedido #{$pedido->id} chegaram ao Centro de Distribuição e aguardam rota final.",
+                            route('pedidos.show', $pedido->id)
+                        );
+                    } catch (\Exception $e) {}
+                }
+
                 if ($itensRecebidos > 0) {
-                    return back()->with('success', "$itensRecebidos pedidos deram entrada no CD (Transbordo).");
+                    return back()->with('success', "$itensRecebidos itens deram entrada no CD (Transbordo).");
                 }
             }
 
             // --- CASO 2: CHEGADA NA LOJA (RECEBIMENTO FINAL) ---
-            // A loja recebe pelo painel de "Meus Pedidos", mas se tentar por aqui avisamos:
             if ($user->perfil === 'loja') {
                 return back()->withErrors(['erro' => 'Por favor, realize o recebimento pelo menu "Meus Pedidos".']);
             }
@@ -373,59 +384,58 @@ class RomaneioController extends Controller
         return redirect()->route('romaneios.show', $id);
     }
 
-    // 8. DESFAZER (ROLLBACK DE EMERGÊNCIA)
     public function destroy($id)
     {
-        $romaneio = Romaneio::with('pedidos.motos')->findOrFail($id);
+        $romaneio = Romaneio::with('motos.pedidos')->findOrFail($id);
 
-        // Bloqueia exclusão se já foi entregue (segurança)
         if ($romaneio->status === 'concluido') {
             return back()->withErrors(['erro' => 'Cargas concluídas não podem ser excluídas.']);
         }
 
         DB::transaction(function () use ($romaneio) {
-            foreach ($romaneio->pedidos as $pedido) {
-                
-                // Lógica de Regressão de Status:
-                // 1. Se estava 'aguardando_coleta', volta para 'separado' (na loja origem).
-                // 2. Se estava 'expedido' ou 'em_transito', volta para 'separado' (no CD ou Loja).
-                // 3. Se era um item de transbordo ('no_cd'), mantemos 'no_cd' para não obrigar coleta nova.
-                
+            $pedidosParaReverter = [];
+
+            foreach ($romaneio->motos as $moto) {
+                $pedido = $moto->pedidos->first();
                 $statusVolta = 'separado';
-                
-                // Se o pedido JÁ ERA um transbordo parado no CD antes dessa carga, ele volta a ser transbordo
-                if ($pedido->status === 'no_cd') {
+
+                if ($pedido && $pedido->status === 'no_cd') {
                     $statusVolta = 'no_cd';
                 }
 
-                $pedido->update([
+                $moto->update([
                     'status' => $statusVolta,
+                    'romaneio_id' => null,
+                    'localizacao_atual' => 'Devolvido ao Estoque (Carga Desfeita)'
+                ]);
+
+                if ($pedido) {
+                    $pedidosParaReverter[$pedido->id] = [
+                        'model' => $pedido,
+                        'status' => $statusVolta
+                    ];
+                }
+            }
+
+            foreach ($pedidosParaReverter as $dados) {
+                $pedido = $dados['model'];
+                $pedido->update([
+                    'status' => $dados['status'],
                     'romaneio_id' => null
                 ]);
 
-                // Atualiza as motos para ficarem visíveis novamente na montagem de carga
-                foreach ($pedido->motos as $moto) {
-                    $moto->update([
-                        'status' => $statusVolta,
-                        'romaneio_id' => null,
-                        'localizacao_atual' => 'Devolvido ao Estoque (Carga Desfeita)'
-                    ]);
-                }
-
-                // Registra o evento no histórico do pedido
                 PedidoLog::create([
                     'pedido_id' => $pedido->id,
                     'titulo' => 'Carga Desfeita ↩️',
-                    'descricao' => "Romaneio #{$romaneio->id} foi excluído manualmente. Itens retornaram para o status '{$statusVolta}'."
+                    'descricao' => "Romaneio #{$romaneio->id} foi excluído manualmente. Itens associados retornaram para o status '{$dados['status']}'."
                 ]);
             }
 
-            // Exclui o cabeçalho da carga
             $romaneio->delete();
         });
 
         return redirect()->route('romaneios.index')
-            ->with('success', 'Carga desfeita com sucesso! As motos voltaram para a lista de separação.');
+            ->with('success', 'Carga desfeita com sucesso! As motos retornaram para seus estoques de origem.');
     }
 
     // 9. CONFIRMAÇÃO DE COLETA (MILK RUN)
