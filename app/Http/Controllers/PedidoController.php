@@ -264,13 +264,23 @@ class PedidoController extends Controller
             
             // --- TRAVA DE GESTÃO: BLOQUEIO POR PENDÊNCIA EM TRÂNSITO ---
             if ($user->perfil === 'loja') {
-                $pendentes = \App\Models\Pedido::where('user_id', $user->id)
+                $pendentesObj = \App\Models\Pedido::where('user_id', $user->id)
                     ->whereIn('status', ['em_transito', 'em_transito_cd'])
-                    ->count();
+                    ->withCount(['motos as motos_no_cd' => function ($query) {
+                        // Se a moto tem algum dos status abaixo, significa que ela já não está mais no CD (já foi enviada ou entregue)
+                        // Por isso usamos whereNotIn, para contar as que AINDA ESTÃO no CD.
+                        $query->whereNotIn('status', ['em_transito', 'em_transito_cd', 'estoque_loja', 'vendida', 'recebido']); 
+                    }])
+                    ->get();
                 
-                if ($pendentes > 0) {
+                // Nós apenas bloqueamos se a loja tiver pedidos 100% em trânsito (ou seja, 0 motos no CD aguardando embarque futuro de transbordo parcial)
+                $pendentesTotalmenteEmTransito = $pendentesObj->filter(function($pedido) {
+                    return $pedido->motos_no_cd == 0;
+                })->count();
+                
+                if ($pendentesTotalmenteEmTransito > 0) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        'itens' => "BLOQUEIO DE SISTEMA: Sua loja possui $pendentes carga(s) 'Em Trânsito'. Por determinação da diretoria, você deve realizar a Conferência e Finalização de todos os pedidos que já chegaram fisicamente na sua loja antes de poder solicitar novas motos."
+                        'itens' => "BLOQUEIO DE SISTEMA: Sua loja possui $pendentesTotalmenteEmTransito carga(s) 'Em Trânsito'. Por determinação da diretoria, você deve realizar a Conferência e Finalização de todos os pedidos que já chegaram fisicamente na sua loja antes de poder solicitar novas motos."
                     ]);
                 }
             }
