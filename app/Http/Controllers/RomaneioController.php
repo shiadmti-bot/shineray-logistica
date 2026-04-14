@@ -107,11 +107,11 @@ class RomaneioController extends Controller
                 $q->where('perfil', 'loja');
             })
             ->whereHas('motos', function ($q) {
-                $q->whereIn('status', ['aguardando_rota', 'aguardando_coleta', 'rota_confirmada']);
+                $q->whereIn('status', ['separado', 'aguardando_rota', 'aguardando_coleta', 'rota_confirmada']);
             })
             ->with(['user', 'origem', 'motos' => function ($q) {
                 // Apenas carrega as motos que precisam ser coletadas
-                $q->whereIn('status', ['aguardando_rota', 'aguardando_coleta', 'rota_confirmada']);
+                $q->whereIn('status', ['separado', 'aguardando_rota', 'aguardando_coleta', 'rota_confirmada']);
             }])
             ->get();
 
