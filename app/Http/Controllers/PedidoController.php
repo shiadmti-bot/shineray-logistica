@@ -704,6 +704,10 @@ class PedidoController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
+        if (Auth::user()->perfil === 'cd') {
+            abort(403, 'O CD não tem permissão para finalizar pedidos. O recebimento oficial deve ser feito pela loja de destino.');
+        }
+
         // --- TRAVA DE ENTREGA PARCIAL (REQUISIÇÃO DA GESTÃO) ---
         // Impede que a loja finalize o pedido se ainda houver motos presas no CD aguardando rota/coleta.
         // IMPORTANTE: Qualificar com 'motos.status' para evitar ambiguidade com a pivot table 'pedido_moto'.
@@ -831,16 +835,25 @@ class PedidoController extends Controller
         // 4. Finalização
         $pedido->update(['status' => 'concluido']);
         
-        if ($pedido->romaneio_id) {
-            $pendentes = Pedido::where('romaneio_id', $pedido->romaneio_id)
-                               ->where('status', '!=', 'concluido')
-                               ->where('id', '!=', $pedido->id)
-                               ->count();
-            if ($pendentes === 0) {
-                Romaneio::where('id', $pedido->romaneio_id)->update(['status' => 'concluido']);
+        $romaneiosAfetados = $pedido->motos->pluck('romaneio_id')->filter()->unique();
+
+        foreach ($romaneiosAfetados as $rom_id) {
+            $romaneio = \App\Models\Romaneio::with('motos.pedidos')->find($rom_id);
+            if ($romaneio && $romaneio->status !== 'concluido') {
+                $todasConcluidas = true;
+                foreach ($romaneio->motos as $rm) {
+                    $rp = $rm->pedidos->first();
+                    if (!$rp || !in_array($rp->status, ['concluido', 'cancelado', 'no_cd'])) {
+                        $todasConcluidas = false;
+                        break;
+                    }
+                }
+                if ($todasConcluidas) {
+                    $romaneio->update(['status' => 'concluido']);
+                }
             }
         }
-
+        
         $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Finalizado com $qtdAvarias avarias." : "Recebimento 100%.");
         
         try {
