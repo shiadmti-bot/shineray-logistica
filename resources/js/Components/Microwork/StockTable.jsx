@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { ArrowPathIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon, BuildingOffice2Icon, CheckCircleIcon, ArchiveBoxIcon, WrenchScrewdriverIcon, PauseCircleIcon, ClipboardDocumentListIcon, PrinterIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ExclamationTriangleIcon, ChevronDownIcon, ChevronUpIcon, BuildingOffice2Icon, CheckCircleIcon, ArchiveBoxIcon, WrenchScrewdriverIcon, PauseCircleIcon, ClipboardDocumentListIcon, PrinterIcon, WrenchIcon } from '@heroicons/react/24/outline';
 
 export default function StockTable({ user }) {
     const [loading, setLoading] = useState(false);
@@ -13,6 +13,8 @@ export default function StockTable({ user }) {
     const [expandedStatus, setExpandedStatus] = useState({}); // Controla se o bloco "Situação" está aberto ou fechado
     const [expandedModel, setExpandedModel] = useState(null); // Controla qual Modelo está aberto dentro da Situação
     const [selectedMotos, setSelectedMotos] = useState([]); // Array com os objetos das motos selecionadas
+    // Aba ativa: 'montadas' | 'desmontadas'
+    const [abaAtiva, setAbaAtiva] = useState('montadas');
 
     const isLoja = user?.perfil === 'loja';
     const isAdminOrCD = user?.perfil === 'admin' || user?.perfil === 'gestor' || user?.perfil === 'cd';
@@ -41,18 +43,20 @@ export default function StockTable({ user }) {
         }
     };
 
-    const estoqueFiltrado = estoque.filter(item => {
-        const patioStr = (item.patio || '').toUpperCase();
+    // Helpers de classificação por pátio
+    const isMontada = (item) => (item.patio || '').toUpperCase().includes('MOTOS MONTADAS');
+    const isDesmontada = (item) => (item.patio || '').toUpperCase().includes('DESMONTADA CD');
+
+    const estoqueFiltradoBase = estoque.filter(item => {
         const chassi = item.Chassi || item.chassi || '';
-        const isDisponivel = patioStr.includes('MOTOS MONTADAS') || patioStr.includes('DESMONTADA CD');
         const isReservado = reservas.includes(chassi);
 
         // Filtro de Status Reservada
         if (statusFiltro === 'reservadas' && !isReservado) return false;
         if (statusFiltro === 'livres' && isReservado) return false;
 
-        // Lojas comerciais só podem ver o que está com status "Disponível" e NÃO "Reservado"
-        if (isLoja && (!isDisponivel || isReservado)) {
+        // Lojas comerciais só podem ver motos MONTADAS e NÃO reservadas
+        if (isLoja && (!isMontada(item) || isReservado)) {
             return false;
         }
 
@@ -64,6 +68,17 @@ export default function StockTable({ user }) {
                chassi.toUpperCase().includes(termo) ||
                cor.toUpperCase().includes(termo);
     });
+
+    // Filtra pela aba ativa
+    const estoqueFiltrado = estoqueFiltradoBase.filter(item => {
+        if (abaAtiva === 'montadas') return isMontada(item) || (!isMontada(item) && !isDesmontada(item));
+        if (abaAtiva === 'desmontadas') return isDesmontada(item);
+        return true;
+    });
+
+    // Lista exclusiva de desmontadas (para o badge do menu)
+    const totalDesmontadas = estoque.filter(item => isDesmontada(item)).length;
+    const totalMontadas = estoque.filter(item => isMontada(item)).length;
 
     // Toggle checkbox na tabela
     const handleCheckboxChange = (moto) => {
@@ -98,8 +113,10 @@ export default function StockTable({ user }) {
         const patioStr = (moto.patio || '').toUpperCase();
         let situacao = 'Indisponível';
         
-        if (patioStr.includes('MOTOS MONTADAS') || patioStr.includes('DESMONTADA CD')) {
-            situacao = 'Disponível';
+        if (patioStr.includes('MOTOS MONTADAS')) {
+            situacao = 'Disponível (Montadas)';
+        } else if (patioStr.includes('DESMONTADA CD')) {
+            situacao = 'Desmontadas';
         } else if (patioStr.includes('CD EXPEDI')) {
             situacao = 'Separada / Solicitada';
         } else if (patioStr.includes('AVARIA')) {
@@ -131,7 +148,7 @@ export default function StockTable({ user }) {
     }, {});
 
     // Ordenação das Situações (Disponível no topo)
-    const orderSituacoes = ['Disponível', 'Separada / Solicitada', 'Em Conserto', 'Parada', 'Indisponível'];
+    const orderSituacoes = ['Disponível (Montadas)', 'Desmontadas', 'Separada / Solicitada', 'Em Conserto', 'Parada', 'Indisponível'];
     const situacoesAgrupadas = Object.entries(grupos).sort((a, b) => {
         return orderSituacoes.indexOf(a[0]) - orderSituacoes.indexOf(b[0]);
     });
@@ -201,7 +218,8 @@ export default function StockTable({ user }) {
         const gruposImprimir = itemsParaImprimir.reduce((acc, moto) => {
             const patioStr = (moto.patio || '').toUpperCase();
             let situacao = 'Indisponível';
-            if (patioStr.includes('MOTOS MONTADAS') || patioStr.includes('DESMONTADA CD')) situacao = 'Disponível';
+            if (patioStr.includes('MOTOS MONTADAS')) situacao = 'Disponível (Montadas)';
+            else if (patioStr.includes('DESMONTADA CD')) situacao = 'Desmontadas';
             else if (patioStr.includes('CD EXPEDI')) situacao = 'Separada / Solicitada';
             else if (patioStr.includes('AVARIA')) situacao = 'Em Conserto';
             else if (patioStr.includes('INATIVADA')) situacao = 'Parada';
@@ -216,7 +234,7 @@ export default function StockTable({ user }) {
             return acc;
         }, {});
 
-        const orderSituacoes = ['Disponível', 'Separada / Solicitada', 'Em Conserto', 'Parada', 'Indisponível'];
+        const orderSituacoes = ['Disponível (Montadas)', 'Desmontadas', 'Separada / Solicitada', 'Em Conserto', 'Parada', 'Indisponível'];
         const situacoesAgrupadasImprimir = Object.entries(gruposImprimir).sort((a, b) => orderSituacoes.indexOf(a[0]) - orderSituacoes.indexOf(b[0]));
 
         let html = `
@@ -352,7 +370,7 @@ export default function StockTable({ user }) {
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <BuildingOffice2Icon className="w-6 h-6 text-red-700" /> Estoque Fábrica (Microwork)
                     {loading && <ArrowPathIcon className="w-5 h-5 animate-spin text-gray-500" />}
@@ -389,6 +407,53 @@ export default function StockTable({ user }) {
                 </div>
             </div>
 
+            {/* --- ABAS: MONTADAS / DESMONTADAS --- */}
+            <div className="flex gap-1 mb-6 border-b border-gray-200">
+                <button
+                    onClick={() => setAbaAtiva('montadas')}
+                    className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-t-lg border-b-2 transition-all ${
+                        abaAtiva === 'montadas'
+                            ? 'border-green-600 text-green-700 bg-green-50'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                >
+                    <CheckCircleIcon className="w-4 h-4" />
+                    Disponíveis (Montadas)
+                    {!loading && (
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-black ${
+                            abaAtiva === 'montadas' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>{totalMontadas}</span>
+                    )}
+                </button>
+
+                {!isLoja && (
+                    <button
+                        onClick={() => setAbaAtiva('desmontadas')}
+                        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-t-lg border-b-2 transition-all ${
+                            abaAtiva === 'desmontadas'
+                                ? 'border-amber-600 text-amber-700 bg-amber-50'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                        }`}
+                    >
+                        <WrenchIcon className="w-4 h-4" />
+                        Desmontadas
+                        {!loading && (
+                            <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-black ${
+                                abaAtiva === 'desmontadas' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'
+                            }`}>{totalDesmontadas}</span>
+                        )}
+                    </button>
+                )}
+            </div>
+
+            {/* Banner informativo para loja */}
+            {isLoja && (
+                <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
+                    <CheckCircleIcon className="w-4 h-4 shrink-0 text-blue-600" />
+                    Exibindo apenas motos <strong>montadas e disponíveis</strong> para solicitação.
+                </div>
+            )}
+
             {error && (
                 <div className="bg-red-50 text-red-700 p-3 rounded mb-4 flex items-center gap-2">
                     <ExclamationTriangleIcon className="w-5 h-5" />
@@ -410,11 +475,17 @@ export default function StockTable({ user }) {
                         let SitIcon = PauseCircleIcon;
                         let iconColor = 'text-gray-600';
 
-                        if (nomeSituacao.includes('Disponível')) { 
+                        if (nomeSituacao.includes('Montadas')) { 
                             situacaoBg = 'bg-green-100 border-green-300'; 
                             situacaoText = 'text-green-900'; 
                             SitIcon = CheckCircleIcon;
                             iconColor = 'text-green-700';
+                        }
+                        else if (nomeSituacao.includes('Desmontadas')) {
+                            situacaoBg = 'bg-amber-100 border-amber-300';
+                            situacaoText = 'text-amber-900';
+                            SitIcon = WrenchIcon;
+                            iconColor = 'text-amber-700';
                         }
                         else if (nomeSituacao.includes('Separada')) { 
                             situacaoBg = 'bg-blue-100 border-blue-300'; 
@@ -588,10 +659,14 @@ export default function StockTable({ user }) {
             {/* Legenda Explicativa */}
             <div className="mt-8 bg-gray-50 p-4 border border-gray-200 rounded-lg shadow-sm">
                 <h4 className="text-sm font-bold text-gray-700 mb-3 border-b pb-2 flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5"/> Legenda de Situações (Origem Microwork)</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs text-gray-600">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-xs text-gray-600">
                     <div className="flex items-start gap-2">
-                        <span className="bg-green-100 text-green-800 border border-green-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><CheckCircleIcon className="w-3 h-3"/> Disponível</span>
-                        <p>Motos que estão montadas e desmontadas no CD.</p>
+                        <span className="bg-green-100 text-green-800 border border-green-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><CheckCircleIcon className="w-3 h-3"/> Disponível (Montadas)</span>
+                        <p>Motos completamente montadas no CD, prontas para faturar.</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                        <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><WrenchIcon className="w-3 h-3"/> Desmontadas</span>
+                        <p>Motos no pátio de desmontagem do CD (não disponíveis para lojas).</p>
                     </div>
                     <div className="flex items-start gap-2">
                         <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><ArchiveBoxIcon className="w-3 h-3"/> Separada / Solicitada</span>

@@ -17,6 +17,7 @@ import {
     ShoppingCartIcon,
     CubeIcon,
     WrenchScrewdriverIcon,
+    WrenchIcon,
     PauseCircleIcon,
     CheckCircleIcon
 } from '@heroicons/react/24/outline';
@@ -77,7 +78,8 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
 
     // --- CALCULOS KPI DO ESTOQUE ---
     const kpisEstoque = {
-        disponivel: 0,
+        montadas: 0,
+        desmontadas: 0,
         separada: 0,
         conserto: 0,
         parada: 0
@@ -86,8 +88,10 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
     if (estoqueCD) {
         estoqueCD.forEach(moto => {
             const patioStr = (moto.patio || '').toUpperCase();
-            if (patioStr.includes('MOTOS MONTADAS') || patioStr.includes('DESMONTADA CD')) {
-                kpisEstoque.disponivel++;
+            if (patioStr.includes('MOTOS MONTADAS')) {
+                kpisEstoque.montadas++;
+            } else if (patioStr.includes('DESMONTADA CD')) {
+                kpisEstoque.desmontadas++;
             } else if (patioStr.includes('CD EXPEDI')) {
                 kpisEstoque.separada++;
             } else if (patioStr.includes('AVARIA')) {
@@ -219,8 +223,9 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                 </h3>
                                 {loadingEstoque && <span className="text-sm font-bold text-gray-400 flex items-center gap-2"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>}
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
-                                <CardStat titulo="Disponível" valor={estoqueCD ? kpisEstoque.disponivel : '...'} icon={<CheckCircleIcon className="w-8 h-8"/>} color="text-green-700" bg="bg-green-50 border-green-200" desc="Motos prontas para faturar" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6 mb-10">
+                                <CardStat titulo="Disponível (Montadas)" valor={estoqueCD ? kpisEstoque.montadas : '...'} icon={<CheckCircleIcon className="w-8 h-8"/>} color="text-green-700" bg="bg-green-50 border-green-200" desc="Prontas para faturar" />
+                                <CardStat titulo="Desmontadas" valor={estoqueCD ? kpisEstoque.desmontadas : '...'} icon={<WrenchIcon className="w-8 h-8"/>} color="text-amber-700" bg="bg-amber-50 border-amber-200" desc="Em montagem no CD" />
                                 <CardStat titulo="Separada" valor={estoqueCD ? kpisEstoque.separada : '...'} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-blue-700" bg="bg-blue-50 border-blue-200" desc="Aguardando carga/NF" />
                                 <CardStat titulo="Em Conserto" valor={estoqueCD ? kpisEstoque.conserto : '...'} icon={<WrenchScrewdriverIcon className="w-8 h-8"/>} color="text-orange-700" bg="bg-orange-50 border-orange-200" desc="Avarias e retrabalho" />
                                 <CardStat titulo="Parada" valor={estoqueCD ? kpisEstoque.parada : '...'} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-gray-700" bg="bg-gray-100 border-gray-300" desc="Inativadas / bloqueadas" />
@@ -307,8 +312,13 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                                     <div className="bg-green-50 rounded-2xl p-4 border border-green-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
                                         <CheckCircleIcon className="w-6 h-6 text-green-600 mb-2 opacity-80" />
-                                        <span className="text-3xl font-black text-green-800 tracking-tight">{estoqueCD ? kpisEstoque.disponivel : '...'}</span>
-                                        <span className="text-xs font-bold text-green-700 uppercase tracking-widest mt-1 opacity-80">Prontas p/ Fatura</span>
+                                        <span className="text-3xl font-black text-green-800 tracking-tight">{estoqueCD ? kpisEstoque.montadas : '...'}</span>
+                                        <span className="text-xs font-bold text-green-700 uppercase tracking-widest mt-1 opacity-80">Montadas / Prontas</span>
+                                    </div>
+                                    <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
+                                        <WrenchIcon className="w-6 h-6 text-amber-600 mb-2 opacity-80" />
+                                        <span className="text-3xl font-black text-amber-800 tracking-tight">{estoqueCD ? kpisEstoque.desmontadas : '...'}</span>
+                                        <span className="text-xs font-bold text-amber-700 uppercase tracking-widest mt-1 opacity-80">Desmontadas</span>
                                     </div>
                                     <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
                                         <ArchiveBoxIcon className="w-6 h-6 text-blue-600 mb-2 opacity-80" />
@@ -319,11 +329,6 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                         <WrenchScrewdriverIcon className="w-6 h-6 text-orange-600 mb-2 opacity-80" />
                                         <span className="text-3xl font-black text-orange-800 tracking-tight">{estoqueCD ? kpisEstoque.conserto : '...'}</span>
                                         <span className="text-xs font-bold text-orange-700 uppercase tracking-widest mt-1 opacity-80">Em Conserto/Avaria</span>
-                                    </div>
-                                    <div className="bg-gray-100 rounded-2xl p-4 border border-gray-200 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
-                                        <PauseCircleIcon className="w-6 h-6 text-gray-500 mb-2 opacity-80" />
-                                        <span className="text-3xl font-black text-gray-700 tracking-tight">{estoqueCD ? kpisEstoque.parada : '...'}</span>
-                                        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest mt-1 opacity-80">Bloqueadas/Inativas</span>
                                     </div>
                                 </div>
                             </div>
