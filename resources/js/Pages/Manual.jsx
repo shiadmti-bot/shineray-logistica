@@ -50,7 +50,7 @@ export default function Manual({ auth }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento V2.4</h2>}
+            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento V2.5</h2>}
         >
             <Head title="Manual do Sistema" />
 
@@ -87,7 +87,7 @@ export default function Manual({ auth }) {
                             {activeTab === 'loja' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Manual da Loja (V2.4)" 
+                                        title="Manual da Loja (V2.5)" 
                                         subtitle="Tudo o que você precisa saber para gerenciar seu estoque, transferências e regras de recebimento."
                                         color="red"
                                     />
