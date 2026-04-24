@@ -51,6 +51,54 @@ class EstoqueController extends Controller
         ]);
     }
 
+    /**
+     * Busca dados do pátio Microwork para uma lista de chassis.
+     * Utilizado pela tela de aprovação do Gestor para exibir a localização física em tempo real.
+     */
+    public function buscarPorChassis(Request $request)
+    {
+        $request->validate([
+            'chassis' => 'required|array|min:1',
+            'chassis.*' => 'required|string|max:30',
+        ]);
+
+        $chassisBuscados = array_map(function($c) {
+            return strtoupper(trim($c));
+        }, $request->input('chassis'));
+
+        $estoque = $this->microworkService->getEstoqueCD();
+
+        // Indexar o estoque por chassi para busca O(1)
+        $estoqueIndexado = [];
+        foreach ($estoque as $item) {
+            $chassiItem = strtoupper(trim($item['Chassi'] ?? $item['chassi'] ?? ''));
+            if ($chassiItem) {
+                $estoqueIndexado[$chassiItem] = $item;
+            }
+        }
+
+        $resultado = [];
+        foreach ($chassisBuscados as $chassi) {
+            if (isset($estoqueIndexado[$chassi])) {
+                $item = $estoqueIndexado[$chassi];
+                $resultado[$chassi] = [
+                    'encontrado' => true,
+                    'patio' => $item['patio'] ?? null,
+                    'modelo' => $item['Modelo'] ?? $item['modelo'] ?? null,
+                    'cor' => $item['Cor'] ?? $item['cor'] ?? null,
+                    'situacao' => $item['SituacaoDescricao'] ?? $item['situacaodescricao'] ?? $item['situacaoestoque'] ?? null,
+                    'dias_estoque' => $item['diasestoque'] ?? $item['DiasEstoque'] ?? null,
+                ];
+            } else {
+                $resultado[$chassi] = [
+                    'encontrado' => false,
+                ];
+            }
+        }
+
+        return response()->json($resultado);
+    }
+
     public function reservar(Request $request)
     {
         $request->validate([

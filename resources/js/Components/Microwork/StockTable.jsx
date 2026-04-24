@@ -20,7 +20,7 @@ export default function StockTable({ user }) {
     const isAdminOrCD = user?.perfil === 'admin' || user?.perfil === 'gestor' || user?.perfil === 'cd';
     
     // FLAG DE CONTROLE: Ativa/Desativa botões de reserva/solicitação para lojas temporariamente
-    const ALLOW_REQUESTS = false; 
+    const ALLOW_REQUESTS = true; 
 
     useEffect(() => {
         fetchEstoque();

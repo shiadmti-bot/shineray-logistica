@@ -2,7 +2,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import axios from 'axios';
 import ChatBox from '@/Components/ChatBox';
+import { ArrowPathIcon, ExclamationTriangleIcon, MapPinIcon } from '@heroicons/react/24/outline';
 
 export default function GestorShow({ auth, pedido, mensagemChat }) {
     
@@ -23,6 +25,47 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
     const [motivosEspecificos, setMotivosEspecificos] = useState({});
     const [justificativaGeral, setJustificativaGeral] = useState('');
     const { processing } = useForm();
+
+    // --- PÁTIO MICROWORK (TEMPO REAL) ---
+    const [patioData, setPatioData] = useState({}); // { CHASSI: { encontrado, patio, ... } }
+    const [patioLoading, setPatioLoading] = useState(false);
+
+    useEffect(() => {
+        // Só busca pátio para pedidos de reposição CD (não transferência)
+        if (!isTransferencia && pedido.motos?.length > 0) {
+            fetchPatioData();
+        }
+    }, []);
+
+    const fetchPatioData = async () => {
+        setPatioLoading(true);
+        try {
+            const chassis = pedido.motos
+                .map(m => m.chassi)
+                .filter(Boolean);
+            
+            if (chassis.length === 0) return;
+
+            const response = await axios.post(route('api.estoque.buscarChassis'), { chassis });
+            setPatioData(response.data || {});
+        } catch (err) {
+            console.error('Erro ao consultar pátio Microwork:', err);
+        } finally {
+            setPatioLoading(false);
+        }
+    };
+
+    // Helper: Retorna info visual do pátio
+    const getPatioVisual = (patioNome) => {
+        if (!patioNome) return { label: 'Sem Pátio', bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-200' };
+        const p = patioNome.toUpperCase();
+        if (p.includes('MOTOS MONTADAS')) return { label: 'Motos Montadas', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: '✅' };
+        if (p.includes('DESMONTADA CD')) return { label: 'Desmontada CD', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: '🔧' };
+        if (p.includes('CD EXPEDI')) return { label: 'CD Expedição', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '📦' };
+        if (p.includes('AVARIA')) return { label: 'Avaria CD', bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: '⚠️' };
+        if (p.includes('INATIVADA')) return { label: 'Inativada', bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-300', icon: '⛔' };
+        return { label: patioNome, bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200', icon: '📍' };
+    };
 
     const opcoesRejeicao = [
         "Chassi Incorreto / Erro Digitação",
@@ -110,6 +153,56 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
         return map[corNome.toLowerCase()] || '#eee';
     };
 
+    // Renderiza badge de pátio para uma moto
+    const renderPatioBadge = (moto) => {
+        const chassiKey = (moto.chassi || '').toUpperCase();
+        
+        if (patioLoading) {
+            return (
+                <div className="flex items-center gap-1.5 mt-2">
+                    <ArrowPathIcon className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                    <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Consultando pátio...</span>
+                </div>
+            );
+        }
+
+        const info = patioData[chassiKey];
+        if (!info) return null; // Sem dados (ainda não consultou ou transferência)
+
+        if (!info.encontrado) {
+            return (
+                <div className="flex items-center gap-1.5 mt-2">
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 border border-red-200">
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5 text-red-500" />
+                        <span className="text-[10px] text-red-600 font-bold uppercase tracking-wider">Chassi não encontrado no Microwork</span>
+                    </div>
+                </div>
+            );
+        }
+
+        const visual = getPatioVisual(info.patio);
+        return (
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${visual.bg} border ${visual.border}`}>
+                    <MapPinIcon className={`w-3.5 h-3.5 ${visual.text}`} />
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${visual.text}`}>
+                        {visual.icon} {visual.label}
+                    </span>
+                </div>
+                {info.dias_estoque != null && (
+                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-bold border border-gray-200">
+                        {info.dias_estoque}d no pátio
+                    </span>
+                )}
+                {info.situacao && (
+                    <span className="text-[10px] bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded font-medium">
+                        ERP: {info.situacao}
+                    </span>
+                )}
+            </div>
+        );
+    };
+
     return (
         <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-purple-800">Análise de Pedido #{pedido.id}</h2>}>
             <Head title={`Análise #${pedido.id}`} />
@@ -165,6 +258,23 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                         </div>
                     </div>
 
+                    {/* --- BANNER DE PÁTIO MICROWORK --- */}
+                    {!isTransferencia && (
+                        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 flex items-center gap-3">
+                            <MapPinIcon className="w-5 h-5 text-indigo-600 shrink-0" />
+                            <div>
+                                <p className="text-sm font-bold text-indigo-800">Localização Física (Microwork)</p>
+                                <p className="text-xs text-indigo-600">
+                                    {patioLoading 
+                                        ? 'Consultando pátio de cada chassi em tempo real...' 
+                                        : 'O pátio abaixo reflete a posição real de cada moto no CD conforme a última sincronização com o Microwork.'
+                                    }
+                                </p>
+                            </div>
+                            {patioLoading && <ArrowPathIcon className="w-5 h-5 animate-spin text-indigo-400 shrink-0" />}
+                        </div>
+                    )}
+
                     {/* LISTA DE MOTOS */}
                     <div className="space-y-4 mb-8">
                         {pedido.motos.map((moto) => {
@@ -213,6 +323,9 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                                                         </span>
                                                     </div>
                                                 </div>
+
+                                                {/* BADGE DE PÁTIO MICROWORK */}
+                                                {!isTransferencia && renderPatioBadge(moto)}
                                             </div>
                                         </div>
 

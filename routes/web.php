@@ -92,6 +92,10 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             ->middleware(['auth', 'verified'])
             ->name('api.estoque.reservar');
 
+        Route::post('/microwork/buscar-chassis', [\App\Http\Controllers\Api\EstoqueController::class, 'buscarPorChassis'])
+            ->middleware(['auth', 'verified'])
+            ->name('api.estoque.buscarChassis');
+
         Route::get('/dashboard', function () {
 
 
