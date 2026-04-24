@@ -313,6 +313,7 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                 {listaModelos.map((nome, index) => ( <option key={index} value={nome} /> ))}
                             </datalist>
 
+                            {/* CABEÇALHO DESKTOP */}
                             <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
                                 <div className="col-span-1 text-center">#</div>
                                 <div className="col-span-3">Modelo *</div>
@@ -325,89 +326,149 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
 
                             <div className="space-y-3">
                                 {data.itens.map((item, index) => (
-                                    <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-gray-50 p-4 rounded-lg border shadow-sm transition-all relative ${errors[`itens.${index}`] ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+                                    <div key={index} className={`rounded-xl border shadow-sm transition-all relative ${errors[`itens.${index}`] ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
                                         
-                                        <div className="col-span-1 text-center font-bold text-gray-400 hidden md:block">{index + 1}</div>
-                                        <div className="md:hidden absolute top-2 right-2 text-xs font-bold text-gray-300">#{index + 1}</div>
-
-                                        <div className="col-span-3">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Modelo *</label>
-                                            <input 
-                                                required
-                                                type="text" list="opcoes-modelos" placeholder="MODELO..."
-                                                value={item.modelo}
-                                                onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
-                                                className={`w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500`}
-                                            />
-                                        </div>
-
-                                        <div className="col-span-2">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Chassi *</label>
+                                        {/* ===== LAYOUT DESKTOP (md+) ===== */}
+                                        <div className="hidden md:grid grid-cols-12 gap-3 items-center p-4">
+                                            <div className="col-span-1 text-center font-bold text-gray-400">{index + 1}</div>
+                                            
+                                            <div className="col-span-3">
                                                 <input 
-                                                    required
-                                                    type="text" placeholder="CHASSI (OBRIGATÓRIO)" minLength={11} maxLength={17}
+                                                    required type="text" list="opcoes-modelos" placeholder="MODELO..."
+                                                    value={item.modelo}
+                                                    onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
+                                                    className="w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500"
+                                                />
+                                            </div>
+
+                                            <div className="col-span-2">
+                                                <input 
+                                                    required type="text" placeholder="CHASSI" minLength={11} maxLength={17}
                                                     value={item.chassi}
                                                     onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                                                     className={`w-full rounded font-mono tracking-widest text-sm ${!item.chassi ? 'border-red-300 bg-red-50' : item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-orange-300 bg-orange-50'}`}
                                                 />
-                                        </div>
+                                            </div>
 
-                                        <div className="col-span-2 relative">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Destino</label>
-                                            {data.modo === 'devolucao' ? (
-                                                <input 
-                                                    disabled
-                                                    value="Matriz / CD"
-                                                    className="w-full rounded text-sm bg-purple-100 text-purple-800 border-purple-200 font-bold text-center"
-                                                />
-                                            ) : (
-                                                <select 
-                                                    required
-                                                    value={item.local}
-                                                    onChange={(e) => updateItem(index, 'local', e.target.value)}
-                                                    className="w-full rounded text-sm bg-yellow-50 focus:bg-white border-gray-300"
-                                                >
+                                            <div className="col-span-2 relative">
+                                                {data.modo === 'devolucao' ? (
+                                                    <input disabled value="Matriz / CD" className="w-full rounded text-sm bg-purple-100 text-purple-800 border-purple-200 font-bold text-center" />
+                                                ) : (
+                                                    <select required value={item.local} onChange={(e) => updateItem(index, 'local', e.target.value)} className="w-full rounded text-sm bg-yellow-50 focus:bg-white border-gray-300">
+                                                        <option value="" disabled>Selecione...</option>
+                                                        {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
+                                                    </select>
+                                                )}
+                                                {index === 0 && data.itens.length > 1 && data.modo !== 'devolucao' && (
+                                                    <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold flex items-center gap-1">
+                                                        Copiar p/ todos <ArrowDownIcon className="w-3 h-3 inline" />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="col-span-1">
+                                                <input required type="text" placeholder="COR" value={item.cor} onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())} className="w-full border-gray-300 rounded uppercase text-sm" />
+                                            </div>
+
+                                            <div className="col-span-2">
+                                                <select required value={item.motivo} onChange={(e) => updateItem(index, 'motivo', e.target.value)} className="w-full rounded text-sm border-gray-300">
                                                     <option value="" disabled>Selecione...</option>
-                                                    {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
+                                                    {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
                                                 </select>
-                                            )}
-                                            
-                                            {index === 0 && data.itens.length > 1 && data.modo !== 'devolucao' && (
-                                                <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold hidden md:flex items-center gap-1">
-                                                    Copiar p/ todos <ArrowDownIcon className="w-3 h-3 inline" />
-                                                </button>
-                                            )}
+                                            </div>
+
+                                            <div className="col-span-1 text-center">
+                                                {data.itens.length > 1 && (
+                                                    <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 text-xl p-2 transition rounded-full hover:bg-red-50">
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
 
-                                        <div className="col-span-1">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Cor *</label>
-                                            <input 
-                                                required
-                                                type="text" placeholder="COR"
-                                                value={item.cor}
-                                                onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
-                                                className={`w-full border-gray-300 rounded uppercase text-sm`}
-                                            />
-                                        </div>
+                                        {/* ===== LAYOUT MOBILE ===== */}
+                                        <div className="md:hidden p-4 space-y-3">
+                                            {/* Header: Número + Botão remover */}
+                                            <div className="flex justify-between items-center">
+                                                <span className="bg-gray-200 text-gray-600 text-xs font-black px-2.5 py-1 rounded-full">
+                                                    Moto #{index + 1}
+                                                </span>
+                                                {data.itens.length > 1 && (
+                                                    <button type="button" onClick={() => removeItem(index)} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50 transition">
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
 
-                                        <div className="col-span-2">
-                                            <label className="md:hidden text-xs font-bold text-gray-500 uppercase">Motivo *</label>
-                                            <select 
-                                                required
-                                                value={item.motivo} onChange={(e) => updateItem(index, 'motivo', e.target.value)}
-                                                className="w-full rounded text-sm border-gray-300"
-                                            >
-                                                <option value="" disabled>Selecione...</option>
-                                                {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
-                                            </select>
-                                        </div>
+                                            {/* Modelo */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Modelo *</label>
+                                                <input 
+                                                    required type="text" list="opcoes-modelos" placeholder="Ex: SHI 175 EFI"
+                                                    value={item.modelo}
+                                                    onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
+                                                    className="w-full border-gray-300 rounded-lg uppercase font-bold text-base py-3 px-4 focus:ring-red-500 focus:border-red-500"
+                                                />
+                                            </div>
 
-                                        <div className="col-span-1 text-center">
-                                            {data.itens.length > 1 && (
-                                                <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 text-xl p-2 transition rounded-full hover:bg-red-50">
-                                                    <TrashIcon className="w-5 h-5" />
-                                                </button>
-                                            )}
+                                            {/* Chassi */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Chassi * <span className="text-gray-400 normal-case font-normal">(mín. 11 caracteres)</span></label>
+                                                <input 
+                                                    required type="text" placeholder="99NWJ1125T5003297" minLength={11} maxLength={17}
+                                                    value={item.chassi}
+                                                    onChange={(e) => updateItem(index, 'chassi', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                                    className={`w-full rounded-lg font-mono tracking-wider text-base py-3 px-4 ${!item.chassi ? 'border-red-300 bg-red-50' : item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-orange-300 bg-orange-50'}`}
+                                                />
+                                            </div>
+
+                                            {/* Destino */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                                                    {data.modo === 'devolucao' ? 'Destino' : 'Destino Final *'}
+                                                </label>
+                                                {data.modo === 'devolucao' ? (
+                                                    <input disabled value="Matriz / CD" className="w-full rounded-lg text-base py-3 px-4 bg-purple-100 text-purple-800 border-purple-200 font-bold text-center" />
+                                                ) : (
+                                                    <select 
+                                                        required value={item.local}
+                                                        onChange={(e) => updateItem(index, 'local', e.target.value)}
+                                                        className="w-full rounded-lg text-base py-3 px-4 bg-yellow-50 focus:bg-white border-gray-300"
+                                                    >
+                                                        <option value="" disabled>Selecione o destino...</option>
+                                                        {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
+                                                    </select>
+                                                )}
+                                                {index === 0 && data.itens.length > 1 && data.modo !== 'devolucao' && (
+                                                    <button type="button" onClick={replicarDestino} className="mt-1 text-xs text-blue-600 hover:underline font-bold flex items-center gap-1">
+                                                        <ArrowDownIcon className="w-3 h-3" /> Copiar destino p/ todas as motos
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Cor + Motivo (lado a lado no mobile) */}
+                                            <div className="grid grid-cols-5 gap-3">
+                                                <div className="col-span-2">
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cor *</label>
+                                                    <input 
+                                                        required type="text" placeholder="COR"
+                                                        value={item.cor}
+                                                        onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
+                                                        className="w-full border-gray-300 rounded-lg uppercase text-base py-3 px-4"
+                                                    />
+                                                </div>
+                                                <div className="col-span-3">
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo *</label>
+                                                    <select 
+                                                        required value={item.motivo}
+                                                        onChange={(e) => updateItem(index, 'motivo', e.target.value)}
+                                                        className="w-full rounded-lg text-base py-3 px-4 border-gray-300"
+                                                    >
+                                                        <option value="" disabled>Selecione...</option>
+                                                        {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
