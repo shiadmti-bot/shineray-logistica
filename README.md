@@ -1,4 +1,4 @@
-# 🚛 BySabel Logística / Shineray do Brasil (v2.0)
+# 🚛 BySabel Logística / Shineray By Sabel (v2.0)
 
 ![Laravel](https://img.shields.io/badge/Laravel-11.x-FF2D20?style=for-the-badge&logo=laravel)
 ![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)
@@ -7,7 +7,7 @@
 ![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel)
 ![TiDB](https://img.shields.io/badge/Database-TiDB_Cloud-4479A1?style=for-the-badge&logo=mysql)
 
-Sistema corporativo de **Gestão Logística e Expedição** desenvolvido para a **Sabel Logística / Shineray do Brasil**.
+Sistema corporativo de **Gestão Logística e Expedição** desenvolvido para a **Shineray By Sabel**.
 
 O **BySabel Logística** é a espinha dorsal de todo o fluxo operacional logístico da Shineray. A plataforma otimiza a distribuição, expedição e montagem de cargas com extrema eficiência, trazendo controle total do estoque em trânsito e do planejamento tático.
 
@@ -15,7 +15,7 @@ O **BySabel Logística** é a espinha dorsal de todo o fluxo operacional logíst
 
 ## 👨‍💻 Créditos e Desenvolvimento
 
-Desenvolvido e arquitetado por **Délcio Farias Dias Neto** - Líder de Tecnologia & Inovação (Sabel Logística).
+Desenvolvido e arquitetado por **Délcio Farias Dias Neto**, construído inteiramente para atender as demandas logísticas e operacionais exclusivas da **Shineray By Sabel**.
 
 > *"Logística não é sobre transportar coisas, é sobre cumprir promessas."*
 
