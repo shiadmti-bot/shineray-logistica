@@ -1,4 +1,4 @@
-# 🚛 Shineray Logística Integrada ERP (v2.0)
+# 🚛 BySabel Logística / Shineray do Brasil (v2.0)
 
 ![Laravel](https://img.shields.io/badge/Laravel-11.x-FF2D20?style=for-the-badge&logo=laravel)
 ![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)
@@ -9,19 +9,39 @@
 
 Sistema corporativo de **Gestão Logística e Expedição** desenvolvido para a **Sabel Logística / Shineray do Brasil**.
 
-A **Versão 2 (V2)** introduz uma arquitetura otimizada para operação Serverless (Vercel), suporte a banco de dados distribuído (TiDB), controle granular de estoque em trânsito e um novo módulo de **Planejamento Logístico Visual (Calendário)**.
+O **BySabel Logística** é a espinha dorsal de todo o fluxo operacional logístico da Shineray. A plataforma otimiza a distribuição, expedição e montagem de cargas com extrema eficiência, trazendo controle total do estoque em trânsito e do planejamento tático.
+
+---
+
+## 👨‍💻 Créditos e Desenvolvimento
+
+Desenvolvido e arquitetado por **Délcio Farias Dias Neto** - Líder de Tecnologia & Inovação (Sabel Logística).
+
+> *"Logística não é sobre transportar coisas, é sobre cumprir promessas."*
 
 ---
 
 ## 📋 Índice
 
+- [O Fluxo BySabel](#-o-fluxo-bysabel)
 - [Novidades da Versão 2](#-novidades-da-versão-2)
 - [Funcionalidades por Módulo](#-funcionalidades-por-módulo)
 - [Stack Tecnológica](#-stack-tecnológica)
 - [Instalação e Configuração](#-instalação-e-configuração)
 - [Solução de Performance (TiDB/Vercel)](#-solução-de-performance-tidbvercel)
-- [Variáveis de Ambiente](#-variáveis-de-ambiente)
-- [Autor](#-autor)
+
+---
+
+## 🔄 O Fluxo BySabel
+
+O **BySabel Logística** estrutura um fluxo contínuo e inteligente:
+
+1. **Geração de Pedido:** A loja (ou matriz) registra a necessidade de reposição ou transferência de estoque.
+2. **Auditoria e Aprovação:** O painel de gestão avalia as solicitações de acordo com a viabilidade e prioridade operacional.
+3. **Planejamento Visual (Calendário):** Os gestores alocam entregas e expedições de acordo com datas, disponibilidade de veículos e rotas geográficas ideais.
+4. **Montagem Granular da Carga:** Os chassis são designados no nível unitário, permitindo que as docas do Centro de Distribuição (CD) saibam exatamente qual moto (com respectivo chassi) deve subir em qual caminhão.
+5. **Expedição e Trânsito:** Geração automática do romaneio e manifesto de carga em PDF. A mercadoria muda de status e o sistema monitora o trânsito da frota até o destino.
+6. **Recebimento e Confirmação:** O destino (loja ou cliente final) acusa recebimento anexando o canhoto digital assinado.
 
 ---
 
@@ -92,7 +112,7 @@ Esta atualização foca em **Granularidade**, **Performance** e **Planejamento V
 
 1.  **Clonar o repositório**
     ```bash
-    git clone [https://github.com/seu-repo/shineray-logistica.git](https://github.com/seu-repo/shineray-logistica.git)
+    git clone https://github.com/seu-repo/shineray-logistica.git
     cd shineray-logistica
     ```
 
@@ -142,8 +162,4 @@ Isso garante que uma carga de 50 motos seja gravada em uma única query SQL, man
         }
     }
 }
-
-👨‍💻 Autor
-Délcio Farias Dias Neto Líder de Tecnologia & Inovação - Sabel Logística
-
-"Logística não é sobre transportar coisas, é sobre cumprir promessas."
+```
