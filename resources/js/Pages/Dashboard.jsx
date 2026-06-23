@@ -128,7 +128,7 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                 {/* --- MODAL DE ALERTA DE SEPARAÇÃO (POP-UP) --- */}
                 {showSeparationModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm transition-opacity duration-300">
-                        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100 p-8 text-center border-t-8 border-orange-600 relative animate-fade-in-up">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100 p-6 md:p-8 text-center border-t-8 border-orange-600 relative animate-fade-in-up">
                             
                             {/* Ícone Animado */}
                             <div className="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-orange-100 mb-6 animate-bounce">
@@ -243,17 +243,17 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                         <>
                             {/* ALERTA PRINCIPAL SE HOUVER PEDIDOS PENDENTES */}
                             {stats.pendentes > 0 && (
-                                <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-lg flex items-center justify-between shadow-sm animate-pulse-slow">
+                                <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm animate-pulse-slow">
                                     <div className="flex items-center gap-4">
-                                        <div className="bg-yellow-100 p-2 rounded-full">
+                                        <div className="bg-yellow-100 p-2 rounded-full shrink-0">
                                             <ExclamationTriangleIcon className="w-8 h-8 text-yellow-600" />
                                         </div>
                                         <div>
-                                            <h4 className="text-yellow-800 font-bold text-lg">Ação Necessária: Separação de Pedidos!</h4>
-                                            <p className="text-sm text-yellow-700">Existem <strong>{stats.pendentes} solicitações</strong> de chassi aguardando separação pelo CD.</p>
+                                            <h4 className="text-yellow-800 font-bold text-lg leading-tight md:leading-normal">Ação Necessária: Separação de Pedidos!</h4>
+                                            <p className="text-sm text-yellow-700 mt-1">Existem <strong>{stats.pendentes} solicitações</strong> de chassi aguardando separação pelo CD.</p>
                                         </div>
                                     </div>
-                                    <Link href={route('pedidos.index')} className="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 whitespace-nowrap">
+                                    <Link href={route('pedidos.index')} className="w-full md:w-auto text-center bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 whitespace-nowrap">
                                         Ir para Separação
                                     </Link>
                                 </div>

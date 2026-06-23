@@ -493,16 +493,17 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                             </div>
                         </div>
 
-                        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] p-4 z-50">
-                            <div className="max-w-7xl mx-auto flex justify-between items-center px-4">
-                                <div>
+                        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] p-3 md:p-4 z-50">
+                            <div className="max-w-7xl mx-auto flex justify-between items-center px-2 md:px-4 gap-2">
+                                <div className="flex flex-col md:flex-row md:items-baseline">
+                                    <span className="text-[10px] md:text-sm text-gray-500 font-bold uppercase md:hidden">Itens</span>
                                     <span className="text-gray-600 hidden md:inline font-medium">Total:</span>
-                                    <span className="ml-2 text-2xl font-bold text-red-600">{data.itens.length} motos</span>
+                                    <span className="md:ml-2 text-xl md:text-2xl font-black text-red-600 leading-none">{data.itens.length} <span className="hidden md:inline">motos</span></span>
                                 </div>
                                 <button 
                                     type="submit"
                                     disabled={processing || (data.modo === 'transferencia' && (!logisticaInfo || logisticaInfo.erro))}
-                                    className={`px-8 py-3 rounded-lg font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 text-white 
+                                    className={`w-full md:w-auto px-4 md:px-8 py-3 md:py-3 rounded-lg font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 text-white text-xs md:text-base whitespace-nowrap
                                     ${data.modo === 'devolucao' ? 'bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900' : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'}`}
                                 >
                                     {processing ? 'Processando...' : 
