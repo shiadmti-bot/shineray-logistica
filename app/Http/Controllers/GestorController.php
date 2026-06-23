@@ -130,8 +130,16 @@ class GestorController extends Controller
                         'localizacao_atual' => "Estoque Loja"
                     ]);
                 } else {
-                    // Se for um pedido do CD, a moto foi criada como placeholder. Pode apagar.
-                    $moto->delete(); 
+                    // Se a moto possuir histórico em outros pedidos, não apagamos, apenas voltamos pro CD.
+                    if ($moto->pedidos()->count() > 0) {
+                        $moto->update([
+                            'status' => 'disponivel',
+                            'localizacao_atual' => 'Fábrica/CD'
+                        ]);
+                    } else {
+                        // Se não tiver histórico, era uma moto nova que acabou de ser criada para esse pedido que foi rejeitado. Pode apagar.
+                        $moto->delete(); 
+                    }
                 }
             }
         }
