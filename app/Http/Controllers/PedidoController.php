@@ -236,8 +236,26 @@ class PedidoController extends Controller
         // Ordena novamente para garantir
         sort($locaisEntrega);
 
+        // Busca modelos únicos do Microwork
+        $estoque = app(\App\Services\MicroworkService::class)->getEstoqueCD();
+        $modelosMicrowork = [];
+        foreach ($estoque as $item) {
+            $modelo = trim($item['Modelo'] ?? $item['modelo'] ?? '');
+            if ($modelo) {
+                $modelosMicrowork[] = mb_strtoupper($modelo, 'UTF-8');
+            }
+        }
+        
+        $listaModelos = array_values(array_unique($modelosMicrowork));
+        sort($listaModelos);
+
+        // Fallback para não quebrar a tela se o cache do Microwork estiver vazio
+        if (empty($listaModelos)) {
+            $listaModelos = \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
+        }
+
         return Inertia::render('Pedidos/Create', [
-            'listaModelos' => Modelo::orderBy('nome')->pluck('nome'),
+            'listaModelos' => $listaModelos,
             'lojasDisponiveis' => $lojas,
             'cdUserId' => $cdUser ? $cdUser->id : null,
             'locaisEntrega' => $locaisEntrega // Variável recuperada
