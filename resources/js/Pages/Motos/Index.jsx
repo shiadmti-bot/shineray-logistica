@@ -255,7 +255,6 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                         </div>
 
                         </div>
-                    </div>
 
                     {/* --- VIEW MOBILE (CARDS) --- */}
                     <div className="md:hidden space-y-4 mb-4">
