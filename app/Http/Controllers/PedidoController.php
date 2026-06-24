@@ -246,13 +246,12 @@ class PedidoController extends Controller
             }
         }
         
-        $listaModelos = array_values(array_unique($modelosMicrowork));
+        // Busca modelos já cadastrados na base de dados
+        $modelosDB = \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
+        
+        // Mescla as duas listas para garantir que modelos históricos continuem disponíveis
+        $listaModelos = array_values(array_unique(array_merge($modelosMicrowork, $modelosDB)));
         sort($listaModelos);
-
-        // Fallback para não quebrar a tela se o cache do Microwork estiver vazio
-        if (empty($listaModelos)) {
-            $listaModelos = \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
-        }
 
         return Inertia::render('Pedidos/Create', [
             'listaModelos' => $listaModelos,

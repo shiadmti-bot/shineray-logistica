@@ -311,6 +311,10 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
 
 
 
+                            <datalist id="opcoes-modelos">
+                                {listaModelos.map((nome, index) => ( <option key={index} value={nome} /> ))}
+                            </datalist>
+
                             {/* CABEÇALHO DESKTOP */}
                             <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
                                 <div className="col-span-1 text-center">#</div>
@@ -331,15 +335,12 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                             <div className="col-span-1 text-center font-bold text-gray-400">{index + 1}</div>
                                             
                                             <div className="col-span-3">
-                                                <select 
-                                                    required
+                                                <input 
+                                                    required type="text" list="opcoes-modelos" placeholder="MODELO..."
                                                     value={item.modelo}
-                                                    onChange={(e) => updateItem(index, 'modelo', e.target.value)}
+                                                    onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
                                                     className="w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500 bg-white"
-                                                >
-                                                    <option value="" disabled>SELECIONE...</option>
-                                                    {listaModelos.map((nome, i) => <option key={i} value={nome}>{nome}</option>)}
-                                                </select>
+                                                />
                                             </div>
 
                                             <div className="col-span-2">
@@ -404,15 +405,12 @@ export default function PedidoCreate({ auth, listaModelos, lojasDisponiveis = []
                                             {/* Modelo */}
                                             <div>
                                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Modelo *</label>
-                                                <select 
-                                                    required
+                                                <input 
+                                                    required type="text" list="opcoes-modelos" placeholder="Ex: SHI 175 EFI"
                                                     value={item.modelo}
-                                                    onChange={(e) => updateItem(index, 'modelo', e.target.value)}
+                                                    onChange={(e) => updateItem(index, 'modelo', e.target.value.toUpperCase())}
                                                     className="w-full border-gray-300 rounded-lg uppercase font-bold text-base py-3 px-4 focus:ring-red-500 focus:border-red-500 bg-white"
-                                                >
-                                                    <option value="" disabled>SELECIONE...</option>
-                                                    {listaModelos.map((nome, i) => <option key={i} value={nome}>{nome}</option>)}
-                                                </select>
+                                                />
                                             </div>
 
                                             {/* Chassi */}
