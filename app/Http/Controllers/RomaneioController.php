@@ -364,6 +364,11 @@ class RomaneioController extends Controller
                 }
 
                 if ($itensRecebidos > 0) {
+                    // AUDITORIA/FIX: Se após o transbordo a carga ficou vazia, conclui a carga
+                    if ($romaneio->fresh()->motos()->count() === 0) {
+                        $romaneio->update(['status' => 'concluido']);
+                    }
+                    
                     return back()->with('success', "$itensRecebidos itens deram entrada no CD (Transbordo).");
                 }
             }
