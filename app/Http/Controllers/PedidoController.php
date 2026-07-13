@@ -721,7 +721,8 @@ class PedidoController extends Controller
             abort(403, 'Acesso não autorizado.');
         }
 
-        if (Auth::user()->perfil === 'cd' && $pedido->user_id !== Auth::id()) {
+        $isDestinoCD = \App\Models\User::where('id', $pedido->user_id)->whereIn('perfil', ['cd', 'admin'])->exists();
+        if (Auth::user()->perfil === 'cd' && !$isDestinoCD) {
             abort(403, 'O CD não tem permissão para finalizar pedidos. O recebimento oficial deve ser feito pela loja de destino.');
         }
 
