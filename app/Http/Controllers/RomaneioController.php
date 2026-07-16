@@ -85,7 +85,8 @@ class RomaneioController extends Controller
     {
         // 1. EXPEDIÇÃO (Saindo do CD)
         // Pedidos que possuem motos que estão 'separado', 'no_cd', etc e são saída de CD
-        $expedicao = Pedido::whereHas('motos', function ($q) {
+        $expedicao = Pedido::whereNotIn('status', ['concluido', 'cancelado', 'rejeitado'])
+            ->whereHas('motos', function ($q) {
                 $q->whereIn('status', ['separado', 'no_cd', 'rota_confirmada']);
             })
             ->where(function ($query) {
@@ -102,7 +103,8 @@ class RomaneioController extends Controller
 
         // 2. COLETAS (Milk Run)
         // Pedidos que são transferências (tem origem em uma Loja definida) e possuem motos aptas
-        $coletas = Pedido::whereNotNull('origem_user_id')
+        $coletas = Pedido::whereNotIn('status', ['concluido', 'cancelado', 'rejeitado'])
+            ->whereNotNull('origem_user_id')
             ->whereHas('origem', function ($q) {
                 $q->where('perfil', 'loja');
             })
