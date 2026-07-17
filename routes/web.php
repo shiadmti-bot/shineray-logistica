@@ -196,6 +196,11 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/{id}/imprimir', [PedidoController::class, 'imprimir'])->name('imprimir');
             Route::post('/{id}/finalizar', [PedidoController::class, 'finalizarEntrega'])->name('finalizar');
             
+            // Remoção direta de item do pedido (EXCLUSIVO ADMIN - bypassa o fluxo de estorno/aprovação)
+            Route::delete('/{id}/motos/{motoId}', [PedidoController::class, 'removerMotoAdmin'])
+                ->middleware('check_perfil:admin')
+                ->name('removerMoto');
+
             // Fluxo de Status
             Route::post('/{id}/aprovar', [PedidoController::class, 'aprovar'])->name('aprovar');
             Route::post('/{id}/separar', [PedidoController::class, 'marcarSeparado'])->name('separar');

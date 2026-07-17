@@ -623,6 +623,83 @@ class PedidoController extends Controller
         return back()->with('success', 'Solicitação de estorno enviada.');
     }
 
+    // --- REMOÇÃO DIRETA DE ITEM (EXCLUSIVO ADMIN) ---
+    // Remove a moto do pedido imediatamente, sem passar pelo fluxo de estorno/aprovação do Gestor.
+    public function removerMotoAdmin(Request $request, $id, $motoId)
+    {
+        $request->validate(['motivo' => 'required|string|max:500']);
+
+        if (Auth::user()->perfil !== 'admin') {
+            abort(403, 'Apenas o Administrador pode remover itens diretamente.');
+        }
+
+        return DB::transaction(function () use ($request, $id, $motoId) {
+            $pedido = Pedido::with('user', 'origem')->findOrFail($id);
+
+            if (in_array($pedido->status, ['concluido', 'cancelado', 'rejeitado'])) {
+                return back()->with('error', 'Este pedido já foi finalizado e não pode ser alterado.');
+            }
+
+            $moto = $pedido->motos()->where('motos.id', $motoId)->first();
+            if (!$moto) {
+                return back()->with('error', 'Esta moto não pertence a este pedido.');
+            }
+
+            // 1. Desvincula do pedido
+            $pedido->motos()->detach($moto->id);
+
+            // 2. Libera eventual reserva de chassi no Microwork atrelada a este pedido
+            \App\Models\ReservaMicrowork::where('pedido_id', $pedido->id)
+                ->where('chassi', $moto->chassi)
+                ->whereIn('status', ['pendente', 'faturada'])
+                ->update(['status' => 'cancelada']);
+
+            // 3. Devolve a moto ao estoque de origem (limpa estorno pendente e romaneio por segurança)
+            $statusVolta = $pedido->origem_user_id ? 'disponivel' : 'estoque_fabrica';
+            $localVolta = $pedido->origem_user_id ? 'Estoque Loja (Removida pelo Admin)' : 'Pátio CD/Fábrica (Removida pelo Admin)';
+
+            $moto->update([
+                'romaneio_id' => null,
+                'estorno_pendente' => false,
+                'motivo_estorno' => null,
+                'user_estorno_id' => null,
+                'status' => $statusVolta,
+                'localizacao_atual' => $localVolta,
+            ]);
+
+            $this->registrarLog(
+                $pedido,
+                'Item Removido pelo Admin ✂️',
+                "Moto {$moto->modelo} (Chassi: {$moto->chassi}) removida diretamente do pedido, sem fluxo de aprovação. Motivo: {$request->motivo}"
+            );
+
+            // 4. Notifica os envolvidos
+            $envolvidos = collect([$pedido->user, $pedido->origem])->filter()->unique('id');
+            $this->enviarNotificacao(
+                $envolvidos,
+                'Item Removido ✂️',
+                "O Admin removeu a moto {$moto->chassi} do pedido #{$pedido->id}.",
+                route('pedidos.show', $pedido->id)
+            );
+
+            // 5. Se o pedido ficou vazio, cancela automaticamente (mesma regra do estorno)
+            if ($pedido->motos()->count() === 0) {
+                PedidoLog::create([
+                    'pedido_id' => $pedido->id,
+                    'titulo' => 'Pedido Cancelado Automaticamente',
+                    'descricao' => 'O pedido foi cancelado porque seu último item foi removido pelo Admin.'
+                ]);
+                $pedido->update(['status' => 'cancelado']);
+                $pedido->delete();
+
+                return redirect()->route('pedidos.index')
+                    ->with('warning', 'Moto removida. O pedido ficou vazio e foi cancelado automaticamente.');
+            }
+
+            return back()->with('success', 'Moto removida do pedido e devolvida ao estoque.');
+        });
+    }
+
     // --- OPERAÇÃO DE SEPARAÇÃO (ATUALIZADA V2) ---
     public function marcarSeparado($id)
     {
