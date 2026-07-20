@@ -369,8 +369,9 @@ class PedidoController extends Controller
                     ]);
                 }
 
-                // TRAVA 2: Motos Historicamente Vendidas
+                // TRAVA 2: Motos Historicamente Vendidas (ignoradas se voltaram ao estoque por estorno)
                 $motosVendidas = Moto::whereIn('chassi', $chassisRecebidos)
+                    ->whereNotIn('status', ['estoque_loja', 'estoque_cd', 'disponivel'])
                     ->where(function($query) {
                         // Condição A: O status atual da moto cravou como "vendida"
                         $query->where('status', 'vendida')
