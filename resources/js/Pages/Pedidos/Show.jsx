@@ -16,6 +16,7 @@ import {
     XCircleIcon,
     TruckIcon,
     ScissorsIcon,
+    TrashIcon,
     CameraIcon,
     HandThumbUpIcon,
     ArrowUpOnSquareIcon,
@@ -45,6 +46,8 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
     const souCD = auth.user.perfil === "cd";
     const souAdmin =
         auth.user.perfil === "admin" || auth.user.perfil === "gestor";
+    // Exclusivo do perfil ADMIN (não inclui gestor): remoção direta de itens
+    const souAdminExclusivo = auth.user.perfil === "admin";
         
     // CORREÇÃO: Só é transferência se houver origem E a origem for uma loja (evita que envios do CD sejam rotulados como transferência visualmente)
     const isTransferencia = !!(pedido.origem_user_id && pedido.origem && pedido.origem.perfil === "loja");
@@ -209,6 +212,41 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                         ),
                 },
             );
+        });
+    };
+
+    // Remoção direta (EXCLUSIVO ADMIN): remove a moto do pedido sem passar pela aprovação do gestor
+    const handleRemoverAdmin = (moto) => {
+        Swal.fire({
+            title: "Remover Moto (Admin)",
+            html: `Você está prestes a remover a moto <strong>${moto.modelo}</strong> (${moto.chassi}) deste pedido <strong>imediatamente</strong>, sem passar pelo fluxo de aprovação de estorno.`,
+            icon: "warning",
+            input: "text",
+            inputPlaceholder: "Motivo da remoção (obrigatório)",
+            showCancelButton: true,
+            confirmButtonText: "Remover Agora",
+            confirmButtonColor: "#d33",
+            cancelButtonText: "Cancelar",
+            inputValidator: (value) =>
+                !value && "Você precisa informar o motivo!",
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                router.delete(
+                    route("pedidos.removerMoto", {
+                        id: pedido.id,
+                        motoId: moto.id,
+                    }),
+                    {
+                        data: { motivo: result.value },
+                        onSuccess: () =>
+                            Swal.fire(
+                                "Removida!",
+                                "A moto foi removida do pedido e devolvida ao estoque.",
+                                "success",
+                            ),
+                    },
+                );
+            }
         });
     };
 
@@ -876,7 +914,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                                                 </span>
                                             </div>
 
-                                            <div className="flex items-center">
+                                            <div className="flex items-center gap-2">
                                                 {temAvaria ? (
                                                     <div className="flex flex-col gap-2 items-end">
                                                         <span className="flex items-center gap-1 text-[10px] bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 font-bold uppercase">
@@ -945,6 +983,31 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                                                             )}
                                                     </div>
                                                 )}
+
+                                                {/* EXCLUSIVO ADMIN: Remoção direta sem fluxo de aprovação */}
+                                                {souAdminExclusivo &&
+                                                    item.pivot &&
+                                                    ![
+                                                        "concluido",
+                                                        "cancelado",
+                                                    ].includes(
+                                                        pedido.status,
+                                                    ) && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleRemoverAdmin(
+                                                                    item,
+                                                                )
+                                                            }
+                                                            className="group/btn flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-600 border border-red-700 text-white hover:bg-red-700 transition shadow-sm"
+                                                            title="Remover do pedido imediatamente (Exclusivo Admin)"
+                                                        >
+                                                            <TrashIcon className="w-4 h-4" />
+                                                            <span className="text-xs font-bold hidden md:inline">
+                                                                Remover
+                                                            </span>
+                                                        </button>
+                                                    )}
                                             </div>
                                         </div>
                                     </div>

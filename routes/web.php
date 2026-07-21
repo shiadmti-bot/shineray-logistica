@@ -196,6 +196,11 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/{id}/imprimir', [PedidoController::class, 'imprimir'])->name('imprimir');
             Route::post('/{id}/finalizar', [PedidoController::class, 'finalizarEntrega'])->name('finalizar');
             
+            // Remoção direta de item do pedido (EXCLUSIVO ADMIN - bypassa o fluxo de estorno/aprovação)
+            Route::delete('/{id}/motos/{motoId}', [PedidoController::class, 'removerMotoAdmin'])
+                ->middleware('check_perfil:admin')
+                ->name('removerMoto');
+
             // V2.6: Atribuição de chassis pelo CD (Fluxo A — dentro do pedido)
             Route::post('/{id}/atribuir-chassi', [PedidoController::class, 'atribuirChassi'])->name('atribuir_chassi');
             Route::delete('/{id}/chassi/{motoId}', [PedidoController::class, 'desatribuirChassi'])->name('desatribuir_chassi');
