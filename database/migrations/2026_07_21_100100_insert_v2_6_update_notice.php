@@ -12,7 +12,7 @@ return new class extends Migration
 
         DB::table('notices')->insert([
             'title' => '🔢 Atualização v2.6 — Pedido por Modelo/Cor e Atribuição de Chassis pelo CD',
-            'content' => '<p>Mudança importante solicitada pela diretoria e pelo pós-vendas: <b>as lojas não escolhem mais os chassis do estoque do CD</b>. Essa responsabilidade passa a ser inteiramente da equipe do CD.</p>' .
+            'content' => '<p>Mudança importante por ordem da diretoria, gerência comercial e pós-vendas: <b>as lojas não escolhem mais os chassis do estoque do CD</b>. Essa responsabilidade passa a ser inteiramente da equipe do CD.</p>' .
                          '<ul>' .
                          '<li><b>📦 Pedido por Modelo, Cor e Quantidade:</b> Ao solicitar reposição ao CD, a loja agora escolhe apenas o <b>modelo</b> e a <b>cor</b> (carregados do estoque real do Microwork, com a quantidade disponível ao lado) e informa <b>quantas unidades</b> deseja. Não é mais preciso criar uma linha por moto nem digitar chassi.</li>' .
                          '<li><b>🔗 Chassi ainda obrigatório em dois casos:</b> nas <b>Transferências</b> (a loja já tem a moto fisicamente em mãos) e quando o motivo for <b>"Venda Confirmada (Cliente)"</b>.</li>' .
