@@ -27,10 +27,17 @@ import {
     StopIcon,
 } from "@heroicons/react/24/outline";
 
-export default function PedidoShow({ auth, pedido }) {
+export default function PedidoShow({ auth, pedido, atribuicao = null }) {
     // --- 1. CONFIGURAÇÕES E PERMISSÕES ---
     const [compressing, setCompressing] = useState(false);
     const formAcoes = useForm({});
+
+    // V2.6: bipagem de chassis pelo CD. Pedidos legados vêm com atribuicao.legado = true
+    // e nada disto é renderizado — a tela se comporta como na versão anterior.
+    const cotas = pedido.itens_pedido || [];
+    const cotasPendentes = cotas.filter((c) => c.qtd_pendente > 0);
+    const podeAtribuir = !!atribuicao?.permitido && !atribuicao?.legado;
+    const [bipando, setBipando] = useState({}); // { [cotaId]: chassiDigitado }
 
     // Identifica o Papel do Usuário
     const souOrigem = auth.user.id === pedido.origem_user_id;
@@ -112,6 +119,96 @@ export default function PedidoShow({ auth, pedido }) {
                     },
                 );
             }
+        });
+    };
+
+    // --- 3.1 V2.6: ATRIBUIÇÃO DE CHASSIS PELO CD ---
+    const handleAtribuirChassi = (cota) => {
+        const chassi = (bipando[cota.id] || "").trim().toUpperCase();
+
+        if (chassi.length < 11) {
+            return Swal.fire(
+                "Chassi inválido",
+                "Informe ao menos 11 caracteres.",
+                "warning",
+            );
+        }
+
+        router.post(
+            route("pedidos.atribuir_chassi", pedido.id),
+            { chassi, pedido_item_id: cota.id },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setBipando((b) => ({ ...b, [cota.id]: "" }));
+                    const audio = new Audio("/plim.mp3");
+                    audio.play().catch(() => {});
+                },
+                onError: (errs) =>
+                    Swal.fire(
+                        "Não foi possível atribuir",
+                        Object.values(errs)[0] || "Erro desconhecido.",
+                        "error",
+                    ),
+            },
+        );
+    };
+
+    const handleDesatribuirChassi = (moto) => {
+        Swal.fire({
+            title: "Desfazer atribuição?",
+            html: `O chassi <b>${moto.chassi}</b> será desvinculado deste pedido e voltará ao estoque do CD.`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sim, desfazer",
+            confirmButtonColor: "#d33",
+            cancelButtonText: "Cancelar",
+        }).then((r) => {
+            if (!r.isConfirmed) return;
+            router.delete(
+                route("pedidos.desatribuir_chassi", [pedido.id, moto.id]),
+                {
+                    preserveScroll: true,
+                    onError: (errs) =>
+                        Swal.fire(
+                            "Erro",
+                            Object.values(errs)[0] || "Não foi possível desfazer.",
+                            "error",
+                        ),
+                },
+            );
+        });
+    };
+
+    const handleEncerrarSaldo = (cota) => {
+        Swal.fire({
+            title: "Encerrar saldo em falta",
+            html: `<p style="font-size:14px">Serão baixadas <b>${cota.qtd_pendente}x ${cota.modelo} ${cota.cor}</b> que não serão enviadas.</p>`,
+            input: "textarea",
+            inputPlaceholder:
+                "Justificativa (ex: sem estoque no CD, modelo descontinuado...)",
+            showCancelButton: true,
+            confirmButtonText: "Encerrar saldo",
+            confirmButtonColor: "#d33",
+            cancelButtonText: "Cancelar",
+            inputValidator: (v) =>
+                (!v || v.trim().length < 5) &&
+                "Descreva o motivo (mínimo 5 caracteres).",
+        }).then((r) => {
+            if (!r.isConfirmed || !r.value) return;
+            router.post(
+                route("pedidos.encerrar_saldo", cota.id),
+                { justificativa: r.value },
+                {
+                    preserveScroll: true,
+                    onError: (errs) =>
+                        Swal.fire(
+                            "Erro",
+                            Object.values(errs)[0] || "Não foi possível encerrar.",
+                            "error",
+                        ),
+                },
+            );
         });
     };
 
@@ -566,6 +663,108 @@ export default function PedidoShow({ auth, pedido }) {
                         isTransferencia={isTransferencia}
                     />
 
+                    {/* --- 3.5 V2.6: COTAS AGUARDANDO CHASSI --- */}
+                    {cotas.length > 0 && cotasPendentes.length > 0 && (
+                        <div className="bg-white rounded-2xl shadow-sm border-2 border-amber-300 overflow-hidden">
+                            <div className="px-6 py-4 bg-amber-50 border-b border-amber-200 flex flex-wrap justify-between items-center gap-2">
+                                <h3 className="font-black text-amber-900 text-sm uppercase tracking-wide flex items-center gap-2">
+                                    <ExclamationTriangleIcon className="w-5 h-5" />
+                                    Aguardando definição de chassi
+                                </h3>
+                                <span className="bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                                    {atribuicao?.saldo_pendente ?? 0} pendente(s)
+                                </span>
+                            </div>
+
+                            <div className="p-4 space-y-3">
+                                {!podeAtribuir && (
+                                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                        A equipe do CD ainda não informou quais motos serão enviadas.
+                                        {pedido.status === "em_analise" &&
+                                            " O pedido precisa ser aprovado pela diretoria antes disso."}
+                                    </p>
+                                )}
+
+                                {cotasPendentes.map((cota) => (
+                                    <div
+                                        key={cota.id}
+                                        className="border border-gray-200 rounded-xl p-4 bg-gray-50"
+                                    >
+                                        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                                            <div>
+                                                <h4 className="font-extrabold text-gray-900">
+                                                    {cota.modelo}{" "}
+                                                    <span className="text-gray-500 font-bold">
+                                                        {cota.cor}
+                                                    </span>
+                                                </h4>
+                                                <p className="text-[11px] text-gray-500 uppercase font-bold tracking-wide">
+                                                    {cota.motivo} · Destino: {cota.local}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-2xl font-black text-amber-600 leading-none">
+                                                    {cota.qtd_atribuida}/{cota.quantidade}
+                                                </span>
+                                                <p className="text-[10px] text-gray-500 uppercase font-bold">
+                                                    atribuídas
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {podeAtribuir && (
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Bipe ou digite o chassi..."
+                                                    value={bipando[cota.id] || ""}
+                                                    onChange={(e) =>
+                                                        setBipando((b) => ({
+                                                            ...b,
+                                                            [cota.id]: e.target.value
+                                                                .toUpperCase()
+                                                                .replace(/[^A-Z0-9]/g, ""),
+                                                        }))
+                                                    }
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault();
+                                                            handleAtribuirChassi(cota);
+                                                        }
+                                                    }}
+                                                    maxLength={17}
+                                                    className="flex-1 rounded-lg border-gray-300 font-mono tracking-widest text-sm py-3 px-4 focus:ring-amber-500 focus:border-amber-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleAtribuirChassi(cota)}
+                                                    className="px-5 py-3 rounded-lg bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 transition shadow-sm whitespace-nowrap"
+                                                >
+                                                    Atribuir
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEncerrarSaldo(cota)}
+                                                    className="px-4 py-3 rounded-lg bg-white border-2 border-gray-200 text-gray-600 font-bold text-xs hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition whitespace-nowrap"
+                                                    title="Baixar as unidades que não serão enviadas"
+                                                >
+                                                    Encerrar saldo
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {podeAtribuir && (
+                                    <p className="text-[11px] text-gray-500 px-1">
+                                        Dica: com um leitor de código de barras, basta clicar no campo e
+                                        bipar — o Enter do leitor já confirma a atribuição.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* --- 4. LISTA DE ITENS (LÓGICA GESTOR APLICADA) --- */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                         <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-200 flex justify-between items-center backdrop-blur-sm">
@@ -576,7 +775,14 @@ export default function PedidoShow({ auth, pedido }) {
                                 Motocicletas
                             </h3>
                             <span className="bg-gray-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
-                                {pedido.motos?.length || 0} Unidades
+                                {/* V2.6: conta as cotas solicitadas quando ainda não há chassis vinculados */}
+                                {pedido.motos?.length ||
+                                    cotas.reduce(
+                                        (acc, c) => acc + (c.quantidade - c.qtd_cancelada),
+                                        0,
+                                    ) ||
+                                    0}{" "}
+                                Unidades
                             </span>
                         </div>
 
@@ -620,8 +826,17 @@ export default function PedidoShow({ auth, pedido }) {
                                             <div className="flex-1 min-w-0 space-y-1">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <h4 className="font-extrabold text-gray-900 text-base">
+                                                        {/* V2.6: itens genéricos exibem a quantidade pedida */}
+                                                        {!item.chassi &&
+                                                            item.quantidade > 1 &&
+                                                            `${item.quantidade}x `}
                                                         {item.modelo}
                                                     </h4>
+                                                    {!item.chassi && (
+                                                        <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold uppercase tracking-wide">
+                                                            Chassi a definir pelo CD
+                                                        </span>
+                                                    )}
                                                     {item.chassi && (
                                                         <span className="font-mono text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 tracking-wider">
                                                             {item.chassi}
@@ -688,28 +903,47 @@ export default function PedidoShow({ auth, pedido }) {
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    (souCD || souOrigem) &&
-                                                    [
-                                                        "solicitado",
-                                                        "separado",
-                                                        "estoque_fabrica",
-                                                    ].includes(item.status) && (
-                                                        <button
-                                                            onClick={() =>
-                                                                handleSolicitarRetirada(
-                                                                    item.id,
-                                                                    "Motivo do corte?",
-                                                                )
-                                                            }
-                                                            className="group/btn flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition shadow-sm"
-                                                            title="Cortar Item"
-                                                        >
-                                                            <ScissorsIcon className="w-4 h-4" />
-                                                            <span className="text-xs font-bold hidden md:inline">
-                                                                Cortar
-                                                            </span>
-                                                        </button>
-                                                    )
+                                                    <div className="flex items-center gap-2">
+                                                        {/* V2.6: desfazer bipagem errada (só para chassis atribuídos pelo CD) */}
+                                                        {podeAtribuir &&
+                                                            item.pivot?.pedido_item_id && (
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleDesatribuirChassi(item)
+                                                                    }
+                                                                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition shadow-sm"
+                                                                    title="Desfazer atribuição deste chassi"
+                                                                >
+                                                                    <XCircleIcon className="w-4 h-4" />
+                                                                    <span className="text-xs font-bold hidden md:inline">
+                                                                        Desfazer
+                                                                    </span>
+                                                                </button>
+                                                            )}
+
+                                                        {(souCD || souOrigem) &&
+                                                            [
+                                                                "solicitado",
+                                                                "separado",
+                                                                "estoque_fabrica",
+                                                            ].includes(item.status) && (
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleSolicitarRetirada(
+                                                                            item.id,
+                                                                            "Motivo do corte?",
+                                                                        )
+                                                                    }
+                                                                    className="group/btn flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition shadow-sm"
+                                                                    title="Cortar Item"
+                                                                >
+                                                                    <ScissorsIcon className="w-4 h-4" />
+                                                                    <span className="text-xs font-bold hidden md:inline">
+                                                                        Cortar
+                                                                    </span>
+                                                                </button>
+                                                            )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>

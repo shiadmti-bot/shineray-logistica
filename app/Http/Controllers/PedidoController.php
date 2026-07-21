@@ -29,6 +29,34 @@ use Carbon\Carbon;
 
 class PedidoController extends Controller
 {
+    /**
+     * V2.6: Motivos em que a loja continua obrigada a informar o chassi.
+     * "Venda Confirmada" é mantida por compatibilidade com pedidos legados,
+     * onde o vendedor fecha a venda olhando um chassi específico.
+     */
+    public const MOTIVOS_EXIGEM_CHASSI = ['Venda Confirmada (Cliente)'];
+
+    /**
+     * Um item exige chassi quando é transferência (a loja já tem a moto física
+     * em mãos) ou quando o motivo é venda confirmada.
+     */
+    private function itemExigeChassi(?string $motivo, bool $isTransferencia): bool
+    {
+        if ($isTransferencia) {
+            return true;
+        }
+
+        $motivoLimpo = mb_strtolower(trim((string) $motivo), 'UTF-8');
+
+        foreach (self::MOTIVOS_EXIGEM_CHASSI as $exige) {
+            if ($motivoLimpo === mb_strtolower($exige, 'UTF-8')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // --- HELPER: Logs e Notificações ---
     private function registrarLog($pedido, $titulo, $desc = '') {
         if ($pedido?->exists) {
@@ -128,6 +156,11 @@ class PedidoController extends Controller
                 ->join('pedido_moto', 'motos.id', '=', 'pedido_moto.moto_id')
                 ->whereColumn('pedido_moto.pedido_id', 'pedidos.id')
                 ->limit(1)
+            ])
+            // V2.6: quantas unidades ainda aguardam o CD informar o chassi (0 em pedidos legados)
+            ->addSelect(['saldo_chassi_pendente' => \App\Models\PedidoItem::query()
+                ->selectRaw('COALESCE(SUM(GREATEST(quantidade - qtd_atribuida - qtd_cancelada, 0)), 0)')
+                ->whereColumn('pedido_itens.pedido_id', 'pedidos.id')
             ])
             ->withCount('motos')
             ->withCount(['motos as motos_separadas_count' => function ($query) {
@@ -236,8 +269,10 @@ class PedidoController extends Controller
         // Ordena novamente para garantir
         sort($locaisEntrega);
 
+        $microwork = app(\App\Services\MicroworkService::class);
+
         // Busca modelos únicos do Microwork
-        $estoque = app(\App\Services\MicroworkService::class)->getEstoqueCD();
+        $estoque = $microwork->getEstoqueCD();
         $modelosMicrowork = [];
         foreach ($estoque as $item) {
             $modelo = trim($item['Modelo'] ?? $item['modelo'] ?? '');
@@ -245,35 +280,48 @@ class PedidoController extends Controller
                 $modelosMicrowork[] = mb_strtoupper($modelo, 'UTF-8');
             }
         }
-        
+
         // Busca modelos já cadastrados na base de dados
         $modelosDB = \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
-        
+
         // Mescla as duas listas para garantir que modelos históricos continuem disponíveis
         $listaModelos = array_values(array_unique(array_merge($modelosMicrowork, $modelosDB)));
         sort($listaModelos);
+
+        // V2.6: Estoque real do CD agregado por Modelo + Cor, para o pedido genérico.
+        // Se o cron de sincronia falhar, este array vem vazio e o frontend cai
+        // automaticamente no modo digitação livre (não trava a loja).
+        $estoqueCD = $microwork->getEstoqueDisponivelAgregado();
 
         return Inertia::render('Pedidos/Create', [
             'listaModelos' => $listaModelos,
             'lojasDisponiveis' => $lojas,
             'cdUserId' => $cdUser ? $cdUser->id : null,
-            'locaisEntrega' => $locaisEntrega // Variável recuperada
+            'locaisEntrega' => $locaisEntrega, // Variável recuperada
+            'estoqueCD' => $estoqueCD,
+            'motivosChassiObrigatorio' => self::MOTIVOS_EXIGEM_CHASSI,
         ]);
     }
 
     public function store(Request $request)
     {
         // 1. Validação dos Campos
+        // V2.6: o chassi deixou de ser sempre obrigatório. Continua exigido em
+        // transferências (a loja já tem a moto em mãos) e em Venda Confirmada.
+        // Nos demais pedidos ao CD a loja informa apenas modelo, cor e quantidade,
+        // e o CD atribui os chassis físicos depois.
         $request->validate([
             'itens' => 'required|array|min:1',
             'itens.*.modelo' => 'required|string',
             'itens.*.cor' => 'required|string',
             'itens.*.motivo' => 'required|string',
             'itens.*.local' => 'required|string',
-            'itens.*.chassi' => 'required|string|min:11|max:17', 
+            'itens.*.chassi' => 'nullable|string|min:11|max:17',
+            'itens.*.quantidade' => 'nullable|integer|min:1|max:50',
             'origem_id' => 'nullable|exists:users,id',
-            'modo' => 'nullable|string|in:cd,transferencia,devolucao', // Novo Campo
-            'cd_user_id' => 'nullable|exists:users,id' // ID do CD para Devolução
+            'destino_id' => 'nullable|exists:users,id', // V2.6: permite enviar PARA o CD
+            'modo' => 'nullable|string|in:cd,transferencia,devolucao', // 'devolucao' aceito só por compatibilidade
+            'cd_user_id' => 'nullable|exists:users,id'
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -304,21 +352,74 @@ class PedidoController extends Controller
             
             // Lógica de Modos
             $modo = $request->modo ?? 'cd'; // default: reposição simples
-            
+
             // Variáveis de Origem/Destino
             $destinoUserId = $user->id; // Padrão: Eu estou pedindo (Sou o Destino)
             $origemUserId = $request->origem_id; // Padrão: Vem de alguém (Origem)
 
-            // Ajuste para DEVOLUÇÃO (Logística Reversa)
+            // V2.6: O modo "Devolução" foi desativado. Devolver para o CD agora é
+            // uma Transferência com o CD escolhido como destino.
+            // O bloco abaixo só existe para navegadores com o bundle antigo em cache.
             if ($modo === 'devolucao') {
-                if (!$request->cd_user_id) {
-                    throw \Illuminate\Validation\ValidationException::withMessages(['modo' => 'ID do CD não fornecido para devolução.']);
+                $modo = 'transferencia';
+                $destinoUserId = $request->cd_user_id
+                    ?: User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->value('id');
+                $origemUserId = $user->id;
+
+                if (!$destinoUserId) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['modo' => 'Nenhum usuário de CD encontrado para receber a devolução.']);
                 }
-                $destinoUserId = $request->cd_user_id; // O CD é o destino
-                $origemUserId = $user->id; // Eu sou a origem (Estou devolvendo)
+            }
+            // Transferência de saída: a loja escolheu enviar para outro destino (ex: Matriz/CD)
+            elseif ($modo === 'transferencia' && $request->destino_id && (int) $request->destino_id !== (int) $user->id) {
+                $destinoUserId = (int) $request->destino_id;
+                $origemUserId  = $user->id; // Eu sou quem envia
+            }
+
+            if ($modo === 'transferencia' && empty($origemUserId)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['origem_id' => 'Selecione a loja de origem da transferência.']);
+            }
+
+            if (!empty($origemUserId) && (int) $origemUserId === (int) $destinoUserId) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['origem_id' => 'A origem e o destino da transferência não podem ser a mesma unidade.']);
             }
 
             $isTransferencia = !empty($origemUserId);
+
+            // --- V2.6: NORMALIZAÇÃO DOS ITENS (chassi condicional + quantidade) ---
+            $itensNormalizados = [];
+
+            foreach ($request->itens as $i => $item) {
+                $chassi = isset($item['chassi']) && trim((string) $item['chassi']) !== ''
+                    ? mb_strtoupper(trim($item['chassi']))
+                    : null;
+
+                $exigeChassi = $this->itemExigeChassi($item['motivo'] ?? null, $isTransferencia);
+                $quantidade  = max(1, (int) ($item['quantidade'] ?? 1));
+
+                if ($exigeChassi) {
+                    if (!$chassi) {
+                        $porque = $isTransferencia
+                            ? 'transferências exigem o chassi da moto que está saindo da loja'
+                            : 'o motivo "' . $item['motivo'] . '" exige o chassi específico';
+
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'itens' => 'Item #' . ($i + 1) . ": informe o chassi ({$porque})."
+                        ]);
+                    }
+                    $quantidade = 1; // Um chassi = uma unidade
+                }
+
+                $itensNormalizados[] = [
+                    'modelo'       => mb_strtoupper(trim($item['modelo'])),
+                    'cor'          => mb_strtoupper(trim($item['cor'])),
+                    'motivo'       => $item['motivo'],
+                    'local'        => mb_strtoupper(trim($item['local'])),
+                    'chassi'       => $chassi,
+                    'quantidade'   => $quantidade,
+                    'exige_chassi' => $exigeChassi,
+                ];
+            }
 
             // 2. Cálculo Logístico (Datas)
             $previsaoColeta = null; 
@@ -342,75 +443,51 @@ class PedidoController extends Controller
                 'origem_user_id' => $origemUserId, // De onde a moto sai
                 'status' => 'em_analise', // Status Inicial
                 'observacao' => $request->observacao,
-                // Prefixo [DEVOLUÇÃO] se for o caso, para facilitar identificação visual
-                'motivo_solicitacao' => ($modo === 'devolucao' ? '[DEVOLUÇÃO] ' : '') . ($request->itens[0]['motivo'] ?? 'Estoque Regular'),
-                'itens' => $request->itens, 
+                'motivo_solicitacao' => $itensNormalizados[0]['motivo'] ?? 'Estoque Regular',
+                // JSON mantido como espelho da solicitação (telas legadas + auditoria)
+                'itens' => $itensNormalizados,
                 'previsao_coleta' => $previsaoColeta,
                 'previsao_entrega' => $previsaoEntrega
             ]);
 
-            // --- 3.5 OTIMIZAÇÃO E TRAVAS GLOBAIS DE CHASSI (Evita lentidão e erros graves) ---
-            $chassisRecebidos = array_filter(array_map(function($item) {
-                return isset($item['chassi']) && trim($item['chassi']) !== '' ? mb_strtoupper(trim($item['chassi'])) : null;
-            }, $request->itens));
+            // --- 3.5 TRAVAS GLOBAIS DE CHASSI ---
+            // Regra compartilhada com a atribuição do CD (AtribuicaoChassiService),
+            // para que criar um pedido e bipar um chassi apliquem exatamente o mesmo bloqueio.
+            $atribuicao = app(\App\Services\AtribuicaoChassiService::class);
+            $atribuicao->validarChassisLivres(array_column($itensNormalizados, 'chassi'));
 
-            if (!empty($chassisRecebidos)) {
-                
-                // TRAVA 1: Motos Presas em Outros Pedidos (Não concluídos/cancelados/rejeitados)
-                $motosEmUso = Moto::whereIn('chassi', $chassisRecebidos)
-                    ->whereHas('pedidos', function ($q) {
-                        $q->whereNotIn('status', ['concluido', 'cancelado', 'rejeitado']);
-                    })->pluck('chassi')->toArray();
-
-                if (!empty($motosEmUso)) {
-                    $listaErro = implode(', ', $motosEmUso);
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'itens' => "CHASSI PRESO: Os seguintes chassis já estão vinculados a outro pedido ativo: {$listaErro}"
-                    ]);
-                }
-
-                // TRAVA 2: Motos Historicamente Vendidas (ignoradas se voltaram ao estoque por estorno)
-                $motosVendidas = Moto::whereIn('chassi', $chassisRecebidos)
-                    ->whereNotIn('status', ['estoque_loja', 'estoque_cd', 'disponivel'])
-                    ->where(function($query) {
-                        // Condição A: O status atual da moto cravou como "vendida"
-                        $query->where('status', 'vendida')
-                              // Condição B: A moto tem motivo_solicitacao indicando venda
-                              ->orWhere('motivo_solicitacao', 'LIKE', '%venda%')
-                              ->orWhere('motivo_solicitacao', 'LIKE', '%cliente%')
-                              // Condição C: Possui um pedido concluído cujo pivot declara Venda/Cliente
-                              ->orWhereHas('pedidos', function ($q) {
-                                  $q->where('pedidos.status', 'concluido')
-                                    ->where(function ($subQ) {
-                                        $subQ->where('pedido_moto.motivo', 'LIKE', '%venda%')
-                                             ->orWhere('pedido_moto.motivo', 'LIKE', '%cliente%');
-                                    });
-                              });
-                    })->pluck('chassi')->toArray();
-
-                if (!empty($motosVendidas)) {
-                    $listaErroVendidas = implode(', ', $motosVendidas);
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'itens' => "VENDA JÁ CONFIRMADA: O sistema não permite re-encomendar motos de clientes. Verifique: {$listaErroVendidas}"
-                    ]);
-                }
-            }
-            // ----------------------------------------------------------------------------------
-
-            // 4. Processamento dos Itens (Motos)
+            // 4. Processamento dos Itens
             $syncLogs = []; // Array para registrar ajustes automáticos no DB para a Timeline
             $motosParaAttach = []; // Array para vínculo dinâmico em lote (Bulk Insert)
+            $totalUnidades = 0;
+            $unidadesSemChassi = 0;
 
-            foreach ($request->itens as $item) {
-                $chassi = isset($item['chassi']) ? mb_strtoupper(trim($item['chassi'])) : null;
+            foreach ($itensNormalizados as $item) {
+                $chassi = $item['chassi'];
                 $moto = null;
 
-                // --- B. CENÁRIO: TRANSFERÊNCIA OU DEVOLUÇÃO ---
-                if ($isTransferencia) {
-                    if (!$chassi) {
-                        throw \Illuminate\Validation\ValidationException::withMessages(['itens' => "Para transferência/devolução, o chassi é obrigatório."]);
-                    }
+                // 4.1 Cota do pedido (v2.6) — criada sempre, com ou sem chassi.
+                $pedidoItem = \App\Models\PedidoItem::create([
+                    'pedido_id'     => $pedido->id,
+                    'modelo'        => $item['modelo'],
+                    'cor'           => $item['cor'],
+                    'motivo'        => $item['motivo'],
+                    'local'         => $item['local'],
+                    'quantidade'    => $item['quantidade'],
+                    'qtd_atribuida' => $chassi ? 1 : 0,
+                    'exige_chassi'  => $item['exige_chassi'],
+                ]);
 
+                $totalUnidades += $item['quantidade'];
+
+                // 4.2 Pedido genérico: sem chassi agora, o CD atribui depois.
+                if (!$chassi) {
+                    $unidadesSemChassi += $item['quantidade'];
+                    continue;
+                }
+
+                // --- B. CENÁRIO: TRANSFERÊNCIA (inclui envio da loja para o CD) ---
+                if ($isTransferencia) {
                     $moto = Moto::where('chassi', $chassi)->first();
 
                     if (!$moto) {
@@ -419,42 +496,33 @@ class PedidoController extends Controller
 
                         $moto = Moto::create([
                             'chassi' => $chassi,
-                            'modelo' => mb_strtoupper($item['modelo']),
-                            'cor' => mb_strtoupper($item['cor']),
+                            'modelo' => $item['modelo'],
+                            'cor' => $item['cor'],
                             'status' => 'solicitado', // Vai mudar logo abaixo
                             'loja_atual_id' => $origemUserId,
                             'localizacao_atual' => "Estoque Loja: {$nomeLoja}"
                         ]);
-                    } 
+                    }
                     else {
                         // C.2 MOTO JÁ EXISTE NO SISTEMA
                         // Atualiza modelo e cor para garantir que dados antigos (de cancelamentos) sejam sobrescritos
                         $moto->update([
-                            'modelo' => mb_strtoupper($item['modelo']),
-                            'cor' => mb_strtoupper($item['cor'])
+                            'modelo' => $item['modelo'],
+                            'cor' => $item['cor']
                         ]);
 
-                        if ($modo === 'devolucao') {
-                            if ($moto->loja_atual_id != $user->id) {
-                                $moto->update([
-                                    'loja_atual_id' => $user->id,
-                                    'localizacao_atual' => "Estoque Loja: " . ($user->filial ?? 'Minha Loja')
-                                ]);
-                            }
-                        }
-                        else {
-                            if ($moto->loja_atual_id != $request->origem_id) {
-                                $lojaReal = User::find($request->origem_id);
-                                $oldPatio = $moto->localizacao_atual;
-                                $newPatio = "Estoque Loja: " . ($lojaReal->filial ?? 'Sincronizada via Transferência');
-                                
-                                $moto->update([
-                                    'loja_atual_id' => $request->origem_id,
-                                    'localizacao_atual' => $newPatio
-                                ]);
+                        // Sincroniza o pátio da moto com a loja que está enviando
+                        if ($moto->loja_atual_id != $origemUserId) {
+                            $lojaReal = User::find($origemUserId);
+                            $oldPatio = $moto->localizacao_atual;
+                            $newPatio = "Estoque Loja: " . ($lojaReal->filial ?? 'Sincronizada via Transferência');
 
-                                $syncLogs[] = "✓ Chassi {$chassi} ajustado sistemicamente: de '{$oldPatio}' para '{$newPatio}'.";
-                            }
+                            $moto->update([
+                                'loja_atual_id' => $origemUserId,
+                                'localizacao_atual' => $newPatio
+                            ]);
+
+                            $syncLogs[] = "✓ Chassi {$chassi} ajustado sistemicamente: de '{$oldPatio}' para '{$newPatio}'.";
                         }
 
                         // Validação de Status (Bloqueios)
@@ -467,54 +535,48 @@ class PedidoController extends Controller
                         }
 
                         // Atualiza status para evitar concorrência
-                        $moto->update(['status' => 'solicitado']); 
-                    } 
+                        $moto->update(['status' => 'solicitado']);
+                    }
                 }
-                // --- C. CENÁRIO 2: PEDIDO AO CD (Fabrica/Novo) ---
+                // --- C. CENÁRIO 2: PEDIDO AO CD COM CHASSI (Venda Confirmada / legado) ---
                 else {
-                    if ($chassi) {
-                        $moto = Moto::firstOrCreate(
-                            ['chassi' => $chassi],
-                            [
-                                'modelo' => mb_strtoupper($item['modelo']),
-                                'cor' => mb_strtoupper($item['cor']),
-                                'status' => 'solicitado',
-                                'localizacao_atual' => 'Fábrica/CD'
-                            ]
-                        );
+                    $moto = Moto::firstOrCreate(
+                        ['chassi' => $chassi],
+                        [
+                            'modelo' => $item['modelo'],
+                            'cor' => $item['cor'],
+                            'status' => 'solicitado',
+                            'localizacao_atual' => 'Fábrica/CD'
+                        ]
+                    );
 
-                        if (!$moto->wasRecentlyCreated) {
-                            $updData = [
-                                'modelo' => mb_strtoupper($item['modelo']),
-                                'cor' => mb_strtoupper($item['cor'])
-                            ];
+                    if (!$moto->wasRecentlyCreated) {
+                        $updData = [
+                            'modelo' => $item['modelo'],
+                            'cor' => $item['cor']
+                        ];
 
-                            if (!in_array($moto->status, ['estoque_fabrica', 'solicitado'])) {
-                                $oldPatio = $moto->localizacao_atual;
-                                $newPatio = 'Fábrica/CD (Sincronizado na Saída)';
-                                
-                                $updData['status'] = 'solicitado';
-                                $updData['loja_atual_id'] = null;
-                                $updData['localizacao_atual'] = $newPatio;
-                                
-                                $syncLogs[] = "✓ Chassi {$chassi} devolvido sistemicamente ao CD: de '{$oldPatio}' para 'Fábrica/CD'.";
-                            }
-                            
-                            $moto->update($updData);
+                        if (!in_array($moto->status, ['estoque_fabrica', 'solicitado'])) {
+                            $oldPatio = $moto->localizacao_atual;
+                            $newPatio = 'Fábrica/CD (Sincronizado na Saída)';
+
+                            $updData['status'] = 'solicitado';
+                            $updData['loja_atual_id'] = null;
+                            $updData['localizacao_atual'] = $newPatio;
+
+                            $syncLogs[] = "✓ Chassi {$chassi} devolvido sistemicamente ao CD: de '{$oldPatio}' para 'Fábrica/CD'.";
                         }
-                    } else {
-                        // Sem chassi em pedido ao CD — a validação já bloqueia, mas por segurança:
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'itens' => 'O campo Chassi é obrigatório para todas as motos. Preencha o número do chassi antes de enviar.'
-                        ]);
+
+                        $moto->update($updData);
                     }
                 }
 
                 // Vincula ao Array Lote (Evita N+1 Insert do Pivot!)
                 if ($moto) {
                     $motosParaAttach[$moto->id] = [
-                        'destino' => mb_strtoupper($item['local']),
-                        'motivo' => $item['motivo']
+                        'destino' => $item['local'],
+                        'motivo' => $item['motivo'],
+                        'pedido_item_id' => $pedidoItem->id
                     ];
                 }
             } // Fim Loop de Itens
@@ -525,14 +587,20 @@ class PedidoController extends Controller
             }
 
             // 6. Logs e Notificações
-            $modo = $request->modo ?? 'cd';
-            $origemNome = $modo === 'devolucao' ? 'Devolução (Logística Reversa)' : ($request->origem_id ? 'Transferência (Inter-lojas)' : 'Reposição CD');
-            $logDesc = "Solicitação via sistema ($origemNome)";
-            
+            $origemNome = $isTransferencia
+                ? (((int) $destinoUserId !== (int) $user->id) ? 'Transferência de Saída (Envio da Loja)' : 'Transferência (Inter-lojas)')
+                : 'Reposição CD';
+
+            $logDesc = "Solicitação via sistema ($origemNome) — {$totalUnidades} unidade(s)";
+
+            if ($unidadesSemChassi > 0) {
+                $logDesc .= "\n\n📋 {$unidadesSemChassi} unidade(s) solicitadas sem chassi. O CD deve atribuir os chassis físicos antes da separação.";
+            }
+
             if (!empty($syncLogs)) {
                 $logDesc .= "\n\n📝 Ajustes Automáticos na Abertura do Pedido:\n" . implode("\n", $syncLogs);
             }
-            
+
             $this->registrarLog($pedido, 'Criado', $logDesc);
             
             // Notifica Gestores
@@ -587,13 +655,32 @@ class PedidoController extends Controller
 
             // Se for Transferência, notifica a Origem para separar
             if ($pedido->origem_user_id && $pedido->origem) {
-                // Lista modelos do JSON ou das motos vinculadas
-                $modelos = collect($pedido->itens)->pluck('modelo')->unique()->implode(', ');
-                
+                // Lista modelos do JSON ou das motos vinculadas (com quantidade, v2.6)
+                $modelos = collect($pedido->itens)
+                    ->map(function ($i) {
+                        $qtd = (int) ($i['quantidade'] ?? 1);
+                        $nome = trim(($i['modelo'] ?? '') . ' ' . ($i['cor'] ?? ''));
+                        return $qtd > 1 ? "{$qtd}x {$nome}" : $nome;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->implode(', ');
+
                 $this->enviarNotificacao(
                     $pedido->origem, 
                     'Transferência Solicitada 🔁', 
                     "Aprovado: Separe as motos ({$modelos}) para envio à {$pedido->user->filial}. Pedido #{$pedido->id}.", 
+                    route('pedidos.show', $pedido->id)
+                );
+            }
+
+            // V2.6: pedido genérico — avisa o CD que existem chassis a atribuir.
+            $saldoPendente = $pedido->saldoPendente();
+            if ($saldoPendente > 0) {
+                $this->enviarNotificacao(
+                    User::where('perfil', 'cd')->get(),
+                    'Atribuir Chassis 🔢',
+                    "Pedido #{$pedido->id} ({$pedido->user->filial}) aprovado com {$saldoPendente} moto(s) sem chassi. Informe os chassis que serão enviados.",
                     route('pedidos.show', $pedido->id)
                 );
             }
@@ -634,6 +721,15 @@ class PedidoController extends Controller
             // Validação de Status
             if ($pedido->status !== 'solicitado') {
                 return back()->withErrors(['erro' => 'Status inválido para separação.']);
+            }
+
+            // V2.6: não é possível separar enquanto houver cotas sem chassi atribuído.
+            // Pedidos legados não possuem cotas e sempre retornam 0 aqui.
+            $saldoPendente = $pedido->saldoPendente();
+            if ($saldoPendente > 0) {
+                return back()->withErrors([
+                    'erro' => "ATRIBUIÇÃO PENDENTE: Ainda faltam {$saldoPendente} chassi(s) neste pedido. Informe os chassis que serão enviados (ou encerre o saldo em falta) antes de confirmar a separação."
+                ]);
             }
 
             // LÓGICA V2: QUEM SEPARA E PARA ONDE VAI O STATUS?
@@ -738,6 +834,15 @@ class PedidoController extends Controller
         if ($motosPendentes > 0) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'arquivo_romaneio' => "BLOQUEIO DE RECEBIMENTO: Não é possível finalizar este pedido pois $motosPendentes moto(s) ainda se encontra(m) no CD/Origem aguardando logística. A diretoria determinou que a baixa no sistema só pode ser efetuada quando 100% da carga do pedido for despachada."
+            ]);
+        }
+
+        // V2.6: cotas sem chassi atribuído também travam o recebimento. O CD precisa
+        // ter bipado os chassis ou encerrado o saldo em falta. (Sempre 0 em pedidos legados.)
+        $saldoSemChassi = $pedido->saldoPendente();
+        if ($saldoSemChassi > 0) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'arquivo_romaneio' => "BLOQUEIO DE RECEBIMENTO: $saldoSemChassi moto(s) deste pedido ainda não tiveram o chassi definido pelo CD. Solicite ao CD que atribua os chassis ou encerre o saldo em falta antes de finalizar."
             ]);
         }
 
@@ -1028,6 +1133,94 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
         return $service->files->create(new DriveFile(['name' => $name, 'mimeType' => 'application/vnd.google-apps.folder', 'parents' => [$parentId]]), ['fields' => 'id'])->id;
     }
 
+    // --- V2.6: ATRIBUIÇÃO DE CHASSIS PELO CD ---
+
+    private function autorizarCD(): void
+    {
+        if (!in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
+            abort(403, 'Apenas a equipe do CD pode atribuir chassis aos pedidos.');
+        }
+    }
+
+    /**
+     * Vincula um chassi físico a uma cota do pedido (Fluxo A: tela do Pedido).
+     * Se 'pedido_item_id' não vier, o sistema descobre a cota pelo modelo/cor do chassi.
+     */
+    public function atribuirChassi(Request $request, $id)
+    {
+        $this->autorizarCD();
+
+        $request->validate([
+            'chassi' => 'required|string|min:11|max:17',
+            'pedido_item_id' => 'nullable|integer',
+        ]);
+
+        $pedido = Pedido::findOrFail($id);
+
+        $resultado = app(\App\Services\AtribuicaoChassiService::class)
+            ->atribuir($pedido, $request->chassi, $request->pedido_item_id);
+
+        $item = $resultado['item'];
+        $moto = $resultado['moto'];
+
+        $saldo = $pedido->saldoPendente();
+        $msg = "Chassi {$moto->chassi} atribuído a {$item->modelo} {$item->cor}. " .
+               ($saldo > 0 ? "Faltam {$saldo} chassi(s) neste pedido." : 'Pedido 100% atribuído!');
+
+        if ($saldo === 0) {
+            $this->enviarNotificacao(
+                $pedido->user,
+                'Chassis Definidos 🔢',
+                "O CD definiu todos os chassis do seu pedido #{$pedido->id}.",
+                route('pedidos.show', $pedido->id)
+            );
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Desfaz uma atribuição feita por engano.
+     */
+    public function desatribuirChassi($id, $motoId)
+    {
+        $this->autorizarCD();
+
+        $pedido = Pedido::findOrFail($id);
+        $moto = Moto::findOrFail($motoId);
+
+        app(\App\Services\AtribuicaoChassiService::class)->desatribuir($pedido, $moto);
+
+        return back()->with('success', "Chassi {$moto->chassi} desvinculado e devolvido ao estoque do CD.");
+    }
+
+    /**
+     * Encerra o saldo não atendido de uma cota (pediram 5, o CD só tinha 3).
+     */
+    public function encerrarSaldoItem(Request $request, $itemId)
+    {
+        $this->autorizarCD();
+
+        $request->validate([
+            'justificativa' => 'required|string|min:5|max:500',
+        ]);
+
+        $item = \App\Models\PedidoItem::with('pedido.user')->findOrFail($itemId);
+        $pendenteAntes = $item->qtd_pendente;
+
+        app(\App\Services\AtribuicaoChassiService::class)
+            ->encerrarSaldo($item, $request->justificativa);
+
+        $this->enviarNotificacao(
+            $item->pedido->user,
+            'Saldo Encerrado ✂️',
+            "{$pendenteAntes}x {$item->modelo} {$item->cor} do pedido #{$item->pedido_id} não serão enviadas: {$request->justificativa}",
+            route('pedidos.show', $item->pedido_id)
+        );
+
+        return back()->with('success', "Saldo de {$pendenteAntes} unidade(s) encerrado. A loja foi notificada.");
+    }
+
     // --- CANCELAMENTOS ---
     public function rejeitar(Request $request, $id) { return $this->cancelarGenerico($id, 'rejeitado', $request->motivo); }
     public function cancelarSolicitacao($id) { return $this->cancelarGenerico($id, 'cancelado', 'Cancelado pela Loja'); }
@@ -1061,19 +1254,30 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
     
     // --- VIEWS ---
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
-    public function show($id) 
+    public function show($id)
     {
+        $pedido = Pedido::with([
+            'user',
+            'origem', // <--- ADICIONADO: Traz os dados da loja de origem
+            'motos' => function($q) {
+                $q->withPivot(['id', 'detalhes_avaria', 'foto_avaria', 'motivo', 'pedido_item_id']);
+            },
+            'itensPedido.canceladoPor:id,name', // V2.6: cotas do pedido
+            'romaneio',
+            'logs' => fn($q) => $q->latest()
+        ])->findOrFail($id);
+
         return Inertia::render('Pedidos/Show', [
-            'pedido' => Pedido::with([
-                'user',
-                'origem', // <--- ADICIONADO: Traz os dados da loja de origem
-                'motos' => function($q) {
-                    $q->withPivot(['id', 'detalhes_avaria', 'foto_avaria', 'motivo']);
-                },
-                'romaneio',
-                'logs' => fn($q) => $q->latest()
-            ])->findOrFail($id)
+            'pedido' => $pedido,
+            // V2.6: metadados da atribuição de chassis. Pedido legado => tudo zerado,
+            // e a tela se comporta exatamente como na versão anterior.
+            'atribuicao' => [
+                'legado'         => $pedido->itensPedido->isEmpty(),
+                'saldo_pendente' => (int) $pedido->itensPedido->sum(fn($i) => $i->qtd_pendente),
+                'permitido'      => in_array(Auth::user()->perfil, ['cd', 'admin'], true)
+                                    && in_array($pedido->status, \App\Services\AtribuicaoChassiService::STATUS_ATRIBUIVEIS, true),
+            ],
         ]);
-    }    
+    }
     public function imprimir($id) { return Inertia::render('Pedidos/Romaneio', ['pedido' => Pedido::with(['user', 'motos', 'romaneio'])->findOrFail($id)]); }
 }

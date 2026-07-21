@@ -196,6 +196,11 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/{id}/imprimir', [PedidoController::class, 'imprimir'])->name('imprimir');
             Route::post('/{id}/finalizar', [PedidoController::class, 'finalizarEntrega'])->name('finalizar');
             
+            // V2.6: Atribuição de chassis pelo CD (Fluxo A — dentro do pedido)
+            Route::post('/{id}/atribuir-chassi', [PedidoController::class, 'atribuirChassi'])->name('atribuir_chassi');
+            Route::delete('/{id}/chassi/{motoId}', [PedidoController::class, 'desatribuirChassi'])->name('desatribuir_chassi');
+            Route::post('/itens/{itemId}/encerrar-saldo', [PedidoController::class, 'encerrarSaldoItem'])->name('encerrar_saldo');
+
             // Fluxo de Status
             Route::post('/{id}/aprovar', [PedidoController::class, 'aprovar'])->name('aprovar');
             Route::post('/{id}/separar', [PedidoController::class, 'marcarSeparado'])->name('separar');
@@ -226,6 +231,9 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/', [RomaneioController::class, 'index'])->name('index');
             Route::get('/nova', [RomaneioController::class, 'create'])->name('create');
             Route::post('/', [RomaneioController::class, 'store'])->name('store');
+
+            // V2.6: Atribuição de chassis pelo CD (Fluxo B — bipagem na montagem da carga)
+            Route::post('/atribuir-chassi', [RomaneioController::class, 'atribuirChassiCarga'])->name('atribuir_chassi');
             Route::get('/{id}', [RomaneioController::class, 'show'])->name('show');
             Route::delete('/{id}', [RomaneioController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/imprimir', [RomaneioController::class, 'imprimir'])->name('imprimir'); // Redireciona para show/print

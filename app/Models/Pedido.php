@@ -51,8 +51,35 @@ class Pedido extends Model
     public function motos()
     {
         return $this->belongsToMany(Moto::class, 'pedido_moto')
-                    ->withPivot(['destino', 'motivo', 'detalhes_avaria', 'foto_avaria']) // Garante que avarias históricas venham junto
+                    ->withPivot(['destino', 'motivo', 'detalhes_avaria', 'foto_avaria', 'pedido_item_id']) // Garante que avarias históricas venham junto
                     ->withTimestamps();
+    }
+
+    /**
+     * Cotas do pedido (v2.6+). Pedidos legados retornam coleção vazia — ver isLegado().
+     */
+    public function itensPedido()
+    {
+        return $this->hasMany(PedidoItem::class);
+    }
+
+    /**
+     * Pedido criado antes da v2.6: não possui cotas, todo item já nasceu com chassi.
+     * Nesse caso o sistema inteiro deve se comportar exatamente como antes.
+     */
+    public function isLegado(): bool
+    {
+        return !$this->itensPedido()->exists();
+    }
+
+    /**
+     * Quantos chassis ainda faltam o CD atribuir. Sempre 0 para pedidos legados.
+     */
+    public function saldoPendente(): int
+    {
+        return (int) $this->itensPedido()
+            ->selectRaw('COALESCE(SUM(GREATEST(quantidade - qtd_atribuida - qtd_cancelada, 0)), 0) as saldo')
+            ->value('saldo');
     }
 
     public function romaneio()

@@ -123,11 +123,123 @@ class RomaneioController extends Controller
             ->orderBy('id', 'desc')
             ->get();
 
+        // 4. V2.6: Pedidos genéricos aguardando o CD informar os chassis.
+        // Sem isto o pedido sem chassi jamais apareceria nesta tela, pois as
+        // consultas acima dependem de motos já vinculadas.
+        $aguardandoChassi = Pedido::whereIn('status', \App\Services\AtribuicaoChassiService::STATUS_ATRIBUIVEIS)
+            ->whereHas('itensPedido', fn ($q) => $q->pendentes())
+            ->with(['user:id,name,filial', 'itensPedido'])
+            ->orderBy('created_at') // FIFO: quem pediu primeiro é atendido primeiro
+            ->get()
+            ->map(function ($pedido) {
+                return [
+                    'id'         => $pedido->id,
+                    'loja'       => $pedido->user->filial ?? $pedido->user->name ?? 'Loja',
+                    'created_at' => $pedido->created_at,
+                    'status'     => $pedido->status,
+                    'itens'      => $pedido->itensPedido
+                        ->filter(fn ($i) => $i->qtd_pendente > 0)
+                        ->map(fn ($i) => [
+                            'id'            => $i->id,
+                            'modelo'        => $i->modelo,
+                            'cor'           => $i->cor,
+                            'local'         => $i->local,
+                            'quantidade'    => $i->quantidade,
+                            'qtd_atribuida' => $i->qtd_atribuida,
+                            'qtd_pendente'  => $i->qtd_pendente,
+                        ])->values(),
+                ];
+            })
+            ->values();
+
         return Inertia::render('Romaneios/Create', [
             'expedicao' => $expedicao,
             'coletas' => $coletas,
-            'cargasEmAberto' => $cargasEmAberto
+            'cargasEmAberto' => $cargasEmAberto,
+            'aguardandoChassi' => $aguardandoChassi
         ]);
+    }
+
+    /**
+     * V2.6 — Fluxo B: bipagem durante a montagem da carga.
+     *
+     * O operador do CD bipa um chassi; o sistema descobre o modelo/cor no Microwork
+     * e o vincula automaticamente ao pedido mais antigo que ainda aguarda aquela moto.
+     * Usa exatamente o mesmo serviço da tela de detalhes do Pedido (Fluxo A).
+     */
+    public function atribuirChassiCarga(Request $request)
+    {
+        if (!in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
+            abort(403, 'Apenas a equipe do CD pode atribuir chassis.');
+        }
+
+        $request->validate([
+            'chassi'    => 'required|string|min:11|max:17',
+            'pedido_id' => 'nullable|integer|exists:pedidos,id',
+        ]);
+
+        $chassi  = mb_strtoupper(trim($request->chassi));
+        $servico = app(\App\Services\AtribuicaoChassiService::class);
+
+        // Pedido explícito (operador escolheu na tela) ou descoberta automática
+        $pedido = $request->pedido_id
+            ? Pedido::findOrFail($request->pedido_id)
+            : $this->descobrirPedidoParaChassi($chassi);
+
+        $resultado = $servico->atribuir($pedido, $chassi);
+        $item = $resultado['item'];
+
+        $saldoPedido = $pedido->saldoPendente();
+
+        return back()->with('success',
+            "Chassi {$chassi} → Pedido #{$pedido->id} ({$item->modelo} {$item->cor}). " .
+            ($saldoPedido > 0
+                ? "Faltam {$saldoPedido} chassi(s) neste pedido."
+                : "Pedido #{$pedido->id} 100% atribuído e pronto para embarque.")
+        );
+    }
+
+    /**
+     * Descobre a qual pedido pendente um chassi bipado pertence.
+     * Critério: modelo + cor iguais e o pedido mais antigo primeiro (FIFO).
+     */
+    private function descobrirPedidoParaChassi(string $chassi): Pedido
+    {
+        $microwork = app(\App\Services\MicroworkService::class);
+        $info = $microwork->getInfoChassi($chassi);
+
+        $modelo = $info['modelo'] ?? null;
+        $cor    = $info['cor'] ?? null;
+
+        // Fallback quando o cache do Microwork está vazio/defasado
+        if (!$modelo) {
+            $motoLocal = Moto::where('chassi', $chassi)->first();
+            $modelo = $motoLocal ? mb_strtoupper(trim((string) $motoLocal->modelo)) : null;
+            $cor    = $motoLocal ? mb_strtoupper(trim((string) $motoLocal->cor)) : null;
+        }
+
+        if (!$modelo) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'chassi' => "Chassi {$chassi} não encontrado no estoque do Microwork nem no cadastro local. Confira a digitação ou escolha o pedido manualmente.",
+            ]);
+        }
+
+        $pedido = Pedido::whereIn('status', \App\Services\AtribuicaoChassiService::STATUS_ATRIBUIVEIS)
+            ->whereHas('itensPedido', function ($q) use ($modelo, $cor) {
+                $q->pendentes()
+                  ->whereRaw('UPPER(TRIM(modelo)) = ?', [$modelo])
+                  ->whereRaw('UPPER(TRIM(cor)) = ?', [(string) $cor]);
+            })
+            ->orderBy('created_at')
+            ->first();
+
+        if (!$pedido) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'chassi' => "Nenhum pedido em aberto está aguardando um(a) {$modelo} " . ($cor ?: 'SEM COR') . ". O chassi {$chassi} não foi atribuído.",
+            ]);
+        }
+
+        return $pedido;
     }
 
     // 3. SALVAR CARGA (CORAÇÃO DA LOGÍSTICA)

@@ -1,10 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useMemo } from 'react';
 import Swal from 'sweetalert2';
 
-export default function RomaneioCreate({ auth, expedicao = [], coletas = [], cargasEmAberto = [] }) {
-    
+export default function RomaneioCreate({ auth, expedicao = [], coletas = [], cargasEmAberto = [], aguardandoChassi = [] }) {
+
     // --- ESTADOS ---
     // Agora armazena IDs das MOTOS, não dos pedidos, para permitir seleção parcial
     const [selectedMotoIds, setSelectedMotoIds] = useState([]); 
@@ -104,6 +104,37 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
         post(route('romaneios.store'), {
             onSuccess: () => Swal.fire({ icon: 'success', title: 'Sucesso', text: 'Carga gerada! Redirecionando...', timer: 2000, showConfirmButton: false }),
             onError: () => Swal.fire('Erro', 'Verifique os dados obrigatórios.', 'error')
+        });
+    };
+
+    // --- V2.6: BIPAGEM DE CHASSIS DURANTE A MONTAGEM (FLUXO B) ---
+    // O operador bipa o chassi e o sistema descobre sozinho a qual pedido ele pertence
+    // (mesmo modelo + cor, pedido mais antigo primeiro).
+    const [chassiCarga, setChassiCarga] = useState('');
+    const [pedidoAlvo, setPedidoAlvo] = useState(''); // '' = descoberta automática
+
+    const totalChassisPendentes = aguardandoChassi.reduce(
+        (acc, p) => acc + p.itens.reduce((s, i) => s + i.qtd_pendente, 0),
+        0
+    );
+
+    const handleBiparCarga = () => {
+        const chassi = chassiCarga.trim().toUpperCase();
+
+        if (chassi.length < 11) {
+            return Swal.fire('Chassi inválido', 'Informe ao menos 11 caracteres.', 'warning');
+        }
+
+        router.post(route('romaneios.atribuir_chassi'), {
+            chassi,
+            pedido_id: pedidoAlvo || null
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setChassiCarga('');
+                try { new Audio('/plim.mp3').play().catch(() => {}); } catch (e) {}
+            },
+            onError: (errs) => Swal.fire('Não foi possível atribuir', Object.values(errs)[0] || 'Erro desconhecido.', 'error')
         });
     };
 
@@ -223,12 +254,111 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
                                     🚚 Coletas (Milk Run)
                                     <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'coleta' ? 'bg-orange-200 text-orange-900' : 'bg-gray-200 text-gray-500'}`}>{coletas.length}</span>
                                 </button>
+                                {/* V2.6: pedidos genéricos que ainda não têm chassi definido */}
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('chassi')}
+                                    className={`flex-1 py-4 text-center font-black text-xs uppercase tracking-widest border-b-4 transition ${activeTab === 'chassi' ? 'border-amber-500 text-amber-700 bg-amber-50' : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                                >
+                                    🔢 Atribuir Chassis
+                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'chassi' ? 'bg-amber-200 text-amber-900' : 'bg-gray-200 text-gray-500'}`}>{totalChassisPendentes}</span>
+                                </button>
                             </div>
                         </div>
 
+                        {/* --- V2.6: PAINEL DE ATRIBUIÇÃO DE CHASSIS --- */}
+                        {activeTab === 'chassi' && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-sm border-2 border-amber-300 overflow-hidden">
+                                    <div className="px-6 py-3 bg-amber-50 border-b border-amber-200">
+                                        <h3 className="font-black text-amber-900 text-sm uppercase tracking-wide">Bipagem Rápida</h3>
+                                        <p className="text-[11px] text-amber-700 mt-0.5">
+                                            Bipe o chassi da moto que está sendo carregada. O sistema identifica o modelo/cor
+                                            e vincula ao pedido mais antigo que aguarda essa moto.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-4 space-y-3">
+                                        <div className="flex flex-col sm:flex-row gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Bipe ou digite o chassi..."
+                                                value={chassiCarga}
+                                                maxLength={17}
+                                                onChange={e => setChassiCarga(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                                                onKeyDown={e => {
+                                                    // Impede que o Enter do leitor envie o formulário do romaneio
+                                                    if (e.key === 'Enter') { e.preventDefault(); handleBiparCarga(); }
+                                                }}
+                                                className="flex-1 rounded-lg border-gray-300 font-mono tracking-widest text-base py-3 px-4 focus:ring-amber-500 focus:border-amber-500"
+                                            />
+                                            <select
+                                                value={pedidoAlvo}
+                                                onChange={e => setPedidoAlvo(e.target.value)}
+                                                className="rounded-lg border-gray-300 text-sm font-bold text-gray-600 py-3"
+                                            >
+                                                <option value="">Descobrir automaticamente</option>
+                                                {aguardandoChassi.map(p => (
+                                                    <option key={p.id} value={p.id}>Forçar Pedido #{p.id} — {p.loja}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={handleBiparCarga}
+                                                className="px-6 py-3 rounded-lg bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 transition shadow-sm whitespace-nowrap"
+                                            >
+                                                Atribuir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {aguardandoChassi.length === 0 ? (
+                                    <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+                                        <p className="text-4xl mb-2">✅</p>
+                                        <p className="font-bold text-gray-600">Nenhum pedido aguardando chassi.</p>
+                                        <p className="text-sm text-gray-400 mt-1">Todos os pedidos aprovados já têm as motos definidas.</p>
+                                    </div>
+                                ) : (
+                                    aguardandoChassi.map(p => (
+                                        <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                            <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                <div>
+                                                    <h3 className="font-black text-base text-gray-800">
+                                                        Pedido #{String(p.id).padStart(6, '0')}
+                                                    </h3>
+                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{p.loja}</p>
+                                                </div>
+                                                <a
+                                                    href={route('pedidos.show', p.id)}
+                                                    className="text-[10px] font-bold px-4 py-2 rounded uppercase border border-gray-200 text-gray-600 hover:bg-gray-100 transition"
+                                                >
+                                                    Abrir Pedido
+                                                </a>
+                                            </div>
+                                            <div className="divide-y divide-gray-100">
+                                                {p.itens.map(item => (
+                                                    <div key={item.id} className="px-6 py-3 flex justify-between items-center">
+                                                        <div>
+                                                            <span className="font-bold text-gray-800">{item.modelo}</span>{' '}
+                                                            <span className="text-gray-500">{item.cor}</span>
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold">Destino: {item.local}</p>
+                                                        </div>
+                                                        <span className="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1.5 rounded-lg border border-amber-200 whitespace-nowrap">
+                                                            faltam {item.qtd_pendente} de {item.quantidade}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+
                         {/* --- LISTAGEM DETALHADA --- */}
-                        <div className="space-y-6">
-                            {Object.entries(activeTab === 'expedicao' ? agrupadosExpedicao : agrupadosColeta).map(([local, pedidos]) => {
+                        <div className={`space-y-6 ${activeTab === 'chassi' ? 'hidden' : ''}`}>
+                            {Object.entries(activeTab === 'coleta' ? agrupadosColeta : agrupadosExpedicao).map(([local, pedidos]) => {
                                 // Verifica se TODAS as motos de TODOS os pedidos desse grupo estão selecionadas
                                 const todasMotosGrupo = pedidos.flatMap(p => p.motos.map(m => m.id));
                                 const grupoSelecionado = todasMotosGrupo.length > 0 && todasMotosGrupo.every(id => selectedMotoIds.includes(id));

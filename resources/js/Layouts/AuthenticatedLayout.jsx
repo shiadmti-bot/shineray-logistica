@@ -470,7 +470,7 @@ export default function Authenticated({ user, header, children }) {
 
                     {/* RODAPÉ INFERIOR (CRÉDITOS) */}
                     <div className="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600 gap-4">
-                        <p>&copy; {new Date().getFullYear()} By Sabel Logística. Todos os direitos reservados. <span className="opacity-50 ml-2">v2.5</span></p>
+                        <p>&copy; {new Date().getFullYear()} By Sabel Logística. Todos os direitos reservados. <span className="opacity-50 ml-2">v2.6</span></p>
                         
                         <div className="flex items-center gap-3 bg-gray-800/50 px-4 py-2 rounded-full border border-gray-800">
                             <span className="text-gray-500 uppercase tracking-wider font-bold text-[10px]">Desenvolvimento & Arquitetura</span>
