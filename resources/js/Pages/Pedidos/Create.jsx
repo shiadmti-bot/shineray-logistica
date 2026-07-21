@@ -34,9 +34,13 @@ export default function PedidoCreate({
 
     const [logisticaInfo, setLogisticaInfo] = useState(null);
 
+    // Único motivo que autoriza a loja a pedir um CHASSI ESPECÍFICO do CD.
+    // É o motivo aplicado automaticamente ao vir da tela de Estoque.
+    const MOTIVO_VENDA = "Venda Confirmada (Cliente)";
+
     const motivosOpcoes = [
         "Estoque Regular (Giro)",
-        "Venda Confirmada (Cliente)",
+        MOTIVO_VENDA,
         "Test Drive / Frota",
         "Exposição / Showroom",
         "Reposição de Garantia",
@@ -72,6 +76,7 @@ export default function PedidoCreate({
         motivo: '',
         quantidade: 1,
         local: locaisEntrega.includes(auth.user.filial) ? auth.user.filial : '',
+        travaMotivo: false, // true quando o item veio da tela de Estoque (motivo fixo)
         ...base
     });
 
@@ -83,11 +88,17 @@ export default function PedidoCreate({
                 try {
                     const parsed = JSON.parse(decodeURIComponent(prefill));
                     if (Array.isArray(parsed) && parsed.length > 0) {
+                        // Veio da tela de Estoque: a loja escolheu um CHASSI ESPECÍFICO.
+                        // O único motivo que permite isso é Venda Confirmada, então ele
+                        // já vem aplicado e travado. Giro/reposição se pede pelo menu
+                        // "Nova Solicitação", informando modelo + cor + quantidade.
                         return parsed.map(m => novoItem({
                             modelo: m.modelo || '',
                             chassi: m.chassi || '',
                             cor: m.cor || '',
-                            ano: m.ano || ''
+                            ano: m.ano || '',
+                            motivo: MOTIVO_VENDA,
+                            travaMotivo: true
                         }));
                     }
                 } catch(e) { console.error("Error parsing prefill motos", e); }
@@ -113,8 +124,13 @@ export default function PedidoCreate({
      *  - Venda Confirmada (compatibilidade com pedidos legados)
      * Nos demais casos a loja pede Modelo + Cor + Quantidade e o CD atribui os chassis.
      */
-    const exigeChassi = (item) =>
-        data.modo === 'transferencia' || motivosChassiObrigatorio.includes(item.motivo);
+    const exigeChassiPara = (item, modo) =>
+        modo === 'transferencia' || motivosChassiObrigatorio.includes(item.motivo);
+
+    const exigeChassi = (item) => exigeChassiPara(item, data.modo);
+
+    // Pedido originado na tela de Estoque (chassi específico já escolhido)
+    const veioDoEstoque = data.itens.some(i => i.travaMotivo);
 
     const totalUnidades = data.itens.reduce(
         (acc, item) => acc + (exigeChassi(item) ? 1 : Math.max(1, parseInt(item.quantidade) || 1)),
@@ -167,8 +183,9 @@ export default function PedidoCreate({
             modo: novoModo,
             origem_id: '',
             destino_id: '',
-            // Ao voltar para Reposição CD, limpa chassis digitados para não confundir
-            itens: novoModo === 'cd' ? d.itens.map(i => ({ ...i, chassi: '' })) : d.itens
+            // Ao voltar para Reposição CD, limpa apenas os chassis que deixaram de ser
+            // exigidos. Itens de Venda Confirmada (e os vindos do Estoque) mantêm o chassi.
+            itens: d.itens.map(i => exigeChassiPara(i, novoModo) ? i : { ...i, chassi: '' })
         }));
     };
 
@@ -193,6 +210,12 @@ export default function PedidoCreate({
         if (field === 'modelo' && temEstoqueCD && data.modo === 'cd') {
             const cores = coresDoModelo(value);
             novosItens[index].cor = cores.length === 1 ? cores[0].cor : '';
+        }
+
+        // Trocou para um motivo que não pede chassi: descarta o chassi digitado,
+        // senão ele ficaria invisível no formulário mas ainda seria enviado.
+        if (field === 'motivo' && !exigeChassiPara(novosItens[index], data.modo)) {
+            novosItens[index].chassi = '';
         }
 
         setData('itens', novosItens);
@@ -336,6 +359,40 @@ export default function PedidoCreate({
         );
     };
 
+    const campoMotivo = (item, index, mobile) => {
+        const base = mobile
+            ? "w-full rounded-lg text-base py-3 px-4 border-gray-300"
+            : "w-full rounded text-sm border-gray-300";
+
+        // Item vindo da tela de Estoque: a loja escolheu um chassi específico, e o
+        // único motivo que autoriza isso é Venda Confirmada. Motivo fixo e explicado.
+        if (item.travaMotivo) {
+            return (
+                <div>
+                    <input
+                        disabled
+                        value={MOTIVO_VENDA}
+                        className={`${base} bg-emerald-50 text-emerald-800 border-emerald-200 font-bold`}
+                    />
+                    <p className="text-[10px] text-emerald-700 mt-0.5">
+                        Fixo: pedido de chassi específico
+                    </p>
+                </div>
+            );
+        }
+
+        return (
+            <select
+                required value={item.motivo}
+                onChange={(e) => updateItem(index, 'motivo', e.target.value)}
+                className={base}
+            >
+                <option value="" disabled>Selecione...</option>
+                {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
+            </select>
+        );
+    };
+
     const campoCor = (item, index, mobile) => {
         const base = mobile
             ? "w-full border-gray-300 rounded-lg uppercase text-base py-3 px-4"
@@ -415,6 +472,24 @@ export default function PedidoCreate({
                             <div>
                                 <h3 className="font-bold text-red-800">Atenção Necessária</h3>
                                 <p className="text-sm text-red-700">{Object.values(errors)[0] || 'Preencha todos os campos obrigatórios.'}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {veioDoEstoque && (
+                        <div className="mb-6 bg-emerald-50 border-l-4 border-emerald-600 p-4 rounded shadow flex items-start gap-3">
+                            <CheckCircleIcon className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                            <div>
+                                <h3 className="font-bold text-emerald-900 text-sm">Solicitação de chassi específico (vinda do Estoque)</h3>
+                                <p className="text-xs text-emerald-800 mt-0.5">
+                                    O motivo foi fixado como <b>{MOTIVO_VENDA}</b>, o único que autoriza a loja a reservar
+                                    um chassi específico do CD.
+                                </p>
+                                <p className="text-xs text-emerald-700 mt-1.5">
+                                    Para <b>giro / reposição de estoque</b>, não use esta tela a partir do Estoque: entre em{' '}
+                                    <b>Nova Solicitação</b> e peça por <b>modelo + cor + quantidade</b> (ex: 5x NEW JEF VERMELHA).
+                                    O CD define quais chassis enviar.
+                                </p>
                             </div>
                         </div>
                     )}
@@ -576,10 +651,7 @@ export default function PedidoCreate({
                                             </div>
 
                                             <div className="col-span-2">
-                                                <select required value={item.motivo} onChange={(e) => updateItem(index, 'motivo', e.target.value)} className="w-full rounded text-sm border-gray-300">
-                                                    <option value="" disabled>Selecione...</option>
-                                                    {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
-                                                </select>
+                                                {campoMotivo(item, index, false)}
                                             </div>
 
                                             <div className="col-span-1 text-center">
@@ -646,14 +718,7 @@ export default function PedidoCreate({
                                                 </div>
                                                 <div className="col-span-3">
                                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo *</label>
-                                                    <select
-                                                        required value={item.motivo}
-                                                        onChange={(e) => updateItem(index, 'motivo', e.target.value)}
-                                                        className="w-full rounded-lg text-base py-3 px-4 border-gray-300"
-                                                    >
-                                                        <option value="" disabled>Selecione...</option>
-                                                        {motivosOpcoes.map((m, i) => <option key={i} value={m}>{m}</option>)}
-                                                    </select>
+                                                    {campoMotivo(item, index, true)}
                                                 </div>
                                             </div>
                                         </div>
