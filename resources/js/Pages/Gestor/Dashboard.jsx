@@ -145,9 +145,32 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
                                                         {pedido.solicitante}
                                                     </h4>
                                                 </div>
-                                                {pedido.resumo_itens && (
-                                                    <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 font-medium">
-                                                        📦 <strong>Solicitado:</strong> {pedido.resumo_itens}
+                                                {/* Lista Organizada de Itens Solicitados */}
+                                                {pedido.itens_summary && pedido.itens_summary.length > 0 && (
+                                                    <div className="mt-3 space-y-1.5 bg-gray-50/80 p-2.5 rounded-xl border border-gray-100">
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                                                            Itens Solicitados
+                                                        </span>
+                                                        {pedido.itens_summary.slice(0, 3).map((item, idx) => (
+                                                            <div key={idx} className="flex items-center justify-between text-xs bg-white px-2.5 py-1.5 rounded-md border border-gray-100 shadow-2xs">
+                                                                <span className="font-bold text-gray-700 truncate mr-2" title={item.modelo}>
+                                                                    {item.modelo}
+                                                                </span>
+                                                                <span className="flex items-center gap-1.5 shrink-0">
+                                                                    <span className="text-[11px] text-gray-500 font-medium capitalize">
+                                                                        {item.cor}
+                                                                    </span>
+                                                                    <span className="bg-purple-100 text-purple-800 text-[10px] font-black px-1.5 py-0.5 rounded">
+                                                                        {item.qtd}x
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                        {pedido.itens_summary.length > 3 && (
+                                                            <p className="text-[10px] text-purple-700 font-bold text-center pt-0.5">
+                                                                + {pedido.itens_summary.length - 3} outro(s) modelo(s) no pedido
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

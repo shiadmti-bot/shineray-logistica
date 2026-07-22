@@ -29,9 +29,23 @@ class GestorController extends Controller
                     ? $pedido->motos->count()
                     : max($pedido->motos->count(), (int) $pedido->itensPedido->sum('quantidade'));
 
-                $resumoItens = $pedido->isLegado()
-                    ? $pedido->motos->map(fn($m) => $m->modelo . ' (' . $m->cor . ')')->unique()->implode(', ')
-                    : $pedido->itensPedido->map(fn($item) => $item->quantidade . 'x ' . $item->modelo . ' (' . $item->cor . ')')->implode(', ');
+                $itensSummary = [];
+                if ($pedido->isLegado()) {
+                    $itensSummary = $pedido->motos
+                        ->groupBy(fn($m) => $m->modelo . '|' . $m->cor)
+                        ->map(fn($group) => [
+                            'qtd' => $group->count(),
+                            'modelo' => $group->first()->modelo,
+                            'cor' => $group->first()->cor,
+                        ])->values()->all();
+                } else {
+                    $itensSummary = $pedido->itensPedido
+                        ->map(fn($item) => [
+                            'qtd' => $item->quantidade,
+                            'modelo' => $item->modelo,
+                            'cor' => $item->cor,
+                        ])->all();
+                }
 
                 return [
                     'id' => $pedido->id,
@@ -41,7 +55,7 @@ class GestorController extends Controller
                     'origem_nome' => $pedido->origem_user_id ? ($pedido->origem->filial ?? 'Loja Origem') : 'CD / Fábrica',
                     'created_at' => $pedido->created_at->format('d/m H:i'),
                     'qtd_motos' => $qtdMotos,
-                    'resumo_itens' => $resumoItens,
+                    'itens_summary' => $itensSummary,
                     'observacao' => $pedido->observacao
                 ];
             });
