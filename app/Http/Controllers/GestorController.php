@@ -126,43 +126,50 @@ class GestorController extends Controller
         $pedido = Pedido::with('motos')->findOrFail($id);
         
         $motosRejeitadasIds = $request->input('rejeitadas', []);
+        $itensRejeitadosIds = $request->input('itens_rejeitados', []); // V2.6: IDs de pedido_itens cortados
         $motivosMap = $request->input('motivos', []); // Mapa [id => motivo]
         $justificativaGeral = $request->input('justificativa');
         
         $userGestor = Auth::user();
         $detalhesCortes = []; 
 
-        // 1. Processa os cortes (Itens rejeitados)
+        // 1. Processa os cortes de motos (Legado)
         if (!empty($motosRejeitadasIds)) {
             $motosParaRemover = Moto::whereIn('id', $motosRejeitadasIds)->get();
 
             foreach ($motosParaRemover as $moto) {
-                // Pega o motivo específico ou usa um padrão
                 $motivo = $motivosMap[$moto->id] ?? 'Motivo não informado';
-                
                 $detalhesCortes[] = "🚫 {$moto->modelo} ({$moto->chassi})\n   ↳ Motivo: {$motivo}";
-
                 $pedido->motos()->detach($moto->id);
                 
-                // IMPORTANTE: Se o pedido for de transferência/devolução (origem_user_id existe), 
-                // a moto é de uma loja e não pode ser apagada. Deve apenas voltar a ficar disponível.
                 if ($pedido->origem_user_id) {
                     $moto->update([
                         'status' => 'disponivel',
                         'localizacao_atual' => "Estoque Loja"
                     ]);
                 } else {
-                    // Se a moto possuir histórico em outros pedidos, não apagamos, apenas voltamos pro CD.
                     if ($moto->pedidos()->count() > 0) {
                         $moto->update([
                             'status' => 'disponivel',
                             'localizacao_atual' => 'Fábrica/CD'
                         ]);
                     } else {
-                        // Se não tiver histórico, era uma moto nova que acabou de ser criada para esse pedido que foi rejeitado. Pode apagar.
                         $moto->delete(); 
                     }
                 }
+            }
+        }
+
+        // 1b. Processa os cortes de itens genéricos (V2.6)
+        if (!empty($itensRejeitadosIds)) {
+            $itensParaRemover = \App\Models\PedidoItem::whereIn('id', $itensRejeitadosIds)
+                ->where('pedido_id', $pedido->id)
+                ->get();
+
+            foreach ($itensParaRemover as $item) {
+                $motivo = $motivosMap['item_' . $item->id] ?? $motivosMap[$item->id] ?? 'Motivo não informado';
+                $detalhesCortes[] = "🚫 {$item->modelo} ({$item->cor}) - {$item->quantidade} un.\n   ↳ Motivo: {$motivo}";
+                $item->delete();
             }
         }
 
@@ -215,6 +222,44 @@ class GestorController extends Controller
             $pedido->delete();
             return redirect()->route('gestor.index')->with('warning', 'Pedido cancelado (todos os itens foram rejeitados).');
         }
+    }
+
+    /**
+     * Cancelamento/Rejeição Total do Pedido pelo Gestor Comercial
+     */
+    public function rejeitar(Request $request, $id)
+    {
+        $pedido = Pedido::with('motos', 'user')->findOrFail($id);
+        $motivo = $request->input('justificativa') ?: $request->input('motivo', 'Rejeitado pelo Gestor Comercial');
+        $userGestor = Auth::user();
+
+        // Libera motos (se houver motos atreladas)
+        foreach ($pedido->motos as $moto) {
+            $statusVolta = $pedido->origem_user_id ? 'disponivel' : 'estoque_fabrica';
+            $localVolta = $pedido->origem_user_id ? "Estoque Loja" : "Pátio CD/Fábrica";
+            $moto->update(['status' => $statusVolta, 'localizacao_atual' => $localVolta]);
+        }
+        $pedido->motos()->detach();
+
+        // Grava log do cancelamento
+        PedidoLog::create([
+            'pedido_id' => $pedido->id,
+            'titulo' => 'Cancelado pelo Gestor Comercial',
+            'descricao' => "❌ Pedido totalmente rejeitado por {$userGestor->name}.\n💬 Motivo: {$motivo}"
+        ]);
+
+        // Notifica a loja solicitante
+        if ($pedido->user) {
+            $pedido->user->notify(new \App\Notifications\PedidoAtualizado(
+                "Pedido #{$pedido->id} Rejeitado",
+                "O Gestor Comercial rejeitou seu pedido. Motivo: {$motivo}",
+                route('pedidos.index')
+            ));
+        }
+
+        $pedido->delete();
+
+        return redirect()->route('gestor.index')->with('warning', "Pedido #{$id} foi rejeitado e cancelado.");
     }
 
     /**

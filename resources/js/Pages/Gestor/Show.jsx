@@ -20,7 +20,10 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
 
     // Inicializa todos como aprovados (true)
     const [aprovacoes, setAprovacoes] = useState(
-        pedido.motos.reduce((acc, moto) => ({ ...acc, [moto.id]: true }), {})
+        (pedido.motos || []).reduce((acc, moto) => ({ ...acc, [moto.id]: true }), {})
+    );
+    const [itemAprovacoes, setItemAprovacoes] = useState(
+        (pedido.itens_pedido || []).reduce((acc, item) => ({ ...acc, [item.id]: true }), {})
     );
     const [motivosEspecificos, setMotivosEspecificos] = useState({});
     const [justificativaGeral, setJustificativaGeral] = useState('');
@@ -68,6 +71,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
     };
 
     const opcoesRejeicao = [
+        "Sem Estoque no CD",
         "Chassi Incorreto / Erro Digitação",
         "Moto Não Liberada / Bloqueada",
         "Excedente de Estoque",
@@ -101,39 +105,83 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
 
     const toggleAprovacao = (id) => {
         setAprovacoes(prev => ({ ...prev, [id]: !prev[id] }));
-        if (!aprovacoes[id] === true) {
+        if (aprovacoes[id] === true) {
             const novosMotivos = { ...motivosEspecificos };
             delete novosMotivos[id];
             setMotivosEspecificos(novosMotivos);
         }
     };
 
-    const handleMotivoChange = (id, motivo) => {
-        setMotivosEspecificos(prev => ({ ...prev, [id]: motivo }));
+    const toggleItemAprovacao = (itemId) => {
+        setItemAprovacoes(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+        if (itemAprovacoes[itemId] === true) {
+            const novosMotivos = { ...motivosEspecificos };
+            delete novosMotivos['item_' + itemId];
+            setMotivosEspecificos(novosMotivos);
+        }
+    };
+
+    const handleMotivoChange = (key, motivo) => {
+        setMotivosEspecificos(prev => ({ ...prev, [key]: motivo }));
+    };
+
+    const handleCancelarPedidoCompleto = () => {
+        Swal.fire({
+            title: 'Rejeitar Pedido Completo?',
+            text: 'Este pedido será cancelado e a loja solicitante será notificada.',
+            icon: 'warning',
+            input: 'textarea',
+            inputPlaceholder: 'Escreva a justificativa do cancelamento (Obrigatório)...',
+            showCancelButton: true,
+            confirmButtonText: 'Sim, Cancelar Pedido',
+            confirmButtonColor: '#dc2626',
+            cancelButtonText: 'Voltar',
+            inputValidator: (value) => {
+                if (!value || !value.trim()) {
+                    return 'É necessário informar o motivo da rejeição!';
+                }
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                router.post(route('gestor.rejeitar', pedido.id), {
+                    justificativa: result.value
+                });
+            }
+        });
     };
 
     const handleFinalizar = () => {
         const rejeitadasIds = Object.keys(aprovacoes).filter(id => !aprovacoes[id]).map(Number);
+        const itensRejeitadosIds = Object.keys(itemAprovacoes).filter(id => !itemAprovacoes[id]).map(Number);
         
-        // Validação: Se rejeitou, TEM que ter motivo
-        const motivosFaltantes = rejeitadasIds.some(id => !motivosEspecificos[id]);
-        
-        if (rejeitadasIds.length > 0 && motivosFaltantes) {
-            Swal.fire('Obrigatório', 'Selecione o motivo da rejeição para todas as motos cortadas.', 'warning');
+        // Validação: Se rejeitou motos ou itens, TEM que ter motivo
+        const motivosMotosFaltantes = rejeitadasIds.some(id => !motivosEspecificos[id]);
+        const motivosItensFaltantes = itensRejeitadosIds.some(id => !motivosEspecificos['item_' + id]);
+
+        if (motivosMotosFaltantes || motivosItensFaltantes) {
+            Swal.fire('Obrigatório', 'Selecione o motivo da rejeição para todos os itens ou motos cortados.', 'warning');
             return;
         }
 
+        const totalMotos = pedido.motos?.length || 0;
+        const totalItens = pedido.itens_pedido?.length || 0;
+        const totalVolume = totalMotos + totalItens;
+        const totalCortados = rejeitadasIds.length + itensRejeitadosIds.length;
+
         Swal.fire({
-            title: 'Confirmar Análise?',
-            text: `Aprovadas: ${pedido.motos.length - rejeitadasIds.length} | Cortadas: ${rejeitadasIds.length}`,
-            icon: 'question',
+            title: totalCortados === totalVolume && totalVolume > 0 ? 'Cancelar Pedido Completo?' : 'Confirmar Análise?',
+            text: totalCortados === totalVolume && totalVolume > 0
+                ? 'Todos os itens foram cortados. O pedido será cancelado integralmente.'
+                : `Aprovadas/Mantidas: ${totalVolume - totalCortados} | Cortados: ${totalCortados}`,
+            icon: totalCortados === totalVolume && totalVolume > 0 ? 'warning' : 'question',
             showCancelButton: true,
-            confirmButtonText: 'Sim, Processar',
-            confirmButtonColor: '#7e22ce'
+            confirmButtonText: totalCortados === totalVolume && totalVolume > 0 ? 'Sim, Cancelar Pedido' : 'Sim, Processar Análise',
+            confirmButtonColor: totalCortados === totalVolume && totalVolume > 0 ? '#dc2626' : '#7e22ce'
         }).then((result) => {
             if (result.isConfirmed) {
                 router.post(route('gestor.aprovar', pedido.id), {
                     rejeitadas: rejeitadasIds,
+                    itens_rejeitados: itensRejeitadosIds,
                     motivos: motivosEspecificos,
                     justificativa: justificativaGeral
                 });
@@ -287,29 +335,55 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                                 </span>
                             </div>
                             <div className="divide-y divide-gray-100">
-                                {pedido.itens_pedido.map((item) => (
-                                    <div key={item.id} className="py-3 flex justify-between items-center">
-                                        <div>
-                                            <h5 className="font-bold text-gray-800 text-base">{item.modelo}</h5>
-                                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
-                                                <span className="flex items-center gap-1">
-                                                    <span className="w-2.5 h-2.5 rounded-full border border-gray-300 inline-block" style={{ backgroundColor: getColorHex(item.cor) }}></span>
-                                                    <strong className="capitalize text-gray-700">{item.cor}</strong>
-                                                </span>
-                                                <span>•</span>
-                                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">Motivo: {item.motivo || 'Giro'}</span>
+                                {pedido.itens_pedido.map((item) => {
+                                    const isApproved = itemAprovacoes[item.id] !== false;
+                                    return (
+                                        <div key={item.id} className="py-3.5 space-y-2">
+                                            <div className="flex justify-between items-center">
+                                                <div>
+                                                    <h5 className={`font-bold text-base ${isApproved ? 'text-gray-800' : 'text-red-700 line-through opacity-60'}`}>{item.modelo}</h5>
+                                                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                                        <span className="flex items-center gap-1">
+                                                            <span className="w-2.5 h-2.5 rounded-full border border-gray-300 inline-block" style={{ backgroundColor: getColorHex(item.cor) }}></span>
+                                                            <strong className="capitalize text-gray-700">{item.cor}</strong>
+                                                        </span>
+                                                        <span>•</span>
+                                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">Motivo: {item.motivo || 'Giro'}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`font-black text-xs px-3 py-1.5 rounded-xl shadow-sm ${isApproved ? 'bg-purple-600 text-white' : 'bg-red-100 text-red-700'}`}>
+                                                        {item.quantidade} un.
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleItemAprovacao(item.id)}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 border ${isApproved ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100'}`}
+                                                    >
+                                                        {isApproved ? '✓ Aprovado' : '✕ Cortado'}
+                                                    </button>
+                                                </div>
                                             </div>
+
+                                            {!isApproved && (
+                                                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs space-y-1 animate-fade-in-down">
+                                                    <label className="font-bold text-red-800 uppercase block">Motivo do Corte deste Item (Obrigatório)</label>
+                                                    <select
+                                                        className="w-full border-gray-300 rounded-md text-xs focus:border-red-500 focus:ring-red-500 bg-white"
+                                                        value={motivosEspecificos['item_' + item.id] || ''}
+                                                        onChange={(e) => handleMotivoChange('item_' + item.id, e.target.value)}
+                                                    >
+                                                        <option value="" disabled>Selecione o motivo...</option>
+                                                        {opcoesRejeicao.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                                                    </select>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="text-right">
-                                            <span className="bg-purple-600 text-white font-black text-sm px-4 py-2 rounded-xl shadow-sm">
-                                                {item.quantidade} un.
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             <div className="text-xs text-amber-800 bg-amber-50 p-3.5 rounded-xl border border-amber-200 font-medium leading-relaxed">
-                                💡 <strong>Aviso ao Gestor:</strong> Este pedido foi criado por Modelo, Cor e Quantidade. Ao aprovar, o pedido irá para a fila do CD para bipagem e atribuição dos chassis físicos.
+                                💡 <strong>Aviso ao Gestor:</strong> Você pode aprovar ou cortar itens individualmente acima. Clique em <strong>"Rejeitar Pedido Completo"</strong> no rodapé se desejar recusar a solicitação inteira.
                             </div>
                         </div>
                     )}
@@ -412,16 +486,21 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
 
             {/* BARRA DE AÇÃO */}
             <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 shadow-lg z-40">
-                <div className="max-w-4xl mx-auto flex justify-between items-center">
-                    <div className="hidden md:block text-sm text-gray-500">
-                        {isTransferencia 
-                            ? "Ao aprovar, a loja de origem será notificada para separar a carga." 
-                            : "Ao aprovar, o pedido será enviado ao CD para separação."}
-                    </div>
+                <div className="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
                     <button 
+                        type="button"
+                        onClick={handleCancelarPedidoCompleto} 
+                        disabled={processing} 
+                        className="w-full sm:w-auto bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-sm py-3 px-6 rounded-xl transition flex items-center justify-center gap-2"
+                    >
+                        <span>❌</span> REJEITAR PEDIDO COMPLETO
+                    </button>
+
+                    <button 
+                        type="button"
                         onClick={handleFinalizar} 
                         disabled={processing} 
-                        className="w-full md:w-auto bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white font-bold text-lg py-3 px-10 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white font-bold text-base py-3 px-8 rounded-xl shadow-lg transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
                     >
                         <span>🛡️</span> {processing ? 'Enviando...' : 'FINALIZAR ANÁLISE'}
                     </button>

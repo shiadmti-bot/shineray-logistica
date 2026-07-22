@@ -277,6 +277,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/historico', [GestorController::class, 'historico'])->name('historico');
             Route::get('/{id}', [GestorController::class, 'show'])->name('show');
             Route::post('/aprovar/{id}', [GestorController::class, 'aprovar'])->name('aprovar');
+            Route::post('/rejeitar/{id}', [GestorController::class, 'rejeitar'])->name('rejeitar');
             Route::post('/motos/{id}/aprovar-estorno', [GestorController::class, 'aprovarEstorno'])->name('aprovarEstorno');
         });
 
