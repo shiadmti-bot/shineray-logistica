@@ -20,11 +20,19 @@ class GestorController extends Controller
     public function index()
     {
         // 1. Pedidos Normais (Fluxo de Venda + Transferências)
-        $pedidos = Pedido::with(['user', 'motos', 'origem'])
+        $pedidos = Pedido::with(['user', 'motos', 'origem', 'itensPedido'])
             ->where('status', 'em_analise')
             ->latest()
             ->get()
             ->map(function ($pedido) {
+                $qtdMotos = $pedido->isLegado()
+                    ? $pedido->motos->count()
+                    : max($pedido->motos->count(), (int) $pedido->itensPedido->sum('quantidade'));
+
+                $resumoItens = $pedido->isLegado()
+                    ? $pedido->motos->map(fn($m) => $m->modelo . ' (' . $m->cor . ')')->unique()->implode(', ')
+                    : $pedido->itensPedido->map(fn($item) => $item->quantidade . 'x ' . $item->modelo . ' (' . $item->cor . ')')->implode(', ');
+
                 return [
                     'id' => $pedido->id,
                     'user_id' => $pedido->user_id,
@@ -32,8 +40,8 @@ class GestorController extends Controller
                     'tipo' => $pedido->origem_user_id ? 'transferencia' : 'reposicao',
                     'origem_nome' => $pedido->origem_user_id ? ($pedido->origem->filial ?? 'Loja Origem') : 'CD / Fábrica',
                     'created_at' => $pedido->created_at->format('d/m H:i'),
-                    'qtd_motos' => $pedido->motos->count(),
-                    'resumo_itens' => $pedido->motos->map(fn($m) => $m->modelo . ' (' . $m->cor . ')')->unique()->implode(', '),
+                    'qtd_motos' => $qtdMotos,
+                    'resumo_itens' => $resumoItens,
                     'observacao' => $pedido->observacao
                 ];
             });
@@ -79,7 +87,7 @@ class GestorController extends Controller
      */
     public function show($id)
     {
-        $pedido = Pedido::with(['user', 'motos', 'logs'])->findOrFail($id);
+        $pedido = Pedido::with(['user', 'motos', 'logs', 'itensPedido', 'origem'])->findOrFail($id);
 
         // Busca a última mensagem do chat 'Gestor' enviada pela Loja
         // Filtra msg onde o 'canal' é gestor e o autor NÃO é o usuário atual
@@ -146,8 +154,12 @@ class GestorController extends Controller
 
         $pedido->refresh();
         
-        // 2. Se sobrou alguma moto, aprova o pedido
-        if ($pedido->motos->count() > 0) {
+        // 2. Se sobrou alguma moto/item, aprova o pedido
+        $temItens = $pedido->isLegado()
+            ? $pedido->motos->count() > 0
+            : ($pedido->motos->count() > 0 || $pedido->saldoPendente() > 0 || $pedido->itensPedido()->where('quantidade', '>', 0)->exists());
+
+        if ($temItens) {
             $pedido->update(['status' => 'solicitado']); // Libera para o CD
 
             // Monta o Log

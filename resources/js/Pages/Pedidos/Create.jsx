@@ -88,17 +88,15 @@ export default function PedidoCreate({
                 try {
                     const parsed = JSON.parse(decodeURIComponent(prefill));
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        // Veio da tela de Estoque: a loja escolheu um CHASSI ESPECÍFICO.
-                        // O único motivo que permite isso é Venda Confirmada, então ele
-                        // já vem aplicado e travado. Giro/reposição se pede pelo menu
-                        // "Nova Solicitação", informando modelo + cor + quantidade.
+                        // Veio da tela de Estoque: pré-preenche modelo, cor e chassi,
+                        // mas NÃO trava o motivo em Venda Confirmada para dar flexibilidade ao vendedor.
                         return parsed.map(m => novoItem({
                             modelo: m.modelo || '',
                             chassi: m.chassi || '',
                             cor: m.cor || '',
                             ano: m.ano || '',
                             motivo: MOTIVO_VENDA,
-                            travaMotivo: true
+                            travaMotivo: false
                         }));
                     }
                 } catch(e) { console.error("Error parsing prefill motos", e); }

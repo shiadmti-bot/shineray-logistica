@@ -162,6 +162,10 @@ class PedidoController extends Controller
                 ->selectRaw('COALESCE(SUM(GREATEST(quantidade - qtd_atribuida - qtd_cancelada, 0)), 0)')
                 ->whereColumn('pedido_itens.pedido_id', 'pedidos.id')
             ])
+            ->addSelect(['total_itens_qtd' => \App\Models\PedidoItem::query()
+                ->selectRaw('COALESCE(SUM(quantidade), 0)')
+                ->whereColumn('pedido_itens.pedido_id', 'pedidos.id')
+            ])
             ->withCount('motos')
             ->withCount(['motos as motos_separadas_count' => function ($query) {
                 // Conta quantas motos AINDA não entraram no fluxo logístico prático
@@ -203,6 +207,12 @@ class PedidoController extends Controller
             ")
             ->paginate(15)
             ->withQueryString();
+
+        $pedidos->through(function ($pedido) {
+            $totalItens = (int) ($pedido->total_itens_qtd ?? 0);
+            $pedido->motos_count = max($pedido->motos_count ?? 0, $totalItens);
+            return $pedido;
+        });
 
         return Inertia::render('Pedidos/Index', [
             'pedidos' => $pedidos, 

@@ -145,6 +145,11 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
                                                         {pedido.solicitante}
                                                     </h4>
                                                 </div>
+                                                {pedido.resumo_itens && (
+                                                    <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 font-medium">
+                                                        📦 <strong>Solicitado:</strong> {pedido.resumo_itens}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 

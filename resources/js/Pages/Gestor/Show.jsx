@@ -275,6 +275,45 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                         </div>
                     )}
 
+                    {/* LISTA DE ITENS GENÉRICOS (v2.6 SEM CHASSI DEFINIDO) */}
+                    {pedido.itens_pedido && pedido.itens_pedido.length > 0 && (
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8 space-y-4">
+                            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                                <h4 className="font-black text-gray-800 text-base uppercase tracking-wide flex items-center gap-2">
+                                    <span>📦</span> Solicitação por Modelo e Cor ({pedido.itens_pedido.reduce((acc, i) => acc + (i.quantidade || 0), 0)} unidades)
+                                </h4>
+                                <span className="bg-purple-100 text-purple-800 text-xs font-bold px-3 py-1 rounded-full border border-purple-200 uppercase">
+                                    Aguardando CD
+                                </span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                {pedido.itens_pedido.map((item) => (
+                                    <div key={item.id} className="py-3 flex justify-between items-center">
+                                        <div>
+                                            <h5 className="font-bold text-gray-800 text-base">{item.modelo}</h5>
+                                            <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                                                <span className="flex items-center gap-1">
+                                                    <span className="w-2.5 h-2.5 rounded-full border border-gray-300 inline-block" style={{ backgroundColor: getColorHex(item.cor) }}></span>
+                                                    <strong className="capitalize text-gray-700">{item.cor}</strong>
+                                                </span>
+                                                <span>•</span>
+                                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">Motivo: {item.motivo || 'Giro'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="bg-purple-600 text-white font-black text-sm px-4 py-2 rounded-xl shadow-sm">
+                                                {item.quantidade} un.
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="text-xs text-amber-800 bg-amber-50 p-3.5 rounded-xl border border-amber-200 font-medium leading-relaxed">
+                                💡 <strong>Aviso ao Gestor:</strong> Este pedido foi criado por Modelo, Cor e Quantidade. Ao aprovar, o pedido irá para a fila do CD para bipagem e atribuição dos chassis físicos.
+                            </div>
+                        </div>
+                    )}
+
                     {/* LISTA DE MOTOS */}
                     <div className="space-y-4 mb-8">
                         {pedido.motos.map((moto) => {
