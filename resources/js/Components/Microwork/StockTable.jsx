@@ -55,8 +55,8 @@ export default function StockTable({ user }) {
         if (statusFiltro === 'reservadas' && !isReservado) return false;
         if (statusFiltro === 'livres' && isReservado) return false;
 
-        // Lojas comerciais só podem ver motos MONTADAS e NÃO reservadas
-        if (isLoja && (!isMontada(item) || isReservado)) {
+        // Lojas comerciais só podem ver motos NÃO reservadas (montadas ou desmontadas)
+        if (isLoja && isReservado) {
             return false;
         }
 

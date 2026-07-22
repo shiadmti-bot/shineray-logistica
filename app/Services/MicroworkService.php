@@ -86,7 +86,7 @@ class MicroworkService
      * @param bool $somenteMontadas Lojas só enxergam o pátio de motos montadas (regra v2.5).
      * @return array<int, array{modelo:string, cor:string, disponivel:int}>
      */
-    public function getEstoqueDisponivelAgregado(bool $somenteMontadas = true): array
+    public function getEstoqueDisponivelAgregado(bool $somenteMontadas = false): array
     {
         $estoque = $this->getEstoqueCD();
         if (empty($estoque)) {
@@ -100,6 +100,11 @@ class MicroworkService
             $item = $this->normalizarItem((array) $bruto);
 
             if ($item['modelo'] === '' || $item['chassi'] === '') {
+                continue;
+            }
+
+            // Exclui pátios inaptos
+            if (mb_strpos($item['patio'], 'AVARIA') !== false || mb_strpos($item['patio'], 'INATIVADA') !== false) {
                 continue;
             }
 
