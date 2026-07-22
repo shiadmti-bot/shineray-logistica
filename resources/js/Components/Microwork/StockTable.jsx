@@ -430,31 +430,29 @@ export default function StockTable({ user }) {
                     )}
                 </button>
 
-                {!isLoja && (
-                    <button
-                        onClick={() => setAbaAtiva('desmontadas')}
-                        className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-t-lg border-b-2 transition-all ${
-                            abaAtiva === 'desmontadas'
-                                ? 'border-amber-600 text-amber-700 bg-amber-50'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                        <WrenchIcon className="w-4 h-4" />
-                        Desmontadas
-                        {!loading && (
-                            <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-black ${
-                                abaAtiva === 'desmontadas' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>{totalDesmontadas}</span>
-                        )}
-                    </button>
-                )}
+                <button
+                    onClick={() => setAbaAtiva('desmontadas')}
+                    className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-t-lg border-b-2 transition-all ${
+                        abaAtiva === 'desmontadas'
+                            ? 'border-amber-600 text-amber-700 bg-amber-50'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                >
+                    <WrenchIcon className="w-4 h-4" />
+                    Desmontadas
+                    {!loading && (
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-black ${
+                            abaAtiva === 'desmontadas' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>{totalDesmontadas}</span>
+                    )}
+                </button>
             </div>
 
             {/* Banner informativo para loja */}
             {isLoja && (
                 <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
                     <CheckCircleIcon className="w-4 h-4 shrink-0 text-blue-600" />
-                    Exibindo apenas motos <strong>montadas e disponíveis</strong> para solicitação.
+                    Exibindo motos <strong>montadas e desmontadas disponíveis</strong> para solicitação (motos em conserto e inativadas são ocultadas).
                 </div>
             )}
 

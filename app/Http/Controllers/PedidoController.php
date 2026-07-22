@@ -281,22 +281,21 @@ class PedidoController extends Controller
 
         $microwork = app(\App\Services\MicroworkService::class);
 
-        // Busca modelos únicos do Microwork
+        // Busca modelos únicos registrados exatamente como vêm do Microwork
         $estoque = $microwork->getEstoqueCD();
         $modelosMicrowork = [];
         foreach ($estoque as $item) {
-            $modelo = trim($item['Modelo'] ?? $item['modelo'] ?? '');
-            if ($modelo) {
-                $modelosMicrowork[] = mb_strtoupper($modelo, 'UTF-8');
+            $modelo = mb_strtoupper(trim($item['Modelo'] ?? $item['modelo'] ?? ''), 'UTF-8');
+            if ($modelo && !in_array($modelo, $modelosMicrowork)) {
+                $modelosMicrowork[] = $modelo;
             }
         }
+        sort($modelosMicrowork);
 
-        // Busca modelos já cadastrados na base de dados
-        $modelosDB = \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
-
-        // Mescla as duas listas para garantir que modelos históricos continuem disponíveis
-        $listaModelos = array_values(array_unique(array_merge($modelosMicrowork, $modelosDB)));
-        sort($listaModelos);
+        // Se houver modelos do Microwork, utiliza a lista exata do Microwork; caso contrário usa o DB como fallback
+        $listaModelos = !empty($modelosMicrowork) 
+            ? array_values(array_unique($modelosMicrowork)) 
+            : \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
 
         // V2.6: Estoque real do CD agregado por Modelo + Cor, para o pedido genérico.
         // Se o cron de sincronia falhar, este array vem vazio e o frontend cai
