@@ -55,9 +55,13 @@ export default function StockTable({ user }) {
         if (statusFiltro === 'reservadas' && !isReservado) return false;
         if (statusFiltro === 'livres' && isReservado) return false;
 
-        // Lojas comerciais só podem ver motos NÃO reservadas (montadas ou desmontadas)
-        if (isLoja && isReservado) {
-            return false;
+        // Lojas comerciais só enxergam motos disponíveis (Montadas ou Desmontadas) e não reservadas
+        if (isLoja) {
+            const patioUpper = (item.patio || '').toUpperCase();
+            const isDisponivelOuDesmontada = patioUpper.includes('MOTOS MONTADAS') || patioUpper.includes('DESMONTADA CD');
+            if (!isDisponivelOuDesmontada || isReservado) {
+                return false;
+            }
         }
 
         const termo = filtro.toUpperCase();

@@ -56,14 +56,28 @@ export default function PedidoCreate({
     // automaticamente para digitação livre — a loja nunca fica impedida de pedir.
     const temEstoqueCD = estoqueCD.length > 0;
 
-    // Modelos disponíveis no CD (para os selects do pedido genérico)
+    // Modelos disponíveis para o dropdown (combina estoque do CD com catálogo completo do banco)
     const modelosCD = useMemo(
-        () => [...new Set(estoqueCD.map(e => e.modelo))].sort(),
-        [estoqueCD]
+        () => Array.from(new Set([...estoqueCD.map(e => e.modelo), ...(listaModelos || [])])).filter(Boolean).sort(),
+        [estoqueCD, listaModelos]
     );
 
-    const coresDoModelo = (modelo) =>
-        estoqueCD.filter(e => e.modelo === modelo).sort((a, b) => a.cor.localeCompare(b.cor));
+    const coresDoModelo = (modelo) => {
+        const doEstoque = estoqueCD.filter(e => e.modelo === modelo);
+        if (doEstoque.length > 0) {
+            return doEstoque.sort((a, b) => a.cor.localeCompare(b.cor));
+        }
+        // Se o modelo não possui saldo no CD no momento, oferece opções de cores para permitir o pedido
+        return [
+            { cor: 'VERMELHA', disponivel: 0 },
+            { cor: 'PRETA', disponivel: 0 },
+            { cor: 'BRANCA', disponivel: 0 },
+            { cor: 'CINZA', disponivel: 0 },
+            { cor: 'AZUL', disponivel: 0 },
+            { cor: 'AMARELA', disponivel: 0 },
+            { cor: 'BEGE', disponivel: 0 }
+        ];
+    };
 
     const disponivelDe = (modelo, cor) =>
         estoqueCD.find(e => e.modelo === modelo && e.cor === cor)?.disponivel ?? null;
