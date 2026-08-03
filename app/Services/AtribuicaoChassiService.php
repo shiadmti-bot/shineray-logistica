@@ -58,9 +58,9 @@ class AtribuicaoChassiService
             ]);
         }
 
-        // TRAVA 2: Motos historicamente vendidas (ignoradas se voltaram ao estoque por estorno)
+        // TRAVA 2: Motos historicamente vendidas (ignoradas se voltaram ao estoque por estorno/devolução ao CD)
         $motosVendidas = Moto::whereIn('chassi', $chassis)
-            ->whereNotIn('status', ['estoque_loja', 'estoque_cd', 'disponivel'])
+            ->whereNotIn('status', ['estoque_loja', 'estoque_cd', 'estoque_fabrica', 'disponivel'])
             ->where(function ($query) {
                 $query->where('status', 'vendida')
                       ->orWhere('motivo_solicitacao', 'LIKE', '%venda%')
