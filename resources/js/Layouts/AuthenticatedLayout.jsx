@@ -23,7 +23,12 @@ import {
     EnvelopeIcon,
     PhoneIcon,
     ClockIcon,
-    PresentationChartLineIcon
+    PresentationChartLineIcon,
+    WrenchScrewdriverIcon,
+    ShoppingCartIcon,
+    ChevronDownIcon,
+    ClipboardDocumentCheckIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 
 export default function Authenticated({ user, header, children }) {
@@ -136,198 +141,359 @@ export default function Authenticated({ user, header, children }) {
                                 </div>
                             </div>
 
-                            {/* --- MENU DESKTOP --- */}
-                            <div className="hidden space-x-1 sm:-my-px sm:ml-6 sm:flex items-center h-20">
-                                
-                                {/* 1. DASHBOARD (TODOS) */}
-                                <CustomNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')}>
-                                    <HomeIcon className="w-5 h-5" /> Dashboard
-                                </CustomNavLink>
-
-                                {/* 2. CALENDÁRIO (NOVO V2 - TODOS) */}
-                                <CustomNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')}>
-                                    <CalendarIcon className="w-5 h-5" /> Calendário
-                                </CustomNavLink>
-
-                                {/* 3. BI (ADMIN/GESTOR) */}
-                                {['admin', 'gestor'].includes(currentUser.perfil) && (
-                                    <CustomNavLink href={safeRoute('bi.index')} active={isCurrent('bi.*')}>
-                                        <PresentationChartLineIcon className="w-5 h-5" /> BI Logística
+                                {/* --- MENU DESKTOP --- */}
+                                <div className="hidden space-x-1 sm:-my-px sm:ml-6 sm:flex items-center h-20">
+                                    
+                                    {/* 1. DASHBOARD (TODOS) */}
+                                    <CustomNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')}>
+                                        <HomeIcon className="w-5 h-5" /> Dashboard
                                     </CustomNavLink>
-                                )}
 
-                                {/* 3. LINKS ESPECÍFICOS POR PERFIL */}
-                                
-                                {/* LOJA */}
-                                {currentUser.perfil === 'loja' && (
-                                    <>
-                                        <CustomNavLink href={safeRoute('solicitar')} active={isCurrent('solicitar')}>
-                                            <PlusCircleIcon className="w-5 h-5" /> Nova Solicitação
-                                        </CustomNavLink>
-                                        <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
-                                            <CubeIcon className="w-5 h-5" /> Estoque
-                                        </CustomNavLink>
-                                        <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
-                                            <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
-                                        </CustomNavLink>
-                                    </>
-                                )}
-
-                                {/* CD (Operacional) */}
-                                {currentUser.perfil === 'cd' && (
-                                    <>
-                                        <CustomNavLink href={safeRoute('romaneios.create')} active={isCurrent('romaneios.create')}>
-                                            <TruckIcon className="w-5 h-5" /> Expedição
-                                        </CustomNavLink>
-                                        <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
-                                            <ClipboardDocumentListIcon className="w-5 h-5" /> Conferência
-                                        </CustomNavLink>
-                                        <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.index')}>
-                                            <FolderIcon className="w-5 h-5" /> Cargas
-                                        </CustomNavLink>
-                                        <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
-                                            <CubeIcon className="w-5 h-5" /> Estoque
-                                        </CustomNavLink>
-                                    </>
-                                )}
-
-                                {/* GESTOR / ADMIN */}
-                                {['admin', 'gestor'].includes(currentUser.perfil) && (
-                                    <>
-                                        <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
-                                            <ChartBarIcon className="w-5 h-5" /> Pedidos
-                                        </CustomNavLink>
-                                        <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.*')}>
-                                            <TruckIcon className="w-5 h-5" /> Cargas
-                                        </CustomNavLink>
-                                        <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
-                                            <CubeIcon className="w-5 h-5" /> Estoque
-                                        </CustomNavLink>
-                                    </>
-                                )}
-
-                                {/* ADMIN MASTER */}
-                                {currentUser.perfil === 'admin' && (
-                                    <CustomNavLink href={safeRoute('users.index')} active={isCurrent('users.*')}>
-                                        <UsersIcon className="w-5 h-5" /> Usuários
+                                    {/* 2. CALENDÁRIO (TODOS) */}
+                                    <CustomNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')}>
+                                        <CalendarIcon className="w-5 h-5" /> Calendário
                                     </CustomNavLink>
-                                )}
 
-                                {/* 4. AJUDA (TODOS) */}
-                                <CustomNavLink href={safeRoute('manual')} active={isCurrent('manual')}>
-                                    <QuestionMarkCircleIcon className="w-5 h-5" /> Ajuda
-                                </CustomNavLink>
+                                    {/* 3. BI (ADMIN/GESTOR) */}
+                                    {['admin', 'gestor'].includes(currentUser.perfil) && (
+                                        <CustomNavLink href={safeRoute('bi.index')} active={isCurrent('bi.*')}>
+                                            <PresentationChartLineIcon className="w-5 h-5" /> BI Logística
+                                        </CustomNavLink>
+                                    )}
+
+                                    {/* --- LINKS ESPECÍFICOS POR PERFIL --- */}
+                                    
+                                    {/* LOJA */}
+                                    {currentUser.perfil === 'loja' && (
+                                        <>
+                                            {/* Dropdown Solicitações / Pedidos */}
+                                            <Dropdown>
+                                                <Dropdown.Trigger>
+                                                    <button
+                                                        type="button"
+                                                        className={`inline-flex items-center px-2 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-20 gap-1.5 ${
+                                                            isCurrent('solicitar') || isCurrent('pecas.solicitar')
+                                                                ? 'border-white text-white bg-white/10'
+                                                                : 'border-transparent text-red-100 hover:text-white hover:border-red-300 hover:bg-white/5'
+                                                        }`}
+                                                    >
+                                                        <PlusCircleIcon className="w-5 h-5" />
+                                                        <span>Fazer Pedido</span>
+                                                        <ChevronDownIcon className="w-3.5 h-3.5 opacity-75" />
+                                                    </button>
+                                                </Dropdown.Trigger>
+                                                <Dropdown.Content align="left" width="56" contentClasses="py-2 bg-white rounded-xl shadow-xl border border-gray-100">
+                                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                        Criar Solicitação
+                                                    </div>
+                                                    <Dropdown.Link href={safeRoute('solicitar')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-red-50 hover:text-red-700">
+                                                        <PlusCircleIcon className="w-4 h-4 text-red-600" /> Pedir Motos
+                                                    </Dropdown.Link>
+                                                    <Dropdown.Link href={safeRoute('pecas.solicitar')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-red-50 hover:text-red-700">
+                                                        <ShoppingCartIcon className="w-4 h-4 text-red-600" /> Pedir Peças (Novo v3)
+                                                    </Dropdown.Link>
+                                                </Dropdown.Content>
+                                            </Dropdown>
+
+                                            {/* Dropdown Estoques */}
+                                            <Dropdown>
+                                                <Dropdown.Trigger>
+                                                    <button
+                                                        type="button"
+                                                        className={`inline-flex items-center px-2 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-20 gap-1.5 ${
+                                                            isCurrent('motos.*') || isCurrent('pecas.index')
+                                                                ? 'border-white text-white bg-white/10'
+                                                                : 'border-transparent text-red-100 hover:text-white hover:border-red-300 hover:bg-white/5'
+                                                        }`}
+                                                    >
+                                                        <CubeIcon className="w-5 h-5" />
+                                                        <span>Estoques</span>
+                                                        <ChevronDownIcon className="w-3.5 h-3.5 opacity-75" />
+                                                    </button>
+                                                </Dropdown.Trigger>
+                                                <Dropdown.Content align="left" width="56" contentClasses="py-2 bg-white rounded-xl shadow-xl border border-gray-100">
+                                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                        Consultar Estoques
+                                                    </div>
+                                                    <Dropdown.Link href={safeRoute('motos.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-red-50 hover:text-red-700">
+                                                        <CubeIcon className="w-4 h-4 text-gray-600" /> Estoque de Motos (CD)
+                                                    </Dropdown.Link>
+                                                    <Dropdown.Link href={safeRoute('pecas.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-red-50 hover:text-red-700">
+                                                        <WrenchScrewdriverIcon className="w-4 h-4 text-red-600" /> Peças & Onde Encontrar
+                                                    </Dropdown.Link>
+                                                </Dropdown.Content>
+                                            </Dropdown>
+
+                                            <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
+                                                <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
+                                            </CustomNavLink>
+                                        </>
+                                    )}
+
+                                    {/* CD (Operacional) */}
+                                    {currentUser.perfil === 'cd' && (
+                                        <>
+                                            <CustomNavLink href={safeRoute('romaneios.create')} active={isCurrent('romaneios.create')}>
+                                                <TruckIcon className="w-5 h-5" /> Expedição
+                                            </CustomNavLink>
+                                            <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
+                                                <ClipboardDocumentListIcon className="w-5 h-5" /> Conferência
+                                            </CustomNavLink>
+                                            <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.index')}>
+                                                <FolderIcon className="w-5 h-5" /> Cargas
+                                            </CustomNavLink>
+                                            <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
+                                                <CubeIcon className="w-5 h-5" /> Estoque Motos
+                                            </CustomNavLink>
+
+                                            {/* Dropdown Peças v3 */}
+                                            <Dropdown>
+                                                <Dropdown.Trigger>
+                                                    <button
+                                                        type="button"
+                                                        className={`inline-flex items-center px-2 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-20 gap-1.5 ${
+                                                            isCurrent('pecas.*')
+                                                                ? 'border-white text-white bg-white/10'
+                                                                : 'border-transparent text-red-100 hover:text-white hover:border-red-300 hover:bg-white/5'
+                                                        }`}
+                                                    >
+                                                        <WrenchScrewdriverIcon className="w-5 h-5" />
+                                                        <span>Peças (v3)</span>
+                                                        <ChevronDownIcon className="w-3.5 h-3.5 opacity-75" />
+                                                    </button>
+                                                </Dropdown.Trigger>
+                                                <Dropdown.Content align="left" width="56" contentClasses="py-2 bg-white rounded-xl shadow-xl border border-gray-100">
+                                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                        Módulo de Peças v3.0
+                                                    </div>
+                                                    <Dropdown.Link href={safeRoute('pecas.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-gray-50">
+                                                        <CubeIcon className="w-4 h-4 text-gray-600" /> Catálogo & Onde Encontrar
+                                                    </Dropdown.Link>
+                                                    <Dropdown.Link href={safeRoute('pecas.estoque.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-gray-50">
+                                                        <ClipboardDocumentCheckIcon className="w-4 h-4 text-blue-600" /> Entrada e Inventário CD
+                                                    </Dropdown.Link>
+                                                    <Dropdown.Link href={safeRoute('pecas.pendencias.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-gray-50">
+                                                        <ExclamationTriangleIcon className="w-4 h-4 text-amber-600" /> Resolver Pendências
+                                                    </Dropdown.Link>
+                                                </Dropdown.Content>
+                                            </Dropdown>
+                                        </>
+                                    )}
+
+                                    {/* GESTOR / ADMIN */}
+                                    {['admin', 'gestor'].includes(currentUser.perfil) && (
+                                        <>
+                                            <CustomNavLink href={safeRoute('pedidos.index')} active={isCurrent('pedidos.*')}>
+                                                <ChartBarIcon className="w-5 h-5" /> Pedidos
+                                            </CustomNavLink>
+                                            <CustomNavLink href={safeRoute('romaneios.index')} active={isCurrent('romaneios.*')}>
+                                                <TruckIcon className="w-5 h-5" /> Cargas
+                                            </CustomNavLink>
+                                            <CustomNavLink href={safeRoute('motos.index')} active={isCurrent('motos.*')}>
+                                                <CubeIcon className="w-5 h-5" /> Estoque Motos
+                                            </CustomNavLink>
+
+                                            {/* Dropdown Peças v3 */}
+                                            <Dropdown>
+                                                <Dropdown.Trigger>
+                                                    <button
+                                                        type="button"
+                                                        className={`inline-flex items-center px-2 pt-1 border-b-4 text-sm font-bold leading-5 transition duration-150 ease-in-out h-20 gap-1.5 ${
+                                                            isCurrent('pecas.*')
+                                                                ? 'border-white text-white bg-white/10'
+                                                                : 'border-transparent text-red-100 hover:text-white hover:border-red-300 hover:bg-white/5'
+                                                        }`}
+                                                    >
+                                                        <WrenchScrewdriverIcon className="w-5 h-5" />
+                                                        <span>Peças (v3)</span>
+                                                        <ChevronDownIcon className="w-3.5 h-3.5 opacity-75" />
+                                                    </button>
+                                                </Dropdown.Trigger>
+                                                <Dropdown.Content align="left" width="56" contentClasses="py-2 bg-white rounded-xl shadow-xl border border-gray-100">
+                                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                        Módulo de Peças v3.0
+                                                    </div>
+                                                    <Dropdown.Link href={safeRoute('pecas.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-gray-50">
+                                                        <CubeIcon className="w-4 h-4 text-gray-600" /> Catálogo & Onde Encontrar
+                                                    </Dropdown.Link>
+                                                    <Dropdown.Link href={safeRoute('pecas.estoque.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-gray-50">
+                                                        <ClipboardDocumentCheckIcon className="w-4 h-4 text-blue-600" /> Entrada e Inventário CD
+                                                    </Dropdown.Link>
+                                                    <Dropdown.Link href={safeRoute('pecas.pendencias.index')} className="flex items-center gap-2 font-bold text-gray-800 hover:bg-gray-50">
+                                                        <ExclamationTriangleIcon className="w-4 h-4 text-amber-600" /> Resolver Pendências
+                                                    </Dropdown.Link>
+                                                </Dropdown.Content>
+                                            </Dropdown>
+                                        </>
+                                    )}
+
+                                    {/* ADMIN MASTER */}
+                                    {currentUser.perfil === 'admin' && (
+                                        <CustomNavLink href={safeRoute('users.index')} active={isCurrent('users.*')}>
+                                            <UsersIcon className="w-5 h-5" /> Usuários
+                                        </CustomNavLink>
+                                    )}
+
+                                    {/* 4. AJUDA (TODOS) */}
+                                    <CustomNavLink href={safeRoute('manual')} active={isCurrent('manual')}>
+                                        <QuestionMarkCircleIcon className="w-5 h-5" /> Ajuda
+                                    </CustomNavLink>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Dropdown do Usuário */}
-                        <div className="hidden sm:flex sm:items-center sm:ml-6">
-                            <div className="ml-3 relative">
-                                <Dropdown>
-                                    <Dropdown.Trigger>
-                                        <span className="inline-flex rounded-md shadow-sm">
-                                            <button type="button" className="inline-flex items-center px-4 py-2 border border-transparent text-sm leading-4 font-bold rounded-full text-red-900 bg-white hover:bg-gray-100 focus:outline-none transition ease-in-out duration-150 shadow-md">
-                                                {currentUser.name.split(' ')[0]}
-                                                <svg className="ml-2 -mr-0.5 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </Dropdown.Trigger>
+                            {/* Dropdown do Usuário */}
+                            <div className="hidden sm:flex sm:items-center sm:ml-6">
+                                <div className="ml-3 relative">
+                                    <Dropdown>
+                                        <Dropdown.Trigger>
+                                            <span className="inline-flex rounded-md shadow-sm">
+                                                <button type="button" className="inline-flex items-center px-4 py-2 border border-transparent text-sm leading-4 font-bold rounded-full text-red-900 bg-white hover:bg-gray-100 focus:outline-none transition ease-in-out duration-150 shadow-md">
+                                                    {currentUser.name.split(' ')[0]}
+                                                    <svg className="ml-2 -mr-0.5 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                    </svg>
+                                                </button>
+                                            </span>
+                                        </Dropdown.Trigger>
 
-                                    <Dropdown.Content>
-                                        <div className="px-4 py-3 text-xs text-gray-500 border-b font-mono uppercase bg-gray-50">
-                                            <div className="font-bold text-gray-800">{currentUser.name}</div>
-                                            <div className="mt-1">Perfil: <strong className="text-red-600">{currentUser.perfil}</strong></div>
-                                            <div className="mt-1 truncate">{currentUser.filial || 'Matriz'}</div>
-                                        </div>
-                                        <Dropdown.Link href={safeRoute('profile.edit')} className="flex items-center gap-2">
-                                            <Cog6ToothIcon className="w-4 h-4" /> Configurações
-                                        </Dropdown.Link>
-                                        <Dropdown.Link href={safeRoute('logout')} method="post" as="button" className="text-red-600 font-bold flex items-center gap-2">
-                                            <ArrowRightOnRectangleIcon className="w-4 h-4" /> Sair do Sistema
-                                        </Dropdown.Link>
-                                    </Dropdown.Content>
-                                </Dropdown>
+                                        <Dropdown.Content>
+                                            <div className="px-4 py-3 text-xs text-gray-500 border-b font-mono uppercase bg-gray-50">
+                                                <div className="font-bold text-gray-800">{currentUser.name}</div>
+                                                <div className="mt-1">Perfil: <strong className="text-red-600">{currentUser.perfil}</strong></div>
+                                                <div className="mt-1 truncate">{currentUser.filial || 'Matriz'}</div>
+                                            </div>
+                                            <Dropdown.Link href={safeRoute('profile.edit')} className="flex items-center gap-2">
+                                                <Cog6ToothIcon className="w-4 h-4" /> Configurações
+                                            </Dropdown.Link>
+                                            <Dropdown.Link href={safeRoute('logout')} method="post" as="button" className="text-red-600 font-bold flex items-center gap-2">
+                                                <ArrowRightOnRectangleIcon className="w-4 h-4" /> Sair do Sistema
+                                            </Dropdown.Link>
+                                        </Dropdown.Content>
+                                    </Dropdown>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Botão Mobile (Hamburger) */}
-                        <div className="-mr-2 flex items-center sm:hidden">
-                            <button onClick={() => setShowingNavigationDropdown((previousState) => !previousState)} className="inline-flex items-center justify-center p-2 rounded-md text-red-100 hover:text-white hover:bg-red-800 focus:outline-none transition duration-150 ease-in-out">
-                                <svg className="h-8 w-8" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                                    <path className={!showingNavigationDropdown ? 'inline-flex' : 'hidden'} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                                    <path className={showingNavigationDropdown ? 'inline-flex' : 'hidden'} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
+                            {/* Botão Mobile (Hamburger) */}
+                            <div className="-mr-2 flex items-center sm:hidden">
+                                <button onClick={() => setShowingNavigationDropdown((previousState) => !previousState)} className="inline-flex items-center justify-center p-2 rounded-md text-red-100 hover:text-white hover:bg-red-800 focus:outline-none transition duration-150 ease-in-out">
+                                    <svg className="h-8 w-8" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                                        <path className={!showingNavigationDropdown ? 'inline-flex' : 'hidden'} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                                        <path className={showingNavigationDropdown ? 'inline-flex' : 'hidden'} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* --- MENU MOBILE --- */}
-                <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden bg-red-900 border-t border-red-800 shadow-inner'}>
-                    <div className="pt-2 pb-3 space-y-1">
-                        <ResponsiveNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')} className="text-white bg-red-800/50 flex items-center gap-2">
-                            <HomeIcon className="w-5 h-5" /> Dashboard
-                        </ResponsiveNavLink>
-                        
-                        <ResponsiveNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')} className="text-white flex items-center gap-2">
-                            <CalendarIcon className="w-5 h-5" /> Calendário Logístico
-                        </ResponsiveNavLink>
-
-                        {['admin', 'gestor'].includes(currentUser.perfil) && (
-                            <ResponsiveNavLink href={safeRoute('bi.index')} active={isCurrent('bi.*')} className="text-yellow-300 font-bold flex items-center gap-2 bg-white/10">
-                                <PresentationChartLineIcon className="w-5 h-5" /> BI Executivo
+                    {/* --- MENU MOBILE --- */}
+                    <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden bg-red-900 border-t border-red-800 shadow-inner'}>
+                        <div className="pt-2 pb-3 space-y-1">
+                            <ResponsiveNavLink href={safeRoute('dashboard')} active={isCurrent('dashboard')} className="text-white bg-red-800/50 flex items-center gap-2">
+                                <HomeIcon className="w-5 h-5" /> Dashboard
                             </ResponsiveNavLink>
-                        )}
+                            
+                            <ResponsiveNavLink href={safeRoute('calendar.index')} active={isCurrent('calendar.*')} className="text-white flex items-center gap-2">
+                                <CalendarIcon className="w-5 h-5" /> Calendário Logístico
+                            </ResponsiveNavLink>
 
-                        {/* Mobile LOJA */}
-                        {currentUser.perfil === 'loja' && (
-                            <>
-                                <ResponsiveNavLink href={safeRoute('solicitar')} className="text-red-100 flex items-center gap-2">
-                                    <PlusCircleIcon className="w-5 h-5" /> Nova Solicitação
+                            {['admin', 'gestor'].includes(currentUser.perfil) && (
+                                <ResponsiveNavLink href={safeRoute('bi.index')} active={isCurrent('bi.*')} className="text-yellow-300 font-bold flex items-center gap-2 bg-white/10">
+                                    <PresentationChartLineIcon className="w-5 h-5" /> BI Executivo
                                 </ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
-                                    <CubeIcon className="w-5 h-5" /> Estoque
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
-                                    <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
-                                </ResponsiveNavLink>
-                            </>
-                        )}
+                            )}
 
-                        {/* Mobile CD */}
-                        {currentUser.perfil === 'cd' && (
-                            <>
-                                <ResponsiveNavLink href={safeRoute('romaneios.create')} className="text-red-100 flex items-center gap-2">
-                                    <TruckIcon className="w-5 h-5" /> Expedição
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
-                                    <ClipboardDocumentListIcon className="w-5 h-5" /> Conferência
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 flex items-center gap-2">
-                                    <FolderIcon className="w-5 h-5" /> Histórico Cargas
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
-                                    <CubeIcon className="w-5 h-5" /> Estoque
-                                </ResponsiveNavLink>
-                            </>
-                        )}
+                            {/* Mobile LOJA */}
+                            {currentUser.perfil === 'loja' && (
+                                <>
+                                    <div className="px-4 pt-2 pb-1 text-[11px] font-black uppercase tracking-wider text-red-300/80">
+                                        Motos
+                                    </div>
+                                    <ResponsiveNavLink href={safeRoute('solicitar')} className="text-red-100 flex items-center gap-2">
+                                        <PlusCircleIcon className="w-5 h-5" /> Pedir Motos
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
+                                        <CubeIcon className="w-5 h-5" /> Estoque Motos
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
+                                        <ArchiveBoxIcon className="w-5 h-5" /> Meus Pedidos
+                                    </ResponsiveNavLink>
 
-                        {/* Mobile ADMIN/GESTOR */}
-                        {['admin', 'gestor'].includes(currentUser.perfil) && (
-                            <>
-                                <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
-                                    <ChartBarIcon className="w-5 h-5" /> Auditoria Pedidos
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 flex items-center gap-2">
-                                    <TruckIcon className="w-5 h-5" /> Auditoria Cargas
-                                </ResponsiveNavLink>
-                                <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
-                                    <CubeIcon className="w-5 h-5" /> Estoque
-                                </ResponsiveNavLink>
-                            </>
-                        )}
+                                    <div className="px-4 pt-3 pb-1 text-[11px] font-black uppercase tracking-wider text-amber-300">
+                                        Peças (v3.0)
+                                    </div>
+                                    <ResponsiveNavLink href={safeRoute('pecas.solicitar')} className="text-amber-100 flex items-center gap-2">
+                                        <ShoppingCartIcon className="w-5 h-5" /> Pedir Peças
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('pecas.index')} className="text-amber-100 flex items-center gap-2">
+                                        <WrenchScrewdriverIcon className="w-5 h-5" /> Peças & Onde Encontrar
+                                    </ResponsiveNavLink>
+                                </>
+                            )}
+
+                            {/* Mobile CD */}
+                            {currentUser.perfil === 'cd' && (
+                                <>
+                                    <div className="px-4 pt-2 pb-1 text-[11px] font-black uppercase tracking-wider text-red-300/80">
+                                        Motos & Expedição
+                                    </div>
+                                    <ResponsiveNavLink href={safeRoute('romaneios.create')} className="text-red-100 flex items-center gap-2">
+                                        <TruckIcon className="w-5 h-5" /> Expedição
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
+                                        <ClipboardDocumentListIcon className="w-5 h-5" /> Conferência
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 flex items-center gap-2">
+                                        <FolderIcon className="w-5 h-5" /> Histórico Cargas
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
+                                        <CubeIcon className="w-5 h-5" /> Estoque Motos
+                                    </ResponsiveNavLink>
+
+                                    <div className="px-4 pt-3 pb-1 text-[11px] font-black uppercase tracking-wider text-amber-300">
+                                        Peças (v3.0)
+                                    </div>
+                                    <ResponsiveNavLink href={safeRoute('pecas.index')} className="text-amber-100 flex items-center gap-2">
+                                        <WrenchScrewdriverIcon className="w-5 h-5" /> Catálogo & Onde Encontrar
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('pecas.estoque.index')} className="text-amber-100 flex items-center gap-2">
+                                        <ClipboardDocumentCheckIcon className="w-5 h-5" /> Entrada e Inventário CD
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('pecas.pendencias.index')} className="text-amber-100 flex items-center gap-2">
+                                        <ExclamationTriangleIcon className="w-5 h-5" /> Resolver Pendências
+                                    </ResponsiveNavLink>
+                                </>
+                            )}
+
+                            {/* Mobile ADMIN/GESTOR */}
+                            {['admin', 'gestor'].includes(currentUser.perfil) && (
+                                <>
+                                    <div className="px-4 pt-2 pb-1 text-[11px] font-black uppercase tracking-wider text-red-300/80">
+                                        Motos
+                                    </div>
+                                    <ResponsiveNavLink href={safeRoute('pedidos.index')} className="text-red-100 flex items-center gap-2">
+                                        <ChartBarIcon className="w-5 h-5" /> Auditoria Pedidos
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('romaneios.index')} className="text-red-100 flex items-center gap-2">
+                                        <TruckIcon className="w-5 h-5" /> Auditoria Cargas
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('motos.index')} className="text-red-100 flex items-center gap-2">
+                                        <CubeIcon className="w-5 h-5" /> Estoque Motos
+                                    </ResponsiveNavLink>
+
+                                    <div className="px-4 pt-3 pb-1 text-[11px] font-black uppercase tracking-wider text-amber-300">
+                                        Peças (v3.0)
+                                    </div>
+                                    <ResponsiveNavLink href={safeRoute('pecas.index')} className="text-amber-100 flex items-center gap-2">
+                                        <WrenchScrewdriverIcon className="w-5 h-5" /> Catálogo & Onde Encontrar
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('pecas.estoque.index')} className="text-amber-100 flex items-center gap-2">
+                                        <ClipboardDocumentCheckIcon className="w-5 h-5" /> Entrada e Inventário CD
+                                    </ResponsiveNavLink>
+                                    <ResponsiveNavLink href={safeRoute('pecas.pendencias.index')} className="text-amber-100 flex items-center gap-2">
+                                        <ExclamationTriangleIcon className="w-5 h-5" /> Resolver Pendências
+                                    </ResponsiveNavLink>
+                                </>
+                            )}
                         
                         {currentUser.perfil === 'admin' && (
                             <ResponsiveNavLink href={safeRoute('users.index')} className="text-red-100 flex items-center gap-2">

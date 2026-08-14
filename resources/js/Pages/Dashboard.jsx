@@ -231,9 +231,11 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                 <CardStat titulo="Parada" valor={estoqueCD ? kpisEstoque.parada : '...'} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-gray-700" bg="bg-gray-100 border-gray-300" desc="Inativadas / bloqueadas" />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
                                 <ActionCard href={route('pedidos.index')} title="Auditoria de Pedidos" desc="Inspecionar solicitações e tempos." icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} color="red" btnText="Ver Pedidos" />
                                 <ActionCard href={route('romaneios.index')} title="Monitoramento de Cargas" desc="Rastrear motoristas e entregas." icon={<TruckIcon className="w-6 h-6"/>} color="black" btnText="Ver Cargas" />
+                                <ActionCard href={route('pecas.index')} title="Catálogo & Onde Encontrar" desc="Estoque de peças por filial e modelo." icon={<WrenchScrewdriverIcon className="w-6 h-6"/>} color="blue" btnText="Ver Peças" />
+                                <ActionCard href={route('pecas.estoque.index')} title="Inventário CD (Peças)" desc="Entradas, transferências e saldo gerenciado." icon={<CubeIcon className="w-6 h-6"/>} color="gray" btnText="Gerenciar CD" />
                             </div>
                         </>
                     )}
@@ -293,6 +295,30 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                     icon={<ArchiveBoxIcon className="w-6 h-6"/>} 
                                     color="gray" 
                                     btnText="Painel de Trânsito" 
+                                />
+                                <ActionCard 
+                                    href={route('pecas.estoque.index')} 
+                                    title="4. Inventário de Peças CD" 
+                                    desc="Gerenciar entradas de NFs, contagem e transferências do estoque gerenciado." 
+                                    icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} 
+                                    color="blue" 
+                                    btnText="Inventário CD" 
+                                />
+                                <ActionCard 
+                                    href={route('pecas.index')} 
+                                    title="5. Catálogo & Onde Encontrar" 
+                                    desc="Consultar disponibilidade e saldos por empresa no ERP Microwork." 
+                                    icon={<WrenchScrewdriverIcon className="w-6 h-6"/>} 
+                                    color="red" 
+                                    btnText="Consultar Peças" 
+                                />
+                                <ActionCard 
+                                    href={route('pecas.pendencias.index')} 
+                                    title="6. Pendências de Peças" 
+                                    desc="Tratar divergências de recebimento e alertas de reposição mínima." 
+                                    icon={<ExclamationTriangleIcon className="w-6 h-6"/>} 
+                                    color="orange" 
+                                    btnText="Ver Pendências" 
                                 />
                             </div>
 
@@ -400,6 +426,42 @@ export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe 
                                         <div className="opacity-80 group-hover:scale-110 transition group-hover:rotate-12">
                                             <ClipboardDocumentCheckIcon className="w-10 h-10 text-gray-400" />
                                         </div>
+                                    </Link>
+                                </div>
+                            </div>
+
+                            {/* --- BANNER DE PEÇAS (NOVO V3.0) --- */}
+                            <div className="mt-8">
+                                <h3 className="text-lg font-black text-gray-800 mb-4 px-1 flex items-center gap-2">
+                                    <WrenchScrewdriverIcon className="w-5 h-5 text-red-600"/> Módulo de Peças (v3.0)
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <Link href={route('pecas.solicitar')} className="group bg-white rounded-2xl p-6 border-2 border-red-100 hover:border-red-500 shadow-sm hover:shadow-md transition flex items-center gap-5 relative overflow-hidden">
+                                        <div className="w-14 h-14 rounded-2xl bg-red-50 group-hover:bg-red-600 text-red-600 group-hover:text-white flex items-center justify-center text-2xl transition duration-300 shadow-sm shrink-0">
+                                            <ShoppingCartIcon className="w-7 h-7" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-extrabold text-gray-800 text-lg group-hover:text-red-700 transition">Solicitar Peças</h4>
+                                                <span className="bg-red-100 text-red-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Novo</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">Faça pedidos de reposição de peças avulsas com busca rápida por modelo.</p>
+                                        </div>
+                                        <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-red-600 group-hover:translate-x-1 transition" />
+                                    </Link>
+
+                                    <Link href={route('pecas.index')} className="group bg-white rounded-2xl p-6 border-2 border-blue-100 hover:border-blue-500 shadow-sm hover:shadow-md transition flex items-center gap-5 relative overflow-hidden">
+                                        <div className="w-14 h-14 rounded-2xl bg-blue-50 group-hover:bg-blue-600 text-blue-600 group-hover:text-white flex items-center justify-center text-2xl transition duration-300 shadow-sm shrink-0">
+                                            <CubeIcon className="w-7 h-7" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-extrabold text-gray-800 text-lg group-hover:text-blue-700 transition">Onde Encontrar Peças</h4>
+                                                <span className="bg-blue-100 text-blue-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Microwork</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1">Consulte saldos agrupados por empresa e compatibilidade de modelos.</p>
+                                        </div>
+                                        <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition" />
                                     </Link>
                                 </div>
                             </div>
