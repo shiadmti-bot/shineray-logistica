@@ -1367,12 +1367,16 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
                 $q->withPivot(['id', 'detalhes_avaria', 'foto_avaria', 'motivo', 'pedido_item_id']);
             },
             'itensPedido.canceladoPor:id,name', // V2.6: cotas do pedido
+            'itensPedido.peca:id,codigo,descricao,unidade', // v3: cotas de peça
             'romaneio',
             'logs' => fn($q) => $q->latest()
         ])->findOrFail($id);
 
         return Inertia::render('Pedidos/Show', [
             'pedido' => $pedido,
+            // v3: dados do fluxo de peça. Para pedido de moto vem tudo vazio e
+            // a tela se comporta exatamente como antes.
+            'peca' => $this->contextoPeca($pedido),
             // V2.6: metadados da atribuição de chassis. Pedido legado => tudo zerado,
             // e a tela se comporta exatamente como na versão anterior.
             'atribuicao' => [
@@ -1383,5 +1387,55 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             ],
         ]);
     }
+    /**
+     * Contexto do fluxo de peça (v3).
+     *
+     * Pedido de moto devolve tudo neutro, então Pedidos/Show continua se
+     * comportando exatamente como antes — nenhuma tela existente muda.
+     */
+    private function contextoPeca(Pedido $pedido): array
+    {
+        if ($pedido->tipo_carga !== 'peca') {
+            return ['ativo' => false];
+        }
+
+        $user = Auth::user();
+        $ehCd = in_array($user->perfil, ['cd', 'admin'], true);
+
+        // Itens já carregados na carga, para a conferência de recebimento.
+        $itensCarga = \App\Models\RomaneioItem::with('itemable:id,codigo,descricao,unidade')
+            ->where('pedido_id', $pedido->id)
+            ->pecas()
+            ->get()
+            ->map(fn ($i) => [
+                'id'         => $i->id,
+                'codigo'     => $i->itemable?->codigo,
+                'descricao'  => $i->itemable?->descricao,
+                'unidade'    => $i->itemable?->unidade,
+                'enviado'    => $i->quantidade,
+                'recebido'   => $i->quantidade_recebida,
+                'status'     => $i->status,
+            ]);
+
+        return [
+            'ativo'          => true,
+            'saldo_pendente' => $pedido->saldoPendente(),
+            'itens_carga'    => $itensCarga,
+            'pode_separar'   => $ehCd && in_array($pedido->status, ['solicitado', 'aprovado', 'separado'], true),
+            'pode_carregar'  => $ehCd
+                                && $pedido->status === 'separado'
+                                && $pedido->itensPedido->sum('qtd_atribuida') > 0,
+            'pode_receber'   => ($ehCd || $user->estoque_local_id === $pedido->local_destino_id)
+                                && in_array($pedido->status, ['aguardando_coleta', 'em_transito', 'expedido'], true)
+                                && $itensCarga->isNotEmpty(),
+            // Cargas abertas, para escolher em qual embarcar.
+            'cargas_abertas' => $ehCd
+                ? \App\Models\Romaneio::whereNotIn('status', ['concluido', 'cancelado'])
+                    ->latest('id')->limit(20)
+                    ->get(['id', 'motorista', 'placa', 'rota', 'status'])
+                : [],
+        ];
+    }
+
     public function imprimir($id) { return Inertia::render('Pedidos/Romaneio', ['pedido' => Pedido::with(['user', 'motos', 'romaneio'])->findOrFail($id)]); }
 }

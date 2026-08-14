@@ -1,4 +1,4 @@
-# 🚛 BySabel Logística / Shineray By Sabel (v2.0)
+# 🚛 BySabel Logística / Shineray By Sabel (v3.0)
 
 ![Laravel](https://img.shields.io/badge/Laravel-11.x-FF2D20?style=for-the-badge&logo=laravel)
 ![React](https://img.shields.io/badge/React-18.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)
@@ -7,7 +7,7 @@
 ![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel)
 ![TiDB](https://img.shields.io/badge/Database-TiDB_Cloud-4479A1?style=for-the-badge&logo=mysql)
 
-Sistema corporativo de **Gestão Logística e Expedição** desenvolvido para a **Shineray By Sabel**.
+Sistema corporativo de **Gestão Logística, Expedição e Peças** desenvolvido para a **Shineray By Sabel**.
 
 O **BySabel Logística** é a espinha dorsal de todo o fluxo operacional logístico da Shineray. A plataforma otimiza a distribuição, expedição e montagem de cargas com extrema eficiência, trazendo controle total do estoque em trânsito e do planejamento tático.
 
@@ -24,7 +24,7 @@ Desenvolvido e arquitetado por **Délcio Farias Dias Neto**, construído inteira
 ## 📋 Índice
 
 - [O Fluxo BySabel](#-o-fluxo-bysabel)
-- [Novidades da Versão 2](#-novidades-da-versão-2)
+- [Novidades da Versão 3.0](#-novidades-da-versão-30)
 - [Funcionalidades por Módulo](#-funcionalidades-por-módulo)
 - [Stack Tecnológica](#-stack-tecnológica)
 - [Instalação e Configuração](#-instalação-e-configuração)
@@ -36,33 +36,33 @@ Desenvolvido e arquitetado por **Délcio Farias Dias Neto**, construído inteira
 
 O **BySabel Logística** estrutura um fluxo contínuo e inteligente:
 
-1. **Geração de Pedido:** A loja (ou matriz) registra a necessidade de reposição ou transferência de estoque.
+1. **Geração de Pedido:** A loja (ou matriz) registra a necessidade de reposição ou transferência de motos e peças.
 2. **Auditoria e Aprovação:** O painel de gestão avalia as solicitações de acordo com a viabilidade e prioridade operacional.
 3. **Planejamento Visual (Calendário):** Os gestores alocam entregas e expedições de acordo com datas, disponibilidade de veículos e rotas geográficas ideais.
-4. **Montagem Granular da Carga:** Os chassis são designados no nível unitário, permitindo que as docas do Centro de Distribuição (CD) saibam exatamente qual moto (com respectivo chassi) deve subir em qual caminhão.
+4. **Montagem Granular da Carga:** Os chassis de motos e lotes de peças são designados no nível unitário, permitindo que as docas do Centro de Distribuição (CD) saibam exatamente o que deve subir em qual caminhão.
 5. **Expedição e Trânsito:** Geração automática do romaneio e manifesto de carga em PDF. A mercadoria muda de status e o sistema monitora o trânsito da frota até o destino.
 6. **Recebimento e Confirmação:** O destino (loja ou cliente final) acusa recebimento anexando o canhoto digital assinado.
 
 ---
 
-## 🌟 Novidades da Versão 2
+## 🌟 Novidades da Versão 3.0
 
-Esta atualização foca em **Granularidade**, **Performance** e **Planejamento Visual**:
+Esta grande atualização traz a expansão completa para **Peças**, novo **Design System** e **Integração de Saldos Microwork**:
 
-1.  **Calendário Logístico Interativo:**
-    * Visualização mensal/semanal das rotas.
-    * Status visual: 🟠 **Planejado** (Previsão) vs 🟢 **Confirmado** (Carga Fechada).
-    * Edição rápida de status e rotas sem necessidade de recriação.
-2.  **Montagem de Carga V2 (Granular):**
-    * Seleção individual de chassis (Motos) dentro de um pedido.
-    * Permite envio parcial de pedidos (Ex: Pedido de 10 motos, envia 4 agora e 6 depois).
-    * Separação visual entre **Expedição CD** (Saída) e **Coletas/Milk Run** (Logística Reversa).
-3.  **Performance Serverless:**
-    * Implementação de **Bulk Insert** para gravação de pedidos, reduzindo o tempo de transação de 12s para <1s.
-    * Correção de Timeouts no ambiente Vercel (Hobby/Pro).
-4.  **UX/UI Refinado:**
-    * Feedback visual imediato com SweetAlert2.
-    * Indicadores de fluxo `Origem ➔ Destino` claros nas listagens.
+1. **Módulo Completo de Gestão de Peças:**
+   - Catálogo global com mais de 2.380 SKUs sincronizados com o Microwork.
+   - Motor de compatibilidade e mapeamento automático por modelo (JET, JEF, SHI, STORM, FLASH, etc.).
+   - Pedidos de peças por lojas com carrinho e controle de urgência.
+   - Gestão de estoque gerenciado no CD com livro-razão (ledger) auditável.
+2. **Consulta "Onde Encontrar" (Saldos Microwork Agrupados):**
+   - Exibição da disponibilidade de peças por empresa do Microwork (CD + Ananindeua, Capanema/Soure/Cametá, etc.).
+   - Apoio operacional imediato para remanejamento de peças entre filiais.
+3. **Novo Design System & Shell de Aplicação (v3):**
+   - Navegação lateral expansível/recolhível com agrupamento por módulos.
+   - Componentes visuais consistentes: `StatusBadge`, `StatCard`, `DataTable`, `PageHeader`.
+   - Responsividade completa para dispositivos móveis e tablets.
+4. **Auditoria Atômica de Movimentações:**
+   - Registro de entradas, saídas, transferências e ajustes com histórico completo.
 
 ---
 

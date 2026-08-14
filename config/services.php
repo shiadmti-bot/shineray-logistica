@@ -47,6 +47,24 @@ return [
     ],
     'microwork' => [
         'token' => env('MICROWORK_TOKEN'),
+
+        /*
+         * Relatório de PEÇAS (Estoque de Mercadorias) — ids confirmados.
+         *
+         * Devolve uma linha por (mercadoria, empresa). A tradução
+         * empresa -> local vive em estoque_locais.codigo_empresa_microwork;
+         * sem ela o sync não sabe de quem é o saldo e recusa rodar.
+         *
+         * `empresas` vazio = consulta apenas as empresas já mapeadas.
+         */
+        'pecas' => [
+            'relatorio_configuracao' => env('MICROWORK_PECAS_CONFIG', 151),
+            'relatorio_consulta'     => env('MICROWORK_PECAS_CONSULTA', 67),
+            'leiaute'                => env('MICROWORK_PECAS_LEIAUTE', 151),
+            'usuario_leiaute'        => env('MICROWORK_PECAS_USUARIO_LEIAUTE', 172),
+            'empresas'               => env('MICROWORK_PECAS_EMPRESAS', ''),
+            'filtros'                => env('MICROWORK_PECAS_FILTROS', ''),
+        ],
     ],
 
 ];

@@ -2,6 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * TOKENS DE SUPERFÍCIE (v3)
+ *
+ * Definidos como canais RGB crus (não `rgb(...)`) porque o Tailwind os compõe
+ * com `<alpha-value>` — é isso que faz `bg-surface-card/50` funcionar.
+ *
+ * O bloco .dark abaixo já deixa o modo escuro pronto: como as telas usam os
+ * tokens em vez de bg-white/text-gray-900, ativar o tema escuro passa a ser
+ * adicionar a classe `dark` no <html>, sem tocar em componente nenhum.
+ */
+@layer base {
+    :root {
+        --surface-page:     249 250 251; /* gray-50  */
+        --surface-card:     255 255 255; /* white    */
+        --surface-raised:   255 255 255;
+        --surface-sunken:   243 244 246; /* gray-100 */
+        --surface-inverted:  17  24  39; /* gray-900 */
+
+        --content-primary:   17  24  39; /* gray-900 */
+        --content-secondary: 75  85  99; /* gray-600 */
+        --content-muted:    156 163 175; /* gray-400 */
+        --content-inverted: 255 255 255;
+
+        --line-default: 229 231 235; /* gray-200 */
+        --line-strong:  209 213 219; /* gray-300 */
+    }
+
+    .dark {
+        --surface-page:      17  24  39;
+        --surface-card:      31  41  55;
+        --surface-raised:    55  65  81;
+        --surface-sunken:    17  24  39;
+        --surface-inverted: 249 250 251;
+
+        --content-primary:  243 244 246;
+        --content-secondary:209 213 219;
+        --content-muted:    156 163 175;
+        --content-inverted:  17  24  39;
+
+        --line-default:  55  65  81;
+        --line-strong:   75  85  99;
+    }
+
+    body {
+        @apply bg-surface-page text-content-primary antialiased;
+    }
+}
+
+/* Barra de rolagem discreta nas listas longas (estoque, ledger). */
+@layer utilities {
+    .scrollbar-slim {
+        scrollbar-width: thin;
+        scrollbar-color: rgb(var(--line-strong)) transparent;
+    }
+    .scrollbar-slim::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    .scrollbar-slim::-webkit-scrollbar-thumb {
+        background-color: rgb(var(--line-strong));
+        border-radius: 9999px;
+    }
+    .scrollbar-slim::-webkit-scrollbar-track {
+        background: transparent;
+    }
+}
+
 /* Customização NProgress */
 #nprogress .bar {
     background: #dc2626 !important; /* Vermelho Shineray */

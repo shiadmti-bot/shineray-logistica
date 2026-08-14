@@ -19,6 +19,8 @@ class PedidoItem extends Model
 
     protected $fillable = [
         'pedido_id',
+        'tipo',     // v3: moto | peca
+        'peca_id',  // v3: preenchido apenas quando tipo = 'peca'
         'modelo',
         'cor',
         'motivo',
@@ -45,6 +47,37 @@ class PedidoItem extends Model
     public function pedido()
     {
         return $this->belongsTo(Pedido::class);
+    }
+
+    /** Peça solicitada. NULL quando a cota é de moto. */
+    public function peca()
+    {
+        return $this->belongsTo(Peca::class);
+    }
+
+    public function isPeca(): bool
+    {
+        return $this->tipo === 'peca';
+    }
+
+    public function isMoto(): bool
+    {
+        return $this->tipo !== 'peca';
+    }
+
+    /**
+     * Rótulo do que foi pedido, independente do tipo.
+     * Evita espalhar `if (tipo === peca)` por controllers e views.
+     */
+    public function getDescricaoAttribute(): string
+    {
+        if ($this->isPeca()) {
+            return $this->peca
+                ? "{$this->peca->codigo} — {$this->peca->descricao}"
+                : 'Peça não identificada';
+        }
+
+        return trim("{$this->modelo} {$this->cor}");
     }
 
     /**

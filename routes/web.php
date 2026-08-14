@@ -268,6 +268,59 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
 
         /*
         |--------------------------------------------------------------------------
+        | MÓDULO 3.1: ESTOQUE DE PEÇAS (V3)
+        |--------------------------------------------------------------------------
+        | Peça é fungível (saldo por SKU/local), diferente de moto (chassi).
+        | Toda escrita de saldo passa por App\Services\Estoque\EstoquePecaService.
+        */
+        Route::prefix('pecas')->name('pecas.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\PecaController::class, 'index'])->name('index');
+
+            // Solicitação da loja ao CD (mesma estrutura de Pedido das motos,
+            // com tipo_carga = 'peca').
+            Route::get('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'create'])
+                ->name('solicitar');
+            Route::post('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'store'])
+                ->name('solicitar.store');
+
+            // Captura de conhecimento: quem tem a peça na mão confirma em qual
+            // moto ela serve. Vira vínculo manual, com confiança alta.
+            Route::post('/{peca}/aplicacao', [\App\Http\Controllers\PecaPedidoController::class, 'confirmarAplicacao'])
+                ->name('aplicacao.confirmar');
+
+            /*
+             * Atendimento do pedido de peça. Três etapas com efeitos distintos
+             * sobre o estoque — ver PecaAtendimentoController:
+             *   separar -> reserva | carga -> nada | receber -> transfere
+             */
+            Route::post('/pedidos/{pedido}/separar', [\App\Http\Controllers\PecaAtendimentoController::class, 'separar'])
+                ->name('separar');
+            Route::post('/pedidos/{pedido}/carga', [\App\Http\Controllers\PecaAtendimentoController::class, 'adicionarNaCarga'])
+                ->name('carga');
+            Route::post('/pedidos/{pedido}/receber', [\App\Http\Controllers\PecaAtendimentoController::class, 'receber'])
+                ->name('receber');
+
+            // Pendências: divergências de recebimento e reposição de estoque.
+            Route::prefix('pendencias')->name('pendencias.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\PecaPendenciaController::class, 'index'])->name('index');
+                Route::post('/{item}/resolver', [\App\Http\Controllers\PecaPendenciaController::class, 'resolver'])->name('resolver');
+                Route::post('/minimo', [\App\Http\Controllers\PecaPendenciaController::class, 'definirMinimo'])->name('minimo');
+                Route::get('/sugerir-minimo', [\App\Http\Controllers\PecaPendenciaController::class, 'sugerirMinimo'])->name('sugerir');
+            });
+
+            // Entrada e inventário — onde o saldo gerenciado nasce.
+            Route::prefix('estoque')->name('estoque.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\PecaEstoqueController::class, 'index'])->name('index');
+                Route::get('/buscar', [\App\Http\Controllers\PecaEstoqueController::class, 'buscar'])->name('buscar');
+                Route::post('/entrada', [\App\Http\Controllers\PecaEstoqueController::class, 'entrada'])->name('entrada');
+                Route::post('/inventario', [\App\Http\Controllers\PecaEstoqueController::class, 'inventario'])->name('inventario');
+                Route::post('/transferir', [\App\Http\Controllers\PecaEstoqueController::class, 'transferir'])->name('transferir');
+            });
+        });
+
+
+        /*
+        |--------------------------------------------------------------------------
         | MÓDULO 4: GESTÃO COMERCIAL & USUÁRIOS
         |--------------------------------------------------------------------------
         */

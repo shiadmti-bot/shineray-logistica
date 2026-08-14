@@ -182,7 +182,7 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                             <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
                             <span>IP: Protegido</span>
                             <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                            <span>V2.0 Logística</span>
+                            <span>V3.0 Logística</span>
                         </div>
                     </div>
 

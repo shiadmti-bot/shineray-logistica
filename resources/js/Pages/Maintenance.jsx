@@ -23,7 +23,7 @@ export default function Maintenance() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
-            <Head title="Manutenção V2" />
+            <Head title="Manutenção V3" />
 
             {/* Elementos Decorativos de Fundo */}
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-600 via-orange-500 to-red-600"></div>
@@ -49,7 +49,7 @@ export default function Maintenance() {
 
                 {/* Títulos */}
                 <h1 className="text-3xl font-black text-gray-800 tracking-tight mb-2">
-                    Evoluindo para <span className="text-red-600">V2.0</span>
+                    Evoluindo para <span className="text-red-600">V3.0</span>
                 </h1>
                 <p className="text-gray-500 font-medium text-sm mb-8 leading-relaxed">
                     Estamos atualizando a base de dados do <strong>By Sabel Logística</strong>. O sistema retornará mais rápido e seguro em instantes{dots}

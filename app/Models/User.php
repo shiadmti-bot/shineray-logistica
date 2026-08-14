@@ -33,7 +33,8 @@ class User extends Authenticatable
         'filial',
         'is_interior',      // Nome da loja/cidade
         'last_seen_at',     // Visto por último (Online)
-        'default_route_id'  // <--- NOVO (v2): Vincula a loja a uma rota logística
+        'default_route_id', // <--- NOVO (v2): Vincula a loja a uma rota logística
+        'estoque_local_id'  // <--- NOVO (v3): Local de estoque desta loja/CD
     ];
 
     /**
@@ -79,6 +80,15 @@ class User extends Authenticatable
     public function defaultRoute()
     {
         return $this->belongsTo(Route::class, 'default_route_id');
+    }
+
+    /**
+     * Local de estoque deste usuário (v3).
+     * Loja -> seu próprio local; usuário do CD -> o local do CD.
+     */
+    public function estoqueLocal()
+    {
+        return $this->belongsTo(EstoqueLocal::class, 'estoque_local_id');
     }
 
     /**

@@ -186,7 +186,7 @@ export default function Login({ status, canResetPassword }) {
                     &copy; {new Date().getFullYear()} BySabel Logística.
                 </p>
                 <div className="flex gap-3 text-[10px] text-red-200 uppercase font-bold tracking-widest border-t border-red-700 pt-2">
-                    <span>V2.0</span>
+                    <span>V3.0</span>
                     <span>•</span>
                     <span>Hub & Spoke</span>
                     <span>•</span>

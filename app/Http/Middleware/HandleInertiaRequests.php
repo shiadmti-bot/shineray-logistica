@@ -56,6 +56,30 @@ public function share(Request $request): array
             'config' => [
                 'onesignal_app_id' => config('services.onesignal.app_id'),
             ],
+
+            /*
+             * 4. CONTADORES DO MENU (v3)
+             *
+             * Closures: o Inertia só as executa quando a prop é de fato
+             * serializada, então nenhuma dessas queries roda em requisição
+             * parcial que não precise delas.
+             */
+            'navCounts' => [
+                'pecasPendencias' => function () use ($request) {
+                    $user = $request->user();
+
+                    if (! $user) {
+                        return 0;
+                    }
+
+                    $ehCd = in_array($user->perfil, ['cd', 'admin', 'gestor'], true);
+
+                    return \App\Models\RomaneioItem::pecas()
+                        ->divergenciasAbertas()
+                        ->when(! $ehCd, fn ($q) => $q->where('local_destino_id', $user->estoque_local_id))
+                        ->count();
+                },
+            ],
         ];
     }
 }

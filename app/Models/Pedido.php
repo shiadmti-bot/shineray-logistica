@@ -16,6 +16,9 @@ class Pedido extends Model
         'user_id',
         'origem_user_id', // <--- Origem da Carga (Loja ou NULL para CD)
         'status',
+        'tipo_carga',       // v3: moto | peca | misto
+        'local_origem_id',  // v3: local de estoque que atende
+        'local_destino_id', // v3: local de estoque que recebe
         'observacao',
         'itens',          // <--- OBRIGATÓRIO: Salva o JSON da solicitação
         'romaneio_id',
@@ -45,6 +48,35 @@ class Pedido extends Model
     public function origem()
     {
         return $this->belongsTo(User::class, 'origem_user_id');
+    }
+
+    // --- LOCAIS DE ESTOQUE (v3) ---
+
+    public function localOrigem()
+    {
+        return $this->belongsTo(EstoqueLocal::class, 'local_origem_id');
+    }
+
+    public function localDestino()
+    {
+        return $this->belongsTo(EstoqueLocal::class, 'local_destino_id');
+    }
+
+    /** Cotas de peça deste pedido. */
+    public function itensPecas()
+    {
+        return $this->itensPedido()->where('tipo', 'peca');
+    }
+
+    /** Cotas de moto deste pedido. */
+    public function itensMotos()
+    {
+        return $this->itensPedido()->where('tipo', 'moto');
+    }
+
+    public function movimentosPeca()
+    {
+        return $this->hasMany(PecaMovimento::class);
     }
 
     // Motos vinculadas (Quando o pedido é processado e ganha chassis reais)

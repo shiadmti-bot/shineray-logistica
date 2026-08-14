@@ -1,4 +1,7 @@
 import ChatBox from "@/Components/ChatBox";
+// v3: painel do fluxo de peça. Só renderiza quando o pedido é de peça —
+// pedido de moto não é afetado.
+import PainelAtendimentoPecas from "@/Components/Pecas/PainelAtendimento";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, useForm, Link, router } from "@inertiajs/react";
 import { useState, useEffect } from "react";
@@ -28,7 +31,7 @@ import {
     StopIcon,
 } from "@heroicons/react/24/outline";
 
-export default function PedidoShow({ auth, pedido, atribuicao = null }) {
+export default function PedidoShow({ auth, pedido, atribuicao = null, peca = null }) {
     // --- 1. CONFIGURAÇÕES E PERMISSÕES ---
     const [compressing, setCompressing] = useState(false);
     const formAcoes = useForm({});
@@ -484,6 +487,13 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
 
             <div className="py-8 bg-gray-100 min-h-screen pb-32 font-sans">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
+                    {/* --- 0. FLUXO DE PEÇA (v3) ---
+                        Aparece apenas em pedido de peça; em pedido de moto
+                        `peca.ativo` é false e nada é renderizado. */}
+                    {peca?.ativo && (
+                        <PainelAtendimentoPecas pedido={pedido} peca={peca} />
+                    )}
+
                     {/* --- 1. CARD DE DETALHES --- */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100">
                         {/* Origem */}

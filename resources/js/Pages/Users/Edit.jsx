@@ -116,7 +116,7 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
 
                                     {/* --- NOVA SEÇÃO: MODELO LOGÍSTICO (Capital vs Interior) --- */}
                                     <div>
-                                        <label className="block text-xs font-black text-gray-500 uppercase mb-2 tracking-wide">Modelo Logístico (Definição V2)</label>
+                                        <label className="block text-xs font-black text-gray-500 uppercase mb-2 tracking-wide">Modelo Logístico</label>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Opção 1: Capital */}

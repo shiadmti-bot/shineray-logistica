@@ -85,12 +85,12 @@ export default function UserCreate({ auth, filiais, rotas }) {
                                 </div>
                             )}
 
-                            {/* --- CONFIGURAÇÃO LOGÍSTICA V2.0 --- */}
+                            {/* --- CONFIGURAÇÃO LOGÍSTICA --- */}
                             {/* Mostramos para Loja e CD, pois ambos participam da logística */}
                             {(data.perfil === 'loja' || data.perfil === 'cd') && (
                                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mt-2">
                                     <h4 className="font-bold text-blue-900 text-sm flex items-center gap-2 mb-2">
-                                        🚚 Rota Logística (v2.0)
+                                        🚚 Rota Logística
                                     </h4>
                                     <p className="text-xs text-blue-600 mb-3">
                                         Vincule este usuário a uma rota oficial para habilitar o calendário de entregas automático.

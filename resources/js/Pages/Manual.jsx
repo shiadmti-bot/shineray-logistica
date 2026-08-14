@@ -50,7 +50,7 @@ export default function Manual({ auth }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento V2.5</h2>}
+            header={<h2 className="font-bold text-2xl text-gray-800">Central de Conhecimento V3.0</h2>}
         >
             <Head title="Manual do Sistema" />
 
@@ -87,7 +87,7 @@ export default function Manual({ auth }) {
                             {activeTab === 'loja' && (
                                 <div className="space-y-10 animate-fade-in">
                                     <HeaderSection 
-                                        title="Manual da Loja (V2.5)" 
+                                        title="Manual da Loja (V3.0)" 
                                         subtitle="Tudo o que você precisa saber para gerenciar seu estoque, transferências e regras de recebimento."
                                         color="red"
                                     />
@@ -461,7 +461,7 @@ export default function Manual({ auth }) {
                                             <div className="text-center md:text-right border-t md:border-t-0 md:border-l border-gray-700 pt-6 md:pt-0 md:pl-8">
                                                 <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2">Desenvolvimento & Arquitetura</p>
                                                 <h5 className="text-2xl font-black text-white tracking-tight">Délcio Farias Dias Neto</h5>
-                                                <p className="text-gray-400 text-xs mt-1">Full Stack Developer • Shineray System V2</p>
+                                                <p className="text-gray-400 text-xs mt-1">Full Stack Developer • Shineray System V3</p>
                                                 <div className="mt-4 inline-flex items-center gap-2 bg-gray-800 px-3 py-1 rounded-full text-[10px] text-gray-400 border border-gray-700">
                                                     <span>© {new Date().getFullYear()} Shineray By Sabel</span>
                                                 </div>

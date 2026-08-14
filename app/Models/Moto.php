@@ -47,6 +47,16 @@ class Moto extends Model
     }
 
     /**
+     * RELAÇÃO: Itens de carga (v3)
+     * Espelho da moto dentro de romaneio_itens. A fonte do fluxo atual continua
+     * sendo romaneio_id — ver Romaneio::sincronizarItemMoto().
+     */
+    public function itensCarga()
+    {
+        return $this->morphMany(RomaneioItem::class, 'itemable');
+    }
+
+    /**
      * RELAÇÃO: Histórico de Pedidos
      * Uma moto pode ter passado por vários pedidos (Venda, Transferência, Devolução).
      * * ATUALIZAÇÃO IMPORTANTE:

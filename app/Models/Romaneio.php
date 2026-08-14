@@ -57,11 +57,59 @@ class Romaneio extends Model
         return $this->belongsTo(User::class); // CD que criou a carga
     }
 
-    public function motos() { 
-        return $this->hasMany(Moto::class); 
+    public function motos() {
+        return $this->hasMany(Moto::class);
     }
 
-    public function pedidos() { 
-        return $this->hasMany(Pedido::class); 
+    public function pedidos() {
+        return $this->hasMany(Pedido::class);
+    }
+
+    // --- CARGA MISTA (v3) ---
+
+    /**
+     * Itens da carga: motos E peças.
+     *
+     * Convive com motos() — que continua sendo a fonte do fluxo atual de moto.
+     * Telas novas devem ler daqui; o código existente segue usando motos().
+     */
+    public function itens()
+    {
+        return $this->hasMany(RomaneioItem::class);
+    }
+
+    public function itensMotos()
+    {
+        return $this->itens()->motos();
+    }
+
+    public function itensPecas()
+    {
+        return $this->itens()->pecas();
+    }
+
+    /**
+     * Espelha em romaneio_itens o vínculo de uma moto com esta carga.
+     *
+     * Enquanto motos.romaneio_id e romaneio_itens coexistirem, as duas precisam
+     * ser escritas juntas. Chame este método sempre que atribuir uma moto à
+     * carga, em vez de gravar motos.romaneio_id diretamente.
+     */
+    public function sincronizarItemMoto(Moto $moto, ?Pedido $pedido = null, ?int $localDestinoId = null): RomaneioItem
+    {
+        $pedido ??= $moto->pedido_atual;
+
+        return $this->itens()->updateOrCreate(
+            [
+                'itemable_type' => Moto::class,
+                'itemable_id'   => $moto->id,
+            ],
+            [
+                'pedido_id'        => $pedido?->id,
+                'pedido_item_id'   => $pedido?->pivot->pedido_item_id ?? null,
+                'quantidade'       => 1,
+                'local_destino_id' => $localDestinoId ?? $moto->loja?->estoque_local_id,
+            ]
+        );
     }
 }
