@@ -7,10 +7,12 @@ import {
     Cog6ToothIcon,
     ArrowRightOnRectangleIcon,
     ChevronDownIcon,
+    SparklesIcon,
 } from '@heroicons/react/24/outline';
 
 import Toast from '@/Components/Toast';
 import NotificationBell from '@/Components/NotificationBell';
+import GuidedTour from '@/Components/GuidedTour';
 import useOneSignal from '@/Hooks/useOneSignal';
 import { navegacaoPara } from './navigation';
 
@@ -177,6 +179,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
     return (
         <div className="flex min-h-screen flex-col bg-surface-page font-sans">
             <Toast />
+            <GuidedTour user={currentUser} />
 
             {/* ================= TOPBAR ================= */}
             <nav className="sticky top-0 z-topbar bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 shadow-lg print:hidden">
@@ -247,7 +250,18 @@ export default function AppLayout({ user, header, children, contained = true }) 
                                             </p>
                                         </div>
 
-                                        <div className="p-1.5">
+                                        <div className="p-1.5 space-y-0.5">
+                                            <Menu.Item>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => window.dispatchEvent(new CustomEvent('start-guided-tour'))}
+                                                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-content-secondary hover:bg-brand-50 hover:text-brand-700 transition cursor-pointer"
+                                                >
+                                                    <SparklesIcon className="h-[18px] w-[18px] text-brand-600" />
+                                                    Tour Guiado
+                                                </button>
+                                            </Menu.Item>
+
                                             <Menu.Item>
                                                 <Link
                                                     href={safeRoute('profile.edit')}

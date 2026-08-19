@@ -60,6 +60,32 @@ export default function Manual({ auth }) {
                 ]}
             />
 
+            {/* BANNER INTERATIVO: TOUR GUIADO */}
+            <div className="mb-8 bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 rounded-3xl p-6 text-white shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                
+                <div className="space-y-1.5 relative z-10">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-black uppercase tracking-wider">
+                        <span>✨</span> Apresentação Interativa
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black tracking-tight">
+                        Prefere uma apresentação guiada passo a passo?
+                    </h3>
+                    <p className="text-xs text-white/80 max-w-xl leading-relaxed">
+                        Inicie o tour guiado do sistema para conhecer todas as abas, novas regras de motos e catálogo de peças liberados especificamente para o perfil <strong>{auth.user?.perfil?.toUpperCase()}</strong>.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('start-guided-tour'))}
+                    className="shrink-0 inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-white hover:bg-white/95 text-brand-700 font-black text-sm shadow-xl active:scale-95 transition-all duration-200 cursor-pointer"
+                >
+                    <SparklesIcon className="w-5 h-5 text-brand-600 animate-pulse" />
+                    <span>Fazer Tour Guiado</span>
+                </button>
+            </div>
+
             {/* BARRA DE ABAS COM DESIGN V3 */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
                 {tabs.map((tab) => {

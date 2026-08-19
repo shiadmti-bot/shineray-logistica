@@ -2,15 +2,21 @@ import { Link } from '@inertiajs/react';
 
 export default function GuestLayout({ children }) {
     return (
-        <div className="min-h-screen flex flex-col justify-center items-center px-4 py-8 bg-gradient-to-br from-surface-sunken via-surface-card to-surface-sunken relative overflow-hidden">
-            {/* Efeito de iluminação suave de fundo */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-brand-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="min-h-screen flex flex-col justify-center items-center px-4 py-8 bg-gradient-to-br from-brand-950 via-brand-700 to-brand-800 relative overflow-hidden selection:bg-brand-900 selection:text-white">
+            {/* Efeitos degradê em branco & Iluminação */}
+            <div className="absolute -top-32 -left-32 w-[30rem] h-[30rem] bg-gradient-to-br from-white/30 via-white/10 to-transparent rounded-full blur-3xl pointer-events-none animate-pulse duration-1000"></div>
+            <div className="absolute -bottom-32 -right-32 w-[34rem] h-[34rem] bg-gradient-to-tl from-white/25 via-white/10 to-transparent rounded-full blur-3xl pointer-events-none animate-pulse duration-700"></div>
 
-            <div className="w-full max-w-md relative z-10">
+            {/* Partículas flutuantes brancas */}
+            <div className="absolute top-12 left-[15%] w-2 h-2 bg-white/80 rounded-full blur-[0.5px] animate-ping duration-1000 pointer-events-none"></div>
+            <div className="absolute top-1/2 right-[10%] w-3 h-3 bg-white/50 rounded-full blur-[1px] animate-pulse duration-700 pointer-events-none"></div>
+            <div className="absolute bottom-20 left-[20%] w-2 h-2 bg-white/90 rounded-full blur-[0.5px] animate-pulse duration-500 pointer-events-none"></div>
+
+            <div className="w-full max-w-md relative z-10 space-y-6">
                 {/* Logo & Marca */}
-                <div className="text-center mb-6">
+                <div className="text-center">
                     <Link href="/" className="inline-block transition-transform duration-300 hover:scale-105">
-                        <div className="bg-surface-card px-6 py-3.5 rounded-2xl shadow-md border border-line flex items-center justify-center gap-3 mx-auto w-fit">
+                        <div className="bg-white px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/30 border border-white/80 flex items-center justify-center gap-3 mx-auto w-fit">
                             <img 
                                 src="/img/logo.png" 
                                 alt="Logo Shineray By Sabel" 
@@ -21,16 +27,17 @@ export default function GuestLayout({ children }) {
                 </div>
 
                 {/* Card de Conteúdo */}
-                <div className="w-full bg-surface-card/95 backdrop-blur-md px-8 py-8 shadow-2xl rounded-3xl border border-line relative overflow-hidden">
+                <div className="w-full bg-white/98 backdrop-blur-xl px-8 py-8 shadow-2xl shadow-black/40 rounded-3xl border border-white/60 relative overflow-hidden">
                     <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-brand-700"></div>
                     {children}
                 </div>
 
                 {/* Rodapé */}
-                <div className="mt-8 text-center text-xs text-content-muted">
-                    <p>&copy; {new Date().getFullYear()} Shineray By Sabel • Logística Integrada V3.0</p>
+                <div className="text-center text-xs text-white/90">
+                    <p className="font-medium drop-shadow-sm">&copy; {new Date().getFullYear()} Shineray By Sabel • Logística Integrada V3.0</p>
                 </div>
             </div>
         </div>
     );
 }
+
