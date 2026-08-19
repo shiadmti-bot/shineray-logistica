@@ -98,7 +98,7 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
     const modeloLabel = modelos.find((m) => m.valor === filtros.modelo)?.label;
 
     return (
-        <AppLayout header="Solicitar Peças">
+        <AppLayout>
             <Head title="Solicitar Peças" />
 
             <PageHeader

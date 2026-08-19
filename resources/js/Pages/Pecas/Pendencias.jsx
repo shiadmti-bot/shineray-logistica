@@ -187,7 +187,7 @@ export default function Pendencias({
     const totalSelecionado = Object.keys(selecionadas).length;
 
     return (
-        <AppLayout header="Pendências">
+        <AppLayout>
             <Head title="Pendências" />
 
             <PageHeader

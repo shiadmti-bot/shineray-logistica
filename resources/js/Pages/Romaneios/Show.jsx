@@ -1,425 +1,836 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
 import { useMemo } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
 import Swal from 'sweetalert2';
+import {
+    ArrowLeftIcon,
+    PrinterIcon,
+    TruckIcon,
+    TrashIcon,
+    MapPinIcon,
+    CubeIcon,
+    WrenchScrewdriverIcon,
+    ExclamationTriangleIcon,
+    CheckIcon,
+} from '@heroicons/react/24/outline';
 
-export default function RomaneioShow({ auth, romaneio }) { 
-    
-    // --- 1. SEPARAÇÃO PARA MILK RUN (COLETA vs ENTREGA) ---
-    const itensParaColetar = useMemo(() => {
-        return (romaneio.motos || []).filter(m => m.status === 'aguardando_coleta');
-    }, [romaneio]);
+import AppLayout from '@/Layouts/AppLayout';
+import { Card, PageHeader, StatCard, Button, StatusBadge, EmptyState } from '@/Components/UI';
 
-    // --- 2. LÓGICA DE AGRUPAMENTO (Por Destino Final) ---
-    const cargasAgrupadas = useMemo(() => {
+/**
+ * Detalhe da carga e manifesto de impressão.
+ *
+ * CARGA MISTA (v3)
+ * Esta tela lia apenas `romaneio.motos`. Com peças no mesmo caminhão isso
+ * significava um manifesto que o motorista assina sem que as caixas apareçam
+ * nele, e uma loja sem contra o que conferir no recebimento. Agora motos e
+ * peças são agrupadas pelo MESMO destino e aparecem juntas — na tela e no
+ * papel.
+ *
+ * DOIS DOCUMENTOS NO MESMO ARQUIVO
+ * O bloco `print:hidden` é a tela; o `hidden print:block` é o manifesto
+ * oficial. São layouts diferentes de propósito: a tela prioriza ação (coletar,
+ * liberar saída) e o papel prioriza conferência (numeração sequencial, campo
+ * de assinatura, sem cor de fundo).
+ */
+export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
+    /* ---------- Milk run: motos a coletar no caminho ---------- */
+    const itensParaColetar = useMemo(
+        () => (romaneio.motos || []).filter((m) => m.status === 'aguardando_coleta'),
+        [romaneio]
+    );
+
+    /**
+     * Agrupamento por destino final.
+     *
+     * Motos e peças entram no MESMO grupo. A chave é o nome do destino em
+     * maiúsculas — o backend normaliza o destino da peça pela filial do
+     * solicitante justamente para bater com a da moto, senão a mesma loja
+     * apareceria em dois blocos.
+     */
+    const destinos = useMemo(() => {
         const grupos = {};
-        const listaMotos = romaneio.motos || [];
 
-        listaMotos.forEach(moto => {
+        const grupo = (nome) => {
+            const chave = (nome || 'DESTINO NÃO IDENTIFICADO').toUpperCase().trim();
+            if (!grupos[chave]) grupos[chave] = { nome: chave, motos: [], pecas: [] };
+            return grupos[chave];
+        };
+
+        (romaneio.motos || []).forEach((moto) => {
             let destino = '⚠️ DESTINO NÃO IDENTIFICADO';
             let pedidoAtivo = null;
 
             if (moto.pedidos && moto.pedidos.length > 0) {
-                pedidoAtivo = moto.pedidos[0]; 
-                // Prioridade: pivot.destino (destino real selecionado) > user.filial (loja solicitante)
+                pedidoAtivo = moto.pedidos[0];
+                // Prioridade: destino real escolhido no pedido > filial do solicitante.
                 const pivotDestino = pedidoAtivo.pivot?.destino;
                 if (pivotDestino && pivotDestino.trim() !== '') {
                     destino = pivotDestino;
                 } else if (pedidoAtivo.user) {
                     destino = pedidoAtivo.user.filial || pedidoAtivo.user.name;
                 }
-            } 
-            else if (moto.localizacao_atual) {
+            } else if (moto.localizacao_atual) {
                 destino = 'TRANSBORDO / INDEFINIDO';
             }
 
-            destino = destino.toUpperCase().trim();
             moto._pedido_info = pedidoAtivo;
-
-            if (!grupos[destino]) grupos[destino] = [];
-            grupos[destino].push(moto);
+            grupo(destino).motos.push(moto);
         });
 
-        return Object.keys(grupos).sort().reduce((obj, key) => { 
-            obj[key] = grupos[key]; 
-            return obj;
-        }, {});
-    }, [romaneio]);
+        (pecas || []).forEach((peca) => grupo(peca.destino).pecas.push(peca));
 
-    // --- 3. CÁLCULO DINÂMICO DA ROTA (CORREÇÃO) ---
-    const rotaCalculada = useMemo(() => {
-        // Se já tiver salvo no banco, usa. Se não, monta baseado nos destinos.
-        if (romaneio.rota) return romaneio.rota;
-        
-        const destinos = Object.keys(cargasAgrupadas);
-        return destinos.length > 0 ? destinos.join(' ➔ ') : 'AGUARDANDO ROTA';
-    }, [romaneio.rota, cargasAgrupadas]);
+        return Object.keys(grupos)
+            .sort()
+            .map((chave) => grupos[chave]);
+    }, [romaneio, pecas]);
 
-    // Totais
-    const totalMotos = romaneio.motos ? romaneio.motos.length : 0;
+    /* ---------- Totais ---------- */
+    const totalMotos = romaneio.motos?.length ?? 0;
+    const totalPecasItens = pecas.length;
+    const totalPecasUn = useMemo(
+        () => pecas.reduce((soma, p) => soma + (p.quantidade || 0), 0),
+        [pecas]
+    );
     const totalColetasPendentes = itensParaColetar.length;
+    const cargaVazia = totalMotos === 0 && totalPecasItens === 0;
 
-    // Progresso Visual
-    const getStatusStep = () => {
+    const rotaCalculada = useMemo(() => {
+        if (romaneio.rota) return romaneio.rota;
+        return destinos.length > 0 ? destinos.map((d) => d.nome).join(' ➔ ') : 'AGUARDANDO ROTA';
+    }, [romaneio.rota, destinos]);
+
+    // Passo 2 conta peças também — uma carga só de peças estava travada no passo 1.
+    const passoAtual = useMemo(() => {
         if (romaneio.status === 'concluido') return 4;
-        if (romaneio.status === 'em_transito' || romaneio.status === 'em_transito_cd') return 3;
-        if (totalMotos > 0 && romaneio.status === 'aberto') return 2;
+        if (['em_transito', 'em_transito_cd'].includes(romaneio.status)) return 3;
+        if (!cargaVazia && romaneio.status === 'aberto') return 2;
         return 1;
-    };
+    }, [romaneio.status, cargaVazia]);
 
-    // --- AÇÕES ---
+    /* ---------- Ações ---------- */
     const handleColeta = (motoId) => {
-        router.post(route('romaneios.coletar_item', motoId), {}, {
-            preserveScroll: true,
-            onSuccess: () => {
-                try { const audio = new Audio('/plim.mp3'); audio.play().catch(() => {}); } catch(e) {}
-                Swal.fire({
-                    title: 'Coletado!',
-                    text: 'Item confirmado a bordo.',
-                    icon: 'success',
-                    timer: 1500,
-                    showConfirmButton: false,
-                    toast: true, position: 'top-end'
-                });
+        router.post(
+            route('romaneios.coletar_item', motoId),
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    try {
+                        new Audio('/plim.mp3').play().catch(() => {});
+                    } catch (e) {
+                        /* som é opcional */
+                    }
+                    Swal.fire({
+                        title: 'Coletado!',
+                        text: 'Item confirmado a bordo.',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end',
+                    });
+                },
             }
-        });
+        );
     };
 
     const handleSaida = () => {
-        const msgAlerta = totalColetasPendentes > 0 
-            ? `⚠️ Atenção: Existem ${totalColetasPendentes} itens pendentes de coleta (Milk Run). Confirma a saída?`
-            : `Confirma a saída física do caminhão com ${totalMotos} volumes?`;
+        const volumes = [
+            totalMotos > 0 ? `${totalMotos} moto(s)` : null,
+            totalPecasUn > 0 ? `${totalPecasUn} un. de peça` : null,
+        ]
+            .filter(Boolean)
+            .join(' e ');
 
         Swal.fire({
             title: 'Liberar Saída?',
-            text: msgAlerta,
+            text:
+                totalColetasPendentes > 0
+                    ? `Atenção: existem ${totalColetasPendentes} itens pendentes de coleta (Milk Run). Confirma a saída?`
+                    : `Confirma a saída física do caminhão com ${volumes || 'a carga atual'}?`,
             icon: totalColetasPendentes > 0 ? 'warning' : 'question',
             showCancelButton: true,
-            confirmButtonColor: '#f97316',
-            confirmButtonText: 'Sim, Liberar',
-            cancelButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) router.post(route('romaneios.saida', romaneio.id));
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Sim, liberar',
+            cancelButtonText: 'Cancelar',
+        }).then((r) => {
+            if (r.isConfirmed) router.post(route('romaneios.saida', romaneio.id));
         });
     };
 
     const handleDelete = () => {
         Swal.fire({
-            title: 'Desfazer Carga?',
-            text: "O Romaneio será excluído.",
-            icon: 'error',
+            title: 'Desfazer carga?',
+            text: 'O romaneio será excluído e os itens voltam a ficar disponíveis para montagem.',
+            icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Sim, desfazer'
-        }).then((result) => {
-            if (result.isConfirmed) router.delete(route('romaneios.destroy', romaneio.id));
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Sim, desfazer',
+            cancelButtonText: 'Cancelar',
+        }).then((r) => {
+            if (r.isConfirmed) router.delete(route('romaneios.destroy', romaneio.id));
         });
     };
 
-    const getColorHex = (cor) => {
+    // Cores de pintura da moto — hex literal de propósito: representam a cor
+    // física do produto, não um token do tema.
+    const corDaMoto = (cor) => {
         if (!cor) return '#cccccc';
-        const map = { 'VERMELHO': '#ef4444', 'AZUL': '#3b82f6', 'PRETO': '#1f2937', 'BRANCO': '#ffffff', 'PRATA': '#9ca3af', 'CINZA': '#6b7280', 'AMARELO': '#eab308' };
-        return map[cor.toUpperCase()] || '#e5e7eb';
+        const mapa = {
+            VERMELHO: '#ef4444',
+            AZUL: '#3b82f6',
+            PRETO: '#1f2937',
+            BRANCO: '#ffffff',
+            PRATA: '#9ca3af',
+            CINZA: '#6b7280',
+            AMARELO: '#eab308',
+        };
+        return mapa[cor.toUpperCase()] || '#e5e7eb';
     };
 
+    const numero = String(romaneio.id).padStart(6, '0');
+    const podeDesfazer = !['concluido', 'em_transito', 'em_transito_cd'].includes(romaneio.status);
+
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={
-                <div className="flex items-center gap-4 print:hidden">
-                    <Link href={route('romaneios.index')} className="p-2 rounded-full hover:bg-gray-200 transition-colors text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
-                    </Link>
-                    <div>
-                        <h2 className="font-bold text-xl text-gray-800 leading-tight">Romaneio #{String(romaneio.id).padStart(6, '0')}</h2>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span>{new Date(romaneio.created_at).toLocaleDateString('pt-BR')}</span>
-                            <span className="w-1 h-1 rounded-full bg-gray-400"></span>
-                            <span className="font-bold text-gray-700">{totalMotos} Volumes</span>
-                        </div>
-                    </div>
-                </div>
-            }
-        >
-            <Head title={`Romaneio #${romaneio.id}`} />
+        <AppLayout user={auth.user}>
+            <Head title={`Romaneio #${numero}`} />
 
-            {/* --- VISÃO DE TELA (WEB) --- */}
-            <div className="py-8 bg-gray-100 min-h-screen print:hidden">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    
-                    {/* STEPPER */}
-                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                        <RomaneioStepper currentStep={getStatusStep()} />
-                    </div>
-
-                    {/* CARD DO MOTORISTA */}
-                    <div className="bg-white shadow-sm sm:rounded-lg overflow-hidden border-l-4 border-indigo-500 p-6 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div>
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">🚛 {romaneio.motorista}</h3>
-                            <p className="text-gray-600">Placa: <strong className="uppercase bg-gray-100 px-2 py-0.5 rounded border border-gray-300 font-mono">{romaneio.placa}</strong></p>
-                            <div className="mt-3">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border
-                                    ${romaneio.status === 'concluido' ? 'bg-green-100 text-green-800 border-green-200' : ''}
-                                    ${romaneio.status.includes('transito') ? 'bg-orange-100 text-orange-800 border-orange-200' : ''}
-                                    ${romaneio.status === 'aberto' ? 'bg-blue-100 text-blue-800 border-blue-200' : ''}
-                                `}>
-                                    {romaneio.status.replace(/_/g, ' ')}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 flex-wrap justify-end">
-                            <button onClick={() => window.print()} className="flex items-center gap-2 bg-gray-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-gray-700 shadow-lg">
-                                🖨️ IMPRIMIR
-                            </button>
-                            
+            {/* ================= TELA ================= */}
+            <div className="print:hidden">
+                <PageHeader
+                    title={`Romaneio #${numero}`}
+                    description={`Aberto em ${new Date(romaneio.created_at).toLocaleDateString('pt-BR')} · ${rotaCalculada}`}
+                    breadcrumbs={[
+                        { label: 'Logística' },
+                        { label: 'Expedição', href: route('romaneios.index') },
+                        { label: `#${numero}` },
+                    ]}
+                    actions={
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button variant="ghost" icon={ArrowLeftIcon} href={route('romaneios.index')}>
+                                Voltar
+                            </Button>
+                            <Button variant="secondary" icon={PrinterIcon} onClick={() => window.print()}>
+                                Imprimir
+                            </Button>
                             {romaneio.status === 'aberto' && (
-                                <button onClick={handleSaida} className="bg-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-600">
-                                    🚛 Liberar Saída
-                                </button>
+                                <Button icon={TruckIcon} onClick={handleSaida}>
+                                    Liberar Saída
+                                </Button>
                             )}
-                            
-                            {!['concluido', 'em_transito', 'em_transito_cd'].includes(romaneio.status) && (
-                                <button onClick={handleDelete} className="bg-white text-red-600 px-4 py-2 rounded-lg font-bold hover:bg-red-50 border border-red-200">
-                                    🗑️ Desfazer
-                                </button>
+                            {podeDesfazer && (
+                                <Button variant="ghost" icon={TrashIcon} onClick={handleDelete}>
+                                    Desfazer
+                                </Button>
                             )}
                         </div>
+                    }
+                />
+
+                <div className="space-y-6">
+                    {/* --- Progresso --- */}
+                    <Card>
+                        <Stepper passoAtual={passoAtual} />
+                    </Card>
+
+                    {/* --- Resumo da carga --- */}
+                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                        <StatCard label="Motos" value={totalMotos} icon={CubeIcon} tone="info" />
+                        <StatCard
+                            label="Peças"
+                            value={totalPecasUn}
+                            icon={WrenchScrewdriverIcon}
+                            tone="brand"
+                            hint={totalPecasItens > 0 ? `${totalPecasItens} item(ns)` : 'nenhuma nesta carga'}
+                        />
+                        <StatCard label="Destinos" value={destinos.length} icon={MapPinIcon} tone="neutral" />
+                        <StatCard
+                            label="A coletar"
+                            value={totalColetasPendentes}
+                            icon={ExclamationTriangleIcon}
+                            tone={totalColetasPendentes > 0 ? 'warning' : 'success'}
+                            hint={totalColetasPendentes > 0 ? 'bipar na loja de origem' : 'tudo a bordo'}
+                        />
                     </div>
 
-                    {/* MILK RUN */}
-                    {itensParaColetar.length > 0 && (
-                        <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-6 shadow-sm">
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className="bg-orange-100 p-3 rounded-full text-2xl shadow-sm">🛑</div>
-                                <div>
-                                    <h3 className="font-black text-orange-900 text-lg uppercase tracking-wide">Pendências de Coleta</h3>
-                                    <p className="text-sm text-orange-700 font-medium">Bipar estes itens na loja de origem.</p>
+                    {/* --- Motorista --- */}
+                    <Card padding="none">
+                        <div className="flex flex-col gap-4 border-l-4 border-brand-600 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                            <div className="flex items-center gap-4">
+                                <span className="rounded-full bg-brand-50 p-3 text-brand-700">
+                                    <TruckIcon className="h-6 w-6" />
+                                </span>
+                                <div className="min-w-0">
+                                    <h2 className="text-lg font-bold text-content-primary">
+                                        {romaneio.motorista}
+                                    </h2>
+                                    <p className="mt-0.5 text-sm text-content-secondary">
+                                        Placa{' '}
+                                        <span className="rounded border border-line bg-surface-sunken px-2 py-0.5 font-mono font-bold uppercase text-content-primary">
+                                            {romaneio.placa}
+                                        </span>
+                                        {romaneio.transportadora && (
+                                            <span className="ml-2 text-content-muted">
+                                                · {romaneio.transportadora}
+                                            </span>
+                                        )}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                                {itensParaColetar.map(moto => (
-                                    <div key={moto.id} className="bg-white p-4 rounded-xl border border-orange-200 shadow-md flex flex-col justify-between">
-                                        <div>
-                                            <div className="font-bold text-gray-800 text-lg">{moto.modelo}</div>
-                                            <div className="text-xs font-mono bg-gray-100 inline-block px-2 py-1 rounded my-2 border border-gray-200">{moto.chassi}</div>
-                                            <div className="text-xs text-gray-500">
-                                                Retirar: <span className="font-bold text-gray-700 uppercase">{moto._pedido_info?.origem?.filial || 'CD'}</span>
-                                            </div>
+
+                            <StatusBadge status={romaneio.status} />
+                        </div>
+                    </Card>
+
+                    {/* --- Milk run --- */}
+                    {itensParaColetar.length > 0 && (
+                        <Card padding="none" className="ring-2 ring-status-warning-solid/30">
+                            <div className="flex items-center gap-3 border-b border-line bg-status-warning-bg px-5 py-4 sm:px-6">
+                                <span className="rounded-full bg-surface-card p-2 text-status-warning-fg">
+                                    <ExclamationTriangleIcon className="h-5 w-5" />
+                                </span>
+                                <div>
+                                    <h2 className="text-sm font-black uppercase tracking-wide text-status-warning-fg">
+                                        Pendências de coleta
+                                    </h2>
+                                    <p className="text-xs font-medium text-status-warning-fg/80">
+                                        Bipar estes itens na loja de origem antes de liberar a saída.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+                                {itensParaColetar.map((moto) => (
+                                    <div
+                                        key={moto.id}
+                                        className="flex flex-col justify-between rounded-xl bg-surface-sunken p-4 ring-1 ring-line"
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="truncate text-base font-bold text-content-primary">
+                                                {moto.modelo}
+                                            </p>
+                                            <p className="my-2 inline-block rounded border border-line bg-surface-card px-2 py-1 font-mono text-[11px] text-content-secondary">
+                                                {moto.chassi}
+                                            </p>
+                                            <p className="text-xs text-content-muted">
+                                                Retirar em{' '}
+                                                <span className="font-bold uppercase text-content-secondary">
+                                                    {moto._pedido_info?.origem?.filial || 'CD'}
+                                                </span>
+                                            </p>
                                         </div>
-                                        <button onClick={() => handleColeta(moto.id)} className="mt-4 w-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold py-3 rounded-lg uppercase tracking-wider shadow">
-                                            Confirmar Coleta
-                                        </button>
+
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            icon={CheckIcon}
+                                            className="mt-4 w-full"
+                                            onClick={() => handleColeta(moto.id)}
+                                        >
+                                            Confirmar coleta
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
-                        </div>
+                        </Card>
                     )}
 
-                    {/* LISTA DE CARGA */}
-                    <div className="space-y-6">
-                        <h3 className="font-bold text-gray-700 text-lg px-2">📦 Carga a Bordo</h3>
-                        {Object.keys(cargasAgrupadas).map((destinoNome, index) => {
-                            const motosDesteDestino = cargasAgrupadas[destinoNome].filter(m => m.status !== 'aguardando_coleta');
-                            if (motosDesteDestino.length === 0) return null;
+                    {/* --- Carga por destino --- */}
+                    <div className="space-y-5">
+                        <h2 className="px-1 text-base font-bold text-content-primary">Carga a bordo</h2>
+
+                        {cargaVazia && (
+                            <Card>
+                                <EmptyState
+                                    icon={CubeIcon}
+                                    title="Carga vazia"
+                                    description="Nenhuma moto ou peça foi vinculada a este romaneio."
+                                    action={
+                                        <Button href={route('romaneios.create')} icon={CubeIcon}>
+                                            Montar carga
+                                        </Button>
+                                    }
+                                />
+                            </Card>
+                        )}
+
+                        {destinos.map((destino) => {
+                            const motosABordo = destino.motos.filter(
+                                (m) => m.status !== 'aguardando_coleta'
+                            );
+
+                            // O bloco some se tudo deste destino ainda está para coletar.
+                            if (motosABordo.length === 0 && destino.pecas.length === 0) return null;
+
+                            const unidadesPeca = destino.pecas.reduce(
+                                (s, p) => s + (p.quantidade || 0),
+                                0
+                            );
 
                             return (
-                                <div key={index} className="bg-white shadow-sm sm:rounded-lg overflow-hidden border border-gray-200">
-                                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                                <Card key={destino.nome} padding="none">
+                                    {/* Cabeçalho do destino */}
+                                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface-sunken px-5 py-4 sm:px-6">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-white p-2 rounded-full border border-gray-200 text-green-600">📍</div>
+                                            <span className="rounded-full bg-surface-card p-2 text-status-success-fg ring-1 ring-line">
+                                                <MapPinIcon className="h-5 w-5" />
+                                            </span>
                                             <div>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Destino Final</p>
-                                                <h3 className="font-black text-gray-800 text-xl leading-none">{destinoNome}</h3>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-content-muted">
+                                                    Destino final
+                                                </p>
+                                                <h3 className="text-lg font-black leading-tight text-content-primary">
+                                                    {destino.nome}
+                                                </h3>
                                             </div>
                                         </div>
-                                        <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">
-                                            {motosDesteDestino.length} Itens
-                                        </span>
+
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            {motosABordo.length > 0 && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-status-info-bg px-3 py-1 text-xs font-bold text-status-info-fg ring-1 ring-inset ring-status-info-solid/20">
+                                                    <CubeIcon className="h-3.5 w-3.5" />
+                                                    {motosABordo.length} moto(s)
+                                                </span>
+                                            )}
+                                            {unidadesPeca > 0 && (
+                                                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700 ring-1 ring-inset ring-brand-600/20">
+                                                    <WrenchScrewdriverIcon className="h-3.5 w-3.5" />
+                                                    {unidadesPeca} un. de peça
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            <thead className="bg-white">
-                                                <tr>
-                                                    <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-400 uppercase">Modelo</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-400 uppercase">Cor</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-400 uppercase">Chassi</th>
-                                                    <th className="px-6 py-3 text-center text-xs font-extrabold text-gray-400 uppercase">Pedido</th>
-                                                    <th className="px-6 py-3 text-right text-xs font-extrabold text-gray-400 uppercase">Origem</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-gray-100">
-                                                {motosDesteDestino.map((moto) => (
-                                                    <tr key={moto.id}>
-                                                        <td className="px-6 py-3 text-sm font-bold text-gray-700">{moto.modelo}</td>
-                                                        <td className="px-6 py-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="h-3 w-3 rounded-full border border-gray-300" style={{ backgroundColor: getColorHex(moto.cor) }}></span>
-                                                                <span className="text-xs uppercase text-gray-500 font-bold">{moto.cor}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-sm font-mono text-gray-600 bg-gray-50/50">{moto.chassi}</td>
-                                                        <td className="px-6 py-3 text-center">
-                                                            {moto._pedido_info?.id ? (
-                                                                <Link href={route('pedidos.show', moto._pedido_info.id)} className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 hover:text-blue-900 transition">
-                                                                    #{moto._pedido_info.id}
-                                                                </Link>
-                                                            ) : (
-                                                                <span className="text-[10px] text-gray-400 italic">—</span>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-6 py-3 text-right">
-                                                            {moto._pedido_info?.origem_user_id ? (
-                                                                <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-200">TRANSF.</span>
-                                                            ) : (
-                                                                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">CD</span>
-                                                            )}
-                                                        </td>
+
+                                    {/* Motos */}
+                                    {motosABordo.length > 0 && (
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-line">
+                                                <thead>
+                                                    <tr>
+                                                        {['Modelo', 'Cor', 'Chassi'].map((h) => (
+                                                            <th
+                                                                key={h}
+                                                                className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6"
+                                                            >
+                                                                {h}
+                                                            </th>
+                                                        ))}
+                                                        <th className="px-5 py-3 text-center text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6">
+                                                            Pedido
+                                                        </th>
+                                                        <th className="px-5 py-3 text-right text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6">
+                                                            Origem
+                                                        </th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                                                </thead>
+
+                                                <tbody className="divide-y divide-line">
+                                                    {motosABordo.map((moto) => (
+                                                        <tr key={moto.id} className="hover:bg-surface-sunken">
+                                                            <td className="px-5 py-3 text-sm font-bold text-content-primary sm:px-6">
+                                                                {moto.modelo}
+                                                            </td>
+                                                            <td className="px-5 py-3 sm:px-6">
+                                                                <span className="flex items-center gap-2">
+                                                                    <span
+                                                                        className="h-3 w-3 rounded-full ring-1 ring-line-strong"
+                                                                        style={{
+                                                                            backgroundColor: corDaMoto(moto.cor),
+                                                                        }}
+                                                                    />
+                                                                    <span className="text-xs font-bold uppercase text-content-secondary">
+                                                                        {moto.cor}
+                                                                    </span>
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-5 py-3 font-mono text-sm text-content-secondary sm:px-6">
+                                                                {moto.chassi}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-center sm:px-6">
+                                                                {moto._pedido_info?.id ? (
+                                                                    <Link
+                                                                        href={route(
+                                                                            'pedidos.show',
+                                                                            moto._pedido_info.id
+                                                                        )}
+                                                                        className="inline-flex items-center rounded-lg bg-status-info-bg px-2.5 py-1 text-[11px] font-bold text-status-info-fg ring-1 ring-inset ring-status-info-solid/20 transition hover:brightness-95"
+                                                                    >
+                                                                        #{moto._pedido_info.id}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span className="text-xs text-content-muted">—</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-right sm:px-6">
+                                                                <OrigemTag
+                                                                    transferencia={
+                                                                        !!moto._pedido_info?.origem_user_id
+                                                                    }
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
+                                    {/* Peças */}
+                                    {destino.pecas.length > 0 && (
+                                        <div className="overflow-x-auto border-t border-line">
+                                            <div className="flex items-center gap-2 bg-surface-sunken/60 px-5 py-2 sm:px-6">
+                                                <WrenchScrewdriverIcon className="h-4 w-4 text-content-muted" />
+                                                <span className="text-[11px] font-black uppercase tracking-widest text-content-muted">
+                                                    Peças
+                                                </span>
+                                            </div>
+
+                                            <table className="min-w-full divide-y divide-line">
+                                                <thead>
+                                                    <tr>
+                                                        <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6">
+                                                            Código
+                                                        </th>
+                                                        <th className="px-5 py-3 text-left text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6">
+                                                            Descrição
+                                                        </th>
+                                                        <th className="px-5 py-3 text-right text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6">
+                                                            Qtd
+                                                        </th>
+                                                        <th className="px-5 py-3 text-center text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6">
+                                                            Pedido
+                                                        </th>
+                                                        <th className="px-5 py-3 text-right text-[11px] font-black uppercase tracking-wide text-content-muted sm:px-6">
+                                                            Situação
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+
+                                                <tbody className="divide-y divide-line">
+                                                    {destino.pecas.map((peca) => (
+                                                        <tr key={peca.id} className="hover:bg-surface-sunken">
+                                                            <td className="px-5 py-3 font-mono text-sm font-bold text-content-primary sm:px-6">
+                                                                {peca.codigo}
+                                                            </td>
+                                                            <td className="max-w-md px-5 py-3 sm:px-6">
+                                                                <p className="truncate text-sm text-content-secondary">
+                                                                    {peca.descricao}
+                                                                </p>
+                                                                {peca.marca && (
+                                                                    <p className="text-[10px] uppercase text-content-muted">
+                                                                        {peca.marca}
+                                                                    </p>
+                                                                )}
+                                                            </td>
+                                                            <td className="whitespace-nowrap px-5 py-3 text-right text-sm font-black tabular-nums text-content-primary sm:px-6">
+                                                                {peca.quantidade}
+                                                                <span className="ml-1 text-[10px] font-normal uppercase text-content-muted">
+                                                                    {peca.unidade}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-5 py-3 text-center sm:px-6">
+                                                                {peca.pedido_id ? (
+                                                                    <Link
+                                                                        href={route('pedidos.show', peca.pedido_id)}
+                                                                        className="inline-flex items-center rounded-lg bg-status-info-bg px-2.5 py-1 text-[11px] font-bold text-status-info-fg ring-1 ring-inset ring-status-info-solid/20 transition hover:brightness-95"
+                                                                    >
+                                                                        #{peca.pedido_id}
+                                                                    </Link>
+                                                                ) : (
+                                                                    <span className="text-xs text-content-muted">—</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-right sm:px-6">
+                                                                <StatusBadge status={peca.status} size="sm" />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </Card>
                             );
                         })}
                     </div>
                 </div>
             </div>
 
-            {/* --- MODO IMPRESSÃO (MANIFESTO OFICIAL) --- */}
-            <div className="hidden print:block print:fixed print:inset-0 print:bg-white print:z-[9999] print:p-0 print:w-full print:h-full text-black font-sans bg-white">
-                
-                {/* CABEÇALHO */}
-                <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end px-8 pt-8">
+            {/* ================= MANIFESTO (IMPRESSÃO) ================= */}
+            <div className="hidden bg-white font-sans text-black print:fixed print:inset-0 print:z-[9999] print:block print:h-full print:w-full print:bg-white print:p-0">
+                {/* Cabeçalho */}
+                <div className="mb-6 flex items-end justify-between border-b-2 border-black px-8 pb-4 pt-8">
                     <div>
-                        <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">Manifesto de Carga</h1>
-                        <p className="text-sm font-bold mt-1 tracking-widest text-gray-600 uppercase">Shineray Norte - Logística Integrada</p>
+                        <h1 className="text-4xl font-black uppercase leading-none tracking-tighter">
+                            Manifesto de Carga
+                        </h1>
+                        <p className="mt-1 text-sm font-bold uppercase tracking-widest">
+                            Shineray Norte — Logística Integrada
+                        </p>
                     </div>
                     <div className="text-right">
-                        <div className="text-[10px] uppercase font-bold text-gray-500">Romaneio Digital</div>
-                        <div className="text-5xl font-mono font-bold leading-none tracking-tight">#{String(romaneio.id).padStart(6, '0')}</div>
-                        <div className="text-[10px] mt-1 font-bold">{new Date().toLocaleString('pt-BR')}</div>
+                        <div className="text-[10px] font-bold uppercase">Romaneio Digital</div>
+                        <div className="font-mono text-5xl font-bold leading-none tracking-tight">
+                            #{numero}
+                        </div>
+                        <div className="mt-1 text-[10px] font-bold">
+                            {new Date().toLocaleString('pt-BR')}
+                        </div>
                     </div>
                 </div>
 
-                {/* INFO MOTORISTA */}
-                <div className="mx-8 mb-8 border border-black grid grid-cols-4 divide-x divide-black text-xs">
+                {/* Dados do transporte. A carga é descrita em duas grandezas
+                    porque moto se conta por volume e peça por unidade — somar
+                    as duas num número só esconde o que está no caminhão. */}
+                <div className="mx-8 mb-8 grid grid-cols-5 divide-x divide-black border border-black text-xs">
                     <div className="p-3">
-                        <span className="block text-[9px] uppercase font-bold text-gray-500 mb-1">Motorista Responsável</span>
-                        <span className="font-bold uppercase text-sm block">{romaneio.motorista}</span>
+                        <span className="mb-1 block text-[9px] font-bold uppercase">Motorista</span>
+                        <span className="block text-sm font-bold uppercase">{romaneio.motorista}</span>
                     </div>
                     <div className="p-3">
-                        <span className="block text-[9px] uppercase font-bold text-gray-500 mb-1">Placa do Veículo</span>
-                        <span className="font-bold uppercase text-sm block font-mono bg-gray-100 inline px-1 rounded">{romaneio.placa}</span>
+                        <span className="mb-1 block text-[9px] font-bold uppercase">Placa</span>
+                        <span className="block font-mono text-sm font-bold uppercase">{romaneio.placa}</span>
                     </div>
                     <div className="p-3">
-                        <span className="block text-[9px] uppercase font-bold text-gray-500 mb-1">Rota Prevista</span>
-                        {/* AQUI ESTÁ A CORREÇÃO: Usamos a rotaCalculada */}
-                        <span className="font-bold uppercase text-sm block">{rotaCalculada}</span>
+                        <span className="mb-1 block text-[9px] font-bold uppercase">Rota prevista</span>
+                        <span className="block text-sm font-bold uppercase">{rotaCalculada}</span>
                     </div>
-                    <div className="p-3 bg-gray-100 flex flex-col justify-center items-center">
-                        <span className="block text-[9px] uppercase font-bold text-gray-500">Total Volumes</span>
-                        <span className="font-black text-xl block">{totalMotos}</span>
+                    <div className="flex flex-col items-center justify-center p-3">
+                        <span className="block text-[9px] font-bold uppercase">Motos</span>
+                        <span className="block text-xl font-black">{totalMotos}</span>
+                    </div>
+                    <div className="flex flex-col items-center justify-center p-3">
+                        <span className="block text-[9px] font-bold uppercase">Un. de peça</span>
+                        <span className="block text-xl font-black">{totalPecasUn}</span>
                     </div>
                 </div>
 
-                {/* CORPO DO MANIFESTO (ROTAS) */}
+                {/* Blocos por destino */}
                 <div className="mx-8">
-                    {Object.keys(cargasAgrupadas).map((destinoNome) => (
-                        <div key={destinoNome} className="mb-8 break-inside-avoid page-break-inside-avoid border border-black rounded-sm overflow-hidden">
-                            
-                            {/* Header do Destino */}
-                            <div className="bg-black text-white px-4 py-2 text-sm font-bold uppercase flex justify-between items-center print:bg-black print:text-white">
-                                <div className="flex items-center gap-2">
-                                    <span>📍 DESTINO: {destinoNome}</span>
+                    {destinos.map((destino) => {
+                        const unidadesPeca = destino.pecas.reduce((s, p) => s + (p.quantidade || 0), 0);
+
+                        return (
+                            <div
+                                key={destino.nome}
+                                className="page-break-inside-avoid mb-8 break-inside-avoid overflow-hidden rounded-sm border border-black"
+                            >
+                                <div className="flex items-center justify-between bg-black px-4 py-2 text-sm font-bold uppercase text-white print:bg-black print:text-white">
+                                    <span>📍 DESTINO: {destino.nome}</span>
+                                    <span className="flex gap-2">
+                                        {destino.motos.length > 0 && (
+                                            <span className="rounded bg-white px-2 py-0.5 text-xs font-black text-black">
+                                                {destino.motos.length} VOLS
+                                            </span>
+                                        )}
+                                        {unidadesPeca > 0 && (
+                                            <span className="rounded bg-white px-2 py-0.5 text-xs font-black text-black">
+                                                {unidadesPeca} UN PEÇA
+                                            </span>
+                                        )}
+                                    </span>
                                 </div>
-                                <span className="bg-white text-black px-2 py-0.5 rounded text-xs font-black">{cargasAgrupadas[destinoNome].length} VOLS</span>
+
+                                {/* Motos */}
+                                {destino.motos.length > 0 && (
+                                    <table className="w-full border-collapse text-[10px]">
+                                        <thead className="border-b border-black font-bold">
+                                            <tr>
+                                                <th className="w-10 border-r border-black p-2 text-center">#</th>
+                                                <th className="border-r border-black p-2 text-left">
+                                                    MODELO
+                                                </th>
+                                                <th className="w-32 border-r border-black p-2 text-left">
+                                                    CHASSI
+                                                </th>
+                                                <th className="w-20 border-r border-black p-2 text-center">
+                                                    COR
+                                                </th>
+                                                <th className="w-24 border-r border-black p-2 text-center">
+                                                    ORIGEM
+                                                </th>
+                                                <th className="w-32 p-2 text-center">CONFERÊNCIA</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {destino.motos.map((moto, i) => (
+                                                <tr key={moto.id} className="border-b border-black/30 last:border-0">
+                                                    <td className="border-r border-black p-2 text-center font-bold">
+                                                        {i + 1}
+                                                    </td>
+                                                    <td className="border-r border-black p-2 font-bold">
+                                                        {moto.modelo}
+                                                    </td>
+                                                    <td className="border-r border-black p-2 font-mono text-xs">
+                                                        {moto.chassi}
+                                                    </td>
+                                                    <td className="border-r border-black p-2 text-center text-[9px] uppercase">
+                                                        {moto.cor}
+                                                    </td>
+                                                    <td className="border-r border-black p-2 text-center font-bold">
+                                                        {moto.status === 'aguardando_coleta'
+                                                            ? '⚠️ COLETAR'
+                                                            : moto._pedido_info?.origem_user_id
+                                                              ? 'TRANSF.'
+                                                              : 'CD'}
+                                                    </td>
+                                                    <td className="p-2 text-center">________________</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+
+                                {/* Peças — tabela própria porque as colunas não são
+                                    as mesmas da moto (código e quantidade no lugar
+                                    de chassi e cor). */}
+                                {destino.pecas.length > 0 && (
+                                    <table className="w-full border-collapse border-t border-black text-[10px]">
+                                        <thead className="border-b border-black font-bold">
+                                            <tr>
+                                                <th
+                                                    colSpan={5}
+                                                    className="border-b border-black p-1.5 text-left text-[9px] uppercase tracking-widest"
+                                                >
+                                                    Peças / Componentes
+                                                </th>
+                                            </tr>
+                                            <tr>
+                                                <th className="w-10 border-r border-black p-2 text-center">#</th>
+                                                <th className="w-28 border-r border-black p-2 text-left">
+                                                    CÓDIGO
+                                                </th>
+                                                <th className="border-r border-black p-2 text-left">
+                                                    DESCRIÇÃO
+                                                </th>
+                                                <th className="w-16 border-r border-black p-2 text-center">
+                                                    QTD
+                                                </th>
+                                                <th className="w-32 p-2 text-center">CONFERÊNCIA</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {destino.pecas.map((peca, i) => (
+                                                <tr key={peca.id} className="border-b border-black/30 last:border-0">
+                                                    <td className="border-r border-black p-2 text-center font-bold">
+                                                        {i + 1}
+                                                    </td>
+                                                    <td className="border-r border-black p-2 font-mono font-bold">
+                                                        {peca.codigo}
+                                                    </td>
+                                                    <td className="border-r border-black p-2">
+                                                        {peca.descricao}
+                                                    </td>
+                                                    <td className="border-r border-black p-2 text-center font-black">
+                                                        {peca.quantidade}
+                                                    </td>
+                                                    <td className="p-2 text-center">________________</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+
+                                {destino.motos.some((m) => m.status === 'aguardando_coleta') && (
+                                    <div className="border-t border-black p-2 text-center text-[10px] font-bold uppercase">
+                                        ⚠️ Atenção motorista: este destino possui itens que devem ser
+                                        coletados no caminho.
+                                    </div>
+                                )}
                             </div>
-
-                            {/* Tabela de Itens */}
-                            <table className="w-full text-[10px] border-collapse">
-                                <thead className="bg-gray-200 text-black border-b border-black font-bold">
-                                    <tr>
-                                        <th className="border-r border-black p-2 w-10 text-center">#</th>
-                                        <th className="border-r border-black p-2 text-left">MODELO / DESCRIÇÃO</th>
-                                        <th className="border-r border-black p-2 text-left w-32">CHASSI</th>
-                                        <th className="border-r border-black p-2 text-center w-20">COR</th>
-                                        <th className="border-r border-black p-2 text-center w-24">ORIGEM</th>
-                                        <th className="p-2 text-center w-32">CONFERÊNCIA</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {cargasAgrupadas[destinoNome].map((moto, i) => (
-                                        <tr key={moto.id} className="border-b border-gray-300 last:border-0">
-                                            <td className="border-r border-black p-2 text-center font-bold">{i + 1}</td>
-                                            <td className="border-r border-black p-2 font-bold">{moto.modelo}</td>
-                                            <td className="border-r border-black p-2 font-mono text-xs">{moto.chassi}</td>
-                                            <td className="border-r border-black p-2 text-center uppercase text-[9px]">{moto.cor}</td>
-                                            <td className="border-r border-black p-2 text-center font-bold">
-                                                {moto.status === 'aguardando_coleta' ? '⚠️ COLETAR' : (moto._pedido_info?.origem_user_id ? 'TRANSF.' : 'CD')}
-                                            </td>
-                                            <td className="p-2 text-center text-gray-300">________________</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-
-                            {/* Alerta de Coleta (Se houver) */}
-                            {cargasAgrupadas[destinoNome].some(m => m.status === 'aguardando_coleta') && (
-                                <div className="bg-gray-100 border-t border-black p-2 text-center text-[10px] font-bold uppercase">
-                                    ⚠️ ATENÇÃO MOTORISTA: ESTE DESTINO POSSUI ITENS QUE DEVEM SER COLETADOS NO CAMINHO.
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
-                {/* ASSINATURAS */}
-                <div className="mx-8 mt-12 pt-4 border-t-2 border-black break-inside-avoid page-break-inside-avoid">
-                      <p className="text-[10px] text-justify mb-16 italic text-gray-600 uppercase font-medium leading-relaxed">
-                          Declaro ter recebido os volumes constantes neste manifesto em perfeito estado de conservação e funcionamento, conferindo chassis, cores e acessórios no ato da entrega. Avarias não reportadas no ato do recebimento não serão aceitas posteriormente.
-                      </p>
-                      <div className="grid grid-cols-3 gap-16 text-center">
-                        <div>
-                            <div className="border-t border-black mb-2"></div>
-                            <p className="text-[10px] font-bold uppercase">Expedição CD</p>
-                            <p className="text-[8px] text-gray-500">Conferente / Responsável</p>
-                        </div>
-                        <div>
-                            <div className="border-t border-black mb-2"></div>
-                            <p className="text-[10px] font-bold uppercase">Motorista</p>
-                            <p className="text-[8px] text-gray-500">Transportadora</p>
-                        </div>
-                        <div>
-                            <div className="border-t border-black mb-2"></div>
-                            <p className="text-[10px] font-bold uppercase">Recebedor (Loja)</p>
-                            <p className="text-[8px] text-gray-500">Carimbo e Assinatura</p>
-                        </div>
-                      </div>
+                {/* Assinaturas */}
+                <div className="page-break-inside-avoid mx-8 mt-12 break-inside-avoid border-t-2 border-black pt-4">
+                    <p className="mb-16 text-justify text-[10px] font-medium uppercase italic leading-relaxed">
+                        Declaro ter recebido os volumes e as unidades constantes neste manifesto em
+                        perfeito estado de conservação e funcionamento, conferindo chassis, cores,
+                        códigos e quantidades no ato da entrega. Avarias ou divergências não
+                        reportadas no ato do recebimento não serão aceitas posteriormente.
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-16 text-center">
+                        {[
+                            ['Expedição CD', 'Conferente / Responsável'],
+                            ['Motorista', 'Transportadora'],
+                            ['Recebedor (Loja)', 'Carimbo e Assinatura'],
+                        ].map(([titulo, sub]) => (
+                            <div key={titulo}>
+                                <div className="mb-2 border-t border-black" />
+                                <p className="text-[10px] font-bold uppercase">{titulo}</p>
+                                <p className="text-[8px]">{sub}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }
 
-// Subcomponente Visual
-function RomaneioStepper({ currentStep }) {
-    const steps = [ { id: 1, label: 'Abertura', icon: '📝' }, { id: 2, label: 'Carregamento', icon: '📦' }, { id: 3, label: 'Trânsito', icon: '🚚' }, { id: 4, label: 'Concluído', icon: '🏁' } ];
+/** Marca se o item veio do CD ou de uma transferência entre lojas. */
+function OrigemTag({ transferencia }) {
+    return transferencia ? (
+        <span className="inline-flex rounded bg-status-warning-bg px-2 py-1 text-[10px] font-bold text-status-warning-fg ring-1 ring-inset ring-status-warning-solid/20">
+            TRANSF.
+        </span>
+    ) : (
+        <span className="inline-flex rounded bg-status-info-bg px-2 py-1 text-[10px] font-bold text-status-info-fg ring-1 ring-inset ring-status-info-solid/20">
+            CD
+        </span>
+    );
+}
+
+/** Régua de progresso da carga. */
+function Stepper({ passoAtual }) {
+    const passos = [
+        { id: 1, label: 'Abertura' },
+        { id: 2, label: 'Carregamento' },
+        { id: 3, label: 'Trânsito' },
+        { id: 4, label: 'Concluído' },
+    ];
+
+    const progresso = ((passoAtual - 1) / (passos.length - 1)) * 100;
+
     return (
-        <div className="w-full">
-            <div className="relative flex justify-between items-center w-full max-w-3xl mx-auto">
-                <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -z-10 rounded"></div>
-                <div className="absolute top-1/2 left-0 h-1 bg-green-500 -z-10 rounded transition-all duration-700" style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}></div>
-                {steps.map((step) => (
-                    <div key={step.id} className="flex flex-col items-center bg-white px-2">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${step.id <= currentStep ? 'border-green-500 text-white bg-green-500 scale-110 shadow-lg' : 'border-gray-200 text-gray-300 bg-white'}`}>
-                            {step.id < currentStep ? ( <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={4} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> ) : ( <span className="text-sm">{step.icon}</span> )}
-                        </div>
-                        <span className={`mt-2 text-[10px] font-bold uppercase tracking-wider ${step.id <= currentStep ? 'text-green-700' : 'text-gray-400'}`}>{step.label}</span>
+        <div className="relative mx-auto flex w-full max-w-3xl items-center justify-between">
+            <div className="absolute left-0 top-1/2 -z-10 h-1 w-full rounded bg-surface-sunken" />
+            <div
+                className="absolute left-0 top-1/2 -z-10 h-1 rounded bg-status-success-solid transition-all duration-700"
+                style={{ width: `${progresso}%` }}
+            />
+
+            {passos.map((passo) => {
+                const alcancado = passo.id <= passoAtual;
+
+                return (
+                    <div key={passo.id} className="flex flex-col items-center bg-surface-card px-2">
+                        <span
+                            className={`flex h-10 w-10 items-center justify-center rounded-full border-4 transition-all duration-500 ${
+                                alcancado
+                                    ? 'border-status-success-solid bg-status-success-solid text-white shadow-lg'
+                                    : 'border-line bg-surface-card text-content-muted'
+                            }`}
+                        >
+                            {passo.id < passoAtual ? (
+                                <CheckIcon className="h-4 w-4" strokeWidth={3} />
+                            ) : (
+                                <span className="text-sm font-black">{passo.id}</span>
+                            )}
+                        </span>
+
+                        <span
+                            className={`mt-2 text-[10px] font-bold uppercase tracking-wider ${
+                                alcancado ? 'text-status-success-fg' : 'text-content-muted'
+                            }`}
+                        >
+                            {passo.label}
+                        </span>
                     </div>
-                ))}
-            </div>
+                );
+            })}
         </div>
     );
 }

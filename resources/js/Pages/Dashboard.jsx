@@ -1,17 +1,16 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import NoticeBoard from '@/Components/NoticeBoard'; // Novo Componente
+import NoticeBoard from '@/Components/NoticeBoard';
+import { Card, StatCard, Button } from '@/Components/UI';
 import axios from 'axios';
-import { 
-    ClockIcon, 
-    TruckIcon, 
-    ClipboardDocumentCheckIcon, 
-    ArchiveBoxIcon, 
+import {
+    ClockIcon,
+    TruckIcon,
+    ClipboardDocumentCheckIcon,
+    ArchiveBoxIcon,
     ArrowPathIcon,
     ExclamationTriangleIcon,
-    CurrencyDollarIcon,
-    UserIcon,
     BuildingStorefrontIcon,
     ArrowRightIcon,
     ShoppingCartIcon,
@@ -19,504 +18,501 @@ import {
     WrenchScrewdriverIcon,
     WrenchIcon,
     PauseCircleIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 
-export default function Dashboard({ auth, stats, perfil, notices }) { // Recebe notices via prop
-    
-    // Saudação baseada na hora
+/**
+ * Painel de Controle.
+ *
+ * Repaginado para o design system v3: a lógica (auto-refresh, modal de
+ * separação, KPIs do ERP) é a mesma de antes — mudou a camada visual, que
+ * passou de cores cruas (bg-status-info-bg, text-content-primary) para os tokens, e dos
+ * cards locais para os componentes compartilhados.
+ *
+ * Três painéis distintos no mesmo arquivo, por perfil: admin vê auditoria,
+ * CD vê a mesa de operações, loja vê reposição.
+ */
+export default function Dashboard({ auth, stats, perfil, notices }) {
     const hora = new Date().getHours();
     const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
-    
-    // Estados visuais
+
     const [animatePulse, setAnimatePulse] = useState(false);
     const [showSeparationModal, setShowSeparationModal] = useState(false);
-    
-    // Estados do Estoque CD (Microwork)
+
     const [estoqueCD, setEstoqueCD] = useState(null);
     const [loadingEstoque, setLoadingEstoque] = useState(false);
 
-    // --- LÓGICA: POP-UP DE SEPARAÇÃO PENDENTE (LOJA) ---
+    // --- Pop-up de separação pendente (loja) ---
     useEffect(() => {
         if (perfil === 'loja' && stats.transferencias_saida > 0) {
-            // Pequeno delay para garantir que a tela carregou antes de mostrar o modal
             setTimeout(() => setShowSeparationModal(true), 500);
         }
     }, [perfil, stats.transferencias_saida]);
 
-    // --- LÓGICA: AUTO-REFRESH (CD/ADMIN) ---
+    // --- Auto-refresh (CD/Admin) ---
     useEffect(() => {
         if (perfil === 'cd' || perfil === 'admin') {
             const timer = setInterval(() => {
-                router.reload({ 
-                    only: ['stats', 'notices'], // Atualiza avisos também
-                    preserveScroll: true, 
+                router.reload({
+                    only: ['stats', 'notices'],
+                    preserveScroll: true,
                     preserveState: true,
                     onSuccess: () => {
                         setAnimatePulse(true);
                         setTimeout(() => setAnimatePulse(false), 1000);
-                    }
+                    },
                 });
-            }, 15000); 
+            }, 15000);
             return () => clearInterval(timer);
         }
     }, [perfil]);
 
-    // --- LÓGICA: FETCH ESTOQUE CD (ADMIN E CD) ---
+    // --- Estoque físico do CD (ERP Microwork) ---
     useEffect(() => {
         if (perfil === 'admin' || perfil === 'gestor' || perfil === 'cd') {
             setLoadingEstoque(true);
-            axios.get(route('api.estoque.microwork'))
-                .then(res => {
-                    const dados = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+            axios
+                .get(route('api.estoque.microwork'))
+                .then((res) => {
+                    const dados = Array.isArray(res.data.data)
+                        ? res.data.data
+                        : Array.isArray(res.data)
+                          ? res.data
+                          : [];
                     setEstoqueCD(dados);
                 })
-                .catch(err => console.error("Erro API Microwork (Dashboard)", err))
+                .catch((err) => console.error('Erro API Microwork (Dashboard)', err))
                 .finally(() => setLoadingEstoque(false));
         }
     }, [perfil]);
 
-    // --- CALCULOS KPI DO ESTOQUE ---
-    const kpisEstoque = {
-        montadas: 0,
-        desmontadas: 0,
-        separada: 0,
-        conserto: 0,
-        parada: 0
-    };
+    // --- KPIs por pátio ---
+    const kpisEstoque = { montadas: 0, desmontadas: 0, separada: 0, conserto: 0, parada: 0 };
 
     if (estoqueCD) {
-        estoqueCD.forEach(moto => {
-            const patioStr = (moto.patio || '').toUpperCase();
-            if (patioStr.includes('MOTOS MONTADAS')) {
-                kpisEstoque.montadas++;
-            } else if (patioStr.includes('DESMONTADA CD')) {
-                kpisEstoque.desmontadas++;
-            } else if (patioStr.includes('CD EXPEDI')) {
-                kpisEstoque.separada++;
-            } else if (patioStr.includes('AVARIA')) {
-                kpisEstoque.conserto++;
-            } else if (patioStr.includes('INATIVADA')) {
-                kpisEstoque.parada++;
-            }
+        estoqueCD.forEach((moto) => {
+            const patio = (moto.patio || '').toUpperCase();
+            if (patio.includes('MOTOS MONTADAS')) kpisEstoque.montadas++;
+            else if (patio.includes('DESMONTADA CD')) kpisEstoque.desmontadas++;
+            else if (patio.includes('CD EXPEDI')) kpisEstoque.separada++;
+            else if (patio.includes('AVARIA')) kpisEstoque.conserto++;
+            else if (patio.includes('INATIVADA')) kpisEstoque.parada++;
         });
     }
 
-    return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={
-                <div className="flex justify-between items-center">
-                    <h2 className="font-bold text-xl text-gray-800 leading-tight flex items-center gap-2">
-                        <BuildingStorefrontIcon className="w-6 h-6 text-gray-400" />
-                        Painel de Controle
-                    </h2>
-                    {/* Indicador de Ao Vivo para o CD */}
-                    {(perfil === 'cd' || perfil === 'admin') && (
-                        <span className="text-xs font-mono text-gray-500 flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100 transition-all">
-                            <span className={`w-2.5 h-2.5 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] transition-colors duration-500 ${animatePulse ? 'bg-green-400 scale-125' : 'bg-green-600'}`}></span>
-                            Tempo Real
-                        </span>
-                    )}
-                </div>
-            }
-        >
-            <Head title="Dashboard" />
-
-            <div className="py-6 md:py-10 bg-gray-50 min-h-screen relative">
-                
-                {/* --- MODAL DE ALERTA DE SEPARAÇÃO (POP-UP) --- */}
-                {showSeparationModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm transition-opacity duration-300">
-                        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all scale-100 p-6 md:p-8 text-center border-t-8 border-orange-600 relative animate-fade-in-up">
-                            
-                            {/* Ícone Animado */}
-                            <div className="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-orange-100 mb-6 animate-bounce">
-                                <ArchiveBoxIcon className="w-12 h-12 text-orange-600" />
-                            </div>
-
-                            <h3 className="text-3xl font-black text-gray-900 mb-2 uppercase tracking-tight">
-                                Atenção Necessária!
-                            </h3>
-                            
-                            <p className="text-gray-600 mb-6 text-lg leading-relaxed">
-                                Você possui <strong className="text-orange-600 text-2xl border-b-2 border-orange-200">{stats.transferencias_saida} pedidos</strong> de transferência aguardando separação imediata.
-                            </p>
-
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-8 text-left">
-                                <p className="text-sm text-orange-800 font-bold flex items-center gap-2">
-                                    <TruckIcon className="w-5 h-5" /> O Caminhão vai passar!
-                                </p>
-                                <p className="text-xs text-orange-700 mt-1">
-                                    Estas motos devem ser separadas fisicamente no pátio para que o motorista possa realizar a coleta.
-                                </p>
-                            </div>
-
-                            <div className="flex flex-col gap-3">
-                                <Link 
-                                    href={route('pedidos.index')} 
-                                    className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform hover:-translate-y-1 transition text-lg flex items-center justify-center gap-2"
-                                >
-                                    IR PARA SEPARAÇÃO AGORA <ArrowRightIcon className="w-5 h-5" />
-                                </Link>
-                                <button 
-                                    onClick={() => setShowSeparationModal(false)}
-                                    className="text-gray-400 hover:text-gray-600 text-sm font-medium py-2 hover:underline"
-                                >
-                                    Ver dashboard primeiro (Não recomendado)
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    
-                    {/* CABEÇALHO DE BOAS VINDAS */}
-                    <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8 mb-8 border-l-8 border-red-600 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:shadow-md">
-                        <div>
-                            <h3 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight leading-tight">
-                                {saudacao}, <span className="text-red-700">{auth.user.name.split(' ')[0]}</span>!
-                            </h3>
-                            <p className="text-gray-500 mt-2 font-medium text-sm md:text-base">
-                                Sistema de Logística Integrada <span className="text-red-600 font-bold">Shineray By Sabel</span>.
-                            </p>
-                        </div>
-                        <div className="w-full md:w-auto text-left md:text-right">
-                            <span className={`px-4 py-2 rounded-full text-xs md:text-sm font-bold uppercase tracking-wider border shadow-sm flex items-center gap-2 ${
-                                perfil === 'cd' ? 'bg-gray-900 text-white border-gray-900' : 
-                                perfil === 'admin' ? 'bg-black text-white border-black' : 
-                                'bg-red-50 text-red-700 border-red-200'
-                            }`}>
-                                {perfil === 'cd' ? <><ArchiveBoxIcon className="w-4 h-4" /> CD / Expedição</> : 
-                                 perfil === 'admin' ? <><ClipboardDocumentCheckIcon className="w-4 h-4" /> Auditoria / Admin</> : 
-                                 <><BuildingStorefrontIcon className="w-4 h-4" /> Loja / Revenda</>}
-                            </span>
-                            <p className="text-xs text-gray-400 mt-2 font-mono flex items-center justify-end gap-1">
-                                <ClockIcon className="w-3 h-3" />
-                                {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* --- MURAL DE AVISOS (NOVO) --- */}
-                    <NoticeBoard notices={notices} auth={auth} />
-
-                    {/* --- VISÃO ADMIN / DIRETORIA --- */}
-                    {perfil === 'admin' && (
-                        <>
-                            <div className="flex justify-between items-center mb-4 mt-2">
-                                <h3 className="text-lg uppercase tracking-wider font-black text-gray-500 flex items-center gap-2">
-                                    <ClipboardDocumentCheckIcon className="w-5 h-5" /> Movimentação de Pedidos
-                                </h3>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-                                <CardStat titulo="Total Histórico" valor={stats.total_pedidos} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-gray-600" bg="bg-white border-gray-200" desc="Pedidos processados" />
-                                <CardStat titulo="Em Operação" valor={stats.em_andamento} icon={<ArrowPathIcon className="w-8 h-8"/>} color="text-blue-600" bg="bg-blue-50 border-blue-200" desc="Fluxo ativo agora" />
-                                <CardStat titulo="Cargas na Rua" valor={stats.cargas_transito} icon={<TruckIcon className="w-8 h-8"/>} color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Romaneios em trânsito" />
-                                <CardStat titulo="Cancelados" valor={stats.cancelados} icon={<ExclamationTriangleIcon className="w-8 h-8"/>} color="text-red-600" bg="bg-red-50 border-red-200" desc="Devoluções/Erros" link={route('pedidos.index')} />
-                            </div>
-
-                            <div className="flex justify-between items-center mb-4 mt-8">
-                                <h3 className="text-lg uppercase tracking-wider font-black text-gray-500 flex items-center gap-2">
-                                    <CubeIcon className="w-5 h-5" /> Estoque Físico CD (Real-time ERP)
-                                </h3>
-                                {loadingEstoque && <span className="text-sm font-bold text-gray-400 flex items-center gap-2"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>}
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6 mb-10">
-                                <CardStat titulo="Disponível (Montadas)" valor={estoqueCD ? kpisEstoque.montadas : '...'} icon={<CheckCircleIcon className="w-8 h-8"/>} color="text-green-700" bg="bg-green-50 border-green-200" desc="Prontas para faturar" />
-                                <CardStat titulo="Desmontadas" valor={estoqueCD ? kpisEstoque.desmontadas : '...'} icon={<WrenchIcon className="w-8 h-8"/>} color="text-amber-700" bg="bg-amber-50 border-amber-200" desc="Em montagem no CD" />
-                                <CardStat titulo="Separada" valor={estoqueCD ? kpisEstoque.separada : '...'} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-blue-700" bg="bg-blue-50 border-blue-200" desc="Aguardando carga/NF" />
-                                <CardStat titulo="Em Conserto" valor={estoqueCD ? kpisEstoque.conserto : '...'} icon={<WrenchScrewdriverIcon className="w-8 h-8"/>} color="text-orange-700" bg="bg-orange-50 border-orange-200" desc="Avarias e retrabalho" />
-                                <CardStat titulo="Parada" valor={estoqueCD ? kpisEstoque.parada : '...'} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-gray-700" bg="bg-gray-100 border-gray-300" desc="Inativadas / bloqueadas" />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
-                                <ActionCard href={route('pedidos.index')} title="Auditoria de Pedidos" desc="Inspecionar solicitações e tempos." icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} color="red" btnText="Ver Pedidos" />
-                                <ActionCard href={route('romaneios.index')} title="Monitoramento de Cargas" desc="Rastrear motoristas e entregas." icon={<TruckIcon className="w-6 h-6"/>} color="black" btnText="Ver Cargas" />
-                                <ActionCard href={route('pecas.index')} title="Catálogo & Onde Encontrar" desc="Estoque de peças por filial e modelo." icon={<WrenchScrewdriverIcon className="w-6 h-6"/>} color="blue" btnText="Ver Peças" />
-                                <ActionCard href={route('pecas.estoque.index')} title="Inventário CD (Peças)" desc="Entradas, transferências e saldo gerenciado." icon={<CubeIcon className="w-6 h-6"/>} color="gray" btnText="Gerenciar CD" />
-                            </div>
-                        </>
-                    )}
-
-                    {/* --- VISÃO CD --- */}
-                    {perfil === 'cd' && (
-                        <>
-                            {/* ALERTA PRINCIPAL SE HOUVER PEDIDOS PENDENTES */}
-                            {stats.pendentes > 0 && (
-                                <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm animate-pulse-slow">
-                                    <div className="flex items-center gap-4">
-                                        <div className="bg-yellow-100 p-2 rounded-full shrink-0">
-                                            <ExclamationTriangleIcon className="w-8 h-8 text-yellow-600" />
-                                        </div>
-                                        <div>
-                                            <h4 className="text-yellow-800 font-bold text-lg leading-tight md:leading-normal">Ação Necessária: Separação de Pedidos!</h4>
-                                            <p className="text-sm text-yellow-700 mt-1">Existem <strong>{stats.pendentes} solicitações</strong> de chassi aguardando separação pelo CD.</p>
-                                        </div>
-                                    </div>
-                                    <Link href={route('pedidos.index')} className="w-full md:w-auto text-center bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 whitespace-nowrap">
-                                        Ir para Separação
-                                    </Link>
-                                </div>
-                            )}
-
-                            {/* --- STATUS GERAL DA OPERAÇÃO (KPIs) --- */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-                                <CardStat titulo="Total Expedido" valor={stats.cargas_total} icon={<ArchiveBoxIcon className="w-8 h-8"/>} color="text-gray-600" bg="bg-white border-gray-200" desc="Motos enviadas" />
-                                <CardStat titulo="Na Fila p/ Carga" valor={stats.no_patio} icon={<PauseCircleIcon className="w-8 h-8"/>} color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" desc="Separadas no Pool" link={route('romaneios.create')} />
-                                <CardStat titulo="Trânsito Ativo" valor={stats.cargas_transito} icon={<TruckIcon className="w-8 h-8"/>} color="text-orange-600" bg="bg-orange-50 border-orange-200" desc="Romaneios na rua" link={route('romaneios.index')} animate={true} />
-                                <CardStat titulo="Entregues Hoje" valor={stats.hoje} icon={<ClipboardDocumentCheckIcon className="w-8 h-8"/>} color="text-green-600" bg="bg-green-50 border-green-200" desc="Meta diária atingida" />
-                            </div>
-
-                            {/* MESA DE OPERAÇÕES PRINCIPAL (AÇÕES DIRETAS) */}
-                            <h3 className="text-lg font-black text-gray-800 mb-4 px-1 flex items-center gap-2"><BuildingStorefrontIcon className="w-5 h-5 text-gray-500"/> Mesa de Operações Logísticas (O que deseja fazer?)</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                                <ActionCard 
-                                    href={route('pedidos.index')} 
-                                    title="1. Separar Pedidos" 
-                                    desc={`${stats.pendentes} pedidos pendentes. Auditar e confirmar chassis no pátio físico.`} 
-                                    icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} 
-                                    color="blue" 
-                                    btnText="Acessar Solicitações" 
-                                />
-                                <ActionCard 
-                                    href={route('romaneios.create')} 
-                                    title="2. Montar Expedição" 
-                                    desc={`${stats.no_patio} itens em Pool (Separados). Criar novo romaneio de carga para rota.`} 
-                                    icon={<TruckIcon className="w-6 h-6"/>} 
-                                    color="black" 
-                                    btnText="Nova Carga" 
-                                />
-                                <ActionCard 
-                                    href={route('romaneios.index')} 
-                                    title="3. Romaneios / Rotas" 
-                                    desc={`${stats.cargas_total} cargas já montadas. Monitorar trânsito, coletas remotas e histórico.`} 
-                                    icon={<ArchiveBoxIcon className="w-6 h-6"/>} 
-                                    color="gray" 
-                                    btnText="Painel de Trânsito" 
-                                />
-                                <ActionCard 
-                                    href={route('pecas.estoque.index')} 
-                                    title="4. Inventário de Peças CD" 
-                                    desc="Gerenciar entradas de NFs, contagem e transferências do estoque gerenciado." 
-                                    icon={<ClipboardDocumentCheckIcon className="w-6 h-6"/>} 
-                                    color="blue" 
-                                    btnText="Inventário CD" 
-                                />
-                                <ActionCard 
-                                    href={route('pecas.index')} 
-                                    title="5. Catálogo & Onde Encontrar" 
-                                    desc="Consultar disponibilidade e saldos por empresa no ERP Microwork." 
-                                    icon={<WrenchScrewdriverIcon className="w-6 h-6"/>} 
-                                    color="red" 
-                                    btnText="Consultar Peças" 
-                                />
-                                <ActionCard 
-                                    href={route('pecas.pendencias.index')} 
-                                    title="6. Pendências de Peças" 
-                                    desc="Tratar divergências de recebimento e alertas de reposição mínima." 
-                                    icon={<ExclamationTriangleIcon className="w-6 h-6"/>} 
-                                    color="orange" 
-                                    btnText="Ver Pendências" 
-                                />
-                            </div>
-
-                            {/* PAINEL COMPACTO DE ESTOQUE ERP (REAL-TIME) */}
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8">
-                                <div className="flex justify-between items-center mb-6 border-b pb-4">
-                                    <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
-                                        <CubeIcon className="w-6 h-6 text-gray-400" /> Resumo do Estoque Físico Microwork (Tempo Real)
-                                    </h3>
-                                    {loadingEstoque ? (
-                                        <span className="text-xs font-bold text-gray-400 flex items-center gap-1"><ArrowPathIcon className="w-4 h-4 animate-spin"/> Atualizando ERP...</span>
-                                    ) : (
-                                        <Link href={route('motos.index')} className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition">Ver Tabela Completa <ArrowRightIcon className="w-3 h-3"/></Link>
-                                    )}
-                                </div>
-                                
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                                    <div className="bg-green-50 rounded-2xl p-4 border border-green-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
-                                        <CheckCircleIcon className="w-6 h-6 text-green-600 mb-2 opacity-80" />
-                                        <span className="text-3xl font-black text-green-800 tracking-tight">{estoqueCD ? kpisEstoque.montadas : '...'}</span>
-                                        <span className="text-xs font-bold text-green-700 uppercase tracking-widest mt-1 opacity-80">Montadas / Prontas</span>
-                                    </div>
-                                    <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
-                                        <WrenchIcon className="w-6 h-6 text-amber-600 mb-2 opacity-80" />
-                                        <span className="text-3xl font-black text-amber-800 tracking-tight">{estoqueCD ? kpisEstoque.desmontadas : '...'}</span>
-                                        <span className="text-xs font-bold text-amber-700 uppercase tracking-widest mt-1 opacity-80">Desmontadas</span>
-                                    </div>
-                                    <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
-                                        <ArchiveBoxIcon className="w-6 h-6 text-blue-600 mb-2 opacity-80" />
-                                        <span className="text-3xl font-black text-blue-800 tracking-tight">{estoqueCD ? kpisEstoque.separada : '...'}</span>
-                                        <span className="text-xs font-bold text-blue-700 uppercase tracking-widest mt-1 opacity-80">Separadas / Pool</span>
-                                    </div>
-                                    <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100 flex flex-col justify-center items-center text-center shadow-sm hover:shadow-md transition cursor-default">
-                                        <WrenchScrewdriverIcon className="w-6 h-6 text-orange-600 mb-2 opacity-80" />
-                                        <span className="text-3xl font-black text-orange-800 tracking-tight">{estoqueCD ? kpisEstoque.conserto : '...'}</span>
-                                        <span className="text-xs font-bold text-orange-700 uppercase tracking-widest mt-1 opacity-80">Em Conserto/Avaria</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    {/* --- VISÃO LOJA (COM ALERTA NO DASH TAMBÉM) --- */}
-                    {perfil === 'loja' && (
-                        <>
-                            {/* Bloco de Alerta Fixo (caso feche o modal) */}
-                            {stats.transferencias_saida > 0 && (
-                                <Link href={route('pedidos.index')} className="block mb-8 group transform transition hover:-translate-y-1">
-                                    <div className="bg-orange-50 border-l-8 border-orange-500 rounded-2xl p-6 shadow-md hover:shadow-lg transition flex flex-col md:flex-row justify-between items-center relative overflow-hidden gap-4">
-                                        <div className="relative z-10">
-                                            <h3 className="text-xl font-black text-orange-900 flex items-center gap-2">
-                                                <ExclamationTriangleIcon className="w-8 h-8 animate-bounce" /> PENDÊNCIA: Separação Necessária!
-                                            </h3>
-                                            <p className="text-orange-800 mt-1 font-medium">
-                                                <span className="font-bold text-orange-900 text-lg border-b-2 border-orange-900">{stats.transferencias_saida} pedidos</span> aguardando separação na sua loja.
-                                            </p>
-                                        </div>
-                                        <div className="bg-orange-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg group-hover:bg-orange-700 transition relative z-10 whitespace-nowrap flex items-center gap-2">
-                                            RESOLVER AGORA <ArrowRightIcon className="w-4 h-4" />
-                                        </div>
-                                        <div className="absolute right-0 top-0 opacity-10 -mr-6 -mt-6 text-orange-600 rotate-12">
-                                            <ArchiveBoxIcon className="w-32 h-32" />
-                                        </div>
-                                    </div>
-                                </Link>
-                            )}
-
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                                <Link href={route('solicitar')} className="lg:col-span-2 group relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-700 to-red-600 p-6 md:p-8 text-white shadow-lg hover:shadow-2xl hover:to-red-800 transition transform hover:-translate-y-1">
-                                    <div className="relative z-10 flex flex-col h-full justify-between">
-                                        <div>
-                                            <div className="text-xs font-bold uppercase tracking-wider text-red-200 mb-2">Estoque Baixo?</div>
-                                            <h3 className="text-2xl md:text-3xl font-extrabold mb-2">Fazer Pedido / Reposição</h3>
-                                            <p className="text-red-100 max-w-md text-sm md:text-base leading-relaxed">
-                                                Solicite motos ao CD ou transferências. Toda solicitação passará pela aprovação do Gestor.
-                                            </p>
-                                        </div>
-                                        <div className="mt-6 md:mt-8 inline-flex items-center bg-white text-red-700 px-6 py-3 rounded-full font-bold shadow-sm group-hover:bg-gray-100 transition w-max">
-                                            <span className="mr-2"><ShoppingCartIcon className="w-5 h-5"/></span> Nova Solicitação
-                                        </div>
-                                    </div>
-                                    <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10 group-hover:translate-x-5 group-hover:translate-y-5 transition duration-500">
-                                        <ShoppingCartIcon className="w-48 h-48 md:w-64 md:h-64" />
-                                    </div>
-                                </Link>
-
-                                <div className="grid grid-cols-1 gap-4">
-                                    <Link href={route('pedidos.index')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition border-l-4 border-blue-500 flex items-center justify-between group h-full">
-                                        <div>
-                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1 tracking-wide">A Chegar (Entradas)</p>
-                                            <p className="text-4xl font-black text-gray-800 group-hover:text-blue-600 transition">{stats.receber}</p>
-                                            <p className="text-xs text-blue-600 font-bold mt-1 bg-blue-50 px-2 py-0.5 rounded w-fit">Motos em trânsito</p>
-                                        </div>
-                                        <div className="opacity-80 group-hover:scale-110 transition group-hover:-rotate-12">
-                                            <TruckIcon className="w-10 h-10 text-gray-400" />
-                                        </div>
-                                    </Link>
-
-                                    <Link href={route('pedidos.index')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition border-l-4 border-gray-500 flex items-center justify-between group h-full">
-                                        <div>
-                                            <p className="text-gray-500 text-xs font-bold uppercase mb-1 tracking-wide">Meus Pedidos</p>
-                                            <p className="text-4xl font-black text-gray-800 group-hover:text-gray-600 transition">{stats.meus_pedidos}</p>
-                                            <p className="text-xs text-gray-500 font-bold mt-1">Histórico completo</p>
-                                        </div>
-                                        <div className="opacity-80 group-hover:scale-110 transition group-hover:rotate-12">
-                                            <ClipboardDocumentCheckIcon className="w-10 h-10 text-gray-400" />
-                                        </div>
-                                    </Link>
-                                </div>
-                            </div>
-
-                            {/* --- BANNER DE PEÇAS (NOVO V3.0) --- */}
-                            <div className="mt-8">
-                                <h3 className="text-lg font-black text-gray-800 mb-4 px-1 flex items-center gap-2">
-                                    <WrenchScrewdriverIcon className="w-5 h-5 text-red-600"/> Módulo de Peças (v3.0)
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <Link href={route('pecas.solicitar')} className="group bg-white rounded-2xl p-6 border-2 border-red-100 hover:border-red-500 shadow-sm hover:shadow-md transition flex items-center gap-5 relative overflow-hidden">
-                                        <div className="w-14 h-14 rounded-2xl bg-red-50 group-hover:bg-red-600 text-red-600 group-hover:text-white flex items-center justify-center text-2xl transition duration-300 shadow-sm shrink-0">
-                                            <ShoppingCartIcon className="w-7 h-7" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="font-extrabold text-gray-800 text-lg group-hover:text-red-700 transition">Solicitar Peças</h4>
-                                                <span className="bg-red-100 text-red-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Novo</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500 mt-1">Faça pedidos de reposição de peças avulsas com busca rápida por modelo.</p>
-                                        </div>
-                                        <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-red-600 group-hover:translate-x-1 transition" />
-                                    </Link>
-
-                                    <Link href={route('pecas.index')} className="group bg-white rounded-2xl p-6 border-2 border-blue-100 hover:border-blue-500 shadow-sm hover:shadow-md transition flex items-center gap-5 relative overflow-hidden">
-                                        <div className="w-14 h-14 rounded-2xl bg-blue-50 group-hover:bg-blue-600 text-blue-600 group-hover:text-white flex items-center justify-center text-2xl transition duration-300 shadow-sm shrink-0">
-                                            <CubeIcon className="w-7 h-7" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="font-extrabold text-gray-800 text-lg group-hover:text-blue-700 transition">Onde Encontrar Peças</h4>
-                                                <span className="bg-blue-100 text-blue-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Microwork</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500 mt-1">Consulte saldos agrupados por empresa e compatibilidade de modelos.</p>
-                                        </div>
-                                        <ArrowRightIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition" />
-                                    </Link>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}
-
-// --- SUBCOMPONENTES ---
-function CardStat({ titulo, valor, icon, color, bg, desc, link, animate = false }) {
-    const Content = () => (
-        <div className={`p-5 md:p-6 rounded-2xl shadow-sm border transition hover:shadow-md h-full flex flex-col justify-between ${bg} cursor-default hover:-translate-y-1 transform duration-200`}>
-            <div className="flex justify-between items-start mb-2">
-                <p className={`text-xs font-bold uppercase tracking-wide ${color}`}>{titulo}</p>
-                <div className="text-2xl md:text-3xl opacity-80">{icon}</div>
-            </div>
-            <div>
-                <h4 className={`text-3xl md:text-4xl font-black text-gray-800 tracking-tight ${animate ? 'animate-pulse' : ''}`}>{valor}</h4>
-                {desc && <p className="text-xs text-gray-500 mt-1 font-medium">{desc}</p>}
-            </div>
-        </div>
-    );
-    return link ? <Link href={link} className="block h-full"><Content /></Link> : <Content />;
-}
-
-function ActionCard({ href, title, desc, icon, color, btnText }) {
-    const colors = {
-        red: 'hover:border-red-500 hover:shadow-red-100',
-        blue: 'hover:border-blue-500 hover:shadow-blue-100',
-        gray: 'hover:border-gray-600 hover:shadow-gray-200',
-        black: 'hover:border-black hover:shadow-gray-300',
-        white: 'hover:border-gray-400 hover:shadow-gray-100'
+    const rotulosPerfil = {
+        cd: { label: 'CD / Expedição', icon: ArchiveBoxIcon },
+        admin: { label: 'Auditoria / Admin', icon: ClipboardDocumentCheckIcon },
+        gestor: { label: 'Gestão', icon: ClipboardDocumentCheckIcon },
+        loja: { label: 'Loja / Revenda', icon: BuildingStorefrontIcon },
     };
-    const bgIcon = color === 'gray' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600';
+
+    const perfilAtual = rotulosPerfil[perfil] ?? rotulosPerfil.loja;
+    const IconePerfil = perfilAtual.icon;
+
+    const valorErp = (v) => (estoqueCD ? v : null);
 
     return (
-        <Link href={href} className={`group bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition border border-gray-100 relative overflow-hidden flex flex-col h-full ${colors[color] || ''}`}>
-            <div className="flex justify-between items-start relative z-10 mb-4">
-                <div>
-                    <h4 className={`text-xl font-bold mb-2 group-hover:text-${color === 'gray' ? 'gray-900' : 'red-600'} transition text-gray-800`}>{title}</h4>
-                    <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-                </div>
-                <div className={`h-12 w-12 rounded-full flex items-center justify-center transition transform group-hover:scale-110 ${bgIcon}`}>{icon}</div>
-            </div>
-            {btnText && (
-                <div className="mt-auto pt-4">
-                    <span className="text-sm font-bold text-gray-400 group-hover:text-gray-900 transition flex items-center gap-1">
-                        {btnText} <ArrowRightIcon className="w-4 h-4 transform group-hover:translate-x-1 transition" />
-                    </span>
+        <AppLayout user={auth.user}>
+            <Head title="Painel de Controle" />
+
+            {/* ============ MODAL: SEPARAÇÃO PENDENTE (LOJA) ============ */}
+            {showSeparationModal && (
+                <div className="fixed inset-0 z-overlay flex items-center justify-center bg-content-primary/70 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-lg animate-fade-in-up overflow-hidden rounded-card border-t-8 border-status-warning-solid bg-surface-card p-6 text-center shadow-overlay md:p-8">
+                        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-status-warning-bg">
+                            <ArchiveBoxIcon className="h-10 w-10 text-status-warning-fg" />
+                        </div>
+
+                        <h3 className="mb-2 text-2xl font-black uppercase tracking-tight text-content-primary">
+                            Atenção necessária
+                        </h3>
+
+                        <p className="mb-6 text-content-secondary">
+                            Você possui{' '}
+                            <strong className="text-status-warning-fg">
+                                {stats.transferencias_saida} pedidos
+                            </strong>{' '}
+                            de transferência aguardando separação.
+                        </p>
+
+                        <div className="mb-6 rounded-lg border border-status-warning-solid/20 bg-status-warning-bg/50 p-4 text-left">
+                            <p className="flex items-center gap-2 text-sm font-bold text-status-warning-fg">
+                                <TruckIcon className="h-5 w-5" /> O caminhão vai passar
+                            </p>
+                            <p className="mt-1 text-xs text-content-secondary">
+                                Estas motos precisam ser separadas no pátio para que o motorista consiga
+                                fazer a coleta.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <Button
+                                href={route('pedidos.index')}
+                                size="lg"
+                                icon={ArrowRightIcon}
+                                iconRight
+                                className="w-full justify-center"
+                            >
+                                Ir para separação agora
+                            </Button>
+                            <button
+                                type="button"
+                                onClick={() => setShowSeparationModal(false)}
+                                className="py-2 text-sm font-medium text-content-muted transition hover:text-content-secondary"
+                            >
+                                Ver o painel primeiro
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-gray-100 to-gray-200 group-hover:from-red-500 group-hover:to-red-700 transition-all duration-300"></div>
+
+            {/* ============ BOAS-VINDAS ============ */}
+            <Card className="mb-6 border-l-4 border-l-brand-600">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                    <div>
+                        <h1 className="text-2xl font-black tracking-tight text-content-primary md:text-3xl">
+                            {saudacao}, <span className="text-brand-700">{auth.user.name.split(' ')[0]}</span>!
+                        </h1>
+                        <p className="mt-1 text-sm text-content-secondary">
+                            Sistema de Logística Integrada{' '}
+                            <span className="font-bold text-brand-600">Shineray By Sabel</span>.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col items-start gap-2 md:items-end">
+                        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 ring-1 ring-inset ring-brand-600/20">
+                            <IconePerfil className="h-4 w-4" />
+                            {perfilAtual.label}
+                        </span>
+
+                        <div className="flex items-center gap-3">
+                            <p className="flex items-center gap-1 text-xs text-content-muted">
+                                <ClockIcon className="h-3.5 w-3.5" />
+                                {new Date().toLocaleDateString('pt-BR', {
+                                    weekday: 'long',
+                                    day: 'numeric',
+                                    month: 'long',
+                                })}
+                            </p>
+
+                            {/* Indicador de atualização automática */}
+                            {(perfil === 'cd' || perfil === 'admin') && (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunken px-2.5 py-1 text-[11px] font-bold text-content-secondary">
+                                    <span
+                                        className={`h-2 w-2 rounded-full transition-all duration-500 ${
+                                            animatePulse
+                                                ? 'scale-125 bg-status-success-solid'
+                                                : 'bg-status-success-fg'
+                                        }`}
+                                    />
+                                    Tempo real
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
+            <NoticeBoard notices={notices} auth={auth} />
+
+            {/* ============ ADMIN ============ */}
+            {perfil === 'admin' && (
+                <>
+                    <SecaoTitulo icon={ClipboardDocumentCheckIcon}>Movimentação de pedidos</SecaoTitulo>
+                    <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                        <StatCard label="Total histórico" value={stats.total_pedidos} icon={ArchiveBoxIcon} tone="neutral" hint="Pedidos processados" />
+                        <StatCard label="Em operação" value={stats.em_andamento} icon={ArrowPathIcon} tone="info" hint="Fluxo ativo agora" />
+                        <StatCard label="Cargas na rua" value={stats.cargas_transito} icon={TruckIcon} tone="warning" hint="Romaneios em trânsito" href={route('romaneios.index')} />
+                        <StatCard label="Cancelados" value={stats.cancelados} icon={ExclamationTriangleIcon} tone="danger" hint="Devoluções e erros" href={route('pedidos.index')} />
+                    </div>
+
+                    <SecaoTitulo icon={CubeIcon} loading={loadingEstoque}>
+                        Estoque físico do CD (ERP em tempo real)
+                    </SecaoTitulo>
+                    <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-5">
+                        <StatCard label="Montadas" value={valorErp(kpisEstoque.montadas)} loading={!estoqueCD} icon={CheckCircleIcon} tone="success" hint="Prontas para faturar" />
+                        <StatCard label="Desmontadas" value={valorErp(kpisEstoque.desmontadas)} loading={!estoqueCD} icon={WrenchIcon} tone="warning" hint="Em montagem" />
+                        <StatCard label="Separadas" value={valorErp(kpisEstoque.separada)} loading={!estoqueCD} icon={ArchiveBoxIcon} tone="info" hint="Aguardando carga/NF" />
+                        <StatCard label="Em conserto" value={valorErp(kpisEstoque.conserto)} loading={!estoqueCD} icon={WrenchScrewdriverIcon} tone="danger" hint="Avaria e retrabalho" />
+                        <StatCard label="Paradas" value={valorErp(kpisEstoque.parada)} loading={!estoqueCD} icon={PauseCircleIcon} tone="neutral" hint="Inativadas" />
+                    </div>
+
+                    <SecaoTitulo icon={BuildingStorefrontIcon}>Atalhos</SecaoTitulo>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        <CartaoAcao href={route('pedidos.index')} titulo="Auditoria de pedidos" desc="Inspecionar solicitações e tempos." icon={ClipboardDocumentCheckIcon} />
+                        <CartaoAcao href={route('romaneios.index')} titulo="Monitorar cargas" desc="Rastrear motoristas e entregas." icon={TruckIcon} />
+                        <CartaoAcao href={route('pecas.index')} titulo="Catálogo de peças" desc="Estoque por filial e modelo." icon={WrenchScrewdriverIcon} />
+                        <CartaoAcao href={route('pecas.estoque.index')} titulo="Inventário do CD" desc="Entradas, transferências e saldo." icon={CubeIcon} />
+                    </div>
+                </>
+            )}
+
+            {/* ============ CD ============ */}
+            {perfil === 'cd' && (
+                <>
+                    {stats.pendentes > 0 && (
+                        <Alerta
+                            titulo="Separação de pedidos pendente"
+                            descricao={`${stats.pendentes} solicitações de chassi aguardando separação pelo CD.`}
+                            href={route('pedidos.index')}
+                            acao="Ir para separação"
+                        />
+                    )}
+
+                    <SecaoTitulo icon={ArchiveBoxIcon}>Status da operação</SecaoTitulo>
+                    <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                        <StatCard label="Total expedido" value={stats.cargas_total} icon={ArchiveBoxIcon} tone="neutral" hint="Motos enviadas" />
+                        <StatCard label="Na fila p/ carga" value={stats.no_patio} icon={PauseCircleIcon} tone="info" hint="Separadas no pool" href={route('romaneios.create')} />
+                        <StatCard label="Trânsito ativo" value={stats.cargas_transito} icon={TruckIcon} tone="warning" hint="Romaneios na rua" href={route('romaneios.index')} />
+                        <StatCard label="Entregues hoje" value={stats.hoje} icon={ClipboardDocumentCheckIcon} tone="success" hint="Concluídos no dia" />
+                    </div>
+
+                    <SecaoTitulo icon={BuildingStorefrontIcon}>Mesa de operações</SecaoTitulo>
+                    <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        <CartaoAcao
+                            href={route('pedidos.index')}
+                            titulo="1. Separar pedidos"
+                            desc={`${stats.pendentes} pendentes. Auditar e confirmar chassis no pátio.`}
+                            icon={ClipboardDocumentCheckIcon}
+                            destaque={stats.pendentes > 0}
+                        />
+                        <CartaoAcao
+                            href={route('romaneios.create')}
+                            titulo="2. Montar expedição"
+                            desc={`${stats.no_patio} itens no pool. Criar romaneio de carga para a rota.`}
+                            icon={TruckIcon}
+                        />
+                        <CartaoAcao
+                            href={route('romaneios.index')}
+                            titulo="3. Romaneios e rotas"
+                            desc={`${stats.cargas_total} cargas montadas. Monitorar trânsito e coletas.`}
+                            icon={ArchiveBoxIcon}
+                        />
+                        <CartaoAcao
+                            href={route('pecas.estoque.index')}
+                            titulo="4. Inventário de peças"
+                            desc="Entradas de NF, contagem e transferências do saldo gerenciado."
+                            icon={CubeIcon}
+                        />
+                        <CartaoAcao
+                            href={route('pecas.index')}
+                            titulo="5. Catálogo e localização"
+                            desc="Disponibilidade e saldo por empresa no ERP."
+                            icon={WrenchScrewdriverIcon}
+                        />
+                        <CartaoAcao
+                            href={route('pecas.pendencias.index')}
+                            titulo="6. Pendências de peças"
+                            desc="Divergências de recebimento e alertas de reposição."
+                            icon={ExclamationTriangleIcon}
+                        />
+                    </div>
+
+                    <Card
+                        title="Estoque físico no Microwork"
+                        subtitle="Resumo por pátio, direto do ERP."
+                        actions={
+                            loadingEstoque ? (
+                                <span className="flex items-center gap-1.5 text-xs font-bold text-content-muted">
+                                    <ArrowPathIcon className="h-4 w-4 animate-spin" /> Atualizando…
+                                </span>
+                            ) : (
+                                <Button href={route('motos.index')} variant="ghost" size="sm" icon={ArrowRightIcon} iconRight>
+                                    Ver tabela
+                                </Button>
+                            )
+                        }
+                    >
+                        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                            <BlocoPatio valor={valorErp(kpisEstoque.montadas)} label="Montadas / prontas" icon={CheckCircleIcon} tone="success" />
+                            <BlocoPatio valor={valorErp(kpisEstoque.desmontadas)} label="Desmontadas" icon={WrenchIcon} tone="warning" />
+                            <BlocoPatio valor={valorErp(kpisEstoque.separada)} label="Separadas / pool" icon={ArchiveBoxIcon} tone="info" />
+                            <BlocoPatio valor={valorErp(kpisEstoque.conserto)} label="Conserto / avaria" icon={WrenchScrewdriverIcon} tone="danger" />
+                        </div>
+                    </Card>
+                </>
+            )}
+
+            {/* ============ LOJA ============ */}
+            {perfil === 'loja' && (
+                <>
+                    {stats.transferencias_saida > 0 && (
+                        <Alerta
+                            titulo="Separação necessária na sua loja"
+                            descricao={`${stats.transferencias_saida} pedidos aguardando separação.`}
+                            href={route('pedidos.index')}
+                            acao="Resolver agora"
+                        />
+                    )}
+
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                        {/* Chamada principal */}
+                        <Link
+                            href={route('solicitar')}
+                            className="group relative overflow-hidden rounded-card bg-gradient-to-br from-brand-700 to-brand-600 p-6 text-white shadow-card transition hover:shadow-card-hover md:p-8 lg:col-span-2"
+                        >
+                            <div className="relative z-10 flex h-full flex-col justify-between">
+                                <div>
+                                    <p className="mb-1 text-xs font-bold uppercase tracking-wider text-white/70">
+                                        Estoque baixo?
+                                    </p>
+                                    <h3 className="mb-2 text-2xl font-black md:text-3xl">
+                                        Fazer pedido / reposição
+                                    </h3>
+                                    <p className="max-w-md text-sm leading-relaxed text-white/80">
+                                        Solicite motos ao CD ou transferências entre lojas. Toda solicitação passa
+                                        pela aprovação do gestor.
+                                    </p>
+                                </div>
+
+                                <span className="mt-6 inline-flex w-max items-center gap-2 rounded-full bg-surface-card px-5 py-2.5 font-bold text-brand-700 shadow-sm transition group-hover:bg-brand-50">
+                                    <ShoppingCartIcon className="h-5 w-5" /> Nova solicitação
+                                </span>
+                            </div>
+
+                            <ShoppingCartIcon className="pointer-events-none absolute -bottom-8 -right-8 h-48 w-48 opacity-10 transition duration-500 group-hover:scale-110" />
+                        </Link>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            <StatCard
+                                label="A chegar"
+                                value={stats.receber}
+                                icon={TruckIcon}
+                                tone="info"
+                                hint="Motos em trânsito"
+                                href={route('pedidos.index')}
+                            />
+                            <StatCard
+                                label="Meus pedidos"
+                                value={stats.meus_pedidos}
+                                icon={ClipboardDocumentCheckIcon}
+                                tone="neutral"
+                                hint="Histórico completo"
+                                href={route('pedidos.index')}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mt-8">
+                        <SecaoTitulo icon={WrenchScrewdriverIcon}>Módulo de peças</SecaoTitulo>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <CartaoAcao
+                                href={route('pecas.solicitar')}
+                                titulo="Solicitar peças"
+                                desc="Pedidos de reposição com busca por modelo de moto."
+                                icon={ShoppingCartIcon}
+                                destaque
+                            />
+                            <CartaoAcao
+                                href={route('pecas.index')}
+                                titulo="Onde encontrar peças"
+                                desc="Saldo por empresa e compatibilidade por modelo."
+                                icon={CubeIcon}
+                            />
+                        </div>
+                    </div>
+                </>
+            )}
+        </AppLayout>
+    );
+}
+
+/* ---------------------------------------------------------------- */
+/* Subcomponentes                                                    */
+/* ---------------------------------------------------------------- */
+
+function SecaoTitulo({ icon: Icon, children, loading = false }) {
+    return (
+        <div className="mb-3 mt-2 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-content-secondary">
+                {Icon && <Icon className="h-4 w-4" />}
+                {children}
+            </h2>
+
+            {loading && (
+                <span className="flex items-center gap-1.5 text-xs font-bold text-content-muted">
+                    <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" /> Atualizando…
+                </span>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Aviso de ação pendente. Substitui os três blocos de alerta que existiam
+ * antes com marcações diferentes (amarelo no CD, laranja na loja).
+ */
+function Alerta({ titulo, descricao, href, acao }) {
+    return (
+        <Link
+            href={href}
+            className="mb-6 flex flex-col items-start justify-between gap-4 rounded-card border-l-4 border-status-warning-solid bg-status-warning-bg/50 p-5 shadow-card transition hover:shadow-card-hover md:flex-row md:items-center"
+        >
+            <div className="flex items-start gap-3">
+                <ExclamationTriangleIcon className="h-6 w-6 shrink-0 text-status-warning-fg" />
+                <div>
+                    <h3 className="font-bold text-content-primary">{titulo}</h3>
+                    <p className="mt-0.5 text-sm text-content-secondary">{descricao}</p>
+                </div>
+            </div>
+
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-status-warning-solid px-4 py-2 text-sm font-bold text-white shadow-sm">
+                {acao} <ArrowRightIcon className="h-4 w-4" />
+            </span>
         </Link>
+    );
+}
+
+function CartaoAcao({ href, titulo, desc, icon: Icon, destaque = false }) {
+    return (
+        <Link
+            href={href}
+            className={`group flex h-full flex-col rounded-card bg-surface-card p-5 shadow-card ring-1 transition hover:shadow-card-hover
+                ${destaque ? 'ring-brand-600/30' : 'ring-line hover:ring-line-strong'}`}
+        >
+            <div className="mb-3 flex items-start justify-between gap-3">
+                <h3 className="font-bold text-content-primary transition group-hover:text-brand-700">
+                    {titulo}
+                </h3>
+                <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition group-hover:scale-105
+                        ${destaque ? 'bg-brand-600 text-white' : 'bg-surface-sunken text-content-secondary'}`}
+                >
+                    <Icon className="h-5 w-5" />
+                </span>
+            </div>
+
+            <p className="text-sm leading-relaxed text-content-secondary">{desc}</p>
+
+            <span className="mt-auto pt-4 text-sm font-bold text-content-muted transition group-hover:text-brand-600">
+                Acessar <ArrowRightIcon className="inline h-4 w-4 transition group-hover:translate-x-0.5" />
+            </span>
+        </Link>
+    );
+}
+
+function BlocoPatio({ valor, label, icon: Icon, tone }) {
+    const tones = {
+        success: 'bg-status-success-bg text-status-success-fg',
+        warning: 'bg-status-warning-bg text-status-warning-fg',
+        info: 'bg-status-info-bg text-status-info-fg',
+        danger: 'bg-status-danger-bg text-status-danger-fg',
+        neutral: 'bg-status-neutral-bg text-status-neutral-fg',
+    };
+
+    return (
+        <div className={`flex flex-col items-center rounded-card p-4 text-center ${tones[tone]}`}>
+            <Icon className="mb-1.5 h-5 w-5 opacity-80" />
+            {valor === null ? (
+                <span className="my-1 h-8 w-10 animate-pulse rounded bg-current opacity-20" />
+            ) : (
+                <span className="text-3xl font-black tabular-nums">{valor}</span>
+            )}
+            <span className="mt-1 text-[10px] font-bold uppercase tracking-wider opacity-80">
+                {label}
+            </span>
+        </div>
     );
 }

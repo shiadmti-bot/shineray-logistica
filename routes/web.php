@@ -263,7 +263,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         
         // Resource Padrão (Index, Store, Update, Destroy)
         // Admin, CD, Gestor e Loja (Loja terá view restrita no Front)
-        Route::resource('motos', MotoController::class)->middleware('check_perfil:admin,cd,gestor,loja');
+        Route::resource('motos', MotoController::class)->only(['index'])->middleware('check_perfil:admin,cd,gestor,loja');
 
 
         /*
@@ -341,8 +341,8 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::post('/{pedidoId}/read', [ChatController::class, 'markAsRead'])->name('markRead');
         });
 
-        // Cadastro de Usuários (Lojas)
-        Route::prefix('usuarios')->name('users.')->group(function () {
+        // Cadastro de Usuários (Lojas) - Exclusivo Admin
+        Route::prefix('usuarios')->name('users.')->middleware('check_perfil:admin')->group(function () {
             Route::get('/', [UserController::class, 'index'])->name('index');
             Route::get('/novo', [UserController::class, 'create'])->name('create');
             Route::post('/', [UserController::class, 'store'])->name('store');

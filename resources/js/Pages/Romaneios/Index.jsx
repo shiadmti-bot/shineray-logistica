@@ -1,8 +1,23 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import {
+    TruckIcon,
+    MagnifyingGlassIcon,
+    XMarkIcon,
+    PlusIcon,
+    WrenchScrewdriverIcon,
+} from '@heroicons/react/24/outline';
 
+import { Card, PageHeader, Button, StatusBadge, EmptyState } from '@/Components/UI';
+
+/**
+ * Histórico de cargas — repaginado para o design system v3.
+ *
+ * A carga passou a ser mista (motos + peças no mesmo romaneio), então a coluna
+ * de volume mostra os dois. Antes exibia só `motos_count`, e uma carga que
+ * levasse apenas peças aparecia como "0" — parecendo vazia.
+ */
 export default function RomaneioIndex({ auth, romaneios, filters }) {
-    // 1. BLINDAGEM DE DADOS: Garante que 'romaneios' nunca seja nulo/undefined
     const safeRomaneios = romaneios || { data: [], links: [], total: 0 };
 
     const { data, setData, get, processing } = useForm({
@@ -12,305 +27,333 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
         status: filters?.status || '',
     });
 
+    const temFiltro = data.search || data.data_inicio || data.data_fim || data.status;
+
     const handleSearch = (e) => {
         e.preventDefault();
-        get(route('romaneios.index'), {
-            preserveState: true,
-            preserveScroll: true,
-        });
+        get(route('romaneios.index'), { preserveState: true, preserveScroll: true });
     };
 
     const clearSearch = () => {
-        setData({
-            search: '',
-            data_inicio: '',
-            data_fim: '',
-            status: ''
-        });
-        // Força limpeza
+        setData({ search: '', data_inicio: '', data_fim: '', status: '' });
         get(route('romaneios.index'), {}, { preserveState: true });
     };
 
+    const classeCampo =
+        'w-full rounded-lg border-line bg-surface-card py-2 text-sm text-content-primary focus:border-brand-500 focus:ring-brand-500';
+
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Histórico de Cargas</h2>}>
+        <AppLayout user={auth.user}>
             <Head title="Cargas e Romaneios" />
 
-            <div className="py-8 bg-gray-50 min-h-screen">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
-                    
-                    {/* --- CABEÇALHO E AÇÕES --- */}
-                    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4 transition-all hover:shadow-md">
-                        
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            {auth.user.perfil === 'cd' ? (
-                                <Link href={route('romaneios.create')} className="w-full md:w-auto bg-gradient-to-r from-gray-800 to-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:from-black hover:to-gray-800 transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
-                                    <span>🚛</span> Nova Expedição
-                                </Link>
-                            ) : (
-                                <div className="flex items-center gap-2 text-gray-600">
-                                    <span className="text-xl">🚛</span>
-                                    <h3 className="font-bold text-gray-700">Controle de Expedição</h3>
-                                </div>
-                            )}
+            <PageHeader
+                title="Cargas e Romaneios"
+                description={`${safeRomaneios.total} carga(s) no histórico.`}
+                breadcrumbs={[{ label: 'Logística' }, { label: 'Cargas' }]}
+                actions={
+                    ['cd', 'admin'].includes(auth.user.perfil) && (
+                        <Button href={route('romaneios.create')} icon={PlusIcon}>
+                            Nova Expedição
+                        </Button>
+                    )
+                }
+            />
+
+            {/* ---------- FILTROS ---------- */}
+            <Card padding="none" className="mb-6">
+                <form onSubmit={handleSearch} className="grid grid-cols-1 items-end gap-3 p-4 md:grid-cols-12">
+                    <div className="md:col-span-4">
+                        <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">
+                            Busca rápida
+                        </label>
+                        <div className="relative">
+                            <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+                            <input
+                                type="text"
+                                className={`${classeCampo} pl-9`}
+                                placeholder="Placa, motorista ou rota…"
+                                value={data.search}
+                                onChange={(e) => setData('search', e.target.value)}
+                            />
                         </div>
-
-                        <hr className="border-gray-100" />
-
-                        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                            {/* Busca Textual */}
-                            <div className="md:col-span-4 relative">
-                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Busca Rápida</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                    </div>
-                                    <input 
-                                        type="text" 
-                                        className="pl-9 w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 transition-colors text-sm py-2"
-                                        placeholder="Placa, Motorista, Rota..."
-                                        value={data.search}
-                                        onChange={e => setData('search', e.target.value)}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Data Inicio */}
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">De</label>
-                                <input 
-                                    type="date" 
-                                    className="w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 text-sm py-2 text-gray-600"
-                                    value={data.data_inicio}
-                                    onChange={e => setData('data_inicio', e.target.value)}
-                                />
-                            </div>
-
-                            {/* Data Fim */}
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Até</label>
-                                <input 
-                                    type="date" 
-                                    className="w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 text-sm py-2 text-gray-600"
-                                    value={data.data_fim}
-                                    onChange={e => setData('data_fim', e.target.value)}
-                                />
-                            </div>
-
-                            {/* Status */}
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Status</label>
-                                <select 
-                                    className="w-full border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 text-sm py-2 text-gray-600"
-                                    value={data.status}
-                                    onChange={e => setData('status', e.target.value)}
-                                >
-                                    <option value="">Todos</option>
-                                    <option value="aberto">Em Aberto</option>
-                                    <option value="expedido">Carregando</option>
-                                    <option value="em_transito">Em Trânsito</option>
-                                    <option value="concluido">Concluído</option>
-                                </select>
-                            </div>
-
-                            {/* Botões */}
-                            <div className="md:col-span-2 flex gap-2">
-                                <button type="submit" className="w-full bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-700 font-bold transition shadow-sm text-sm" disabled={processing}>
-                                    Filtrar
-                                </button>
-                                {(data.search || data.data_inicio || data.data_fim || data.status) && (
-                                    <button type="button" onClick={clearSearch} className="bg-gray-200 text-gray-600 px-3 py-2 rounded-lg hover:bg-gray-300 font-bold transition text-sm" title="Limpar Filtros">
-                                        ✕
-                                    </button>
-                                )}
-                            </div>
-                        </form>
                     </div>
 
-                    {/* --- VERSÃO MOBILE (CARDS COM PROGRESSO) --- */}
-                    <div className="md:hidden space-y-4">
-                        {safeRomaneios.data.length > 0 ? safeRomaneios.data.map((romaneio) => (
-                            <Link key={romaneio.id} href={route('romaneios.show', romaneio.id)} className="block group">
-                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-gray-300 hover:shadow-md transition relative overflow-hidden">
-                                    {/* Faixa lateral colorida segura */}
-                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${safeGetStatusColor(romaneio.status)}`}></div>
+                    <div className="md:col-span-2">
+                        <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">De</label>
+                        <input
+                            type="date"
+                            className={classeCampo}
+                            value={data.data_inicio}
+                            onChange={(e) => setData('data_inicio', e.target.value)}
+                        />
+                    </div>
 
-                                    <div className="flex justify-between items-start mb-3 pl-2">
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xl font-black text-gray-800">#{String(romaneio.id).padStart(6, '0')}</span>
-                                            </div>
-                                            <div className="text-sm font-bold text-gray-700 mt-1">{romaneio.motorista || 'Motorista N/D'}</div>
-                                            <div className="text-xs text-gray-500 font-mono uppercase bg-gray-50 px-2 py-0.5 rounded inline-block mt-1 border border-gray-200">
-                                                {romaneio.placa || 'SEM PLACA'}
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="block text-xs text-gray-400 uppercase font-bold mb-1">Motos</span>
-                                            <span className="text-xl font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
-                                                {romaneio.motos_count || 0}
-                                            </span>
-                                        </div>
-                                    </div>
+                    <div className="md:col-span-2">
+                        <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">Até</label>
+                        <input
+                            type="date"
+                            className={classeCampo}
+                            value={data.data_fim}
+                            onChange={(e) => setData('data_fim', e.target.value)}
+                        />
+                    </div>
 
-                                    {/* Barra de Progresso Visual */}
-                                    <div className="mt-4 pl-2">
-                                        <div className="flex justify-between items-end mb-1">
-                                            <BadgeStatus status={romaneio.status} />
-                                            <span className="text-[10px] text-gray-400 font-bold">
-                                                {romaneio.created_at ? new Date(romaneio.created_at).toLocaleDateString() : '-'}
-                                            </span>
-                                        </div>
-                                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className={`h-full ${safeGetStatusColor(romaneio.status)} transition-all duration-1000`} 
-                                                style={{ width: `${(safeGetStepNumber(romaneio.status) / 4) * 100}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </Link>
-                        )) : (
-                            <div className="text-center py-10 text-gray-500">Nenhuma expedição encontrada.</div>
+                    <div className="md:col-span-2">
+                        <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">
+                            Status
+                        </label>
+                        <select
+                            className={classeCampo}
+                            value={data.status}
+                            onChange={(e) => setData('status', e.target.value)}
+                        >
+                            <option value="">Todos</option>
+                            <option value="aberto">Em Aberto</option>
+                            <option value="expedido">Carregando</option>
+                            <option value="em_transito">Em Trânsito</option>
+                            <option value="concluido">Concluído</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-2 md:col-span-2">
+                        <Button type="submit" loading={processing} className="flex-1 justify-center">
+                            Filtrar
+                        </Button>
+                        {temFiltro && (
+                            <Button variant="secondary" type="button" onClick={clearSearch} title="Limpar filtros">
+                                <XMarkIcon className="h-4 w-4" />
+                            </Button>
                         )}
                     </div>
+                </form>
+            </Card>
 
-                    {/* --- VERSÃO DESKTOP (TABELA COM PROGRESSO) --- */}
-                    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+            {/* ---------- MOBILE ---------- */}
+            <div className="space-y-3 md:hidden">
+                {safeRomaneios.data.length > 0 ? (
+                    safeRomaneios.data.map((romaneio) => (
+                        <Link
+                            key={romaneio.id}
+                            href={route('romaneios.show', romaneio.id)}
+                            className="relative block overflow-hidden rounded-card bg-surface-card p-4 pl-5 shadow-card ring-1 ring-line transition active:scale-[0.99]"
+                        >
+                            <span
+                                className={`absolute inset-y-0 left-0 w-1.5 ${corDoStatus(romaneio.status)}`}
+                            />
+
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <span className="text-lg font-black text-content-primary">
+                                        #{String(romaneio.id).padStart(6, '0')}
+                                    </span>
+                                    <div className="mt-1 text-sm font-bold text-content-secondary">
+                                        {romaneio.motorista || 'Motorista não informado'}
+                                    </div>
+                                    <span className="mt-1 inline-block rounded bg-surface-sunken px-2 py-0.5 font-mono text-xs uppercase text-content-secondary ring-1 ring-inset ring-line">
+                                        {romaneio.placa || 'sem placa'}
+                                    </span>
+                                </div>
+
+                                <Volume romaneio={romaneio} />
+                            </div>
+
+                            <div className="mb-1 flex items-end justify-between">
+                                <StatusBadge status={romaneio.status} size="sm" />
+                                <span className="text-[10px] font-bold text-content-muted">
+                                    {romaneio.created_at
+                                        ? new Date(romaneio.created_at).toLocaleDateString()
+                                        : '-'}
+                                </span>
+                            </div>
+
+                            <BarraProgresso status={romaneio.status} />
+                        </Link>
+                    ))
+                ) : (
+                    <Card>
+                        <EmptyState icon={TruckIcon} title="Nenhuma carga encontrada" />
+                    </Card>
+                )}
+            </div>
+
+            {/* ---------- DESKTOP ---------- */}
+            <Card padding="none" className="hidden md:block">
+                {safeRomaneios.data.length > 0 ? (
+                    <div className="overflow-x-auto scrollbar-slim">
+                        <table className="min-w-full divide-y divide-line">
+                            <thead className="bg-surface-sunken">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">ID / Data</th>
-                                    <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Dados do Transporte</th>
-                                    <th className="px-6 py-4 text-center text-xs font-extrabold text-gray-500 uppercase tracking-wider">Volume</th>
-                                    <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider w-1/4">Status da Carga</th>
-                                    <th className="px-6 py-4 text-right text-xs font-extrabold text-gray-500 uppercase tracking-wider">Ação</th>
+                                    {['ID / Data', 'Transporte', 'Volume', 'Status da carga', ''].map((h, i) => (
+                                        <th
+                                            key={i}
+                                            className={`px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-content-secondary
+                                                ${i === 2 ? 'text-center' : i === 4 ? 'text-right' : 'text-left'}`}
+                                        >
+                                            {h}
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-100">
-                                {safeRomaneios.data.length > 0 ? (
-                                    safeRomaneios.data.map((romaneio) => (
-                                        <tr key={romaneio.id || Math.random()} className="hover:bg-gray-50 transition duration-150 group">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm font-black text-gray-800">#{String(romaneio.id).padStart(6, '0')}</div>
-                                                <div className="text-xs text-gray-400 mt-0.5">
-                                                    {romaneio.created_at ? new Date(romaneio.created_at).toLocaleDateString() : '-'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-bold text-gray-800">{romaneio.motorista || 'Sem Motorista'}</div>
-                                                <div className="text-xs text-gray-500 font-mono mt-1">
-                                                    {romaneio.placa || 'SEM PLACA'} {romaneio.transportadora ? `• ${romaneio.transportadora}` : ''}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200 group-hover:bg-white group-hover:border-gray-300 transition">
-                                                    {romaneio.motos_count || 0}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex justify-between items-center">
-                                                        <BadgeStatus status={romaneio.status} />
-                                                    </div>
-                                                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className={`h-full ${safeGetStatusColor(romaneio.status)}`} 
-                                                            style={{ width: `${(safeGetStepNumber(romaneio.status) / 4) * 100}%` }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <Link href={route('romaneios.show', romaneio.id)} className="text-indigo-600 hover:text-indigo-900 font-bold border border-indigo-100 hover:border-indigo-300 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition">
-                                                    Inspecionar →
-                                                </Link>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="5" className="px-6 py-12 text-center text-gray-400 bg-gray-50/50">
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-4xl mb-2">🚛</span>
-                                                <p>Nenhuma carga encontrada.</p>
+
+                            <tbody className="divide-y divide-line bg-surface-card">
+                                {safeRomaneios.data.map((romaneio) => (
+                                    <tr key={romaneio.id} className="group transition hover:bg-surface-sunken/60">
+                                        <td className="whitespace-nowrap px-4 py-3">
+                                            <div className="font-black text-content-primary transition group-hover:text-brand-700">
+                                                #{String(romaneio.id).padStart(6, '0')}
+                                            </div>
+                                            <div className="mt-0.5 text-xs text-content-muted">
+                                                {romaneio.created_at
+                                                    ? new Date(romaneio.created_at).toLocaleDateString()
+                                                    : '-'}
                                             </div>
                                         </td>
+
+                                        <td className="px-4 py-3">
+                                            <div className="text-sm font-bold text-content-primary">
+                                                {romaneio.motorista || 'Sem motorista'}
+                                            </div>
+                                            <div className="mt-0.5 font-mono text-xs text-content-secondary">
+                                                {romaneio.placa || 'SEM PLACA'}
+                                                {romaneio.transportadora ? ` · ${romaneio.transportadora}` : ''}
+                                                {romaneio.rota ? ` · ${romaneio.rota}` : ''}
+                                            </div>
+                                        </td>
+
+                                        <td className="px-4 py-3 text-center">
+                                            <Volume romaneio={romaneio} />
+                                        </td>
+
+                                        <td className="w-1/4 px-4 py-3">
+                                            <StatusBadge status={romaneio.status} size="sm" />
+                                            <BarraProgresso status={romaneio.status} />
+                                        </td>
+
+                                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                                            <Button
+                                                href={route('romaneios.show', romaneio.id)}
+                                                variant="secondary"
+                                                size="sm"
+                                            >
+                                                Inspecionar
+                                            </Button>
+                                        </td>
                                     </tr>
-                                )}
+                                ))}
                             </tbody>
                         </table>
                     </div>
+                ) : (
+                    <EmptyState
+                        icon={TruckIcon}
+                        title="Nenhuma carga encontrada"
+                        description={
+                            temFiltro
+                                ? 'Nenhum resultado para os filtros aplicados.'
+                                : 'As cargas montadas na expedição aparecem aqui.'
+                        }
+                        action={
+                            temFiltro && (
+                                <Button variant="secondary" onClick={clearSearch}>
+                                    Limpar filtros
+                                </Button>
+                            )
+                        }
+                    />
+                )}
+            </Card>
 
-                    {/* PAGINAÇÃO */}
-                    {safeRomaneios.links && safeRomaneios.links.length > 3 && (
-                        <div className="flex flex-wrap justify-center gap-2 mt-6">
-                            {safeRomaneios.links.map((link, k) => (
-                                <Link
-                                    key={k}
-                                    href={link.url || '#'}
-                                    className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${
-                                        link.active 
-                                            ? 'bg-gray-800 text-white border-gray-800' 
-                                            : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'
-                                    } ${!link.url ? 'opacity-50 cursor-not-allowed hidden' : ''}`}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                />
-                            ))}
-                        </div>
-                    )}
+            {/* ---------- PAGINAÇÃO ---------- */}
+            {safeRomaneios.links && safeRomaneios.links.length > 3 && (
+                <div className="mt-6 flex flex-wrap justify-center gap-1">
+                    {safeRomaneios.links.map((link, k) => (
+                        <Link
+                            key={k}
+                            href={link.url || '#'}
+                            dangerouslySetInnerHTML={{ __html: link.label }}
+                            className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
+                                ${
+                                    link.active
+                                        ? 'bg-brand-600 text-white'
+                                        : link.url
+                                          ? 'text-content-secondary hover:bg-surface-sunken'
+                                          : 'pointer-events-none text-content-muted opacity-50'
+                                }`}
+                        />
+                    ))}
                 </div>
-            </div>
-        </AuthenticatedLayout>
+            )}
+        </AppLayout>
     );
 }
 
-// --- FUNÇÕES AUXILIARES BLINDADAS (ZERO CRASH) ---
+/* ================= SUBCOMPONENTES ================= */
 
-// 1. Converte qualquer coisa para string segura (evita o erro toString of null)
-function safeString(value) {
-    if (value === null || value === undefined) return '';
-    return String(value).toLowerCase();
-}
+/**
+ * Volume da carga: motos e peças.
+ *
+ * Carga mista é o caso normal desde a v3 — mostrar só motos faria uma carga de
+ * peças parecer vazia. As peças aparecem em UNIDADES (não em linhas), que é o
+ * número que importa para quem carrega o caminhão.
+ */
+function Volume({ romaneio }) {
+    const motos = romaneio.motos_count || 0;
+    const pecas = romaneio.pecas_unidades || 0;
 
-function safeGetStepNumber(status) {
-    const s = safeString(status);
-    switch(s) {
-        case 'aberto': return 1;
-        case 'expedido': return 2;
-        case 'em_transito': return 3;
-        case 'concluido': return 4;
-        default: return 1;
+    if (!motos && !pecas) {
+        return <span className="text-xs text-content-muted">vazia</span>;
     }
-}
-
-function safeGetStatusColor(status) {
-    const s = safeString(status);
-    switch(s) {
-        case 'aberto': return 'bg-yellow-500';
-        case 'expedido': return 'bg-blue-500';
-        case 'em_transito': return 'bg-orange-500';
-        case 'concluido': return 'bg-green-500';
-        default: return 'bg-gray-400';
-    }
-}
-
-function BadgeStatus({ status }) {
-    const s = safeString(status);
-    
-    const config = {
-        'aberto':      { label: 'Em Aberto',    bg: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        'expedido':    { label: 'Carregando',   bg: 'bg-blue-100 text-blue-800 border-blue-200' },
-        'em_transito': { label: 'Em Trânsito',  bg: 'bg-orange-100 text-orange-800 border-orange-200' },
-        'concluido':   { label: 'Concluído',    bg: 'bg-green-100 text-green-800 border-green-200' },
-    };
-
-    const current = config[s] || { label: status || 'Desconhecido', bg: 'bg-gray-100 text-gray-600 border-gray-200' };
 
     return (
-        <span className={`px-2.5 py-1 rounded-md text-[10px] md:text-xs font-bold uppercase border tracking-wide ${current.bg}`}>
-            {current.label}
-        </span>
+        <div className="inline-flex items-center gap-1.5">
+            {motos > 0 && (
+                <span
+                    title={`${motos} moto(s)`}
+                    className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2.5 py-1 text-sm font-bold text-content-secondary ring-1 ring-inset ring-line"
+                >
+                    <TruckIcon className="h-3.5 w-3.5" />
+                    {motos}
+                </span>
+            )}
+
+            {pecas > 0 && (
+                <span
+                    title={`${pecas} unidade(s) de peça`}
+                    className="inline-flex items-center gap-1 rounded-full bg-status-info-bg px-2.5 py-1 text-sm font-bold text-status-info-fg ring-1 ring-inset ring-status-info-solid/20"
+                >
+                    <WrenchScrewdriverIcon className="h-3.5 w-3.5" />
+                    {pecas}
+                </span>
+            )}
+        </div>
+    );
+}
+
+const paraTexto = (v) => String(v ?? '').toLowerCase();
+
+/** Etapa da carga no fluxo, de aberta a concluída. */
+function BarraProgresso({ status }) {
+    const etapas = { aberto: 1, expedido: 2, em_transito: 3, concluido: 4 };
+    const s = paraTexto(status);
+
+    return (
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
+            <div
+                className={`h-full transition-all duration-700 ${corDoStatus(status)}`}
+                style={{ width: `${((etapas[s] ?? 1) / 4) * 100}%` }}
+            />
+        </div>
+    );
+}
+
+function corDoStatus(status) {
+    return (
+        {
+            aberto: 'bg-status-warning-solid',
+            expedido: 'bg-status-info-solid',
+            em_transito: 'bg-status-info-solid',
+            concluido: 'bg-status-success-solid',
+            cancelado: 'bg-status-danger-solid',
+        }[paraTexto(status)] || 'bg-status-neutral-solid'
     );
 }

@@ -1,4 +1,5 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
+import { PageHeader } from '@/Components/UI';
 import { Head, useForm, Link } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 
@@ -30,29 +31,32 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
     };
 
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className="font-bold text-2xl text-gray-800">✏️ Editar Acesso</h2>}
-        >
+        <AppLayout user={auth.user}>
             <Head title={`Editar ${usuario.name}`} />
+            <PageHeader
+                title="Editar Acesso"
+                breadcrumbs={[
+                    { label: 'Início', href: route('dashboard') },
+                    { label: 'Usuários', href: route('users.index') },
+                    { label: 'Editar' },
+                ]}
+            />
 
-            <div className="py-12 bg-gray-100 min-h-screen">
-                <div className="max-w-4xl mx-auto sm:px-6 lg:px-8">
-                    
-                    <form onSubmit={submit} className="bg-white p-8 shadow-lg rounded-xl border-t-4 border-red-600">
+            <div className="max-w-4xl mx-auto sm:px-6 lg:px-8">
+                <form onSubmit={submit} className="bg-surface-card p-8 shadow-lg rounded-xl border-t-4 border-brand-600">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-bold text-gray-700">Dados da Conta</h3>
-                            <span className="text-xs text-gray-400">Editando ID: #{usuario.id}</span>
+                            <h3 className="text-lg font-bold text-content-secondary">Dados da Conta</h3>
+                            <span className="text-xs text-content-muted">Editando ID: #{usuario.id}</span>
                         </div>
 
                         <div className="grid grid-cols-1 gap-6">
                             
                             {/* --- TIPO DE PERFIL --- */}
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Tipo de Acesso</label>
+                                <label className="block text-sm font-bold text-content-secondary mb-2">Tipo de Acesso</label>
                                 <div className="flex gap-2 flex-wrap md:flex-nowrap">
                                     {['loja', 'cd', 'admin', 'gestor'].map((tipo) => (
-                                        <label key={tipo} className={`flex-1 border rounded-lg p-3 cursor-pointer text-center uppercase font-bold text-sm transition ${data.perfil === tipo ? 'bg-red-50 border-red-500 text-red-700 shadow-sm' : 'border-gray-200 hover:border-gray-400 text-gray-500'}`}>
+                                        <label key={tipo} className={`flex-1 border rounded-lg p-3 cursor-pointer text-center uppercase font-bold text-sm transition ${data.perfil === tipo ? 'bg-brand-50 border-brand-500 text-brand-700 shadow-sm' : 'border-line hover:border-line-strong text-content-muted'}`}>
                                             <input 
                                                 type="radio" 
                                                 name="perfil" 
@@ -70,37 +74,37 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
                             {/* --- DADOS PESSOAIS --- */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700">Nome do Responsável / Loja</label>
+                                    <label className="block text-sm font-bold text-content-secondary">Nome do Responsável / Loja</label>
                                     <input
                                         type="text"
-                                        className="mt-1 w-full border-gray-300 rounded shadow-sm focus:border-red-500 focus:ring-red-500"
+                                        className="mt-1 w-full border-line-strong rounded shadow-sm focus:border-brand-500 focus:ring-brand-500"
                                         value={data.name}
                                         onChange={e => setData('name', e.target.value)}
                                         required
                                     />
-                                    {errors.name && <div className="text-red-500 text-xs mt-1">{errors.name}</div>}
+                                    {errors.name && <div className="text-status-danger-fg text-xs mt-1">{errors.name}</div>}
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700">E-mail de Acesso</label>
+                                    <label className="block text-sm font-bold text-content-secondary">E-mail de Acesso</label>
                                     <input
                                         type="email"
-                                        className="mt-1 w-full border-gray-300 rounded shadow-sm bg-gray-50 focus:bg-white transition"
+                                        className="mt-1 w-full border-line-strong rounded shadow-sm bg-surface-sunken focus:bg-surface-card transition"
                                         value={data.email}
                                         onChange={e => setData('email', e.target.value)}
                                         required
                                     />
-                                    {errors.email && <div className="text-red-500 text-xs mt-1">{errors.email}</div>}
+                                    {errors.email && <div className="text-status-danger-fg text-xs mt-1">{errors.email}</div>}
                                 </div>
                             </div>
 
                             {/* --- FILIAL (Select) --- */}
                             {data.perfil === 'loja' && (
-                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
+                                <div className="bg-surface-sunken p-4 rounded-lg border border-line space-y-4">
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Loja / Filial Vinculada</label>
+                                        <label className="block text-sm font-bold text-content-secondary mb-1">Loja / Filial Vinculada</label>
                                         <select
-                                            className="w-full border-gray-300 rounded shadow-sm focus:border-red-500 focus:ring-red-500"
+                                            className="w-full border-line-strong rounded shadow-sm focus:border-brand-500 focus:ring-brand-500"
                                             value={data.filial}
                                             onChange={e => setData('filial', e.target.value)}
                                         >
@@ -116,7 +120,7 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
 
                                     {/* --- NOVA SEÇÃO: MODELO LOGÍSTICO (Capital vs Interior) --- */}
                                     <div>
-                                        <label className="block text-xs font-black text-gray-500 uppercase mb-2 tracking-wide">Modelo Logístico</label>
+                                        <label className="block text-xs font-black text-content-muted uppercase mb-2 tracking-wide">Modelo Logístico</label>
                                         
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {/* Opção 1: Capital */}
@@ -124,16 +128,16 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
                                                 onClick={() => setData('is_interior', false)}
                                                 className={`cursor-pointer border-2 rounded-lg p-3 flex items-center gap-3 transition-all relative overflow-hidden ${
                                                     !data.is_interior 
-                                                        ? 'bg-white border-green-500 shadow-md ring-2 ring-green-100' 
-                                                        : 'bg-white border-gray-200 opacity-60 hover:opacity-100 hover:border-green-300'
+                                                        ? 'bg-surface-card border-status-success-solid shadow-md ring-2 ring-status-success-solid/20' 
+                                                        : 'bg-surface-card border-line opacity-60 hover:opacity-100 hover:border-status-success-solid/40'
                                                 }`}
                                             >
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${!data.is_interior ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>⚡</div>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${!data.is_interior ? 'bg-status-success-bg text-status-success-fg' : 'bg-surface-sunken text-content-muted'}`}>⚡</div>
                                                 <div>
-                                                    <div className="font-bold text-sm text-gray-800">Capital / Direto</div>
-                                                    <div className="text-xs text-gray-500">Fluxo Loja ➔ Loja</div>
+                                                    <div className="font-bold text-sm text-content-primary">Capital / Direto</div>
+                                                    <div className="text-xs text-content-muted">Fluxo Loja ➔ Loja</div>
                                                 </div>
-                                                {!data.is_interior && <div className="absolute top-2 right-2 text-green-500 text-xs font-bold">ATIVO</div>}
+                                                {!data.is_interior && <div className="absolute top-2 right-2 text-status-success-solid text-xs font-bold">ATIVO</div>}
                                             </div>
 
                                             {/* Opção 2: Interior */}
@@ -141,16 +145,16 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
                                                 onClick={() => setData('is_interior', true)}
                                                 className={`cursor-pointer border-2 rounded-lg p-3 flex items-center gap-3 transition-all relative overflow-hidden ${
                                                     data.is_interior 
-                                                        ? 'bg-white border-orange-500 shadow-md ring-2 ring-orange-100' 
-                                                        : 'bg-white border-gray-200 opacity-60 hover:opacity-100 hover:border-orange-300'
+                                                        ? 'bg-surface-card border-status-warning-solid shadow-md ring-2 ring-status-warning-solid/20' 
+                                                        : 'bg-surface-card border-line opacity-60 hover:opacity-100 hover:border-status-warning-solid/40'
                                                 }`}
                                             >
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${data.is_interior ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-400'}`}>🏭</div>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${data.is_interior ? 'bg-status-warning-bg text-status-warning-fg' : 'bg-surface-sunken text-content-muted'}`}>🏭</div>
                                                 <div>
-                                                    <div className="font-bold text-sm text-gray-800">Interior / Hub</div>
-                                                    <div className="text-xs text-gray-500">Obrigatório passar pelo CD</div>
+                                                    <div className="font-bold text-sm text-content-primary">Interior / Hub</div>
+                                                    <div className="text-xs text-content-muted">Obrigatório passar pelo CD</div>
                                                 </div>
-                                                {data.is_interior && <div className="absolute top-2 right-2 text-orange-500 text-xs font-bold">ATIVO</div>}
+                                                {data.is_interior && <div className="absolute top-2 right-2 text-status-warning-fg text-xs font-bold">ATIVO</div>}
                                             </div>
                                         </div>
                                     </div>
@@ -159,17 +163,17 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
 
                             {/* --- ROTA PADRÃO (Opcional) --- */}
                             {(data.perfil === 'loja' || data.perfil === 'cd') && (
-                                <div className="bg-blue-50 p-5 rounded-lg border border-blue-200 mt-2 shadow-inner">
+                                <div className="bg-status-info-bg p-5 rounded-lg border border-status-info-solid/30 mt-2 shadow-inner">
                                     <div className="flex items-start gap-3">
                                         <span className="text-2xl">🚚</span>
                                         <div className="flex-1">
-                                            <h4 className="font-bold text-blue-900 text-sm">Rota Logística Preferencial</h4>
-                                            <p className="text-xs text-blue-600 mb-3">
+                                            <h4 className="font-bold text-status-info-fg text-sm">Rota Logística Preferencial</h4>
+                                            <p className="text-xs text-status-info-fg mb-3">
                                                 Usada para destacar datas no calendário logístico.
                                             </p>
                                             
                                             <select
-                                                className="w-full border-blue-300 rounded text-sm text-blue-900 font-bold focus:ring-blue-500 shadow-sm"
+                                                className="w-full border-status-info-solid/40 rounded text-sm text-status-info-fg font-bold focus:ring-status-info-solid shadow-sm"
                                                 value={data.default_route_id}
                                                 onChange={e => setData('default_route_id', e.target.value)}
                                             >
@@ -187,13 +191,13 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
 
                             {/* --- ALTERAR SENHA --- */}
                             <div className="border-t pt-6 mt-2">
-                                <h4 className="text-sm font-bold text-gray-500 uppercase mb-4">Alterar Senha (Opcional)</h4>
+                                <h4 className="text-sm font-bold text-content-muted uppercase mb-4">Alterar Senha (Opcional)</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700">Nova Senha</label>
+                                        <label className="block text-sm font-bold text-content-secondary">Nova Senha</label>
                                         <input
                                             type="password"
-                                            className="mt-1 w-full border-gray-300 rounded shadow-sm placeholder-gray-400 text-sm"
+                                            className="mt-1 w-full border-line-strong rounded shadow-sm placeholder-content-muted text-sm"
                                             placeholder="Deixe vazio para manter a atual"
                                             value={data.password}
                                             onChange={e => setData('password', e.target.value)}
@@ -201,17 +205,17 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700">Confirmar Nova Senha</label>
+                                        <label className="block text-sm font-bold text-content-secondary">Confirmar Nova Senha</label>
                                         <input
                                             type="password"
-                                            className="mt-1 w-full border-gray-300 rounded shadow-sm placeholder-gray-400 text-sm"
+                                            className="mt-1 w-full border-line-strong rounded shadow-sm placeholder-content-muted text-sm"
                                             placeholder="Repita a nova senha"
                                             value={data.password_confirmation}
                                             onChange={e => setData('password_confirmation', e.target.value)}
                                         />
                                     </div>
                                 </div>
-                                {errors.password && <div className="text-red-500 text-xs mt-2">{errors.password}</div>}
+                                {errors.password && <div className="text-status-danger-fg text-xs mt-2">{errors.password}</div>}
                             </div>
 
                         </div>
@@ -220,22 +224,21 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
                         <div className="mt-8 flex justify-end gap-4 border-t pt-6">
                             <Link 
                                 href={route('users.index')} 
-                                className="px-6 py-2 border border-gray-300 rounded text-gray-700 font-bold hover:bg-gray-50 transition"
+                                className="px-6 py-2 border border-line-strong rounded text-content-secondary font-bold hover:bg-surface-sunken transition"
                             >
                                 Cancelar
                             </Link>
                             <button
                                 type="submit"
                                 disabled={processing}
-                                className="bg-red-700 text-white px-8 py-2 rounded font-bold hover:bg-red-800 shadow-md transition transform hover:-translate-y-0.5"
+                                className="bg-brand-700 text-white px-8 py-2 rounded font-bold hover:bg-brand-800 shadow-md transition transform hover:-translate-y-0.5"
                             >
                                 {processing ? 'Salvando...' : 'Salvar Alterações'}
                             </button>
                         </div>
 
                     </form>
-                </div>
             </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }

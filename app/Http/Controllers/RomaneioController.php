@@ -22,7 +22,10 @@ class RomaneioController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        $query = Romaneio::with(['motos.pedidos', 'user', 'pedidos.motos']) 
+        $query = Romaneio::with(['motos.pedidos', 'user', 'pedidos.motos'])
+            // v3: carga mista — contagem de itens de peça desta carga.
+            ->withCount(['itens as pecas_count' => fn ($q) => $q->where('itemable_type', \App\Models\Peca::class)])
+            ->withSum(['itens as pecas_unidades' => fn ($q) => $q->where('itemable_type', \App\Models\Peca::class)], 'quantidade') 
             ->orderByRaw("CASE WHEN status = 'concluido' THEN 2 ELSE 1 END ASC")
             ->orderBy('created_at', 'desc');
 
@@ -69,6 +72,10 @@ class RomaneioController extends Controller
                 'origem' => $romaneio->user->filial ?? 'CD Matriz',
                 'created_at' => $romaneio->created_at,
                 'motos_count' => $total, // Usa o total unificado
+                // v3: a mesma carga pode levar peças. Sem estes números a
+                // listagem mostraria "0 itens" para uma carga só de peças.
+                'pecas_count' => (int) ($romaneio->pecas_count ?? 0),
+                'pecas_unidades' => (int) ($romaneio->pecas_unidades ?? 0),
                 'status' => $statusVisual,
                 'tipo' => $romaneio->tipo 
             ];
@@ -85,7 +92,9 @@ class RomaneioController extends Controller
     {
         // 1. EXPEDIÇÃO (Saindo do CD)
         // Pedidos que possuem motos que estão 'separado', 'no_cd', etc e são saída de CD
+        // V2.6: Ignora pedidos que ainda estão aguardando definição de chassi (esses aparecem na seção aguardandoChassi)
         $expedicao = Pedido::whereNotIn('status', ['concluido', 'cancelado', 'rejeitado'])
+            ->whereDoesntHave('itensPedido', fn ($q) => $q->pendentes())
             ->whereHas('motos', function ($q) {
                 $q->whereIn('status', ['separado', 'no_cd', 'rota_confirmada']);
             })
@@ -104,6 +113,7 @@ class RomaneioController extends Controller
         // 2. COLETAS (Milk Run)
         // Pedidos que são transferências (tem origem em uma Loja definida) e possuem motos aptas
         $coletas = Pedido::whereNotIn('status', ['concluido', 'cancelado', 'rejeitado'])
+            ->whereDoesntHave('itensPedido', fn ($q) => $q->pendentes())
             ->whereNotNull('origem_user_id')
             ->whereHas('origem', function ($q) {
                 $q->where('perfil', 'loja');
@@ -152,11 +162,45 @@ class RomaneioController extends Controller
             })
             ->values();
 
+        /*
+         * 5. V3: PEDIDOS DE PEÇA PRONTOS PARA EMBARCAR.
+         *
+         * Só entram os que o CD já separou (status 'separado'), porque separar é
+         * o que reserva o saldo — embarcar peça não separada mandaria para a rua
+         * o que não foi conferido na prateleira.
+         *
+         * Ficam de fora os que já estão em alguma carga (romaneio_id preenchido).
+         */
+        $pecasProntas = Pedido::where('tipo_carga', 'peca')
+            ->where('status', 'separado')
+            ->whereNull('romaneio_id')
+            ->whereHas('itensPedido', fn ($q) => $q->where('qtd_atribuida', '>', 0))
+            ->with(['user:id,name,filial', 'localDestino:id,nome', 'itensPedido.peca:id,codigo,descricao,unidade'])
+            ->orderBy('created_at') // FIFO, igual à fila de chassi
+            ->get()
+            ->map(fn ($pedido) => [
+                'id'         => $pedido->id,
+                'loja'       => $pedido->localDestino->nome ?? $pedido->user->filial ?? $pedido->user->name,
+                'created_at' => $pedido->created_at,
+                'total_un'   => (int) $pedido->itensPedido->sum('qtd_atribuida'),
+                'itens'      => $pedido->itensPedido
+                    ->filter(fn ($i) => $i->qtd_atribuida > 0)
+                    ->map(fn ($i) => [
+                        'id'        => $i->id,
+                        'codigo'    => $i->peca->codigo ?? '-',
+                        'descricao' => $i->peca->descricao ?? 'Peça',
+                        'unidade'   => $i->peca->unidade ?? 'UN',
+                        'quantidade'=> $i->qtd_atribuida,
+                    ])->values(),
+            ])
+            ->values();
+
         return Inertia::render('Romaneios/Create', [
             'expedicao' => $expedicao,
             'coletas' => $coletas,
             'cargasEmAberto' => $cargasEmAberto,
-            'aguardandoChassi' => $aguardandoChassi
+            'aguardandoChassi' => $aguardandoChassi,
+            'pecasProntas' => $pecasProntas,
         ]);
     }
 
@@ -250,7 +294,14 @@ class RomaneioController extends Controller
             'placa'     => 'required_without:romaneio_id|string|nullable',
             'rota_nome' => 'required_without:romaneio_id|string|nullable',
             'romaneio_id' => 'nullable|exists:romaneios,id',
-            'motos_ids'   => 'required|array|min:1' // CORREÇÃO: Agora recebe IDs das MOTOS
+            // v3: carga mista. A carga precisa de motos OU de peças — antes
+            // motos_ids era sempre obrigatório e uma carga só de peças não passava.
+            'motos_ids'          => 'required_without:pedidos_pecas_ids|array',
+            'motos_ids.*'        => 'integer|exists:motos,id',
+            'pedidos_pecas_ids'  => 'required_without:motos_ids|array',
+            'pedidos_pecas_ids.*'=> 'integer|exists:pedidos,id',
+        ], [
+            'motos_ids.required_without' => 'Selecione ao menos uma moto ou um pedido de peças.',
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -271,8 +322,10 @@ class RomaneioController extends Controller
             }
 
             // B) Busca as MOTOS selecionadas (e seus pedidos vinculados para contexto)
+            // input(...,[]) e não ->motos_ids: numa carga só de peças a chave nem
+            // vem no payload, e whereIn(null) derruba a requisição com 500.
             $motos = Moto::with(['pedidos.origem', 'pedidos.user'])
-                         ->whereIn('id', $request->motos_ids)
+                         ->whereIn('id', $request->input('motos_ids', []))
                          ->get();
             
             // Array para controlar quais pedidos tiveram status alterado (evita update repetido)
@@ -315,24 +368,106 @@ class RomaneioController extends Controller
                 }
 
                 // 2. Prepara atualização do PEDIDO PAI
-                // Se a moto mudou, o pedido também muda de status
-                $pedidosAfetados[$pedido->id] = [
-                    'model' => $pedido,
-                    'status' => $novoStatusPedido
-                ];
+                // V2.6: Só marca o pedido pai como expedido/coleta se todas as cotas já tiverem chassis atribuídos
+                if ($pedido->saldoPendente() === 0) {
+                    $pedidosAfetados[$pedido->id] = [
+                        'model' => $pedido,
+                        'status' => $novoStatusPedido,
+                        'romaneio_id' => $romaneio->id,
+                    ];
+                }
             }
 
             // C) Atualiza os Pedidos Pai (em lote/único por pedido)
             foreach ($pedidosAfetados as $dados) {
                 $dados['model']->update([
                     'status' => $dados['status'],
-                    'romaneio_id' => $romaneio->id
+                    'romaneio_id' => $dados['romaneio_id']
                 ]);
             }
 
+            // D) v3: embarca os pedidos de peça selecionados.
+            // O saldo NÃO se move aqui — a peça continua sendo do CD enquanto
+            // está no caminhão. A baixa acontece no recebimento pela loja.
+            $pecasEmbarcadas = $this->embarcarPecas($request->input('pedidos_pecas_ids', []), $romaneio);
+
+            $msg = 'Romaneio salvo! Itens vinculados à carga com sucesso.';
+            if ($pecasEmbarcadas > 0) {
+                $msg .= " {$pecasEmbarcadas} item(ns) de peça embarcado(s).";
+            }
+
             return redirect()->route('romaneios.show', $romaneio->id)
-                ->with('success', 'Romaneio salvo! Itens vinculados à carga com sucesso.');
+                ->with('success', $msg);
         });
+    }
+
+    /**
+     * Embarca pedidos de peça já separados nesta carga (v3).
+     *
+     * Mesma mecânica de PecaAtendimentoController::adicionarNaCarga — mantida
+     * aqui para que a mesa de montagem consiga fechar a carga inteira de uma vez,
+     * em vez de obrigar o operador a abrir pedido por pedido.
+     *
+     * NÃO MOVE SALDO. A peça continua sendo do CD enquanto está no caminhão; a
+     * transferência acontece quando a loja confere o recebimento. Só o vínculo
+     * com a carga e o status do pedido mudam aqui.
+     *
+     * @param  array<int, int>  $pedidoIds
+     * @return int  itens de peça criados
+     */
+    private function embarcarPecas(array $pedidoIds, Romaneio $romaneio): int
+    {
+        if (empty($pedidoIds)) {
+            return 0;
+        }
+
+        $pedidos = Pedido::where('tipo_carga', 'peca')
+            ->whereIn('id', $pedidoIds)
+            ->with('itensPedido')
+            ->get();
+
+        $criados = 0;
+
+        foreach ($pedidos as $pedido) {
+            foreach ($pedido->itensPedido as $item) {
+                // Só embarca o que foi de fato separado.
+                if (! $item->isPeca() || $item->qtd_atribuida < 1) {
+                    continue;
+                }
+
+                // updateOrCreate: reprocessar a mesma carga atualiza a quantidade
+                // em vez de duplicar a linha.
+                \App\Models\RomaneioItem::updateOrCreate(
+                    [
+                        'romaneio_id'    => $romaneio->id,
+                        'itemable_type'  => \App\Models\Peca::class,
+                        'itemable_id'    => $item->peca_id,
+                        'pedido_item_id' => $item->id,
+                    ],
+                    [
+                        'pedido_id'        => $pedido->id,
+                        'quantidade'       => $item->qtd_atribuida,
+                        'status'           => \App\Models\RomaneioItem::STATUS_CARREGADO,
+                        'local_destino_id' => $pedido->local_destino_id,
+                    ]
+                );
+
+                $criados++;
+            }
+
+            $pedido->update([
+                'romaneio_id' => $romaneio->id,
+                'status'      => 'aguardando_coleta',
+            ]);
+
+            \App\Models\PedidoLog::create([
+                'pedido_id' => $pedido->id,
+                'titulo'    => 'Peças incluídas na carga',
+                'descricao' => "Carga #{$romaneio->id} montada por " . (Auth::user()->name ?? 'sistema') . '.',
+            ]);
+        }
+
+        return $criados;
     }
 
     // 4. VISUALIZAR DETALHES
@@ -358,8 +493,54 @@ class RomaneioController extends Controller
         $romaneio->setRelation('motos', $todasMotos);
 
         return Inertia::render('Romaneios/Show', [
-            'romaneio' => $romaneio
+            'romaneio' => $romaneio,
+            // v3: carga mista. Vem como prop separada, e não dentro de
+            // $romaneio, para não alterar o formato que o fluxo de moto já
+            // consome nesta tela.
+            'pecas'    => $this->pecasDaCarga($romaneio),
         ]);
+    }
+
+    /**
+     * Peças embarcadas nesta carga, achatadas para a tela (v3).
+     *
+     * Sem isto o manifesto de carga lista apenas motos: o motorista assina um
+     * documento que não menciona as caixas que estão no caminhão, e a loja não
+     * tem contra o que conferir no recebimento.
+     *
+     * O destino usa a mesma prioridade do agrupamento de motos (filial do
+     * solicitante) para que uma carga mista para a mesma loja apareça num
+     * bloco só, em vez de dois blocos com o mesmo nome.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function pecasDaCarga(Romaneio $romaneio): array
+    {
+        $itens = \App\Models\RomaneioItem::pecas()
+            ->where('romaneio_id', $romaneio->id)
+            ->with(['itemable', 'pedido.user', 'destino'])
+            ->get();
+
+        return $itens->map(function (\App\Models\RomaneioItem $item) {
+            $peca = $item->itemable;
+
+            $destino = $item->pedido?->user?->filial
+                ?: $item->destino?->nome
+                ?: 'DESTINO NÃO IDENTIFICADO';
+
+            return [
+                'id'          => $item->id,
+                'codigo'      => $peca?->codigo ?? '---',
+                'descricao'   => $peca?->descricao ?? 'Peça fora do catálogo',
+                'unidade'     => $peca?->unidade ?? 'UN',
+                'marca'       => $peca?->marca,
+                'quantidade'  => (int) $item->quantidade,
+                'recebida'    => $item->quantidade_recebida,
+                'status'      => $item->status,
+                'pedido_id'   => $item->pedido_id,
+                'destino'     => mb_strtoupper(trim($destino)),
+            ];
+        })->values()->all();
     }
 
     // 5. INICIAR TRÂNSITO (LIBERAR SAÍDA)

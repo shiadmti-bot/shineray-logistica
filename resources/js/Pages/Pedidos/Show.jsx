@@ -2,7 +2,8 @@ import ChatBox from "@/Components/ChatBox";
 // v3: painel do fluxo de peça. Só renderiza quando o pedido é de peça —
 // pedido de moto não é afetado.
 import PainelAtendimentoPecas from "@/Components/Pecas/PainelAtendimento";
-import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
+import AppLayout from "@/Layouts/AppLayout";
+import { Card, PageHeader, Button, StatusBadge } from "@/Components/UI";
 import { Head, useForm, Link, router } from "@inertiajs/react";
 import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
@@ -256,43 +257,43 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
     // --- 4. CONFERÊNCIA DE ENTREGA ---
     const handleConferenciaEntrega = () => {
         Swal.fire({
-            title: '<h3 class="font-bold text-gray-800">Conferência de Entrega 📋</h3>',
+            title: '<h3 class="font-bold text-content-primary">Conferência de Entrega 📋</h3>',
             width: "650px",
             html: `
                 <div class="text-left text-sm">
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4 text-blue-800">
+                    <div class="bg-status-info-bg/50 p-4 rounded-lg border border-status-info-solid/20 mb-4 text-status-info-fg">
                         <strong>Instruções:</strong> Verifique fisicamente as motos. Se houver avaria, tire foto. Por fim, anexe o canhoto assinado.
                     </div>
-                    <div class="bg-gray-50 rounded-lg border border-gray-200 mb-4 max-h-[250px] overflow-y-auto p-2 custom-scrollbar">
+                    <div class="bg-surface-sunken rounded-lg border border-line mb-4 max-h-[250px] overflow-y-auto p-2 custom-scrollbar">
                         ${pedido.motos
                             .map(
                                 (m) => `
-                            <div class="mb-2 bg-white p-3 rounded shadow-sm border border-gray-100 flex flex-col gap-2">
+                            <div class="mb-2 bg-surface-card p-3 rounded shadow-sm border border-line flex flex-col gap-2">
                                 <div class="flex justify-between items-center">
-                                    <span class="font-bold text-gray-800">🏍️ ${m.modelo}</span>
-                                    <span class="font-mono text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">${m.chassi}</span>
+                                    <span class="font-bold text-content-primary">🏍️ ${m.modelo}</span>
+                                    <span class="font-mono text-xs bg-surface-sunken px-2 py-1 rounded text-content-secondary">${m.chassi}</span>
                                 </div>
                                 ${
                                     !m.estorno_pendente
                                         ? `
                                     <div class="grid grid-cols-1 gap-2">
-                                        <input type="text" id="avaria-texto-${m.id}" class="swal2-input w-full text-xs h-8 m-0 focus:ring-red-500" placeholder="Houve avaria? Descreva aqui...">
-                                        <label class="flex items-center justify-center w-full text-xs text-gray-500 border border-dashed border-gray-300 p-2 rounded cursor-pointer hover:bg-gray-50 transition">
+                                        <input type="text" id="avaria-texto-${m.id}" class="swal2-input w-full text-xs h-8 m-0 focus:ring-status-danger-solid" placeholder="Houve avaria? Descreva aqui...">
+                                        <label class="flex items-center justify-center w-full text-xs text-content-secondary border border-dashed border-line p-2 rounded cursor-pointer hover:bg-surface-sunken transition">
                                             <span id="label-foto-${m.id}" class="flex items-center gap-2">📸 Anexar Foto da Avaria</span>
-                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerHTML = '✅ Foto Selecionada'; document.getElementById('label-foto-${m.id}').classList.add('text-green-600', 'font-bold');">
+                                            <input type="file" id="avaria-foto-${m.id}" class="hidden" accept="image/*" onchange="document.getElementById('label-foto-${m.id}').innerHTML = '✅ Foto Selecionada'; document.getElementById('label-foto-${m.id}').classList.add('text-status-success-fg', 'font-bold');">
                                         </label>
                                     </div>
                                 `
-                                        : '<span class="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-bold text-center">🚫 Em análise de corte/estorno</span>'
+                                        : '<span class="text-xs text-status-danger-fg bg-status-danger-bg/50 px-2 py-1 rounded font-bold text-center">🚫 Em análise de corte/estorno</span>'
                                 }
                             </div>
                         `,
                             )
                             .join("")}
                     </div>
-                    <div class="p-4 bg-green-50 rounded-lg border border-green-200">
-                        <label class="block font-bold text-green-900 mb-2 text-xs uppercase tracking-wide">📄 Foto do Romaneio/Canhoto Assinado *</label>
-                        <input type="file" id="upload-comprovante" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200 cursor-pointer" accept="image/*,application/pdf">
+                    <div class="p-4 bg-status-success-bg rounded-lg border border-status-success-solid/20">
+                        <label class="block font-bold text-status-success-fg mb-2 text-xs uppercase tracking-wide">📄 Foto do Romaneio/Canhoto Assinado *</label>
+                        <input type="file" id="upload-comprovante" class="block w-full text-xs text-content-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-status-success-bg file:text-status-success-fg hover:file:brightness-95 cursor-pointer" accept="image/*,application/pdf">
                     </div>
                 </div>
             `,
@@ -468,25 +469,25 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
 
     // --- RENDER ---
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={
-                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                    <div className="flex items-center gap-3">
-                        <h2 className="font-black text-2xl text-gray-800 tracking-tight">
-                            PEDIDO{" "}
-                            <span className="text-red-600">#{pedido.id}</span>
-                        </h2>
-                        <TipoBadge isTransferencia={isTransferencia} />
-                    </div>
-                    <BadgeStatus status={pedido.status} />
-                </div>
-            }
-        >
+        <AppLayout user={auth.user}>
             <Head title={`Pedido #${pedido.id}`} />
 
-            <div className="py-8 bg-gray-100 min-h-screen pb-32 font-sans">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
+            <div className="space-y-6 pb-28">
+                <PageHeader
+                    title={`Pedido #${pedido.id}`}
+                    breadcrumbs={[
+                        { label: peca?.ativo ? "Peças" : "Motos" },
+                        { label: "Pedidos", href: route("pedidos.index") },
+                        { label: `#${pedido.id}` },
+                    ]}
+                    actions={
+                        <div className="flex items-center gap-2">
+                            <TipoBadge isTransferencia={isTransferencia} />
+                            <StatusBadge status={pedido.status} />
+                        </div>
+                    }
+                    className="mb-0"
+                />
                     {/* --- 0. FLUXO DE PEÇA (v3) ---
                         Aparece apenas em pedido de peça; em pedido de moto
                         `peca.ativo` é false e nada é renderizado. */}
@@ -495,25 +496,25 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                     )}
 
                     {/* --- 1. CARD DE DETALHES --- */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+                    <div className="bg-surface-card rounded-card shadow-sm border border-line overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
                         {/* Origem */}
-                        <div className="p-6 bg-slate-50/50">
-                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <ArrowUpOnSquareIcon className="w-4 h-4 text-blue-500" />{" "}
+                        <div className="p-6 bg-surface-sunken/50">
+                            <h3 className="text-xs font-bold text-content-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <ArrowUpOnSquareIcon className="w-4 h-4 text-status-info-fg" />{" "}
                                 Origem (Sai De)
                             </h3>
-                            <div className="text-lg font-bold text-gray-800 leading-tight">
+                            <div className="text-lg font-bold text-content-primary leading-tight">
                                 {pedido.origem
                                     ? pedido.origem.filial
                                     : "Centro de Distribuição"}
                             </div>
-                            <div className="text-sm text-gray-500 mt-1 font-medium">
+                            <div className="text-sm text-content-secondary mt-1 font-medium">
                                 {pedido.origem?.name ||
                                     "Matriz Shineray By Sabel"}
                             </div>
 
                             {pedido.previsao_coleta && (
-                                <div className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-orange-700 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100">
+                                <div className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-status-warning-fg bg-status-warning-bg px-3 py-1.5 rounded-full border border-status-warning-solid/20">
                                     <CalendarIcon className="w-4 h-4" />{" "}
                                     Previsão Coleta:{" "}
                                     {new Date(
@@ -525,19 +526,19 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
 
                         {/* Destino */}
                         <div className="p-6">
-                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <ArrowDownOnSquareIcon className="w-4 h-4 text-green-500" />{" "}
+                            <h3 className="text-xs font-bold text-content-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <ArrowDownOnSquareIcon className="w-4 h-4 text-status-success-fg" />{" "}
                                 Destino (Vai Para)
                             </h3>
-                            <div className="text-lg font-bold text-gray-800 leading-tight">
+                            <div className="text-lg font-bold text-content-primary leading-tight">
                                 {destinoFinalLabel}
                             </div>
-                            <div className="text-sm text-gray-500 mt-1 font-medium">
+                            <div className="text-sm text-content-secondary mt-1 font-medium">
                                 Solicitado por: {pedido.user.name}
                             </div>
 
                             {pedido.previsao_entrega && (
-                                <div className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-100">
+                                <div className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-status-success-fg bg-status-success-bg px-3 py-1.5 rounded-full border border-status-success-solid/20">
                                     <CalendarIcon className="w-4 h-4" />{" "}
                                     Previsão Saída:{" "}
                                     {new Date(
@@ -548,19 +549,19 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         </div>
 
                         {/* Info Logística */}
-                        <div className="p-6 bg-slate-50/50 flex flex-col justify-center gap-1">
+                        <div className="p-6 bg-surface-sunken/50 flex flex-col justify-center gap-1">
                             <div className="flex justify-between items-center mb-1">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                                <span className="text-xs font-bold text-content-muted uppercase tracking-wide">
                                     Data Criação
                                 </span>
-                                <span className="text-sm font-bold text-gray-700">
+                                <span className="text-sm font-bold text-content-secondary">
                                     {new Date(
                                         pedido.created_at,
                                     ).toLocaleDateString()}
                                 </span>
                             </div>
-                            <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                            <div className="flex justify-between items-center mt-3 pt-3 border-t border-line">
+                                <span className="text-xs font-bold text-content-muted uppercase tracking-wide">
                                     Carga
                                 </span>
                                 {pedido.romaneio_id ? (
@@ -569,28 +570,28 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                             "romaneios.show",
                                             pedido.romaneio_id,
                                         )}
-                                        className="flex items-center gap-1 bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-blue-700 transition"
+                                        className="flex items-center gap-1 bg-status-info-solid text-white px-2 py-1 rounded text-xs font-bold hover:brightness-95 transition"
                                     >
                                         <DocumentTextIcon className="w-4 h-4" />{" "}
                                         #{pedido.romaneio_id}
                                     </Link>
                                 ) : (
-                                    <span className="text-xs italic text-gray-400">
+                                    <span className="text-xs italic text-content-muted">
                                         Aguardando...
                                     </span>
                                 )}
                             </div>
 
                             {pedido.comprovante_url && (
-                                <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
-                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                                <div className="flex justify-between items-center mt-3 pt-3 border-t border-line">
+                                    <span className="text-xs font-bold text-content-muted uppercase tracking-wide">
                                         Comprovante
                                     </span>
                                     <a
                                         href={pedido.comprovante_url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold hover:bg-green-200 transition"
+                                        className="flex items-center gap-1 bg-status-success-bg text-status-success-fg px-2 py-1 rounded text-xs font-bold hover:brightness-95 transition"
                                     >
                                         <PaperClipIcon className="w-4 h-4" />{" "}
                                         Ver Anexo
@@ -602,106 +603,80 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
 
                     {/* --- 2. ALERTAS CONTEXTUAIS --- */}
                     
-                    {/* Alerta: Transferência aguardando separação pela loja de origem */}
+                    {/*
+                        ALERTAS DE CONTEXTO
+                        Antes eram cinco blocos com paletas próprias (âmbar, azul,
+                        rosa, teal, laranja) que não queriam dizer nada — a cor
+                        mudava por bloco, não por significado. Agora o tom carrega
+                        a informação: `warning` = alguém precisa agir, `info` =
+                        está em curso, aguarde.
+                    */}
                     {isTransferencia && pedido.status === "solicitado" && souOrigem && (
-                        <div className="bg-amber-50 border-l-4 border-amber-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4 animate-pulse-once">
-                            <div className="bg-amber-100 p-2 rounded-full text-amber-600 flex-shrink-0">
-                                <ExclamationTriangleIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-amber-900 text-sm uppercase tracking-wide">
-                                    Ação Necessária: Separação Pendente
-                                </h4>
-                                <p className="text-sm text-amber-800 mt-1">
-                                    Você deve separar as motos fisicamente e confirmar a separação para que elas fiquem disponíveis para coleta pelo CD.
-                                </p>
-                            </div>
-                        </div>
+                        <AlertaContexto
+                            tom="warning"
+                            icon={ExclamationTriangleIcon}
+                            titulo="Ação necessária: separação pendente"
+                        >
+                            Separe as motos fisicamente e confirme a separação para que fiquem
+                            disponíveis para coleta pelo CD.
+                        </AlertaContexto>
                     )}
 
-                    {/* Alerta: Transferência aguardando separação (visão CD/Admin) */}
                     {isTransferencia && pedido.status === "solicitado" && (souCD || souAdmin) && !souOrigem && (
-                        <div className="bg-blue-50 border-l-4 border-blue-400 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
-                            <div className="bg-blue-100 p-2 rounded-full text-blue-600 flex-shrink-0">
-                                <ClockIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-blue-900 text-sm uppercase tracking-wide">
-                                    Aguardando Separação da Origem
-                                </h4>
-                                <p className="text-sm text-blue-800 mt-1">
-                                    A loja <strong>{pedido.origem?.filial}</strong> precisa separar as motos antes de ficarem disponíveis para coleta.
-                                </p>
-                            </div>
-                        </div>
+                        <AlertaContexto
+                            tom="info"
+                            icon={ClockIcon}
+                            titulo="Aguardando separação da origem"
+                        >
+                            A loja <strong>{pedido.origem?.filial}</strong> precisa separar as motos
+                            antes de ficarem disponíveis para coleta.
+                        </AlertaContexto>
                     )}
 
-                    {/* Alerta: Aguardando Rota (Interior) */}
                     {pedido.status === "aguardando_rota" && (
-                        <div className="bg-pink-50 border-l-4 border-pink-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
-                            <div className="bg-pink-100 p-2 rounded-full text-pink-600 flex-shrink-0">
-                                <TruckIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-pink-900 text-sm uppercase tracking-wide">
-                                    Aguardando Rota (Agendamento do Destino)
-                                </h4>
-                                <p className="text-sm text-pink-800 mt-1">
-                                    Motos separadas. Aguarde o CD definir a rota para a <strong>Loja de Destino</strong> no calendário. Assim que a entrega final for agendada, a coleta nesta origem será automaticamente confirmada pelo sistema.
-                                </p>
-                            </div>
-                        </div>
+                        <AlertaContexto
+                            tom="warning"
+                            icon={TruckIcon}
+                            titulo="Aguardando rota (agendamento do destino)"
+                        >
+                            Motos separadas. Aguarde o CD definir a rota para a loja de destino no
+                            calendário — assim que a entrega final for agendada, a coleta nesta
+                            origem é confirmada automaticamente.
+                        </AlertaContexto>
                     )}
 
-                    {/* Alerta: Rota Confirmada */}
                     {pedido.status === "rota_confirmada" && (
-                        <div className="bg-teal-50 border-l-4 border-teal-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
-                            <div className="bg-teal-100 p-2 rounded-full text-teal-600 flex-shrink-0">
-                                <MapPinIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-teal-900 text-sm uppercase tracking-wide">
-                                    Rota Confirmada
-                                </h4>
-                                <p className="text-sm text-teal-800 mt-1">
-                                    O CD agendou uma viagem que passará na loja de destino. Aguardando a carga ser montada.
-                                </p>
-                            </div>
-                        </div>
+                        <AlertaContexto tom="info" icon={MapPinIcon} titulo="Rota confirmada">
+                            O CD agendou uma viagem que passará na loja de destino. Aguardando a
+                            carga ser montada.
+                        </AlertaContexto>
                     )}
 
-                    {/* Alerta: Aguardando Coleta */}
                     {pedido.status === "aguardando_coleta" && (
-                        <div className="bg-orange-50 border-l-4 border-orange-500 p-5 rounded-r-lg shadow-sm flex items-start gap-4">
-                            <div className="bg-orange-100 p-2 rounded-full text-orange-600 flex-shrink-0">
-                                <ExclamationTriangleIcon className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-orange-900 text-sm uppercase tracking-wide">
-                                    Aguardando Coleta
-                                </h4>
-                                <p className="text-sm text-orange-800 mt-1">
-                                    Motos separadas e prontas. Aguardando motorista do CD realizar a coleta na loja de origem.
-                                </p>
-                            </div>
-                        </div>
+                        <AlertaContexto
+                            tom="warning"
+                            icon={ExclamationTriangleIcon}
+                            titulo="Aguardando coleta"
+                        >
+                            Motos separadas e prontas. Aguardando o motorista do CD realizar a
+                            coleta na loja de origem.
+                        </AlertaContexto>
                     )}
 
-                    {/* Previsão de Entrega (Banner destacado) */}
+                    {/* Previsão de saída */}
                     {pedido.previsao_entrega && !['concluido', 'cancelado'].includes(pedido.status) && (
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 p-4 rounded-xl shadow-sm flex items-center gap-4">
-                            <div className="bg-green-100 p-2.5 rounded-full text-green-600 flex-shrink-0">
-                                <CalendarIcon className="w-6 h-6" />
-                            </div>
-                            <div className="flex-1">
-                                <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Previsão de Saída</span>
-                                <div className="text-lg font-black text-green-800 mt-0.5">
+                        <div className="flex items-center gap-4 rounded-card border border-status-success-solid/20 bg-status-success-bg/50 p-4">
+                            <span className="shrink-0 rounded-full bg-status-success-bg p-2.5 text-status-success-fg">
+                                <CalendarIcon className="h-6 w-6" />
+                            </span>
+                            <div>
+                                <span className="text-xs font-bold uppercase tracking-widest text-status-success-fg">
+                                    Previsão de saída
+                                </span>
+                                <div className="mt-0.5 text-lg font-black text-content-primary">
                                     {new Date(pedido.previsao_entrega.substring(0, 10) + "T12:00:00").toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
                                 </div>
                             </div>
-                            <span className="text-[10px] font-bold text-green-500 bg-green-100 px-3 py-1 rounded-full border border-green-200 uppercase tracking-wide">
-                                Baseado no Calendário
-                            </span>
                         </div>
                     )}
 
@@ -713,20 +688,20 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
 
                     {/* --- 3.5 V2.6: COTAS AGUARDANDO CHASSI --- */}
                     {cotas.length > 0 && cotasPendentes.length > 0 && (
-                        <div className="bg-white rounded-2xl shadow-sm border-2 border-amber-300 overflow-hidden">
-                            <div className="px-6 py-4 bg-amber-50 border-b border-amber-200 flex flex-wrap justify-between items-center gap-2">
-                                <h3 className="font-black text-amber-900 text-sm uppercase tracking-wide flex items-center gap-2">
+                        <div className="bg-surface-card rounded-card shadow-sm border-2 border-status-warning-solid/40 overflow-hidden">
+                            <div className="px-6 py-4 bg-status-warning-bg border-b border-status-warning-solid/20 flex flex-wrap justify-between items-center gap-2">
+                                <h3 className="font-black text-status-warning-fg text-sm uppercase tracking-wide flex items-center gap-2">
                                     <ExclamationTriangleIcon className="w-5 h-5" />
                                     Aguardando definição de chassi
                                 </h3>
-                                <span className="bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                                <span className="bg-status-warning-solid text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
                                     {atribuicao?.saldo_pendente ?? 0} pendente(s)
                                 </span>
                             </div>
 
                             <div className="p-4 space-y-3">
                                 {!podeAtribuir && (
-                                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                    <p className="text-xs text-content-secondary bg-status-warning-bg/50 border border-status-warning-solid/20 rounded-lg p-3">
                                         A equipe do CD ainda não informou quais motos serão enviadas.
                                         {pedido.status === "em_analise" &&
                                             " O pedido precisa ser aprovado pela diretoria antes disso."}
@@ -736,25 +711,25 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                 {cotasPendentes.map((cota) => (
                                     <div
                                         key={cota.id}
-                                        className="border border-gray-200 rounded-xl p-4 bg-gray-50"
+                                        className="border border-line rounded-xl p-4 bg-surface-sunken"
                                     >
                                         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                                             <div>
-                                                <h4 className="font-extrabold text-gray-900">
+                                                <h4 className="font-extrabold text-content-primary">
                                                     {cota.modelo}{" "}
-                                                    <span className="text-gray-500 font-bold">
+                                                    <span className="text-content-secondary font-bold">
                                                         {cota.cor}
                                                     </span>
                                                 </h4>
-                                                <p className="text-[11px] text-gray-500 uppercase font-bold tracking-wide">
+                                                <p className="text-[11px] text-content-secondary uppercase font-bold tracking-wide">
                                                     {cota.motivo} · Destino: {cota.local}
                                                 </p>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-2xl font-black text-amber-600 leading-none">
+                                                <span className="text-2xl font-black text-status-warning-fg leading-none">
                                                     {cota.qtd_atribuida}/{cota.quantidade}
                                                 </span>
-                                                <p className="text-[10px] text-gray-500 uppercase font-bold">
+                                                <p className="text-[10px] text-content-secondary uppercase font-bold">
                                                     atribuídas
                                                 </p>
                                             </div>
@@ -781,19 +756,19 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                         }
                                                     }}
                                                     maxLength={17}
-                                                    className="flex-1 rounded-lg border-gray-300 font-mono tracking-widest text-sm py-3 px-4 focus:ring-amber-500 focus:border-amber-500"
+                                                    className="flex-1 rounded-lg border-line bg-surface-card font-mono tracking-widest text-sm py-3 px-4 text-content-primary focus:border-brand-500 focus:ring-brand-500"
                                                 />
                                                 <button
                                                     type="button"
                                                     onClick={() => handleAtribuirChassi(cota)}
-                                                    className="px-5 py-3 rounded-lg bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 transition shadow-sm whitespace-nowrap"
+                                                    className="whitespace-nowrap rounded-lg bg-brand-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700"
                                                 >
                                                     Atribuir
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => handleEncerrarSaldo(cota)}
-                                                    className="px-4 py-3 rounded-lg bg-white border-2 border-gray-200 text-gray-600 font-bold text-xs hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition whitespace-nowrap"
+                                                    className="px-4 py-3 rounded-lg bg-surface-card border-2 border-line text-content-secondary font-bold text-xs hover:bg-status-danger-bg/50 hover:border-status-danger-solid/20 hover:text-status-danger-fg transition whitespace-nowrap"
                                                     title="Baixar as unidades que não serão enviadas"
                                                 >
                                                     Encerrar saldo
@@ -804,7 +779,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                 ))}
 
                                 {podeAtribuir && (
-                                    <p className="text-[11px] text-gray-500 px-1">
+                                    <p className="text-[11px] text-content-secondary px-1">
                                         Dica: com um leitor de código de barras, basta clicar no campo e
                                         bipar — o Enter do leitor já confirma a atribuição.
                                     </p>
@@ -814,15 +789,15 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                     )}
 
                     {/* --- 4. LISTA DE ITENS (LÓGICA GESTOR APLICADA) --- */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 bg-gray-50/80 border-b border-gray-200 flex justify-between items-center backdrop-blur-sm">
-                            <h3 className="font-black text-gray-800 text-sm uppercase tracking-wide flex items-center gap-2">
-                                <span className="text-gray-500">
+                    <div className="bg-surface-card rounded-card shadow-sm border border-line overflow-hidden">
+                        <div className="px-6 py-4 bg-surface-sunken/80 border-b border-line flex justify-between items-center backdrop-blur-sm">
+                            <h3 className="font-black text-content-primary text-sm uppercase tracking-wide flex items-center gap-2">
+                                <span className="text-content-secondary">
                                     <ChatBubbleBottomCenterTextIcon className="w-5 h-5" />
                                 </span>{" "}
                                 Motocicletas
                             </h3>
-                            <span className="bg-gray-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                            <span className="bg-surface-inverted text-content-inverted text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
                                 {/* V2.6: conta as cotas solicitadas quando ainda não há chassis vinculados */}
                                 {pedido.motos?.length ||
                                     cotas.reduce(
@@ -834,7 +809,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                             </span>
                         </div>
 
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-line">
                             {/* Apenas mostra os itens do JSON de backup se o pedido for NOVO (em análise). 
                                 Caso contrário, confia 100% no banco de dados pivot (motos reais). */}
                             {((pedido.status === 'em_analise' && pedido.motos.length === 0) 
@@ -865,15 +840,15 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                 return (
                                     <div
                                         key={item.id || idx}
-                                        className="group p-5 flex flex-col md:flex-row items-center gap-6 hover:bg-slate-50 transition duration-150 ease-in-out"
+                                        className="group p-5 flex flex-col md:flex-row items-center gap-6 hover:bg-surface-sunken transition duration-150 ease-in-out"
                                     >
                                         <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
-                                            <div className="h-14 w-14 rounded-2xl bg-white border border-gray-200 flex items-center justify-center text-gray-400 shadow-sm flex-shrink-0 group-hover:scale-105 transition">
+                                            <div className="h-14 w-14 rounded-card bg-surface-card border border-line flex items-center justify-center text-content-muted shadow-sm flex-shrink-0 group-hover:scale-105 transition">
                                                 <PlayIcon className="w-6 h-6" />
                                             </div>
                                             <div className="flex-1 min-w-0 space-y-1">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <h4 className="font-extrabold text-gray-900 text-base">
+                                                    <h4 className="font-extrabold text-content-primary text-base">
                                                         {/* V2.6: itens genéricos exibem a quantidade pedida */}
                                                         {!item.chassi &&
                                                             item.quantidade > 1 &&
@@ -881,20 +856,20 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                         {item.modelo}
                                                     </h4>
                                                     {!item.chassi && (
-                                                        <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold uppercase tracking-wide">
+                                                        <span className="text-[10px] text-status-warning-fg bg-status-warning-bg/50 px-2 py-0.5 rounded border border-status-warning-solid/20 font-bold uppercase tracking-wide">
                                                             Chassi a definir pelo CD
                                                         </span>
                                                     )}
                                                     {item.chassi && (
-                                                        <span className="font-mono text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 tracking-wider">
+                                                        <span className="font-mono text-[10px] text-status-info-fg bg-status-info-bg/50 px-2 py-0.5 rounded border border-status-info-solid/20 tracking-wider">
                                                             {item.chassi}
                                                         </span>
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <div className="flex items-center gap-2 px-2 py-1 rounded-full border border-gray-200 bg-white shadow-sm w-fit">
+                                                    <div className="flex items-center gap-2 px-2 py-1 rounded-full border border-line bg-surface-card shadow-sm w-fit">
                                                         <span
-                                                            className="h-3 w-3 rounded-full border border-gray-300 shadow-inner"
+                                                            className="h-3 w-3 rounded-full border border-line shadow-inner"
                                                             style={{
                                                                 backgroundColor:
                                                                     getColorHex(
@@ -902,7 +877,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                                     ),
                                                             }}
                                                         ></span>
-                                                        <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">
+                                                        <span className="text-[10px] font-bold text-content-secondary uppercase tracking-wide">
                                                             {item.cor ||
                                                                 "COR NÃO DEFINIDA"}
                                                         </span>
@@ -911,10 +886,10 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-6 md:pl-6 md:border-l border-gray-100">
+                                        <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-6 md:pl-6 md:border-l border-line">
                                             {/* MOTIVO (USANDO LÓGICA GESTOR) */}
                                             <div className="flex flex-col items-start md:items-end min-w-[140px]">
-                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                                                <span className="text-[9px] font-bold text-content-muted uppercase tracking-widest mb-1">
                                                     Motivo
                                                 </span>
                                                 <span
@@ -927,12 +902,12 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                             <div className="flex items-center gap-2">
                                                 {temAvaria ? (
                                                     <div className="flex flex-col gap-2 items-end">
-                                                        <span className="flex items-center gap-1 text-[10px] bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 font-bold uppercase">
+                                                        <span className="flex items-center gap-1 text-[10px] bg-status-danger-bg text-status-danger-fg px-3 py-1.5 rounded-lg border border-status-danger-solid/20 font-bold uppercase">
                                                             <ExclamationTriangleIcon className="w-3 h-3" />{" "}
                                                             Avariado
                                                         </span>
                                                         {avariaTexto && (
-                                                            <span className="text-[10px] text-red-600 bg-red-50 px-2 py-1 rounded max-w-[200px] text-right">
+                                                            <span className="text-[10px] text-status-danger-fg bg-status-danger-bg/50 px-2 py-1 rounded max-w-[200px] text-right">
                                                                 "{avariaTexto}"
                                                             </span>
                                                         )}
@@ -943,7 +918,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                                 }
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
+                                                                className="flex items-center gap-1 text-[10px] text-status-info-fg hover:underline"
                                                             >
                                                                 <CameraIcon className="w-3 h-3" />{" "}
                                                                 Ver Foto
@@ -959,7 +934,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                                     onClick={() =>
                                                                         handleDesatribuirChassi(item)
                                                                     }
-                                                                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50 transition shadow-sm"
+                                                                    className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-surface-card border border-line text-content-secondary hover:text-status-warning-fg hover:border-status-warning-solid/40 hover:bg-status-warning-bg/50 transition shadow-sm"
                                                                     title="Desfazer atribuição deste chassi"
                                                                 >
                                                                     <XCircleIcon className="w-4 h-4" />
@@ -982,7 +957,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                                             "Motivo do corte?",
                                                                         )
                                                                     }
-                                                                    className="group/btn flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition shadow-sm"
+                                                                    className="group/btn flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-surface-card border border-line text-content-secondary hover:text-status-danger-fg hover:border-status-danger-solid/20 hover:bg-status-danger-bg/50 transition shadow-sm"
                                                                     title="Cortar Item"
                                                                 >
                                                                     <ScissorsIcon className="w-4 h-4" />
@@ -1009,7 +984,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                                     item,
                                                                 )
                                                             }
-                                                            className="group/btn flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-600 border border-red-700 text-white hover:bg-red-700 transition shadow-sm"
+                                                            className="group/btn flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-status-danger-solid border border-status-danger-solid text-white hover:brightness-95 transition shadow-sm"
                                                             title="Remover do pedido imediatamente (Exclusivo Admin)"
                                                         >
                                                             <TrashIcon className="w-4 h-4" />
@@ -1029,10 +1004,10 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                 ? (pedido.itens || []) 
                                 : pedido.motos
                             ).length === 0 && (
-                                <div className="p-8 text-center text-gray-500">
-                                    <ExclamationTriangleIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                                    <p className="font-bold text-gray-600 text-lg">Nenhuma motocicleta neste pedido.</p>
-                                    <p className="text-sm text-gray-400 mt-1">Todos os itens foram estornados ou rejeitados na etapa de análise.</p>
+                                <div className="p-8 text-center text-content-secondary">
+                                    <ExclamationTriangleIcon className="w-12 h-12 mx-auto text-content-muted mb-3" />
+                                    <p className="font-bold text-content-secondary text-lg">Nenhuma motocicleta neste pedido.</p>
+                                    <p className="text-sm text-content-muted mt-1">Todos os itens foram estornados ou rejeitados na etapa de análise.</p>
                                 </div>
                             )}
                         </div>
@@ -1041,11 +1016,11 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                     {/* --- 5. AÇÕES GLOBAIS --- */}
                     {pedido.status !== "cancelado" &&
                         pedido.status !== "concluido" && (
-                            <div className="bg-white p-6 shadow-lg rounded-2xl border-l-4 border-blue-600 mt-8">
-                                <h3 className="font-bold text-lg mb-4 text-gray-800 flex items-center gap-2">
-                                    <span className="bg-blue-100 text-blue-600 p-1.5 rounded-lg">
-                                        <BoltIcon className="w-5 h-5" />
-                                    </span>{" "}
+                            <div className="mt-8 rounded-card border-l-4 border-brand-600 bg-surface-card p-6 shadow-card">
+                                <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-content-primary">
+                                    <span className="rounded-lg bg-brand-50 p-1.5 text-brand-600">
+                                        <BoltIcon className="h-5 w-5" />
+                                    </span>
                                     Ações
                                 </h3>
                                 <div className="flex flex-wrap gap-4">
@@ -1054,39 +1029,43 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                             (souCD && !isTransferencia) ||
                                             souAdmin) && (
                                             <>
-                                                <button
+                                                <Button
                                                     onClick={confirmarSeparacao}
-                                                    className="flex-1 flex justify-center items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 shadow-md transition"
+                                                    icon={CheckCircleIcon}
+                                                    size="lg"
+                                                    className="flex-1 justify-center"
                                                 >
-                                                    <CheckCircleIcon className="w-5 h-5" />{" "}
-                                                    Confirmar Separação
-                                                </button>
-                                                <button
+                                                    Confirmar separação
+                                                </Button>
+                                                <Button
                                                     onClick={handleRejeitar}
-                                                    className="flex-1 flex justify-center items-center gap-2 bg-white border-2 border-red-100 text-red-600 px-6 py-3 rounded-xl font-bold hover:bg-red-50 hover:border-red-200 transition"
+                                                    icon={XCircleIcon}
+                                                    variant="secondary"
+                                                    size="lg"
+                                                    className="flex-1 justify-center text-status-danger-fg"
                                                 >
-                                                    <XCircleIcon className="w-5 h-5" />{" "}
                                                     Rejeitar
-                                                </button>
+                                                </Button>
                                             </>
                                         )}
                                     {pedido.status === "expedido" &&
                                         (souCD || souAdmin) && (
-                                            <button
+                                            <Button
                                                 onClick={confirmarSaida}
-                                                className="flex-1 flex justify-center items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-xl font-bold hover:from-orange-600 hover:to-orange-700 shadow-md transition"
+                                                icon={TruckIcon}
+                                                size="lg"
+                                                className="flex-1 justify-center"
                                             >
-                                                <TruckIcon className="w-5 h-5" />{" "}
-                                                Confirmar Saída Manual
-                                            </button>
+                                                Confirmar saída manual
+                                            </Button>
                                         )}
                                 </div>
                             </div>
                         )}
 
                     {/* --- 6. HISTÓRICO --- */}
-                    <div className="mt-8 pt-6 border-t border-gray-200">
-                        <h3 className="font-bold text-gray-400 text-xs uppercase mb-6 tracking-widest">
+                    <div className="mt-8 pt-6 border-t border-line">
+                        <h3 className="font-bold text-content-muted text-xs uppercase mb-6 tracking-widest">
                             Linha do Tempo
                         </h3>
                         <div className="space-y-6 pl-2">
@@ -1096,21 +1075,21 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                     className="flex gap-4 relative group"
                                 >
                                     {i !== pedido.logs.length - 1 && (
-                                        <div className="absolute left-[5px] top-6 w-0.5 h-full bg-gray-200 group-last:hidden"></div>
+                                        <div className="absolute left-[5px] top-6 w-0.5 h-full bg-line group-last:hidden"></div>
                                     )}
                                     <div className="relative z-10 flex-shrink-0 mt-1">
-                                        <div className="h-3 w-3 rounded-full bg-gray-300 ring-4 ring-white group-hover:bg-blue-500 transition"></div>
+                                        <div className="h-3 w-3 rounded-full bg-line-strong ring-4 ring-surface-card group-hover:bg-status-info-solid transition"></div>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-gray-400 font-mono mb-0.5">
+                                        <p className="text-xs text-content-muted font-mono mb-0.5">
                                             {new Date(
                                                 log.created_at,
                                             ).toLocaleString()}
                                         </p>
-                                        <p className="text-sm font-bold text-gray-800">
+                                        <p className="text-sm font-bold text-content-primary">
                                             {log.titulo}
                                         </p>
-                                        <p className="text-sm text-gray-500 leading-relaxed">
+                                        <p className="text-sm text-content-secondary leading-relaxed">
                                             {log.descricao}
                                         </p>
                                     </div>
@@ -1118,7 +1097,6 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                             ))}
                         </div>
                     </div>
-                </div>
             </div>
 
             {/* FAB */}
@@ -1128,7 +1106,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         <button
                             onClick={handleConferenciaEntrega}
                             disabled={compressing}
-                            className="pointer-events-auto bg-gray-900 hover:bg-black text-white font-bold py-4 px-8 rounded-full shadow-2xl transition transform hover:-translate-y-1 hover:scale-105 flex items-center gap-3 border-4 border-white/20 backdrop-blur-md"
+                            className="pointer-events-auto flex items-center gap-3 rounded-full bg-brand-600 px-8 py-4 font-bold text-white shadow-overlay ring-4 ring-brand-600/20 transition hover:bg-brand-700 disabled:opacity-70"
                         >
                             {compressing ? (
                                 <span className="animate-spin inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
@@ -1143,7 +1121,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                 )}
 
             <ChatBox pedidoId={pedido.id} />
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }
 
@@ -1151,12 +1129,12 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
 function getMotivoStyle(motivo) {
     const m = (motivo || "").toLowerCase();
     if (m.includes("venda"))
-        return "bg-green-50 text-green-700 border-green-200";
+        return "bg-status-success-bg text-status-success-fg border-status-success-solid/20";
     if (m.includes("garantia") || m.includes("frota"))
-        return "bg-red-50 text-red-700 border-red-200";
+        return "bg-status-danger-bg text-status-danger-fg border-status-danger-solid/20";
     if (m.includes("exposição"))
-        return "bg-purple-50 text-purple-700 border-purple-200";
-    return "bg-blue-50 text-blue-700 border-blue-200";
+        return "bg-status-warning-bg text-status-warning-fg border-status-warning-solid/20";
+    return "bg-status-info-bg text-status-info-fg border-status-info-solid/20";
 }
 
 function getColorHex(cor) {
@@ -1185,36 +1163,12 @@ function getColorHex(cor) {
 
 function TipoBadge({ isTransferencia }) {
     return isTransferencia ? (
-        <span className="text-[10px] bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200 font-bold uppercase tracking-wide flex items-center gap-1">
+        <span className="text-[10px] bg-status-warning-bg text-status-warning-fg px-2 py-1 rounded border border-status-warning-solid/20 font-bold uppercase tracking-wide flex items-center gap-1">
             <ArrowsRightLeftIcon className="w-3 h-3" /> Transferência
         </span>
     ) : (
-        <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-200 font-bold uppercase tracking-wide flex items-center gap-1">
+        <span className="text-[10px] bg-status-info-bg text-status-info-fg px-2 py-1 rounded border border-status-info-solid/20 font-bold uppercase tracking-wide flex items-center gap-1">
             <BuildingOffice2Icon className="w-3 h-3" /> Reposição CD
-        </span>
-    );
-}
-
-function BadgeStatus({ status }) {
-    const s = String(status || '').toLowerCase();
-    const config = {
-        'em_analise':      { label: 'Em Análise',    bg: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
-        'solicitado':      { label: 'Solicitado',    bg: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500' },
-        'separado':        { label: 'Separado',      bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-        'aguardando_rota': { label: 'Aguard. Rota',  bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
-        'rota_confirmada': { label: 'Rota Confirmada', bg: 'bg-teal-50 text-teal-700 border-teal-200', dot: 'bg-teal-500' },
-        'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
-        'coletado':        { label: 'Coletado (P/ Rota)',    bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-        'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
-        'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-md shadow-orange-500/20', dot: 'bg-white' },
-        'concluido':       { label: 'Concluído',     bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
-        'cancelado':       { label: 'Cancelado',     bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
-    }[s] || { label: s.toUpperCase(), bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400' };
-
-    return (
-        <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-black uppercase border tracking-wider whitespace-nowrap ${config.bg}`}>
-            <span className={`w-2 h-2 rounded-full ${config.dot}`}></span>
-            {config.label}
         </span>
     );
 }
@@ -1267,10 +1221,10 @@ function Timeline({ status, isTransferencia }) {
     return (
         <div className="w-full py-8">
             <div className="flex items-center justify-between relative w-full px-2">
-                <div className="absolute left-0 top-[15px] w-full h-1 bg-gray-200 -z-10 rounded-full"></div>
+                <div className="absolute left-0 top-[15px] w-full h-1 bg-line -z-10 rounded-full"></div>
                 {status !== "cancelado" && (
                     <div
-                        className="absolute left-0 top-[15px] h-1 bg-green-500 -z-10 rounded-full transition-all duration-1000 ease-out"
+                        className="absolute left-0 top-[15px] h-1 bg-status-success-solid -z-10 rounded-full transition-all duration-1000 ease-out"
                         style={{
                             width: `${Math.min((currentWeight / maxWeight) * 100, 100)}%`,
                         }}
@@ -1289,10 +1243,10 @@ function Timeline({ status, isTransferencia }) {
                             <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-4 transition-all duration-500 z-20 ${
                                     isCurrent 
-                                        ? "border-blue-500 bg-blue-500 text-white scale-110 shadow-lg ring-4 ring-blue-200" 
+                                        ? "border-status-info-solid bg-status-info-solid text-white scale-110 shadow-lg ring-4 ring-status-info-solid/20" 
                                         : isActive 
-                                            ? "border-green-500 bg-white text-green-600 scale-110 shadow-lg" 
-                                            : "border-gray-200 bg-gray-100 text-gray-300"
+                                            ? "border-status-success-solid bg-surface-card text-status-success-fg scale-110 shadow-lg" 
+                                            : "border-line bg-surface-sunken text-content-muted"
                                 }`}
                             >
                                 {isActive && !isCurrent ? "✓" : index + 1}
@@ -1300,10 +1254,10 @@ function Timeline({ status, isTransferencia }) {
                             <span
                                 className={`absolute top-10 w-24 text-center text-[10px] font-bold uppercase transition-all duration-300 ${
                                     isCurrent 
-                                        ? "text-blue-700 translate-y-0 opacity-100 font-black" 
+                                        ? "text-status-info-fg translate-y-0 opacity-100 font-black" 
                                         : isActive 
-                                            ? "text-green-700 translate-y-0 opacity-100" 
-                                            : "text-gray-400 translate-y-1 opacity-80"
+                                            ? "text-status-success-fg translate-y-0 opacity-100" 
+                                            : "text-content-muted translate-y-1 opacity-80"
                                 }`}
                             >
                                 {step.label}
@@ -1311,6 +1265,50 @@ function Timeline({ status, isTransferencia }) {
                         </div>
                     );
                 })}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Aviso de contexto do pedido.
+ *
+ * O tom carrega o significado, não a decoração:
+ *   warning -> alguém precisa agir agora
+ *   info    -> está em curso, é só aguardar
+ *   danger  -> algo deu errado
+ */
+function AlertaContexto({ tom = "info", icon: Icon, titulo, children }) {
+    const tons = {
+        warning: {
+            caixa: "border-status-warning-solid bg-status-warning-bg/50",
+            marca: "bg-status-warning-bg text-status-warning-fg",
+            titulo: "text-status-warning-fg",
+        },
+        info: {
+            caixa: "border-status-info-solid bg-status-info-bg/50",
+            marca: "bg-status-info-bg text-status-info-fg",
+            titulo: "text-status-info-fg",
+        },
+        danger: {
+            caixa: "border-status-danger-solid bg-status-danger-bg/50",
+            marca: "bg-status-danger-bg text-status-danger-fg",
+            titulo: "text-status-danger-fg",
+        },
+    }[tom];
+
+    return (
+        <div className={`flex items-start gap-4 rounded-card border-l-4 p-5 shadow-card ${tons.caixa}`}>
+            {Icon && (
+                <span className={`shrink-0 rounded-full p-2 ${tons.marca}`}>
+                    <Icon className="h-6 w-6" />
+                </span>
+            )}
+            <div>
+                <h4 className={`text-sm font-bold uppercase tracking-wide ${tons.titulo}`}>
+                    {titulo}
+                </h4>
+                <p className="mt-1 text-sm text-content-secondary">{children}</p>
             </div>
         </div>
     );

@@ -29,13 +29,13 @@ export default function Login({ status, canResetPassword }) {
 
     return (
         // --- FUNDO: Gradiente Vermelho Intenso (Identidade V2) ---
-        <div className="min-h-screen flex flex-col justify-center items-center pt-6 sm:pt-0 bg-gradient-to-br from-red-950 via-red-800 to-red-600">
+        <div className="min-h-screen flex flex-col justify-center items-center pt-6 sm:pt-0 bg-gradient-to-br from-brand-950 via-brand-800 to-brand-600">
             <Head title="Login - BySabel Logística" />
 
             {/* --- ÁREA DA LOGO (Adaptada para formato Retangular) --- */}
             {/* Usamos um container branco largo para acomodar o Caminhão + Texto "By Sabel" */}
             <div className="mb-8 transform hover:scale-105 transition-transform duration-500 ease-out">
-                <div className="bg-white px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.3)] flex items-center justify-center border-b-4 border-red-900/30">
+                <div className="bg-surface-card px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.3)] flex items-center justify-center border-b-4 border-brand-900/30">
                     <img 
                         src="/img/logo.png" 
                         alt="Logo Shineray By Sabel" 
@@ -45,24 +45,24 @@ export default function Login({ status, canResetPassword }) {
             </div>
 
             {/* --- CARD DE LOGIN --- */}
-            <div className="w-full sm:max-w-md px-8 py-10 bg-white shadow-2xl overflow-hidden sm:rounded-3xl border-t-4 border-red-600 relative">
+            <div className="w-full sm:max-w-md px-8 py-10 bg-surface-card shadow-2xl overflow-hidden sm:rounded-3xl border-t-4 border-brand-600 relative">
                 
                 {/* Elemento Decorativo de Fundo */}
-                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-red-50 rounded-full blur-2xl opacity-50 pointer-events-none"></div>
+                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-brand-50 rounded-full blur-2xl opacity-50 pointer-events-none"></div>
 
                 {/* Cabeçalho */}
                 <div className="text-center mb-8 relative z-10">
-                    <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">
+                    <h2 className="text-2xl font-black text-content-primary uppercase tracking-tighter">
                         Acesso ao Sistema
                     </h2>
-                    <p className="text-xs text-red-600 font-bold tracking-[0.3em] uppercase mt-1">
+                    <p className="text-xs text-brand-600 font-bold tracking-[0.3em] uppercase mt-1">
                         Logística Integrada
                     </p>
                 </div>
 
                 {/* Mensagem de Status (Feedback) */}
                 {status && (
-                    <div className="mb-6 font-medium text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200 flex items-center gap-2 animate-pulse">
+                    <div className="mb-6 font-medium text-sm text-status-success-fg bg-status-success-bg p-3 rounded-lg border border-status-success-solid/30 flex items-center gap-2 animate-pulse">
                         <span className="text-lg">✅</span> {status}
                     </div>
                 )}
@@ -71,10 +71,10 @@ export default function Login({ status, canResetPassword }) {
                     
                     {/* INPUT: EMAIL */}
                     <div>
-                        <InputLabel htmlFor="email" value="Usuário / E-mail" className="text-gray-700 font-bold text-xs uppercase ml-1 mb-1" />
+                        <InputLabel htmlFor="email" value="Usuário / E-mail" className="text-content-secondary font-bold text-xs uppercase ml-1 mb-1" />
                         <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-red-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-brand-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-content-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                                 </svg>
                             </div>
@@ -83,7 +83,7 @@ export default function Login({ status, canResetPassword }) {
                                 type="email"
                                 name="email"
                                 value={data.email}
-                                className="block w-full pl-10 border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-xl shadow-sm h-12 transition-all bg-gray-50 focus:bg-white"
+                                className="block w-full pl-10 border-line-strong focus:border-brand-500 focus:ring-brand-500 rounded-xl shadow-sm h-12 transition-all bg-surface-sunken focus:bg-surface-card"
                                 autoComplete="username"
                                 isFocused={true}
                                 onChange={(e) => setData('email', e.target.value)}
@@ -95,10 +95,10 @@ export default function Login({ status, canResetPassword }) {
 
                     {/* INPUT: SENHA */}
                     <div>
-                        <InputLabel htmlFor="password" value="Senha" className="text-gray-700 font-bold text-xs uppercase ml-1 mb-1" />
+                        <InputLabel htmlFor="password" value="Senha" className="text-content-secondary font-bold text-xs uppercase ml-1 mb-1" />
                         <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-red-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-brand-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-content-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                                 </svg>
                             </div>
@@ -108,7 +108,7 @@ export default function Login({ status, canResetPassword }) {
                                 type={showPassword ? "text" : "password"}
                                 name="password"
                                 value={data.password}
-                                className="block w-full pl-10 pr-10 border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-xl shadow-sm h-12 transition-all bg-gray-50 focus:bg-white"
+                                className="block w-full pl-10 pr-10 border-line-strong focus:border-brand-500 focus:ring-brand-500 rounded-xl shadow-sm h-12 transition-all bg-surface-sunken focus:bg-surface-card"
                                 autoComplete="current-password"
                                 onChange={(e) => setData('password', e.target.value)}
                                 placeholder="••••••••"
@@ -118,7 +118,7 @@ export default function Login({ status, canResetPassword }) {
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-red-600 transition-colors focus:outline-none"
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-content-muted hover:text-brand-600 transition-colors focus:outline-none"
                                 title={showPassword ? "Ocultar senha" : "Ver senha"}
                             >
                                 {showPassword ? (
@@ -143,15 +143,15 @@ export default function Login({ status, canResetPassword }) {
                                 name="remember"
                                 checked={data.remember}
                                 onChange={(e) => setData('remember', e.target.checked)}
-                                className="text-red-600 focus:ring-red-500 rounded border-gray-300 w-4 h-4"
+                                className="text-brand-600 focus:ring-brand-500 rounded border-line-strong w-4 h-4"
                             />
-                            <span className="ms-2 text-sm text-gray-600 group-hover:text-red-700 transition">Manter conectado</span>
+                            <span className="ms-2 text-sm text-content-secondary group-hover:text-brand-700 transition">Manter conectado</span>
                         </label>
 
                         {canResetPassword && (
                             <Link
                                 href={route('password.request')}
-                                className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline"
+                                className="text-xs font-bold text-status-danger-fg hover:text-brand-700 hover:underline"
                             >
                                 Esqueceu a senha?
                             </Link>
@@ -161,7 +161,7 @@ export default function Login({ status, canResetPassword }) {
                     {/* BOTÃO DE AÇÃO */}
                     <div className="pt-2">
                         <PrimaryButton 
-                            className="w-full justify-center py-4 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 focus:ring-red-500 text-lg shadow-lg hover:shadow-red-900/30 transform hover:-translate-y-0.5 transition-all duration-200 rounded-xl" 
+                            className="w-full justify-center py-4 bg-gradient-to-r from-brand-700 to-brand-600 hover:from-brand-800 hover:to-brand-700 focus:ring-brand-500 text-lg shadow-lg hover:shadow-brand-900/30 transform hover:-translate-y-0.5 transition-all duration-200 rounded-xl" 
                             disabled={processing}
                         >
                             {processing ? (
@@ -185,7 +185,7 @@ export default function Login({ status, canResetPassword }) {
                 <p className="text-xs font-light tracking-wide">
                     &copy; {new Date().getFullYear()} BySabel Logística.
                 </p>
-                <div className="flex gap-3 text-[10px] text-red-200 uppercase font-bold tracking-widest border-t border-red-700 pt-2">
+                <div className="flex gap-3 text-[10px] text-brand-200 uppercase font-bold tracking-widest border-t border-brand-700 pt-2">
                     <span>V3.0</span>
                     <span>•</span>
                     <span>Hub & Spoke</span>

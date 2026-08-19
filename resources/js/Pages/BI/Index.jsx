@@ -1,4 +1,5 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
+import { PageHeader } from '@/Components/UI';
 import { Head, router } from '@inertiajs/react';
 import KpiCard from '@/Components/Bi/KpiCard';
 import Chart from 'react-apexcharts';
@@ -80,40 +81,39 @@ export default function BiIndex({ auth, kpis, status_chart, ranking_lojas, slas,
     };
 
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className="font-bold text-2xl text-gray-800 leading-tight flex items-center gap-2">
-                <span className="text-red-600 flex items-center gap-1"><ChartBarIcon className="w-6 h-6"/> BI</span> Logística Integrada
-            </h2>}
-        >
+        <AppLayout user={auth.user}>
             <Head title="BI - Dashboard Executivo" />
-
-            <div className="py-8 bg-gray-50 min-h-screen">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <PageHeader
+                title="BI Logística Integrada"
+                breadcrumbs={[
+                    { label: 'Início', href: route('dashboard') },
+                    { label: 'BI' }
+                ]}
+            />
                     
                     {/* Filtros */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm mb-8 flex flex-wrap gap-4 items-end border border-gray-100">
+                    <div className="bg-surface-card p-4 rounded-xl shadow-sm mb-8 flex flex-wrap gap-4 items-end border border-line">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Início</label>
+                            <label className="block text-xs font-bold text-content-muted uppercase mb-1">Início</label>
                             <input 
                                 type="date" 
                                 value={dates.start_date}
                                 onChange={e => setDates({...dates, start_date: e.target.value})}
-                                className="border-gray-300 rounded-lg text-sm"
+                                className="border-line-strong rounded-lg text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fim</label>
+                            <label className="block text-xs font-bold text-content-muted uppercase mb-1">Fim</label>
                             <input 
                                 type="date" 
                                 value={dates.end_date}
                                 onChange={e => setDates({...dates, end_date: e.target.value})}
-                                className="border-gray-300 rounded-lg text-sm"
+                                className="border-line-strong rounded-lg text-sm"
                             />
                         </div>
                         <button 
                             onClick={handleFilter}
-                            className="bg-gray-800 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-gray-700 transition"
+                            className="bg-surface-inverted text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-surface-inverted transition"
                         >
                             Filtrar
                         </button>
@@ -124,28 +124,28 @@ export default function BiIndex({ auth, kpis, status_chart, ranking_lojas, slas,
                         <KpiCard 
                             title="Pedidos Totais" 
                             value={kpis.total_pedidos} 
-                            icon={<BuildingStorefrontIcon className="w-6 h-6 text-blue-600"/>} 
+                            icon={<BuildingStorefrontIcon className="w-6 h-6 text-status-info-fg"/>} 
                             color="blue"
                             helperText="Solicitações no período"
                         />
                         <KpiCard 
                             title="Concluídos" 
                             value={kpis.concluidos} 
-                            icon={<CheckBadgeIcon className="w-6 h-6 text-green-600"/>} 
+                            icon={<CheckBadgeIcon className="w-6 h-6 text-status-success-fg"/>} 
                             color="green" 
                             helperText={`Taxa de Sucesso: ${kpis.taxa_sucesso}%`}
                         />
                         <KpiCard 
                             title="Cancelados" 
                             value={kpis.cancelados} 
-                            icon={<XCircleIcon className="w-6 h-6 text-red-600"/>} 
+                            icon={<XCircleIcon className="w-6 h-6 text-brand-600"/>} 
                             color="red"
                             helperText="Pedidos rejeitados"
                         />
                         <KpiCard 
                             title="Lead Time Médio" 
                             value={`${slas.total}h`} 
-                            icon={<ClockIcon className="w-6 h-6 text-purple-600"/>} 
+                            icon={<ClockIcon className="w-6 h-6 text-brand-600"/>} 
                             color="purple"
                             helperText="Tempo total de ciclo"
                         />
@@ -154,43 +154,40 @@ export default function BiIndex({ auth, kpis, status_chart, ranking_lojas, slas,
                     {/* Gráficos Linha 1 */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                         {/* SLA Chart */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                <ClockIcon className="w-5 h-5 text-purple-600" /> Performance Operacional (SLA)
+                        <div className="bg-surface-card p-6 rounded-2xl shadow-sm border border-line">
+                            <h3 className="text-lg font-bold text-content-primary mb-4 flex items-center gap-2">
+                                <ClockIcon className="w-5 h-5 text-brand-600" /> Performance Operacional (SLA)
                             </h3>
                             <div className="h-80">
                                 <Chart options={slaOptions} series={slaSeries} type="bar" height="100%" />
                             </div>
-                            <p className="text-xs text-gray-400 mt-2 text-center">* Tempo médio em horas entre etapas.</p>
+                            <p className="text-xs text-content-muted mt-2 text-center">* Tempo médio em horas entre etapas.</p>
                         </div>
 
                         {/* Status Chart */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                <FunnelIcon className="w-5 h-5 text-blue-600" /> Pipeline de Pedidos Ativos
+                        <div className="bg-surface-card p-6 rounded-2xl shadow-sm border border-line">
+                            <h3 className="text-lg font-bold text-content-primary mb-4 flex items-center gap-2">
+                                <FunnelIcon className="w-5 h-5 text-status-info-fg" /> Pipeline de Pedidos Ativos
                             </h3>
                             <div className="h-80 flex items-center justify-center">
                                 {statusSeries.length > 0 ? (
                                     <Chart options={statusOptions} series={statusSeries} type="donut" height="100%" width="380" />
                                 ) : (
-                                    <div className="text-gray-400 italic">Sem pedidos em andamento no momento.</div>
+                                    <div className="text-content-muted italic">Sem pedidos em andamento no momento.</div>
                                 )}
                             </div>
                         </div>
                     </div>
 
                     {/* Gráficos Linha 2 (Ranking) */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <TruckIcon className="w-5 h-5 text-red-600" /> Top 10 Lojas (Solicitantes)
+                    <div className="bg-surface-card p-6 rounded-2xl shadow-sm border border-line mb-8">
+                        <h3 className="text-lg font-bold text-content-primary mb-4 flex items-center gap-2">
+                            <TruckIcon className="w-5 h-5 text-brand-600" /> Top 10 Lojas (Solicitantes)
                         </h3>
                         <div className="h-96">
                             <Chart options={rankingOptions} series={rankingSeries} type="bar" height="100%" />
                         </div>
                     </div>
-
-                </div>
-            </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }

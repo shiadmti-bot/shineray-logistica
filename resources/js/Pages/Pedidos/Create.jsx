@@ -1,4 +1,5 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
+import { PageHeader, Button } from '@/Components/UI';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
@@ -10,7 +11,8 @@ import {
     InformationCircleIcon,
     ArrowDownIcon,
     TrashIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    PlusIcon,
 } from '@heroicons/react/24/outline';
 
 export default function PedidoCreate({
@@ -278,7 +280,7 @@ export default function PedidoCreate({
                 icon: 'warning',
                 title: 'Campos Obrigatórios',
                 html: `<div style="text-align:left;font-size:13px;"><ul style="list-style:disc;padding-left:20px;">${camposFaltando.map(c => `<li>${c}</li>`).join('')}</ul></div>`,
-                confirmButtonColor: '#d33'
+                confirmButtonColor: '#dc2626'
             });
         }
 
@@ -293,7 +295,7 @@ export default function PedidoCreate({
                         icon: 'success',
                         title: 'Sucesso!',
                         text: typeof successMsg === 'string' ? successMsg : 'Solicitação enviada.',
-                        confirmButtonColor: '#3085d6'
+                        confirmButtonColor: '#dc2626'
                     }).then(() => {
                         router.visit(route('pedidos.index'));
                     });
@@ -318,7 +320,7 @@ export default function PedidoCreate({
                     icon: 'error',
                     title: 'Atenção',
                     text: Object.values(errors)[0] || 'Verifique os campos obrigatórios.',
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#dc2626'
                 });
             }
         });
@@ -334,7 +336,7 @@ export default function PedidoCreate({
                 showCancelButton: true,
                 confirmButtonText: 'Enviar assim mesmo',
                 cancelButtonText: 'Revisar',
-                confirmButtonColor: '#d33'
+                confirmButtonColor: '#dc2626'
             }).then(r => { if (r.isConfirmed) enviar(); });
         }
 
@@ -348,8 +350,8 @@ export default function PedidoCreate({
 
     const campoModelo = (item, index, mobile) => {
         const base = mobile
-            ? "w-full border-gray-300 rounded-lg uppercase font-bold text-base py-3 px-4 focus:ring-red-500 focus:border-red-500 bg-white"
-            : "w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500 bg-white";
+            ? "w-full border-line-strong rounded-lg uppercase font-bold text-base py-3 px-4 focus:ring-brand-500 focus:border-brand-500 bg-surface-card"
+            : "w-full border-line-strong rounded uppercase font-bold text-sm focus:ring-brand-500 focus:border-brand-500 bg-surface-card";
 
         // Pedido genérico ao CD com estoque sincronizado => select do estoque real
         if (data.modo === 'cd' && !exigeChassi(item) && temEstoqueCD) {
@@ -373,8 +375,8 @@ export default function PedidoCreate({
 
     const campoMotivo = (item, index, mobile) => {
         const base = mobile
-            ? "w-full rounded-lg text-base py-3 px-4 border-gray-300"
-            : "w-full rounded text-sm border-gray-300";
+            ? "w-full rounded-lg text-base py-3 px-4 border-line-strong"
+            : "w-full rounded text-sm border-line-strong";
 
         // Item vindo da tela de Estoque: a loja escolheu um chassi específico, e o
         // único motivo que autoriza isso é Venda Confirmada. Motivo fixo e explicado.
@@ -384,9 +386,9 @@ export default function PedidoCreate({
                     <input
                         disabled
                         value={MOTIVO_VENDA}
-                        className={`${base} bg-emerald-50 text-emerald-800 border-emerald-200 font-bold`}
+                        className={`${base} bg-status-success-bg text-status-success-fg border-status-success-solid/30 font-bold`}
                     />
-                    <p className="text-[10px] text-emerald-700 mt-0.5">
+                    <p className="text-[10px] text-status-success-fg mt-0.5">
                         Fixo: pedido de chassi específico
                     </p>
                 </div>
@@ -407,8 +409,8 @@ export default function PedidoCreate({
 
     const campoCor = (item, index, mobile) => {
         const base = mobile
-            ? "w-full border-gray-300 rounded-lg uppercase text-base py-3 px-4"
-            : "w-full border-gray-300 rounded uppercase text-sm";
+            ? "w-full border-line-strong rounded-lg uppercase text-base py-3 px-4"
+            : "w-full border-line-strong rounded uppercase text-sm";
 
         if (data.modo === 'cd' && !exigeChassi(item) && temEstoqueCD) {
             const cores = coresDoModelo(item.modelo);
@@ -416,7 +418,7 @@ export default function PedidoCreate({
                 <select
                     required value={item.cor} disabled={!item.modelo}
                     onChange={(e) => updateItem(index, 'cor', e.target.value)}
-                    className={`${base} disabled:bg-gray-100 disabled:text-gray-400`}
+                    className={`${base} disabled:bg-surface-sunken disabled:text-content-muted`}
                 >
                     <option value="">{item.modelo ? 'Cor...' : 'Escolha o modelo'}</option>
                     {cores.map(c => (
@@ -438,8 +440,8 @@ export default function PedidoCreate({
     const campoChassiOuQtd = (item, index, mobile) => {
         if (exigeChassi(item)) {
             const cls = mobile
-                ? `w-full rounded-lg font-mono tracking-wider text-base py-3 px-4 ${!item.chassi ? 'border-red-300 bg-red-50' : item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-orange-300 bg-orange-50'}`
-                : `w-full rounded font-mono tracking-widest text-sm ${!item.chassi ? 'border-red-300 bg-red-50' : item.chassi.length >= 11 ? 'border-green-400 bg-green-50' : 'border-orange-300 bg-orange-50'}`;
+                ? `w-full rounded-lg font-mono tracking-wider text-base py-3 px-4 ${!item.chassi ? 'border-status-danger-solid/40 bg-status-danger-bg' : item.chassi.length >= 11 ? 'border-status-success-solid bg-status-success-bg' : 'border-status-warning-solid/40 bg-status-warning-bg'}`
+                : `w-full rounded font-mono tracking-widest text-sm ${!item.chassi ? 'border-status-danger-solid/40 bg-status-danger-bg' : item.chassi.length >= 11 ? 'border-status-success-solid bg-status-success-bg' : 'border-status-warning-solid/40 bg-status-warning-bg'}`;
 
             return (
                 <input
@@ -461,10 +463,10 @@ export default function PedidoCreate({
                     required type="number" min={1} max={50} inputMode="numeric"
                     value={item.quantidade}
                     onChange={(e) => updateItem(index, 'quantidade', e.target.value)}
-                    className={`w-full rounded ${mobile ? 'rounded-lg text-base py-3 px-4' : 'text-sm'} font-black text-center ${excede ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-blue-300 bg-blue-50 text-blue-800'}`}
+                    className={`w-full rounded ${mobile ? 'rounded-lg text-base py-3 px-4' : 'text-sm'} font-black text-center ${excede ? 'border-status-warning-solid bg-status-warning-bg text-status-warning-fg' : 'border-status-info-solid/40 bg-status-info-bg text-status-info-fg'}`}
                 />
                 {disp !== null && (
-                    <p className={`text-[10px] mt-0.5 text-center ${excede ? 'text-orange-600 font-bold' : 'text-gray-500'}`}>
+                    <p className={`text-[10px] mt-0.5 text-center ${excede ? 'text-status-warning-fg font-bold' : 'text-content-muted'}`}>
                         {excede ? `Só há ${disp} no CD` : `${disp} disponíveis`}
                     </p>
                 )}
@@ -473,31 +475,44 @@ export default function PedidoCreate({
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-red-700">Nova Solicitação</h2>}>
+        <AppLayout user={auth.user}>
             <Head title="Nova Solicitação" />
-            <div className="py-8 bg-gray-100 min-h-screen pb-32">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+            {/* pb-32: o rodape de total e envio e fixo e cobriria o fim do formulario. */}
+            <div className="pb-32">
+                <PageHeader
+                    title="Nova Solicitação"
+                    description={
+                        data.modo === 'transferencia'
+                            ? 'Movimentação entre filiais — o chassi identifica a moto que já existe.'
+                            : 'Pedido ao CD por modelo, cor e quantidade.'
+                    }
+                    breadcrumbs={[
+                        { label: 'Pedidos', href: route('pedidos.index') },
+                        { label: 'Nova Solicitação' },
+                    ]}
+                />
 
                     {Object.keys(errors).length > 0 && (
-                        <div className="mb-6 bg-red-50 border-l-4 border-red-600 p-4 rounded shadow flex items-center">
-                            <span className="mr-3"><ExclamationTriangleIcon className="w-8 h-8 text-red-600" /></span>
+                        <div className="mb-6 flex items-center gap-3 rounded-lg border-l-4 border-status-danger-solid bg-status-danger-bg p-4">
+                            <span className="mr-3"><ExclamationTriangleIcon className="w-8 h-8 text-status-danger-fg" /></span>
                             <div>
-                                <h3 className="font-bold text-red-800">Atenção Necessária</h3>
-                                <p className="text-sm text-red-700">{Object.values(errors)[0] || 'Preencha todos os campos obrigatórios.'}</p>
+                                <h3 className="font-bold text-status-danger-fg">Atenção Necessária</h3>
+                                <p className="text-sm text-status-danger-fg">{Object.values(errors)[0] || 'Preencha todos os campos obrigatórios.'}</p>
                             </div>
                         </div>
                     )}
 
                     {veioDoEstoque && (
-                        <div className="mb-6 bg-emerald-50 border-l-4 border-emerald-600 p-4 rounded shadow flex items-start gap-3">
-                            <CheckCircleIcon className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                        <div className="mb-6 bg-status-success-bg border-l-4 border-status-success-solid p-4 rounded shadow flex items-start gap-3">
+                            <CheckCircleIcon className="w-6 h-6 text-status-success-fg flex-shrink-0" />
                             <div>
-                                <h3 className="font-bold text-emerald-900 text-sm">Solicitação de chassi específico (vinda do Estoque)</h3>
-                                <p className="text-xs text-emerald-800 mt-0.5">
+                                <h3 className="font-bold text-status-success-fg text-sm">Solicitação de chassi específico (vinda do Estoque)</h3>
+                                <p className="text-xs text-status-success-fg mt-0.5">
                                     O motivo foi fixado como <b>{MOTIVO_VENDA}</b>, o único que autoriza a loja a reservar
                                     um chassi específico do CD.
                                 </p>
-                                <p className="text-xs text-emerald-700 mt-1.5">
+                                <p className="text-xs text-status-success-fg mt-1.5">
                                     Para <b>giro / reposição de estoque</b>, não use esta tela a partir do Estoque: entre em{' '}
                                     <b>Nova Solicitação</b> e peça por <b>modelo + cor + quantidade</b> (ex: 5x NEW JEF VERMELHA).
                                     O CD define quais chassis enviar.
@@ -507,64 +522,64 @@ export default function PedidoCreate({
                     )}
 
                     {!temEstoqueCD && (
-                        <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded shadow flex items-start gap-3">
-                            <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+                        <div className="mb-6 bg-status-warning-bg border-l-4 border-status-warning-solid p-4 rounded shadow flex items-start gap-3">
+                            <ExclamationTriangleIcon className="w-6 h-6 text-status-warning-fg flex-shrink-0" />
                             <div>
-                                <h3 className="font-bold text-yellow-800 text-sm">Estoque do CD indisponível no momento</h3>
-                                <p className="text-xs text-yellow-700">A sincronização com o Microwork não retornou dados. Você pode continuar pedindo normalmente digitando o modelo e a cor à mão.</p>
+                                <h3 className="font-bold text-status-warning-fg text-sm">Estoque do CD indisponível no momento</h3>
+                                <p className="text-xs text-status-warning-fg">A sincronização com o Microwork não retornou dados. Você pode continuar pedindo normalmente digitando o modelo e a cor à mão.</p>
                             </div>
                         </div>
                     )}
 
                     <form onSubmit={submit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.type !== 'textarea') e.preventDefault(); }} className="space-y-6">
 
-                        <div className={`bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 ${data.modo === 'transferencia' ? 'border-orange-500' : 'border-blue-600'}`}>
-                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><ArchiveBoxIcon className="w-5 h-5" /> Tipo de Movimentação</h3>
+                        <div className={`bg-surface-card overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 ${data.modo === 'transferencia' ? 'border-status-warning-solid' : 'border-status-info-solid'}`}>
+                            <h3 className="text-lg font-bold text-content-primary mb-4 flex items-center gap-2"><ArchiveBoxIcon className="w-5 h-5" /> Tipo de Movimentação</h3>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div
                                     onClick={() => handleModeChange('cd')}
-                                    className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${data.modo === 'cd' ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-200 hover:border-blue-300'}`}
+                                    className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${data.modo === 'cd' ? 'border-status-info-solid bg-status-info-bg ring-1 ring-status-info-solid' : 'border-line hover:border-status-info-solid/40'}`}
                                 >
-                                    <ArchiveBoxIcon className={`w-10 h-10 ${data.modo === 'cd' ? 'text-blue-600' : 'text-gray-400'}`} />
+                                    <ArchiveBoxIcon className={`w-10 h-10 ${data.modo === 'cd' ? 'text-status-info-fg' : 'text-content-muted'}`} />
                                     <div>
-                                        <div className="font-bold text-gray-800">Reposição CD</div>
-                                        <div className="text-xs text-gray-500">Pedir estoque ao CD por modelo, cor e quantidade.</div>
+                                        <div className="font-bold text-content-primary">Reposição CD</div>
+                                        <div className="text-xs text-content-muted">Pedir estoque ao CD por modelo, cor e quantidade.</div>
                                     </div>
-                                    {data.modo === 'cd' && <CheckCircleIcon className="w-6 h-6 ml-auto text-blue-600" />}
+                                    {data.modo === 'cd' && <CheckCircleIcon className="w-6 h-6 ml-auto text-status-info-fg" />}
                                 </div>
 
                                 <div
                                     onClick={() => handleModeChange('transferencia')}
-                                    className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${data.modo === 'transferencia' ? 'border-orange-500 bg-orange-50 ring-1 ring-orange-500' : 'border-gray-200 hover:border-orange-300'}`}
+                                    className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${data.modo === 'transferencia' ? 'border-status-warning-solid bg-status-warning-bg ring-1 ring-status-warning-solid' : 'border-line hover:border-status-warning-solid/40'}`}
                                 >
-                                    <ArrowPathIcon className={`w-10 h-10 ${data.modo === 'transferencia' ? 'text-orange-600' : 'text-gray-400'}`} />
+                                    <ArrowPathIcon className={`w-10 h-10 ${data.modo === 'transferencia' ? 'text-status-warning-fg' : 'text-content-muted'}`} />
                                     <div>
-                                        <div className="font-bold text-gray-800">Transferência</div>
-                                        <div className="text-xs text-gray-500">Buscar moto em outra filial <b>ou devolver ao CD</b>.</div>
+                                        <div className="font-bold text-content-primary">Transferência</div>
+                                        <div className="text-xs text-content-muted">Buscar moto em outra filial <b>ou devolver ao CD</b>.</div>
                                     </div>
-                                    {data.modo === 'transferencia' && <CheckCircleIcon className="w-6 h-6 ml-auto text-orange-600" />}
+                                    {data.modo === 'transferencia' && <CheckCircleIcon className="w-6 h-6 ml-auto text-status-warning-fg" />}
                                 </div>
                             </div>
 
                             {data.modo === 'cd' && (
-                                <div className="animate-fadeIn bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start gap-3">
-                                    <InformationCircleIcon className="w-8 h-8 text-blue-600 flex-shrink-0" />
+                                <div className="animate-fadeIn bg-status-info-bg p-4 rounded-lg border border-status-info-solid/20 flex items-start gap-3">
+                                    <InformationCircleIcon className="w-8 h-8 text-status-info-fg flex-shrink-0" />
                                     <div>
-                                        <h4 className="font-bold text-blue-800">Pedido por Modelo e Cor</h4>
-                                        <p className="text-xs text-blue-700">Escolha o modelo, a cor e a quantidade desejada. <b>A equipe do CD é quem define quais chassis serão enviados.</b> Se o motivo for "Venda Confirmada (Cliente)", o campo de chassi aparece automaticamente.</p>
+                                        <h4 className="font-bold text-status-info-fg">Pedido por Modelo e Cor</h4>
+                                        <p className="text-xs text-status-info-fg">Escolha o modelo, a cor e a quantidade desejada. <b>A equipe do CD é quem define quais chassis serão enviados.</b> Se o motivo for "Venda Confirmada (Cliente)", o campo de chassi aparece automaticamente.</p>
                                     </div>
                                 </div>
                             )}
 
                             {data.modo === 'transferencia' && (
-                                <div className="animate-fadeIn bg-orange-50 p-4 rounded-lg border border-orange-100 space-y-4">
+                                <div className="animate-fadeIn bg-status-warning-bg p-4 rounded-lg border border-status-warning-solid/20 space-y-4">
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Para onde vai a moto? *</label>
+                                        <label className="block text-sm font-bold text-content-secondary mb-1">Para onde vai a moto? *</label>
                                         <select
                                             value={data.destino_id}
                                             onChange={handleDestinoChange}
-                                            className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 font-bold text-gray-700"
+                                            className="w-full border-line-strong rounded-lg shadow-sm focus:ring-status-warning-solid focus:border-status-warning-solid font-bold text-content-secondary"
                                         >
                                             <option value="">Para a minha loja ({auth.user.filial}) — estou recebendo</option>
                                             {cdUserId && <option value={cdUserId}>Para a Matriz / CD — estou devolvendo/enviando</option>}
@@ -573,12 +588,12 @@ export default function PedidoCreate({
 
                                     {!enviandoParaCD ? (
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-1">Selecione a Loja Fornecedora *</label>
+                                            <label className="block text-sm font-bold text-content-secondary mb-1">Selecione a Loja Fornecedora *</label>
                                             <select
                                                 required
                                                 value={data.origem_id}
                                                 onChange={handleFornecedorChange}
-                                                className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-orange-500 focus:border-orange-500 font-bold text-gray-700"
+                                                className="w-full border-line-strong rounded-lg shadow-sm focus:ring-status-warning-solid focus:border-status-warning-solid font-bold text-content-secondary"
                                             >
                                                 <option value="">-- Escolha a loja que tem a moto --</option>
                                                 {lojasDisponiveis.filter(l => l.id !== auth.user.id).map(loja => (
@@ -587,24 +602,24 @@ export default function PedidoCreate({
                                             </select>
                                         </div>
                                     ) : (
-                                        <div className="flex items-start gap-3 bg-white p-3 rounded border border-orange-200">
-                                            <InformationCircleIcon className="w-7 h-7 text-orange-600 flex-shrink-0" />
-                                            <p className="text-xs text-orange-800">
+                                        <div className="flex items-start gap-3 bg-surface-card p-3 rounded border border-status-warning-solid/30">
+                                            <InformationCircleIcon className="w-7 h-7 text-status-warning-fg flex-shrink-0" />
+                                            <p className="text-xs text-status-warning-fg">
                                                 <b>Envio para o CD.</b> As motos sairão da sua loja ({auth.user.filial}) com destino à Matriz / CD.
                                                 Informe o <b>chassi</b> de cada moto que está saindo. Esta operação substitui a antiga "Devolução".
                                             </p>
                                         </div>
                                     )}
 
-                                    <p className="text-[10px] text-orange-600">* Em transferências o chassi é sempre obrigatório, pois a moto já existe fisicamente na loja de origem.</p>
+                                    <p className="text-[10px] text-status-warning-fg">* Em transferências o chassi é sempre obrigatório, pois a moto já existe fisicamente na loja de origem.</p>
                                 </div>
                             )}
                         </div>
 
-                        <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border-t-4 border-red-600">
+                        <div className="overflow-hidden rounded-card border-t-4 border-brand-600 bg-surface-card p-6 shadow-card ring-1 ring-line">
                             <div className="mb-6">
-                                <h3 className="text-lg font-bold text-gray-800">Itens do Pedido</h3>
-                                <p className="text-sm text-gray-500">
+                                <h3 className="text-lg font-bold text-content-primary">Itens do Pedido</h3>
+                                <p className="text-sm text-content-muted">
                                     {data.modo === 'transferencia'
                                         ? 'Informe o chassi de cada moto que será movimentada.'
                                         : 'Escolha modelo, cor e quantidade. O CD definirá os chassis.'}
@@ -616,7 +631,7 @@ export default function PedidoCreate({
                             </datalist>
 
                             {/* CABEÇALHO DESKTOP */}
-                            <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-gray-500 px-2 items-end">
+                            <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-content-muted px-2 items-end">
                                 <div className="col-span-1 text-center">#</div>
                                 <div className="col-span-3">Modelo *</div>
                                 <div className="col-span-2">{data.modo === 'transferencia' ? 'Chassi *' : 'Chassi / Qtd *'}</div>
@@ -628,11 +643,11 @@ export default function PedidoCreate({
 
                             <div className="space-y-3">
                                 {data.itens.map((item, index) => (
-                                    <div key={index} className={`rounded-xl border shadow-sm transition-all relative ${errors[`itens.${index}`] ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                                    <div key={index} className={`rounded-xl border shadow-sm transition-all relative ${errors[`itens.${index}`] ? 'border-status-danger-solid/40 bg-status-danger-bg' : 'border-line bg-surface-sunken'}`}>
 
                                         {/* ===== LAYOUT DESKTOP (md+) ===== */}
                                         <div className="hidden md:grid grid-cols-12 gap-3 items-center p-4">
-                                            <div className="col-span-1 text-center font-bold text-gray-400">{index + 1}</div>
+                                            <div className="col-span-1 text-center font-bold text-content-muted">{index + 1}</div>
 
                                             <div className="col-span-3">
                                                 {campoModelo(item, index, false)}
@@ -644,15 +659,15 @@ export default function PedidoCreate({
 
                                             <div className="col-span-2 relative">
                                                 {enviandoParaCD ? (
-                                                    <input disabled value="Matriz / CD" className="w-full rounded text-sm bg-orange-100 text-orange-800 border-orange-200 font-bold text-center" />
+                                                    <input disabled value="Matriz / CD" className="w-full rounded text-sm bg-status-warning-bg text-status-warning-fg border-status-warning-solid/30 font-bold text-center" />
                                                 ) : (
-                                                    <select required value={item.local} onChange={(e) => updateItem(index, 'local', e.target.value)} className="w-full rounded text-sm bg-yellow-50 focus:bg-white border-gray-300">
+                                                    <select required value={item.local} onChange={(e) => updateItem(index, 'local', e.target.value)} className="w-full rounded text-sm bg-status-warning-bg focus:bg-surface-card border-line-strong">
                                                         <option value="" disabled>Selecione...</option>
                                                         {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
                                                     </select>
                                                 )}
                                                 {index === 0 && data.itens.length > 1 && !enviandoParaCD && (
-                                                    <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-blue-600 hover:underline font-bold flex items-center gap-1">
+                                                    <button type="button" onClick={replicarDestino} className="absolute -top-5 right-0 text-[10px] text-status-info-fg hover:underline font-bold flex items-center gap-1">
                                                         Copiar p/ todos <ArrowDownIcon className="w-3 h-3 inline" />
                                                     </button>
                                                 )}
@@ -668,7 +683,7 @@ export default function PedidoCreate({
 
                                             <div className="col-span-1 text-center">
                                                 {data.itens.length > 1 && (
-                                                    <button type="button" onClick={() => removeItem(index)} className="text-gray-400 hover:text-red-600 text-xl p-2 transition rounded-full hover:bg-red-50">
+                                                    <button type="button" onClick={() => removeItem(index)} className="text-content-muted hover:text-status-danger-fg text-xl p-2 transition rounded-full hover:bg-status-danger-bg">
                                                         <TrashIcon className="w-5 h-5" />
                                                     </button>
                                                 )}
@@ -678,46 +693,46 @@ export default function PedidoCreate({
                                         {/* ===== LAYOUT MOBILE ===== */}
                                         <div className="md:hidden p-4 space-y-3">
                                             <div className="flex justify-between items-center">
-                                                <span className="bg-gray-200 text-gray-600 text-xs font-black px-2.5 py-1 rounded-full">
+                                                <span className="bg-surface-sunken text-content-secondary text-xs font-black px-2.5 py-1 rounded-full">
                                                     {exigeChassi(item) ? `Moto #${index + 1}` : `Item #${index + 1}`}
                                                 </span>
                                                 {data.itens.length > 1 && (
-                                                    <button type="button" onClick={() => removeItem(index)} className="text-red-400 hover:text-red-600 p-1.5 rounded-full hover:bg-red-50 transition">
+                                                    <button type="button" onClick={() => removeItem(index)} className="text-status-danger-fg hover:text-status-danger-fg p-1.5 rounded-full hover:bg-status-danger-bg transition">
                                                         <TrashIcon className="w-5 h-5" />
                                                     </button>
                                                 )}
                                             </div>
 
                                             <div>
-                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Modelo *</label>
+                                                <label className="block text-xs font-bold text-content-muted uppercase mb-1">Modelo *</label>
                                                 {campoModelo(item, index, true)}
                                             </div>
 
                                             <div>
-                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                                                <label className="block text-xs font-bold text-content-muted uppercase mb-1">
                                                     {exigeChassi(item)
-                                                        ? <>Chassi * <span className="text-gray-400 normal-case font-normal">(mín. 11 caracteres)</span></>
-                                                        : <>Quantidade * <span className="text-gray-400 normal-case font-normal">(o CD define os chassis)</span></>}
+                                                        ? <>Chassi * <span className="text-content-muted normal-case font-normal">(mín. 11 caracteres)</span></>
+                                                        : <>Quantidade * <span className="text-content-muted normal-case font-normal">(o CD define os chassis)</span></>}
                                                 </label>
                                                 {campoChassiOuQtd(item, index, true)}
                                             </div>
 
                                             <div>
-                                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Destino Final *</label>
+                                                <label className="block text-xs font-bold text-content-muted uppercase mb-1">Destino Final *</label>
                                                 {enviandoParaCD ? (
-                                                    <input disabled value="Matriz / CD" className="w-full rounded-lg text-base py-3 px-4 bg-orange-100 text-orange-800 border-orange-200 font-bold text-center" />
+                                                    <input disabled value="Matriz / CD" className="w-full rounded-lg text-base py-3 px-4 bg-status-warning-bg text-status-warning-fg border-status-warning-solid/30 font-bold text-center" />
                                                 ) : (
                                                     <select
                                                         required value={item.local}
                                                         onChange={(e) => updateItem(index, 'local', e.target.value)}
-                                                        className="w-full rounded-lg text-base py-3 px-4 bg-yellow-50 focus:bg-white border-gray-300"
+                                                        className="w-full rounded-lg text-base py-3 px-4 bg-status-warning-bg focus:bg-surface-card border-line-strong"
                                                     >
                                                         <option value="" disabled>Selecione o destino...</option>
                                                         {locaisEntrega.map(local => <option key={local} value={local}>{local}</option>)}
                                                     </select>
                                                 )}
                                                 {index === 0 && data.itens.length > 1 && !enviandoParaCD && (
-                                                    <button type="button" onClick={replicarDestino} className="mt-1 text-xs text-blue-600 hover:underline font-bold flex items-center gap-1">
+                                                    <button type="button" onClick={replicarDestino} className="mt-1 text-xs text-status-info-fg hover:underline font-bold flex items-center gap-1">
                                                         <ArrowDownIcon className="w-3 h-3" /> Copiar destino p/ todas as motos
                                                     </button>
                                                 )}
@@ -725,11 +740,11 @@ export default function PedidoCreate({
 
                                             <div className="grid grid-cols-5 gap-3">
                                                 <div className="col-span-2">
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cor *</label>
+                                                    <label className="block text-xs font-bold text-content-muted uppercase mb-1">Cor *</label>
                                                     {campoCor(item, index, true)}
                                                 </div>
                                                 <div className="col-span-3">
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Motivo *</label>
+                                                    <label className="block text-xs font-bold text-content-muted uppercase mb-1">Motivo *</label>
                                                     {campoMotivo(item, index, true)}
                                                 </div>
                                             </div>
@@ -738,32 +753,36 @@ export default function PedidoCreate({
                                 ))}
                             </div>
 
-                            <div className="mt-6 flex flex-col md:flex-row justify-between items-start gap-6 border-t pt-6">
-                                <button type="button" onClick={addItem} className="w-full md:w-auto flex items-center justify-center gap-2 text-blue-600 font-bold border-2 border-dashed border-blue-300 rounded-lg px-6 py-4 hover:bg-blue-50 transition">
-                                    <span>➕</span> Adicionar Item
+                            <div className="mt-6 flex flex-col md:flex-row justify-between items-start gap-6 border-t border-line pt-6">
+                                <button
+                                    type="button"
+                                    onClick={addItem}
+                                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-status-info-solid/40 px-6 py-4 font-bold text-status-info-fg transition hover:bg-status-info-bg md:w-auto"
+                                >
+                                    <PlusIcon className="h-5 w-5" /> Adicionar Item
                                 </button>
                                 <div className="w-full md:w-1/2">
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Observações</label>
+                                    <label className="block text-sm font-bold text-content-secondary mb-1">Observações</label>
                                     <textarea
                                         value={data.observacao} onChange={e => setData('observacao', e.target.value)}
-                                        className="w-full border-gray-300 rounded h-20 text-sm focus:ring-red-500 focus:border-red-500"
+                                        className="w-full border-line-strong rounded h-20 text-sm focus:ring-brand-500 focus:border-brand-500"
                                         placeholder="Alguma ressalva importante..."
                                     ></textarea>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] p-3 md:p-4 z-50">
+                        <div className="fixed bottom-0 left-0 z-overlay w-full border-t border-line bg-surface-card p-3 shadow-overlay md:p-4">
                             <div className="max-w-7xl mx-auto flex justify-between items-center px-2 md:px-4 gap-2">
                                 <div className="flex flex-col md:flex-row md:items-baseline">
-                                    <span className="text-[10px] md:text-sm text-gray-500 font-bold uppercase md:hidden">Motos</span>
-                                    <span className="text-gray-600 hidden md:inline font-medium">Total:</span>
-                                    <span className="md:ml-2 text-xl md:text-2xl font-black text-red-600 leading-none">{totalUnidades} <span className="hidden md:inline">motos</span></span>
+                                    <span className="text-[10px] md:text-sm text-content-muted font-bold uppercase md:hidden">Motos</span>
+                                    <span className="text-content-secondary hidden md:inline font-medium">Total:</span>
+                                    <span className="md:ml-2 text-xl md:text-2xl font-black text-brand-600 leading-none">{totalUnidades} <span className="hidden md:inline">motos</span></span>
                                 </div>
                                 <button
                                     type="submit"
                                     disabled={processing || (data.modo === 'transferencia' && (!logisticaInfo || logisticaInfo.erro))}
-                                    className="w-full md:w-auto px-4 md:px-8 py-3 md:py-3 rounded-lg font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 text-white text-xs md:text-base whitespace-nowrap bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800"
+                                    className="w-full md:w-auto px-4 md:px-8 py-3 md:py-3 rounded-lg font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 text-white text-xs md:text-base whitespace-nowrap bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800"
                                 >
                                     {processing ? 'Processando...' :
                                         data.modo === 'transferencia'
@@ -775,8 +794,7 @@ export default function PedidoCreate({
                         </div>
 
                     </form>
-                </div>
             </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }

@@ -25,6 +25,7 @@ Desenvolvido e arquitetado por **Délcio Farias Dias Neto**, construído inteira
 
 - [O Fluxo BySabel](#-o-fluxo-bysabel)
 - [Novidades da Versão 3.0](#-novidades-da-versão-30)
+- [Controle de Acesso e Perfis (ACL)](#-controle-de-acesso-e-perfis-acl)
 - [Funcionalidades por Módulo](#-funcionalidades-por-módulo)
 - [Stack Tecnológica](#-stack-tecnológica)
 - [Instalação e Configuração](#-instalação-e-configuração)
@@ -47,7 +48,7 @@ O **BySabel Logística** estrutura um fluxo contínuo e inteligente:
 
 ## 🌟 Novidades da Versão 3.0
 
-Esta grande atualização traz a expansão completa para **Peças**, novo **Design System** e **Integração de Saldos Microwork**:
+Esta grande atualização traz a expansão completa para **Peças**, **Padronização Visual Completa (Design System v3)** e **Saneamento Arquitetural**:
 
 1. **Módulo Completo de Gestão de Peças:**
    - Catálogo global com mais de 2.380 SKUs sincronizados com o Microwork.
@@ -55,14 +56,27 @@ Esta grande atualização traz a expansão completa para **Peças**, novo **Desi
    - Pedidos de peças por lojas com carrinho e controle de urgência.
    - Gestão de estoque gerenciado no CD com livro-razão (ledger) auditável.
 2. **Consulta "Onde Encontrar" (Saldos Microwork Agrupados):**
-   - Exibição da disponibilidade de peças por empresa do Microwork (CD + Ananindeua, Capanema/Soure/Cametá, etc.).
+   - Exibição da disponibilidade de peças por empresa do Microwork (CD + Filiais).
    - Apoio operacional imediato para remanejamento de peças entre filiais.
-3. **Novo Design System & Shell de Aplicação (v3):**
-   - Navegação lateral expansível/recolhível com agrupamento por módulos.
-   - Componentes visuais consistentes: `StatusBadge`, `StatCard`, `DataTable`, `PageHeader`.
-   - Responsividade completa para dispositivos móveis e tablets.
-4. **Auditoria Atômica de Movimentações:**
-   - Registro de entradas, saídas, transferências e ajustes com histórico completo.
+3. **Design System v3 & Unificação de Telas:**
+   - Padronização de 100% dos tokens de cores temáticos (0 cores cruas no projeto).
+   - Shell unificada com `AppLayout` e cabeçalhos universais com `PageHeader` em todas as 24 telas autenticadas elegíveis.
+   - Nova tela de confirmação de pedidos personalizada.
+   - Componentes visuais consistentes: `StatusBadge`, `StatCard`, `DataTable`, `PageHeader`, `Card`.
+4. **Segurança e Saneamento de Rotas:**
+   - Restrição estrita do módulo de **Gestão de Acessos/Usuários** (`/usuarios*`) exclusivamente para perfil `admin` (403 para demais perfis).
+   - Eliminação de rotas REST mortas no `MotoController` com `->only(['index'])`, garantindo respostas 404 estritas para acessos diretos.
+
+---
+
+## 🔐 Controle de Acesso e Perfis (ACL)
+
+| Perfil | Escopo e Responsabilidade | Acessos Principais |
+|---|---|---|
+| **Admin** | Gestão global da infraestrutura e regras do sistema | Auditoria, Gestão de Usuários (`/usuarios`), Configuração de Rotas, Painel Global |
+| **Gestor** | Diretoria comercial e tomadores de decisão | Aprovação/Rejeição de Pedidos, BI Executivo, Histórico Comercial |
+| **CD** | Operação física de galpão e distribuição | Expedição, Montagem de Romaneios, Calendário Logístico, Rastreio de Chassis |
+| **Loja** | Pontos de venda e revendedoras autorizadas | Criação de Pedidos (Motos/Peças), Conferência & Finalização de Entregas |
 
 ---
 
@@ -71,11 +85,11 @@ Esta grande atualização traz a expansão completa para **Peças**, novo **Desi
 ### 🏪 Módulo Loja (Revenda)
 * **Solicitação Simplificada:** Formulário inteligente que verifica regras de negócio (Duplicidade, Bloqueios).
 * **Visualização de Fluxo:** Identificação clara se o pedido é uma **Reposição (Vem do CD)** ou **Transferência (Vem de outra Loja)**.
-* **Recebimento:** Confirmação digital com upload de canhoto assinado.
+* **Recebimento:** Confirmação digital com upload de canhoto assinado e registro de avarias.
 
-### 👮 Módulo Gestor (Comercial/Admin)
-* **Painel de Auditoria:** Aprovação ou rejeição de pedidos com um clique.
-* **Controle de Calendário:** Capacidade de planejar rotas futuras e confirmar execuções.
+### 👮 Módulo Gestor (Comercial)
+* **Painel de Aprovações:** Aprovação, corte parcial ou rejeição de pedidos com um clique.
+* **BI Executivo:** Indicadores de SLA, ranking de lojas e pipeline de pedidos.
 * **Visão Macro:** Dashboard com KPIs de volumes expedidos e pendentes.
 
 ### 🏭 Módulo CD (Logística Operacional)
@@ -85,7 +99,7 @@ Esta grande atualização traz a expansão completa para **Peças**, novo **Desi
     * Contadores em tempo real de volume de carga na barra inferior ("Sticky Footer").
 * **Expedição:**
     * Geração de Manifesto de Carga PDF.
-    * Controle de saída de portaria.
+    * Controle de saída de portaria e confirmação de coletas intermediárias (*milk run*).
     * Atualização em massa de status para "Em Trânsito".
 
 ---
@@ -94,9 +108,9 @@ Esta grande atualização traz a expansão completa para **Peças**, novo **Desi
 
 * **Backend:** Laravel 11 (PHP 8.2+)
 * **Frontend:** React.js 18 + Inertia.js
-* **UI/UX:** Tailwind CSS + SweetAlert2 + FullCalendar
+* **UI/UX:** Tailwind CSS + SweetAlert2 + FullCalendar + Heroicons
 * **Database:** TiDB Cloud (MySQL Compatible)
-* **Real-time:** Pusher / Laravel Echo (Notificações de "Plim" na expedição)
+* **Real-time:** Pusher / Laravel Echo / OneSignal
 * **Infra:** Vercel (Serverless Functions)
 
 ---
@@ -110,37 +124,38 @@ Esta grande atualização traz a expansão completa para **Peças**, novo **Desi
 
 ### Passo a Passo
 
-1.  **Clonar o repositório**
-    ```bash
-    git clone https://github.com/seu-repo/shineray-logistica.git
-    cd shineray-logistica
-    ```
+1. **Clonar o repositório**
+   ```bash
+   git clone https://github.com/shiadmti-bot/shineray-logistica.git
+   cd shineray-logistica
+   ```
 
-2.  **Instalar Dependências**
-    ```bash
-    composer install
-    npm install
-    ```
+2. **Instalar Dependências**
+   ```bash
+   composer install
+   npm install
+   ```
 
-3.  **Configurar Ambiente**
-    ```bash
-    cp .env.example .env
-    php artisan key:generate
-    ```
+3. **Configurar Ambiente**
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
 
-4.  **Banco de Dados & Seeds**
-    Configure o TiDB ou MySQL local no `.env` e rode:
-    ```bash
-    php artisan migrate --seed
-    # Seeds atualizados com novas filiais (PA/CE) e usuários admin.
-    ```
+4. **Banco de Dados & Seeds**
+   Configure o TiDB ou MySQL local no `.env` e rode:
+   ```bash
+   php artisan migrate --seed
+   ```
 
-5.  **Executar (Desenvolvimento)**
-    ```bash
-    npm run dev
-    # Em outro terminal:
-    php artisan serve
-    ```
+5. **Build dos Assets & Execução**
+   ```bash
+   npm run build
+   # ou em modo desenvolvimento:
+   npm run dev
+   # Em outro terminal:
+   php artisan serve
+   ```
 
 ---
 

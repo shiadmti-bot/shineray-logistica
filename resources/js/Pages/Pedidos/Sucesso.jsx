@@ -1,37 +1,34 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link } from '@inertiajs/react';
+import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function PedidoSucesso({ auth }) {
     return (
-        <AuthenticatedLayout
-            user={auth.user}
-            header={<h2 className="font-bold text-xl text-gray-800 leading-tight">Solicitação Realizada</h2>}
-        >
+        <AppLayout user={auth.user}>
             <Head title="Solicitação Enviada" />
 
-            <div className="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100 px-4">
-                
-                <div className="w-full sm:max-w-lg mt-6 px-6 py-8 bg-white shadow-xl overflow-hidden sm:rounded-2xl text-center border-t-8 border-purple-600">
+            <div className="flex flex-col items-center py-12">
+                <div className="w-full max-w-lg mt-6 px-6 py-8 bg-surface-card shadow-lg border border-line sm:rounded-2xl text-center">
                     
                     {/* Ícone Animado */}
                     <div className="mb-6 flex justify-center">
-                        <div className="rounded-full bg-purple-100 p-6 animate-bounce-slow">
-                            <span className="text-6xl">🛡️</span>
+                        <div className="bg-status-success-bg rounded-full p-5">
+                            <CheckCircleIcon className="w-16 h-16 text-status-success-fg" />
                         </div>
                     </div>
 
-                    <h2 className="text-3xl font-black text-gray-800 mb-2">Solicitação em Análise!</h2>
+                    <h2 className="text-2xl font-black text-content-primary mb-2">Solicitação em Análise!</h2>
                     
-                    <p className="text-gray-600 text-lg mb-6 leading-relaxed">
+                    <p className="text-content-secondary text-lg mb-6 leading-relaxed">
                         Seu pedido foi registrado e enviado para a 
-                        <strong className="text-purple-700"> Aprovação do Gestor Comercial</strong>.
+                        <strong className="text-brand-600"> Aprovação do Gestor Comercial</strong>.
                     </p>
 
-                    <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 mb-8 text-left">
-                        <h4 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
+                    <div className="bg-status-info-bg border border-status-info-solid/20 rounded-xl p-4 mb-8 text-left">
+                        <h4 className="font-bold text-status-info-fg mb-2 flex items-center gap-2">
                             <span>ℹ️</span> Próximos Passos:
                         </h4>
-                        <ul className="text-sm text-purple-800 space-y-2">
+                        <ul className="text-sm text-status-info-fg space-y-2">
                             <li className="flex items-start gap-2">
                                 <span className="mt-1">1.</span> 
                                 <span>O Gestor irá conferir os modelos e chassis solicitados.</span>
@@ -50,14 +47,14 @@ export default function PedidoSucesso({ auth }) {
                     <div className="space-y-3">
                         <Link
                             href={route('pedidos.index')}
-                            className="block w-full py-4 bg-purple-600 border border-transparent rounded-xl font-bold text-white uppercase tracking-widest hover:bg-purple-700 focus:bg-purple-700 active:bg-purple-900 transition shadow-lg transform hover:-translate-y-1"
+                            className="block w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md transition uppercase tracking-widest"
                         >
                             Acompanhar Meus Pedidos
                         </Link>
 
                         <Link
                             href={route('solicitar')}
-                            className="block w-full py-3 bg-white border-2 border-gray-200 rounded-xl font-bold text-gray-600 uppercase tracking-widest hover:bg-gray-50 transition"
+                            className="block w-full py-3 bg-surface-sunken hover:bg-surface-card text-content-primary border border-line font-bold rounded-xl transition uppercase tracking-widest"
                         >
                             Nova Solicitação
                         </Link>
@@ -65,8 +62,8 @@ export default function PedidoSucesso({ auth }) {
 
                 </div>
                 
-                <p className="mt-8 text-gray-400 text-sm">Shineray By Sabel Logística</p>
+                <p className="mt-8 text-content-muted text-sm">Shineray By Sabel Logística</p>
             </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }

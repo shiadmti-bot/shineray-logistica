@@ -17,11 +17,15 @@
 
 export const STATUS_MAP = {
     // --- Fluxo de Pedido ---
+    em_analise:        { label: 'Em Análise',        tone: 'neutral' },
     solicitado:        { label: 'Solicitado',        tone: 'warning' },
     aprovado:          { label: 'Aprovado',          tone: 'info'    },
     rejeitado:         { label: 'Rejeitado',         tone: 'danger'  },
     separado:          { label: 'Separado',          tone: 'info'    },
+    aguardando_rota:   { label: 'Aguardando Rota',   tone: 'warning' },
+    rota_confirmada:   { label: 'Rota Confirmada',   tone: 'info'    },
     aguardando_coleta: { label: 'Aguardando Coleta', tone: 'warning' },
+    coletado:          { label: 'Coletado',          tone: 'info'    },
     expedido:          { label: 'Expedido',          tone: 'info'    },
     em_transito:       { label: 'Em Trânsito',       tone: 'info'    },
     em_transito_cd:    { label: 'Em Trânsito p/ CD', tone: 'info'    },

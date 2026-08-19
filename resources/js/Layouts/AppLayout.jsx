@@ -1,56 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Link, usePage } from '@inertiajs/react';
+import { Menu, Transition } from '@headlessui/react';
 import {
     Bars3Icon,
     XMarkIcon,
     Cog6ToothIcon,
     ArrowRightOnRectangleIcon,
-    ChevronLeftIcon,
+    ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 
-import Dropdown from '@/Components/Dropdown';
 import Toast from '@/Components/Toast';
 import NotificationBell from '@/Components/NotificationBell';
 import useOneSignal from '@/Hooks/useOneSignal';
 import { navegacaoPara } from './navigation';
 
 /**
- * SHELL DE APLICAÇÃO (v3)
+ * SHELL DE APLICAÇÃO — topbar repaginada (v3).
  *
- * Substitui a topbar horizontal por navegação lateral agrupada em seções.
- * Motivo: com Motos + Peças + Logística o menu horizontal passaria de ~8 para
- * ~14 itens e quebraria em qualquer tela menor que 1400px. A lateral escala
- * verticalmente e mostra a qual módulo cada tela pertence.
+ * NAVEGAÇÃO EM UMA LINHA SÓ
+ * Com Motos + Peças + Logística + Gestão, listar cada tela na horizontal daria
+ * ~14 itens e quebraria abaixo de 1400px. A saída é agrupar: as seções de
+ * `navigation.js` viram menus suspensos, e só os itens soltos (Início,
+ * Calendário, Ajuda) ficam como link direto. A barra cabe em qualquer largura
+ * e cada tela continua mostrando a que módulo pertence.
  *
- * CONVIVÊNCIA: AuthenticatedLayout continua existindo e funcionando. As telas
- * migram para cá uma a uma; nada quebra enquanto os dois coexistem.
+ * UM SHELL PARA TODAS AS TELAS
+ * AuthenticatedLayout é um adaptador sobre este arquivo, então as 22 telas
+ * legadas e as novas usam exatamente a mesma moldura. Alterar a navegação aqui
+ * muda o sistema inteiro.
  *
- * A largura da sidebar é persistida em localStorage — o CD trabalha o dia
- * inteiro na mesma tela e recolher o menu a cada navegação seria irritante.
+ * `contained` liga o container padrão do conteúdo. Telas legadas passam false
+ * (via AuthenticatedLayout) porque trazem o próprio fundo e espaçamento.
  */
-export default function AppLayout({ user, header, children }) {
+export default function AppLayout({ user, header, children, contained = true }) {
     const { props, url } = usePage();
     const currentUser = user || props.auth?.user;
 
     useOneSignal(props.config?.onesignal_app_id);
 
     const [menuMobileAberto, setMenuMobileAberto] = useState(false);
-    const [recolhida, setRecolhida] = useState(false);
 
-    // Restaura a preferência antes da primeira pintura útil.
-    useEffect(() => {
-        setRecolhida(localStorage.getItem('sidebar:recolhida') === '1');
-    }, []);
-
-    const alternarRecolhida = () => {
-        setRecolhida((atual) => {
-            localStorage.setItem('sidebar:recolhida', atual ? '0' : '1');
-            return !atual;
-        });
-    };
-
-    // Fecha o menu mobile ao navegar — sem isso ele fica aberto por cima da
-    // tela nova depois de clicar num link.
+    // Fecha o menu mobile ao navegar — sem isso ele cobre a tela nova.
     useEffect(() => {
         setMenuMobileAberto(false);
     }, [url]);
@@ -80,195 +70,285 @@ export default function AppLayout({ user, header, children }) {
     const secoes = navegacaoPara(currentUser.perfil);
     const contadores = props.navCounts ?? {};
 
-    const ItemNav = ({ item }) => {
+    const contarSecao = (secao) =>
+        secao.items.reduce((t, i) => t + (i.badge ? contadores[i.badge] ?? 0 : 0), 0);
+
+    const secaoAtiva = (secao) => secao.items.some((i) => isCurrent(i.match ?? i.route));
+
+    /* ---------- Link direto na barra ---------- */
+    const LinkBarra = ({ item }) => {
         const ativo = isCurrent(item.match ?? item.route);
         const Icon = item.icon;
-        const contador = item.badge ? contadores[item.badge] : null;
 
         return (
             <Link
                 href={safeRoute(item.route)}
-                title={recolhida ? item.label : undefined}
-                className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition
-                    ${
-                        ativo
-                            ? 'bg-brand-600 text-white shadow-sm'
-                            : 'text-red-100/80 hover:bg-white/10 hover:text-white'
-                    }`}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition
+                    ${ativo ? 'bg-white/20 text-white shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
             >
-                <Icon className="h-5 w-5 shrink-0" />
-
-                {!recolhida && <span className="truncate">{item.label}</span>}
-
-                {contador > 0 && (
-                    <span
-                        className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums
-                            ${ativo ? 'bg-white text-brand-700' : 'bg-brand-500 text-white'}
-                            ${recolhida ? 'absolute -right-0.5 -top-0.5 ml-0' : ''}`}
-                    >
-                        {contador}
-                    </span>
-                )}
+                <Icon className="h-[18px] w-[18px]" />
+                <span className="hidden xl:inline">{item.label}</span>
             </Link>
         );
     };
 
-    const conteudoSidebar = (
-        <>
-            {/* Marca */}
-            <div className="flex h-20 shrink-0 items-center gap-3 px-4">
-                <Link href="/" className="shrink-0">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-2 shadow-lg transition hover:scale-105">
-                        <img src="/img/logo.png" alt="Shineray" className="h-6 w-auto object-contain" />
-                    </div>
-                </Link>
+    /* ---------- Seção como menu suspenso ---------- */
+    const MenuSecao = ({ secao }) => {
+        const ativa = secaoAtiva(secao);
+        const total = contarSecao(secao);
 
-                {!recolhida && (
-                    <div className="min-w-0 leading-tight text-white">
-                        <span className="block truncate text-sm font-black uppercase tracking-widest">
-                            By Sabel
-                        </span>
-                        <span className="block truncate text-[10px] font-light uppercase tracking-widest opacity-70">
-                            Logística &amp; Distribuição
-                        </span>
-                    </div>
-                )}
-            </div>
+        return (
+            <Menu as="div" className="relative">
+                <Menu.Button
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition
+                        ${ativa ? 'bg-white/20 text-white shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
+                >
+                    {secao.label}
 
-            {/* Navegação */}
-            <nav className="flex-1 space-y-5 overflow-y-auto scrollbar-slim px-3 pb-4">
-                {secoes.map((secao) => (
-                    <div key={secao.id}>
-                        {secao.label && !recolhida && (
-                            <p className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-red-200/50">
+                    {total > 0 && (
+                        <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-black tabular-nums text-brand-700">
+                            {total}
+                        </span>
+                    )}
+
+                    <ChevronDownIcon className="h-3.5 w-3.5 opacity-70" />
+                </Menu.Button>
+
+                <Transition
+                    as={Fragment}
+                    enter="transition ease-out duration-150"
+                    enterFrom="opacity-0 -translate-y-1"
+                    enterTo="opacity-100 translate-y-0"
+                    leave="transition ease-in duration-100"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                >
+                    <Menu.Items className="absolute left-0 z-overlay mt-1.5 w-64 origin-top-left overflow-hidden rounded-xl bg-surface-card shadow-overlay ring-1 ring-line focus:outline-none">
+                        <div className="border-b border-line bg-surface-sunken px-3 py-2">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-content-muted">
                                 {secao.label}
                             </p>
-                        )}
-                        {secao.label && recolhida && <div className="mx-2 mb-2 border-t border-white/10" />}
+                        </div>
 
-                        <div className="space-y-0.5">
-                            {secao.items.map((item) => (
-                                <ItemNav key={item.key} item={item} />
+                        <div className="p-1.5">
+                            {secao.items.map((item) => {
+                                const ativo = isCurrent(item.match ?? item.route);
+                                const Icon = item.icon;
+                                const contador = item.badge ? contadores[item.badge] : null;
+
+                                return (
+                                    <Menu.Item key={item.key}>
+                                        {({ active }) => (
+                                            <Link
+                                                href={safeRoute(item.route)}
+                                                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition
+                                                    ${
+                                                        ativo
+                                                            ? 'bg-brand-50 text-brand-700'
+                                                            : active
+                                                              ? 'bg-surface-sunken text-content-primary'
+                                                              : 'text-content-secondary'
+                                                    }`}
+                                            >
+                                                <Icon
+                                                    className={`h-[18px] w-[18px] shrink-0 ${
+                                                        ativo ? 'text-brand-600' : 'text-content-muted'
+                                                    }`}
+                                                />
+                                                <span className="flex-1 truncate">{item.label}</span>
+
+                                                {contador > 0 && (
+                                                    <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-white">
+                                                        {contador}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        )}
+                                    </Menu.Item>
+                                );
+                            })}
+                        </div>
+                    </Menu.Items>
+                </Transition>
+            </Menu>
+        );
+    };
+
+    return (
+        <div className="flex min-h-screen flex-col bg-surface-page font-sans">
+            <Toast />
+
+            {/* ================= TOPBAR ================= */}
+            <nav className="sticky top-0 z-topbar bg-gradient-to-r from-brand-900 via-brand-800 to-brand-700 shadow-lg print:hidden">
+                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div className="flex h-16 items-center justify-between gap-3">
+                        {/* --- Marca --- */}
+                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-1.5 shadow-md transition hover:scale-105">
+                                <img src="/img/logo.png" alt="Shineray" className="h-6 w-auto object-contain" />
+                            </div>
+                            <div className="hidden leading-none text-white sm:block">
+                                <span className="block text-sm font-black uppercase tracking-widest">By Sabel</span>
+                                <span className="block text-[9px] font-light uppercase tracking-[0.15em] opacity-70">
+                                    Logística &amp; Distribuição
+                                </span>
+                            </div>
+                        </Link>
+
+                        {/* --- Navegação (desktop) --- */}
+                        <div className="hidden flex-1 items-center gap-1 lg:flex">
+                            {secoes.map((secao) =>
+                                secao.label ? (
+                                    <MenuSecao key={secao.id} secao={secao} />
+                                ) : (
+                                    secao.items.map((item) => <LinkBarra key={item.key} item={item} />)
+                                )
+                            )}
+                        </div>
+
+                        {/* --- Ações --- */}
+                        <div className="flex shrink-0 items-center gap-1.5">
+                            <NotificationBell />
+
+                            {/* Conta */}
+                            <Menu as="div" className="relative">
+                                <Menu.Button className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-2.5 text-sm font-bold text-white transition hover:bg-white/20">
+                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-black text-brand-700">
+                                        {currentUser.name.charAt(0).toUpperCase()}
+                                    </span>
+                                    <span className="hidden max-w-[8rem] truncate sm:inline">
+                                        {currentUser.name.split(' ')[0]}
+                                    </span>
+                                    <ChevronDownIcon className="h-3.5 w-3.5 opacity-70" />
+                                </Menu.Button>
+
+                                <Transition
+                                    as={Fragment}
+                                    enter="transition ease-out duration-150"
+                                    enterFrom="opacity-0 -translate-y-1"
+                                    enterTo="opacity-100 translate-y-0"
+                                    leave="transition ease-in duration-100"
+                                    leaveFrom="opacity-100"
+                                    leaveTo="opacity-0"
+                                >
+                                    <Menu.Items className="absolute right-0 z-overlay mt-1.5 w-60 origin-top-right overflow-hidden rounded-xl bg-surface-card shadow-overlay ring-1 ring-line focus:outline-none">
+                                        <div className="border-b border-line bg-surface-sunken px-4 py-3">
+                                            <p className="truncate text-sm font-bold text-content-primary">
+                                                {currentUser.name}
+                                            </p>
+                                            <p className="mt-0.5 text-xs text-content-secondary">
+                                                Perfil:{' '}
+                                                <strong className="uppercase text-brand-600">
+                                                    {currentUser.perfil}
+                                                </strong>
+                                            </p>
+                                            <p className="truncate text-xs text-content-muted">
+                                                {currentUser.filial || 'Matriz'}
+                                            </p>
+                                        </div>
+
+                                        <div className="p-1.5">
+                                            <Menu.Item>
+                                                <Link
+                                                    href={safeRoute('profile.edit')}
+                                                    className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-content-secondary hover:bg-surface-sunken"
+                                                >
+                                                    <Cog6ToothIcon className="h-[18px] w-[18px] text-content-muted" />
+                                                    Configurações
+                                                </Link>
+                                            </Menu.Item>
+
+                                            <Menu.Item>
+                                                <Link
+                                                    href={safeRoute('logout')}
+                                                    method="post"
+                                                    as="button"
+                                                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-bold text-brand-600 hover:bg-brand-50"
+                                                >
+                                                    <ArrowRightOnRectangleIcon className="h-[18px] w-[18px]" />
+                                                    Sair do Sistema
+                                                </Link>
+                                            </Menu.Item>
+                                        </div>
+                                    </Menu.Items>
+                                </Transition>
+                            </Menu>
+
+                            {/* Hambúrguer (mobile) */}
+                            <button
+                                type="button"
+                                onClick={() => setMenuMobileAberto((v) => !v)}
+                                className="rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white lg:hidden"
+                                aria-label="Abrir menu"
+                            >
+                                {menuMobileAberto ? (
+                                    <XMarkIcon className="h-6 w-6" />
+                                ) : (
+                                    <Bars3Icon className="h-6 w-6" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- Navegação (mobile) --- */}
+                {menuMobileAberto && (
+                    <div className="border-t border-white/10 bg-brand-900/95 backdrop-blur lg:hidden">
+                        <div className="max-h-[70vh] space-y-4 overflow-y-auto scrollbar-slim px-4 py-4">
+                            {secoes.map((secao) => (
+                                <div key={secao.id}>
+                                    {secao.label && (
+                                        <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-widest text-white/40">
+                                            {secao.label}
+                                        </p>
+                                    )}
+
+                                    <div className="space-y-0.5">
+                                        {secao.items.map((item) => {
+                                            const ativo = isCurrent(item.match ?? item.route);
+                                            const Icon = item.icon;
+                                            const contador = item.badge ? contadores[item.badge] : null;
+
+                                            return (
+                                                <Link
+                                                    key={item.key}
+                                                    href={safeRoute(item.route)}
+                                                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition
+                                                        ${
+                                                            ativo
+                                                                ? 'bg-white/20 text-white'
+                                                                : 'text-white/70 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                >
+                                                    <Icon className="h-5 w-5 shrink-0" />
+                                                    <span className="flex-1">{item.label}</span>
+
+                                                    {contador > 0 && (
+                                                        <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px] font-black tabular-nums text-brand-700">
+                                                            {contador}
+                                                        </span>
+                                                    )}
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     </div>
-                ))}
+                )}
             </nav>
 
-            {/* Recolher — apenas desktop */}
-            <button
-                type="button"
-                onClick={alternarRecolhida}
-                className="hidden shrink-0 items-center gap-2 border-t border-white/10 px-4 py-3 text-xs font-semibold text-red-100/70 transition hover:bg-white/5 hover:text-white lg:flex"
-            >
-                <ChevronLeftIcon className={`h-4 w-4 transition-transform ${recolhida ? 'rotate-180' : ''}`} />
-                {!recolhida && 'Recolher menu'}
-            </button>
-        </>
-    );
-
-    const larguraSidebar = recolhida ? 'lg:w-sidebar-collapsed' : 'lg:w-sidebar';
-    const margemConteudo = recolhida ? 'lg:pl-sidebar-collapsed' : 'lg:pl-sidebar';
-
-    return (
-        <div className="min-h-screen bg-surface-page font-sans">
-            <Toast />
-
-            {/* --- SIDEBAR DESKTOP --- */}
-            <aside
-                className={`fixed inset-y-0 left-0 z-sidebar hidden flex-col bg-gradient-to-b from-brand-900 to-brand-700
-                    shadow-xl transition-[width] duration-200 lg:flex ${larguraSidebar} print:hidden`}
-            >
-                {conteudoSidebar}
-            </aside>
-
-            {/* --- SIDEBAR MOBILE (drawer) --- */}
-            {menuMobileAberto && (
-                <div className="fixed inset-0 z-overlay lg:hidden print:hidden">
-                    <div
-                        className="absolute inset-0 bg-black/50"
-                        onClick={() => setMenuMobileAberto(false)}
-                        aria-hidden="true"
-                    />
-                    <aside className="absolute inset-y-0 left-0 flex w-sidebar animate-slide-in-right flex-col bg-gradient-to-b from-brand-900 to-brand-700 shadow-2xl">
-                        <button
-                            type="button"
-                            onClick={() => setMenuMobileAberto(false)}
-                            className="absolute right-3 top-6 rounded-lg p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
-                            aria-label="Fechar menu"
-                        >
-                            <XMarkIcon className="h-5 w-5" />
-                        </button>
-                        {conteudoSidebar}
-                    </aside>
-                </div>
+            {/* ================= CONTEÚDO ================= */}
+            {header && (
+                <header className="border-b border-line bg-surface-card print:hidden">
+                    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">{header}</div>
+                </header>
             )}
 
-            {/* --- ÁREA PRINCIPAL --- */}
-            <div className={`transition-[padding] duration-200 ${margemConteudo}`}>
-                {/* Topbar */}
-                <header className="sticky top-0 z-topbar flex h-topbar items-center gap-3 border-b border-line bg-surface-card/95 px-4 backdrop-blur sm:px-6 print:hidden">
-                    <button
-                        type="button"
-                        onClick={() => setMenuMobileAberto(true)}
-                        className="-ml-1 rounded-lg p-2 text-content-secondary transition hover:bg-surface-sunken lg:hidden"
-                        aria-label="Abrir menu"
-                    >
-                        <Bars3Icon className="h-6 w-6" />
-                    </button>
-
-                    <div className="min-w-0 flex-1">
-                        {header && (
-                            <div className="truncate text-sm font-bold text-content-primary">{header}</div>
-                        )}
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                        <NotificationBell />
-
-                        <Dropdown>
-                            <Dropdown.Trigger>
-                                <button
-                                    type="button"
-                                    className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 text-sm font-bold text-content-primary transition hover:bg-surface-sunken"
-                                >
-                                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-xs font-black text-white">
-                                        {currentUser.name.charAt(0).toUpperCase()}
-                                    </span>
-                                    <span className="hidden sm:inline">{currentUser.name.split(' ')[0]}</span>
-                                </button>
-                            </Dropdown.Trigger>
-
-                            <Dropdown.Content>
-                                <div className="border-b border-line bg-surface-sunken px-4 py-3 text-xs">
-                                    <div className="font-bold text-content-primary">{currentUser.name}</div>
-                                    <div className="mt-1 text-content-secondary">
-                                        Perfil: <strong className="uppercase text-brand-600">{currentUser.perfil}</strong>
-                                    </div>
-                                    <div className="mt-0.5 truncate text-content-muted">
-                                        {currentUser.filial || 'Matriz'}
-                                    </div>
-                                </div>
-
-                                <Dropdown.Link href={safeRoute('profile.edit')} className="flex items-center gap-2">
-                                    <Cog6ToothIcon className="h-4 w-4" /> Configurações
-                                </Dropdown.Link>
-
-                                <Dropdown.Link
-                                    href={safeRoute('logout')}
-                                    method="post"
-                                    as="button"
-                                    className="flex items-center gap-2 font-bold text-brand-600"
-                                >
-                                    <ArrowRightOnRectangleIcon className="h-4 w-4" /> Sair do Sistema
-                                </Dropdown.Link>
-                            </Dropdown.Content>
-                        </Dropdown>
-                    </div>
-                </header>
-
-                <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>
-            </div>
+            <main className={`flex-grow ${contained ? 'mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8' : ''}`}>
+                {children}
+            </main>
         </div>
     );
 }

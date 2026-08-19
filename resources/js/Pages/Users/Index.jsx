@@ -1,4 +1,5 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
+import { PageHeader } from '@/Components/UI';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Swal from 'sweetalert2';
@@ -48,65 +49,69 @@ export default function UsersIndex({ auth, users, filters }) {
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-gray-800">Gestão de Acessos</h2>}>
+        <AppLayout user={auth.user}>
             <Head title="Usuários" />
-
-            <div className="py-12 bg-gray-100 min-h-screen">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-
-                    {/* Barra de Busca e Botão Novo */}
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                        <form onSubmit={handleSearch} className="w-full md:w-1/2 relative">
+            <PageHeader
+                title="Gestão de Acessos"
+                breadcrumbs={[
+                    { label: 'Início', href: route('dashboard') },
+                    { label: 'Usuários' },
+                ]}
+                actions={
+                    <div className="flex flex-col md:flex-row items-center gap-4">
+                        <form onSubmit={handleSearch} className="relative w-full md:w-64">
                             <input
                                 type="text"
                                 placeholder="🔍 Buscar nome, email ou loja..."
                                 value={term}
                                 onChange={(e) => setTerm(e.target.value)}
-                                className="w-full border-gray-300 rounded-full pl-5 pr-12 shadow-sm focus:border-red-500 focus:ring-red-500"
+                                className="w-full border-line-strong rounded-full pl-5 pr-12 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm"
                             />
-                            <button type="submit" className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-600">
+                            <button type="submit" className="absolute right-3 top-1/2 transform -translate-y-1/2 text-content-muted hover:text-brand-600">
                                 ➜
                             </button>
                         </form>
-                        <Link href={route('users.create')} className="w-full md:w-auto bg-red-700 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-red-800 transition text-center">
+                        <Link href={route('users.create')} className="w-full md:w-auto bg-brand-700 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-brand-800 transition text-center text-sm whitespace-nowrap">
                             + Novo Usuário
                         </Link>
                     </div>
+                }
+            />
 
-                    {/* Tabela de Usuários */}
-                    <div className="bg-white shadow-sm sm:rounded-lg overflow-hidden border-t-4 border-gray-800">
+            {/* Tabela de Usuários */}
+            <div className="bg-surface-card shadow-sm sm:rounded-lg overflow-hidden border-t-4 border-line-strong">
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
+                            <table className="min-w-full divide-y divide-line">
+                                <thead className="bg-surface-sunken">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status / Nome</th>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Perfil</th>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Filial / Local</th>
-                                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Logística & Fluxo (V2)</th>
-                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Ações</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-content-muted uppercase">Status / Nome</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-content-muted uppercase">Perfil</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-content-muted uppercase">Filial / Local</th>
+                                        <th className="px-6 py-3 text-center text-xs font-bold text-content-muted uppercase">Logística & Fluxo (V2)</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-content-muted uppercase">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="bg-surface-card divide-y divide-line">
                                     {users.data.map((user) => (
-                                        <tr key={user.id} className="hover:bg-gray-50 transition">
+                                        <tr key={user.id} className="hover:bg-surface-sunken transition">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-4">
                                                     {/* Avatar */}
                                                     <div className="relative">
-                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white uppercase shadow-sm ${user.is_online ? 'bg-green-600' : 'bg-gray-400'}`}>
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white uppercase shadow-sm ${user.is_online ? 'bg-status-success-solid' : 'bg-content-muted'}`}>
                                                             {user.name.charAt(0)}
                                                         </div>
                                                         {user.is_online && (
-                                                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-white rounded-full animate-pulse"></span>
+                                                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-status-success-solid border-2 border-white rounded-full animate-pulse"></span>
                                                         )}
                                                     </div>
                                                     {/* Info */}
                                                     <div>
-                                                        <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                                        <div className="text-sm font-bold text-content-primary flex items-center gap-2">
                                                             {user.name}
                                                         </div>
-                                                        <div className="text-xs text-gray-500">{user.email}</div>
-                                                        <div className="text-[10px] text-gray-400 mt-1 font-mono">
+                                                        <div className="text-xs text-content-muted">{user.email}</div>
+                                                        <div className="text-[10px] text-content-muted mt-1 font-mono">
                                                             {user.last_seen_human ? `🕒 ${user.last_seen_human}` : ''}
                                                         </div>
                                                     </div>
@@ -117,8 +122,8 @@ export default function UsersIndex({ auth, users, filters }) {
                                                 <BadgePerfil perfil={user.perfil} />
                                             </td>
 
-                                            <td className="px-6 py-4 text-sm text-gray-700">
-                                                {user.filial || <span className="text-gray-400 italic">Matriz</span>}
+                                            <td className="px-6 py-4 text-sm text-content-secondary">
+                                                {user.filial || <span className="text-content-muted italic">Matriz</span>}
                                             </td>
 
                                             {/* --- COLUNA INTERATIVA V2 --- */}
@@ -128,8 +133,8 @@ export default function UsersIndex({ auth, users, filters }) {
                                                         onClick={() => toggleRota(user)}
                                                         className={`w-full md:w-auto px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:scale-105 ${
                                                             user.is_interior 
-                                                                ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' 
-                                                                : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                                                ? 'bg-status-warning-bg text-status-warning-fg border-status-warning-solid/30 hover:bg-status-warning-bg' 
+                                                                : 'bg-status-success-bg text-status-success-fg border-status-success-solid/30 hover:bg-status-success-bg'
                                                         }`}
                                                         title="Clique para alterar a regra de roteamento"
                                                     >
@@ -144,7 +149,7 @@ export default function UsersIndex({ auth, users, filters }) {
                                                         )}
                                                     </button>
                                                 ) : (
-                                                    <span className="text-gray-300 text-xs">-</span>
+                                                    <span className="text-content-muted text-xs">-</span>
                                                 )}
                                             </td>
 
@@ -152,14 +157,14 @@ export default function UsersIndex({ auth, users, filters }) {
                                                 <div className="flex justify-end gap-2">
                                                     <Link
                                                         href={route('users.edit', user.id)}
-                                                        className="text-indigo-600 hover:text-indigo-900 font-bold text-xs uppercase border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-50 transition"
+                                                        className="text-status-info-fg hover:text-status-info-fg font-bold text-xs uppercase border border-status-info-solid/30 px-3 py-1 rounded hover:bg-status-info-bg transition"
                                                     >
                                                         Editar
                                                     </Link>
 
                                                     <button
                                                         onClick={() => handleDelete(user.id)}
-                                                        className="text-red-600 hover:text-red-900 font-bold text-xs uppercase border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition"
+                                                        className="text-status-danger-fg hover:brightness-90 font-bold text-xs uppercase border border-status-danger-solid/30 px-3 py-1 rounded hover:bg-brand-50 transition"
                                                     >
                                                         Remover
                                                     </button>
@@ -170,7 +175,7 @@ export default function UsersIndex({ auth, users, filters }) {
 
                                     {users.data.length === 0 && (
                                         <tr>
-                                            <td colSpan="5" className="px-6 py-10 text-center text-gray-500">
+                                            <td colSpan="5" className="px-6 py-10 text-center text-content-muted">
                                                 Nenhum usuário encontrado.
                                             </td>
                                         </tr>
@@ -181,35 +186,33 @@ export default function UsersIndex({ auth, users, filters }) {
 
                         {/* Paginação */}
                         {users.links.length > 3 && (
-                            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-center">
+                            <div className="px-6 py-4 border-t border-line bg-surface-sunken flex justify-center">
                                 {users.links.map((link, key) => (
                                     link.url ? (
                                         <Link
                                             key={key}
                                             href={link.url}
-                                            className={`px-3 py-1 mx-1 rounded border text-sm ${link.active ? 'bg-red-700 text-white border-red-700' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'}`}
+                                            className={`px-3 py-1 mx-1 rounded border text-sm ${link.active ? 'bg-brand-700 text-white border-brand-700' : 'bg-surface-card text-content-secondary border-line-strong hover:bg-surface-sunken'}`}
                                             dangerouslySetInnerHTML={{ __html: link.label }}
                                         />
                                     ) : (
-                                        <span key={key} className="px-3 py-1 mx-1 text-sm text-gray-400" dangerouslySetInnerHTML={{ __html: link.label }} />
+                                        <span key={key} className="px-3 py-1 mx-1 text-sm text-content-muted" dangerouslySetInnerHTML={{ __html: link.label }} />
                                     )
                                 ))}
                             </div>
                         )}
                     </div>
-                </div>
-            </div>
-        </AuthenticatedLayout>
+        </AppLayout>
     );
 }
 
 function BadgePerfil({ perfil }) {
     const config = {
         admin: { label: 'ADMIN / AUDITOR', class: 'bg-black text-white' },
-        gestor: { label: 'DIRETORIA', class: 'bg-orange-100 text-orange-800 border border-orange-200' },
-        cd: { label: 'OPERADOR CD', class: 'bg-blue-100 text-blue-800 border border-blue-200' },
-        loja: { label: 'LOJA / REVENDA', class: 'bg-gray-100 text-gray-800 border border-gray-200' },
-    }[perfil] || { label: perfil, class: 'bg-gray-100 text-gray-600' };
+        gestor: { label: 'DIRETORIA', class: 'bg-status-warning-bg text-status-warning-fg border border-status-warning-solid/30' },
+        cd: { label: 'OPERADOR CD', class: 'bg-status-info-bg text-status-info-fg border border-status-info-solid/30' },
+        loja: { label: 'LOJA / REVENDA', class: 'bg-surface-sunken text-content-primary border border-line' },
+    }[perfil] || { label: perfil, class: 'bg-surface-sunken text-content-secondary' };
 
     return <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide ${config.class}`}>{config.label}</span>;
 }

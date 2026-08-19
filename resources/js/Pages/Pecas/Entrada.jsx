@@ -147,7 +147,7 @@ export default function EntradaPecas({ local, locais = [], movimentos = [], resu
 
     if (!local) {
         return (
-            <AppLayout header="Entrada de Peças">
+            <AppLayout>
                 <Head title="Entrada de Peças" />
                 <Card>
                     <EmptyState
@@ -160,7 +160,7 @@ export default function EntradaPecas({ local, locais = [], movimentos = [], resu
     }
 
     return (
-        <AppLayout header="Entrada de Peças">
+        <AppLayout>
             <Head title="Entrada de Peças" />
 
             <PageHeader

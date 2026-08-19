@@ -22,8 +22,8 @@ class UserController extends Controller implements HasMiddleware
     {
         return [
             new Middleware(function ($request, $next) {
-                // Permite Admin e Gestor (Diretoria) gerenciarem usuários
-                if (!in_array(Auth::user()->perfil, ['admin', 'gestor'])) {
+                // Permite apenas Admin gerenciar usuários
+                if (Auth::user()->perfil !== 'admin') {
                     abort(403, 'ACESSO NEGADO: Você não tem permissão para gerenciar usuários.');
                 }
                 return $next($request);

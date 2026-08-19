@@ -198,7 +198,7 @@ export default function PecasIndex({
     ];
 
     return (
-        <AppLayout header="Estoque de Peças">
+        <AppLayout>
             <Head title="Estoque de Peças" />
 
             <PageHeader

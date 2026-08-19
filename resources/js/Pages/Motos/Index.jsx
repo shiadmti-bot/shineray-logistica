@@ -1,362 +1,404 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import StockTable from '@/Components/Microwork/StockTable';
-import { BuildingStorefrontIcon, BuildingOffice2Icon, MagnifyingGlassIcon, XMarkIcon, FunnelIcon, MapPinIcon, ClockIcon } from '@heroicons/react/24/outline';
+import {
+    BuildingStorefrontIcon,
+    BuildingOffice2Icon,
+    MagnifyingGlassIcon,
+    XMarkIcon,
+    FunnelIcon,
+    MapPinIcon,
+    ClockIcon,
+} from '@heroicons/react/24/outline';
 
+import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs, DataTable } from '@/Components/UI';
+
+/**
+ * Estoque de motos — repaginado para o design system v3.
+ *
+ * Duas fontes distintas, separadas em abas porque respondem perguntas
+ * diferentes:
+ *   Histórico do sistema -> o que o BySabel registrou (movimentação, dono atual)
+ *   CD em tempo real     -> o que o ERP Microwork diz que está no pátio agora
+ *
+ * A loja só enxerga a aba do CD: o histórico interno de outras lojas não lhe
+ * diz respeito.
+ */
 export default function MotosIndex({ auth, motos, lojas, filters }) {
-    
-    // Estado local para os filtros
     const [params, setParams] = useState({
         search: filters.search || '',
         status: filters.status || '',
-        loja_id: filters.loja_id || ''
+        loja_id: filters.loja_id || '',
     });
 
     const isLoja = auth.user.perfil === 'loja';
-    const [activeTab, setActiveTab] = useState(isLoja ? 'fabrica' : 'loja'); // Loja só vê CD
+    const [abaAtiva, setAbaAtiva] = useState(isLoja ? 'fabrica' : 'sistema');
 
-    // Função que aplica os filtros
+    const temFiltro = params.search || params.status || params.loja_id;
+
     const applyFilters = () => {
-        router.get(route('motos.index'), params, {
-            preserveState: true,
-            replace: true,
-        });
+        router.get(route('motos.index'), params, { preserveState: true, replace: true });
     };
+
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') applyFilters();
     };
 
-    // Limpar filtros
     const clearFilters = () => {
         setParams({ search: '', status: '', loja_id: '' });
         router.get(route('motos.index'));
     };
 
-    return (
-        <AuthenticatedLayout user={auth.user} 
-            header={
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <h2 className="font-bold text-xl text-gray-800 leading-tight">Estoque e Histórico de Movimentos</h2>
-                    
-                    <div className="flex bg-gray-200 p-1 rounded-lg">
-                        {!isLoja && (
-                            <button 
-                                onClick={() => setActiveTab('loja')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${activeTab === 'loja' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                            >
-                                <BuildingStorefrontIcon className="w-5 h-5"/> Histórico do Sistema
-                            </button>
-                        )}
-                        <button 
-                            onClick={() => setActiveTab('fabrica')}
-                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition flex items-center gap-2 ${activeTab === 'fabrica' ? 'bg-white text-red-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            <BuildingOffice2Icon className="w-5 h-5"/> CD (Tempo Real)
-                        </button>
-                    </div>
+    const abas = [
+        ...(!isLoja
+            ? [{ key: 'sistema', label: 'Histórico do Sistema', icon: BuildingStorefrontIcon }]
+            : []),
+        { key: 'fabrica', label: 'CD em Tempo Real', icon: BuildingOffice2Icon },
+    ];
 
-                    {!isLoja && (
-                        <Link 
-                            href={route('motos.timeline')} 
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2"
-                        >
-                            <span><MagnifyingGlassIcon className="w-5 h-5"/></span> Timeline
-                        </Link>
-                    )}
+    const classeCampo =
+        'w-full rounded-lg border-line bg-surface-card text-sm text-content-primary focus:border-brand-500 focus:ring-brand-500';
+
+    /* ---------- Dono atual da moto ---------- */
+    const DonoAtual = ({ moto }) => {
+        const pedidoAtual = moto.pedidos?.length ? moto.pedidos[0] : null;
+
+        const noCd =
+            (!moto.loja_atual_id &&
+                !moto.loja &&
+                (!pedidoAtual || ['em_analise', 'cancelado'].includes(pedidoAtual.status))) ||
+            moto.status === 'estoque_fabrica';
+
+        if (noCd) {
+            return (
+                <span className="inline-flex w-max items-center gap-1 rounded-md bg-surface-sunken px-2 py-1 text-xs font-bold text-content-secondary ring-1 ring-inset ring-line">
+                    <BuildingOffice2Icon className="h-3 w-3" /> CD / Fábrica
+                </span>
+            );
+        }
+
+        const loja = moto.loja ?? pedidoAtual?.user;
+
+        if (!loja) {
+            return <span className="text-xs italic text-content-muted">CD / Fábrica</span>;
+        }
+
+        return (
+            <div>
+                <span className="inline-flex items-center gap-1 rounded-md bg-status-info-bg px-2 py-0.5 text-xs font-bold text-status-info-fg ring-1 ring-inset ring-status-info-solid/20">
+                    <BuildingStorefrontIcon className="h-3 w-3" /> {loja.filial || 'Matriz'}
+                </span>
+                <div className="mt-1 ml-1 text-[10px] text-content-muted">{loja.name}</div>
+            </div>
+        );
+    };
+
+    /* ---------- Colunas da tabela ---------- */
+    const colunas = [
+        {
+            key: 'chassi',
+            header: 'Chassi / ID',
+            render: (moto) => (
+                <div>
+                    <div className="font-mono font-bold tracking-wide text-content-primary">
+                        {moto.chassi}
+                    </div>
+                    <div className="text-xs text-content-muted">ID: #{moto.id}</div>
                 </div>
-            }
-        >
+            ),
+        },
+        {
+            key: 'modelo',
+            header: 'Modelo',
+            render: (moto) => (
+                <div>
+                    <div className="font-bold text-content-primary">{moto.modelo}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="rounded bg-surface-sunken px-2 py-0.5 text-xs capitalize text-content-secondary ring-1 ring-inset ring-line">
+                            {moto.cor}
+                        </span>
+                        {moto.ano_fabricacao && (
+                            <span className="text-xs text-content-muted">Ano: {moto.ano_fabricacao}</span>
+                        )}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: 'dono',
+            header: 'Loja atual',
+            render: (moto) => <DonoAtual moto={moto} />,
+        },
+        {
+            key: 'status',
+            header: 'Localização / Status',
+            render: (moto) => (
+                <div>
+                    <StatusBadge status={moto.status} size="sm" />
+                    <div
+                        className="mt-1 flex max-w-[200px] items-center gap-1 truncate text-xs text-content-secondary"
+                        title={moto.localizacao_atual}
+                    >
+                        <MapPinIcon className="h-3 w-3 shrink-0" />
+                        {moto.localizacao_atual || 'Não informado'}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            key: 'acoes',
+            header: '',
+            align: 'right',
+            render: (moto) => {
+                const pedidoAtual = moto.pedidos?.length ? moto.pedidos[0] : null;
+
+                return (
+                    <div className="flex justify-end gap-2">
+                        {pedidoAtual && (
+                            <Button href={route('pedidos.show', pedidoAtual.id)} variant="secondary" size="sm">
+                                Ver pedido
+                            </Button>
+                        )}
+                        <Link
+                            href={route('motos.timeline', { chassi: moto.chassi })}
+                            title="Histórico completo do chassi"
+                            className="rounded-lg p-1.5 text-content-muted transition hover:bg-surface-sunken hover:text-content-primary"
+                        >
+                            <ClockIcon className="h-5 w-5" />
+                        </Link>
+                    </div>
+                );
+            },
+        },
+    ];
+
+    return (
+        <AppLayout user={auth.user}>
             <Head title="Motos" />
 
-            <div className="py-8 bg-gray-100 min-h-screen">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    {activeTab === 'fabrica' ? (
-                        <div className="animate-fadeIn">
-                            <StockTable user={auth.user} />
-                        </div>
-                    ) : (
-                        <div className="animate-fadeIn space-y-6">
-                            {/* --- BARRA DE FILTROS --- */}
-                            <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                                    {/* ... filtros existentes ... */}
-                            
-                            {/* Busca Texto */}
-                            <div className="md:col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar</label>
-                                <input 
+            <PageHeader
+                title="Estoque de Motos"
+                description="Histórico de movimentação do sistema e pátio do CD em tempo real."
+                breadcrumbs={[{ label: 'Motos' }, { label: 'Estoque' }]}
+                actions={
+                    !isLoja && (
+                        <Button href={route('motos.timeline')} variant="secondary" icon={MagnifyingGlassIcon}>
+                            Timeline
+                        </Button>
+                    )
+                }
+            />
+
+            <Tabs tabs={abas} active={abaAtiva} onChange={setAbaAtiva} className="mb-6" />
+
+            {abaAtiva === 'fabrica' ? (
+                <div className="animate-fade-in-up">
+                    <StockTable user={auth.user} />
+                </div>
+            ) : (
+                <div className="animate-fade-in-up space-y-6">
+                    {/* ---------- FILTROS ---------- */}
+                    <Card>
+                        <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-4">
+                            <div>
+                                <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">
+                                    Buscar
+                                </label>
+                                <input
                                     type="text"
-                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Chassi ou Modelo..."
+                                    className={classeCampo}
+                                    placeholder="Chassi ou modelo…"
                                     value={params.search}
-                                    onChange={e => setParams({...params, search: e.target.value})}
+                                    onChange={(e) => setParams({ ...params, search: e.target.value })}
                                     onKeyDown={handleKeyDown}
                                 />
                             </div>
 
-                            {/* Filtro de Loja */}
-                            <div className="md:col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Loja Solicitante/Atual</label>
-                                <select 
-                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                            <div>
+                                <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">
+                                    Loja
+                                </label>
+                                <select
+                                    className={classeCampo}
                                     value={params.loja_id}
-                                    onChange={e => {
-                                        const newVal = e.target.value;
-                                        setParams(prev => ({...prev, loja_id: newVal}));
-                                        router.get(route('motos.index'), { ...params, loja_id: newVal }, { preserveState: true, replace: true });
+                                    onChange={(e) => {
+                                        const novo = e.target.value;
+                                        setParams((prev) => ({ ...prev, loja_id: novo }));
+                                        router.get(
+                                            route('motos.index'),
+                                            { ...params, loja_id: novo },
+                                            { preserveState: true, replace: true }
+                                        );
                                     }}
                                 >
-                                    <option value="">Todas as Lojas</option>
-                                    {lojas.map(loja => (
-                                        <option key={loja.id} value={loja.id}>{loja.filial} - {loja.name}</option>
+                                    <option value="">Todas as lojas</option>
+                                    {lojas.map((loja) => (
+                                        <option key={loja.id} value={loja.id}>
+                                            {loja.filial} — {loja.name}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
 
-                            {/* Filtro de Status (ATUALIZADO) */}
-                            <div className="md:col-span-1">
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Status Atual</label>
-                                <select 
-                                    className="w-full border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                            <div>
+                                <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">
+                                    Status
+                                </label>
+                                <select
+                                    className={classeCampo}
                                     value={params.status}
-                                    onChange={e => setParams({...params, status: e.target.value})}
+                                    onChange={(e) => setParams({ ...params, status: e.target.value })}
                                 >
                                     <option value="">Todos</option>
                                     <option value="estoque_fabrica">Estoque Fábrica</option>
-                                    <option value="estoque_loja">Disponível Loja</option>
+                                    <option value="estoque_loja">Estoque Loja</option>
                                     <option value="vendida">Vendida</option>
                                     <option value="reservado">Reservado</option>
-                                    <option value="separado">Separado (Expedição)</option>
+                                    <option value="separado">Separado</option>
                                     <option value="em_transito">Em Trânsito</option>
                                     <option value="avariado">Avariado</option>
                                 </select>
                             </div>
 
-                            {/* Botões */}
-                            <div className="flex gap-2 h-10">
-                                <button onClick={applyFilters} className="bg-gray-800 text-white px-4 rounded-md text-sm font-bold hover:bg-gray-700 transition flex-1 h-full flex items-center justify-center gap-2">
-                                    <FunnelIcon className="w-4 h-4" /> Filtrar
-                                </button>
-                                {(params.search || params.status || params.loja_id) && (
-                                    <button onClick={clearFilters} className="bg-white border border-gray-300 text-gray-500 px-3 rounded-md text-sm hover:bg-gray-50 h-full flex items-center justify-center">
-                                        <XMarkIcon className="w-4 h-4" />
-                                    </button>
+                            <div className="flex gap-2">
+                                <Button icon={FunnelIcon} onClick={applyFilters} className="flex-1 justify-center">
+                                    Filtrar
+                                </Button>
+                                {temFiltro && (
+                                    <Button variant="secondary" onClick={clearFilters} title="Limpar filtros">
+                                        <XMarkIcon className="h-4 w-4" />
+                                    </Button>
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </Card>
 
-                    {/* --- VIEW DESKTOP (TABELA) --- */}
-                    <div className="hidden md:block bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200 mb-4">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left">Chassi / ID</th>
-                                        <th className="px-6 py-3 text-left">Modelo & Detalhes</th>
-                                        <th className="px-6 py-3 text-left">Loja Atual/Dono</th>
-                                        <th className="px-6 py-3 text-left">Localização / Status</th>
-                                        <th className="px-6 py-3 text-right">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100 text-sm">
-                                    {motos.data.length > 0 ? (
-                                        motos.data.map((moto) => {
-                                            // Pega o pedido mais recente se existir
-                                            const pedidoAtual = moto.pedidos && moto.pedidos.length > 0 ? moto.pedidos[0] : null;
-                                            
-                                            return (
-                                                <tr key={moto.id} className="hover:bg-gray-50 transition">
-                                                    
-                                                    {/* Coluna 1: Chassi */}
-                                                    <td className="px-6 py-4">
-                                                        <div className="font-mono font-bold text-gray-800 tracking-wide">{moto.chassi}</div>
-                                                        <div className="text-xs text-gray-400">ID: #{moto.id}</div>
-                                                    </td>
+                    {/* ---------- DESKTOP ---------- */}
+                    <Card padding="none" className="hidden md:block">
+                        <DataTable
+                            columns={colunas}
+                            rows={motos.data}
+                            emptyIcon={MagnifyingGlassIcon}
+                            emptyTitle="Nenhuma moto encontrada"
+                            emptyDescription={
+                                temFiltro
+                                    ? 'Nenhum resultado para os filtros aplicados.'
+                                    : 'Ainda não há motos registradas no histórico do sistema.'
+                            }
+                            emptyAction={
+                                temFiltro && (
+                                    <Button variant="secondary" onClick={clearFilters}>
+                                        Limpar filtros
+                                    </Button>
+                                )
+                            }
+                        />
+                    </Card>
 
-                                                    {/* Coluna 2: Dados Moto */}
-                                                    <td className="px-6 py-4">
-                                                        <div className="font-bold text-gray-700">{moto.modelo}</div>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded capitalize border border-gray-200">{moto.cor}</span>
-                                                            {moto.ano_fabricacao && <span className="text-xs text-gray-500">Ano: {moto.ano_fabricacao}</span>}
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Coluna 3: Loja Dona (Baseada no loja_atual_id ou Pedido) */}
-                                                    <td className="px-6 py-4">
-                                                        {(!moto.loja_atual_id && !moto.loja && (!pedidoAtual || pedidoAtual.status === 'em_analise' || pedidoAtual.status === 'cancelado')) || moto.status === 'estoque_fabrica'
-                                                            ? (
-                                                                <span className="text-gray-500 font-bold text-xs bg-gray-100 px-2 py-1 rounded border border-gray-200 flex items-center gap-1 w-max">
-                                                                    <BuildingOffice2Icon className="w-3 h-3" /> CD / Fábrica
-                                                                </span>
-                                                            ) 
-                                                            : moto.loja ? (
-                                                            <div>
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 gap-1">
-                                                                    <BuildingStorefrontIcon className="w-3 h-3"/> {moto.loja.filial}
-                                                                </span>
-                                                                <div className="text-[10px] text-gray-500 mt-1 ml-1">{moto.loja.name}</div>
-                                                            </div>
-                                                        ) : (pedidoAtual ? (
-                                                            <div>
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200 gap-1">
-                                                                    <BuildingStorefrontIcon className="w-3 h-3"/> {pedidoAtual.user.filial || 'Matriz'}
-                                                                </span>
-                                                                <div className="text-[10px] text-gray-500 mt-1 ml-1">{pedidoAtual.user.name}</div>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-gray-400 italic text-xs">CD / Fábrica</span>
-                                                        ))}
-                                                    </td>
-
-                                                    {/* Coluna 4: Status */}
-                                                    <td className="px-6 py-4">
-                                                        <StatusBadge status={moto.status} />
-                                                        <div className="text-xs text-gray-500 mt-1 max-w-[200px] truncate flex items-center gap-1" title={moto.localizacao_atual}>
-                                                            <MapPinIcon className="w-3 h-3"/> {moto.localizacao_atual || 'Não informado'}
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Coluna 5: Ações */}
-                                                    <td className="px-6 py-4 text-right">
-                                                        <div className="flex justify-end gap-2">
-                                                            {pedidoAtual && (
-                                                                <Link 
-                                                                    href={route('pedidos.show', pedidoAtual.id)} 
-                                                                    className="text-indigo-600 hover:text-indigo-900 font-bold text-xs border border-indigo-200 px-3 py-1 rounded hover:bg-indigo-50"
-                                                                >
-                                                                    Ver Pedido
-                                                                </Link>
-                                                            )}
-                                                            <Link 
-                                                                href={route('motos.timeline', { chassi: moto.chassi })}
-                                                                className="text-gray-500 hover:text-gray-900 flex items-center justify-center p-1 rounded hover:bg-gray-100"
-                                                                title="Ver Histórico Completo"
-                                                            >
-                                                                <ClockIcon className="w-5 h-5" />
-                                                            </Link>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                                                <div className="mb-2 flex justify-center text-gray-300"><MagnifyingGlassIcon className="w-10 h-10"/></div>
-                                                <p>Nenhuma moto encontrada com estes filtros.</p>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        </div>
-
-                    {/* --- VIEW MOBILE (CARDS) --- */}
-                    <div className="md:hidden space-y-4 mb-4">
+                    {/* ---------- MOBILE ---------- */}
+                    <div className="space-y-3 md:hidden">
                         {motos.data.length > 0 ? (
                             motos.data.map((moto) => {
-                                const pedidoAtual = moto.pedidos && moto.pedidos.length > 0 ? moto.pedidos[0] : null;
+                                const pedidoAtual = moto.pedidos?.length ? moto.pedidos[0] : null;
+
                                 return (
-                                    <div key={moto.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 relative">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div>
-                                                <div className="font-mono font-black text-gray-800 tracking-wider text-lg leading-none">{moto.chassi}</div>
-                                                <div className="text-xs text-gray-400 font-bold mt-1 uppercase">ID: #{moto.id}</div>
+                                    <div
+                                        key={moto.id}
+                                        className="rounded-card bg-surface-card p-4 shadow-card ring-1 ring-line"
+                                    >
+                                        <div className="mb-3 flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <div className="truncate font-mono text-lg font-black leading-none tracking-wider text-content-primary">
+                                                    {moto.chassi}
+                                                </div>
+                                                <div className="mt-1 text-xs font-bold uppercase text-content-muted">
+                                                    ID: #{moto.id}
+                                                </div>
                                             </div>
-                                            <div className="flex gap-2">
-                                                <Link 
-                                                    href={route('motos.timeline', { chassi: moto.chassi })}
-                                                    className="bg-gray-100 p-2 rounded-lg text-gray-600 hover:text-gray-900 transition"
-                                                >
-                                                    <ClockIcon className="w-5 h-5" />
-                                                </Link>
-                                            </div>
+
+                                            <Link
+                                                href={route('motos.timeline', { chassi: moto.chassi })}
+                                                className="shrink-0 rounded-lg bg-surface-sunken p-2 text-content-secondary transition hover:text-content-primary"
+                                            >
+                                                <ClockIcon className="h-5 w-5" />
+                                            </Link>
                                         </div>
-                                        
-                                        <div className="bg-gray-50 rounded-lg p-3 mb-3 border border-gray-100">
-                                            <div className="font-bold text-gray-800 text-sm mb-1">{moto.modelo}</div>
-                                            <div className="flex gap-2">
-                                                <span className="text-[10px] uppercase font-bold text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded">{moto.cor}</span>
-                                                {moto.ano_fabricacao && <span className="text-[10px] uppercase font-bold text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded">Ano: {moto.ano_fabricacao}</span>}
+
+                                        <div className="mb-3 rounded-lg bg-surface-sunken p-3">
+                                            <div className="mb-1 text-sm font-bold text-content-primary">
+                                                {moto.modelo}
+                                            </div>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                <span className="rounded bg-surface-card px-2 py-0.5 text-[10px] font-bold uppercase text-content-secondary ring-1 ring-inset ring-line">
+                                                    {moto.cor}
+                                                </span>
+                                                {moto.ano_fabricacao && (
+                                                    <span className="rounded bg-surface-card px-2 py-0.5 text-[10px] font-bold uppercase text-content-muted ring-1 ring-inset ring-line">
+                                                        Ano: {moto.ano_fabricacao}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="flex justify-between items-end">
-                                            <div className="flex flex-col gap-2">
-                                                <StatusBadge status={moto.status} />
-                                                <div className="text-[10px] text-gray-500 font-bold flex items-center gap-1 max-w-[180px] truncate" title={moto.localizacao_atual}>
-                                                    <MapPinIcon className="w-3 h-3 text-gray-400"/> {moto.localizacao_atual || 'Não informado'}
+                                        <div className="flex items-end justify-between gap-2">
+                                            <div className="flex min-w-0 flex-col gap-2">
+                                                <StatusBadge status={moto.status} size="sm" />
+                                                <div
+                                                    className="flex items-center gap-1 truncate text-[10px] font-bold text-content-secondary"
+                                                    title={moto.localizacao_atual}
+                                                >
+                                                    <MapPinIcon className="h-3 w-3 shrink-0 text-content-muted" />
+                                                    {moto.localizacao_atual || 'Não informado'}
                                                 </div>
                                             </div>
-                                            
+
                                             {pedidoAtual && (
-                                                <Link href={route('pedidos.show', pedidoAtual.id)} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-3 py-2 rounded-lg hover:bg-indigo-100 transition">
-                                                    Ver Pedido
-                                                </Link>
+                                                <Button
+                                                    href={route('pedidos.show', pedidoAtual.id)}
+                                                    variant="secondary"
+                                                    size="sm"
+                                                >
+                                                    Ver pedido
+                                                </Button>
                                             )}
                                         </div>
                                     </div>
                                 );
                             })
                         ) : (
-                            <div className="text-center py-10 text-gray-500 bg-white rounded-xl border border-gray-200">
-                                <MagnifyingGlassIcon className="w-8 h-8 mx-auto text-gray-300 mb-2"/>
-                                <p className="text-sm">Nenhuma moto encontrada.</p>
-                            </div>
+                            <Card>
+                                <EmptyState
+                                    icon={MagnifyingGlassIcon}
+                                    title="Nenhuma moto encontrada"
+                                    description={temFiltro ? 'Tente outros filtros.' : undefined}
+                                />
+                            </Card>
                         )}
                     </div>
 
-                    {/* --- PAGINAÇÃO GLOBAL --- */}
+                    {/* ---------- PAGINAÇÃO ---------- */}
                     {motos.links.length > 3 && (
-                        <div className="bg-white sm:rounded-lg px-4 py-3 border border-gray-200 flex justify-center flex-wrap gap-1 shadow-sm">
+                        <div className="flex flex-wrap justify-center gap-1">
                             {motos.links.map((link, i) => (
-                                link.url ? (
-                                    <Link
-                                        key={i}
-                                        href={link.url}
-                                        className={`px-3 py-2 md:py-1 rounded text-xs font-bold border ${link.active ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 hover:bg-gray-100'}`}
-                                        dangerouslySetInnerHTML={{ __html: link.label }}
-                                    />
-                                ) : (
-                                    <span key={i} className="px-3 py-2 md:py-1 text-xs text-gray-400 border bg-gray-50 rounded" dangerouslySetInnerHTML={{ __html: link.label }} />
-                                )
+                                <Link
+                                    key={i}
+                                    href={link.url || '#'}
+                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                    className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
+                                        ${
+                                            link.active
+                                                ? 'bg-brand-600 text-white'
+                                                : link.url
+                                                  ? 'text-content-secondary hover:bg-surface-sunken'
+                                                  : 'pointer-events-none text-content-muted opacity-50'
+                                        }`}
+                                />
                             ))}
                         </div>
                     )}
-                    </div>
-                )}
-                    
                 </div>
-            </div>
-        </AuthenticatedLayout>
-    );
-}
-
-function StatusBadge({ status }) {
-    const config = {
-        'estoque_fabrica': { bg: 'bg-gray-50 text-gray-700 border-gray-200', dot: 'bg-gray-500', label: 'Estoque Fábrica' },
-        'estoque_loja':    { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500', label: 'Disponível Loja' }, 
-        'disponivel':      { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-400', label: 'Disponível (Antigo)' },
-        'vendida':         { bg: 'bg-blue-900 text-white border-blue-900 shadow-md', dot: 'bg-blue-300', label: 'Vendida' },
-        'reservado':       { bg: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500', label: 'Reservado' },
-        'separado':        { bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', label: 'Separado' },
-        'aguardando_rota': { bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500', label: 'Aguard. Rota' },
-        'aguardando_coleta':{ bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-400', label: 'Aguard. Coleta' },
-        'em_transito':     { bg: 'bg-orange-500 text-white border-orange-600 shadow-md', dot: 'bg-white', label: 'Em Trânsito' },
-        'entregue':        { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500', label: 'Entregue' },
-        'concluido':       { bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500', label: 'Concluído' },
-        'avariado':        { bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500', label: 'Avariado' },
-    }[status] || { bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400', label: status };
-
-    return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase border tracking-wider whitespace-nowrap ${config.bg}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></span>
-            {config.label}
-        </span>
+            )}
+        </AppLayout>
     );
 }

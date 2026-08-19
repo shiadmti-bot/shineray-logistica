@@ -1,25 +1,47 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import Swal from 'sweetalert2';
-import { 
-    BuildingOffice2Icon, BuildingStorefrontIcon, MapPinIcon, PlusIcon, ChartBarIcon, 
-    MagnifyingGlassIcon, ExclamationTriangleIcon, ArrowUpOnSquareIcon, 
-    ArrowDownOnSquareIcon, ArrowsRightLeftIcon
+import {
+    BuildingOffice2Icon,
+    BuildingStorefrontIcon,
+    MapPinIcon,
+    PlusIcon,
+    MagnifyingGlassIcon,
+    ExclamationTriangleIcon,
+    ArrowUpOnSquareIcon,
+    ArrowDownOnSquareIcon,
+    ArrowsRightLeftIcon,
+    ArrowRightIcon,
+    ArrowLongDownIcon,
+    InboxIcon,
 } from '@heroicons/react/24/outline';
 
+import { Card, PageHeader, Button, StatusBadge, EmptyState } from '@/Components/UI';
+
+/**
+ * Gerenciamento de Pedidos — repaginado para o design system v3.
+ *
+ * A lógica é a mesma: notificações via Echo, filtros, destaque de
+ * transferências que exigem ação e o indicador de embarque parcial. O que
+ * mudou é a camada visual — as ~11 paletas de status escritas à mão aqui
+ * (roxo, ciano, teal, esmeralda…) deram lugar ao StatusBadge central, que é
+ * a mesma marcação usada em Peças e Cargas.
+ *
+ * Mantém as duas apresentações: tabela no desktop, cartão no celular. O CD e
+ * o motorista usam o celular, e uma tabela rolando de lado não serve para eles.
+ */
 export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) {
-    
-    // 1. BLINDAGEM DE DADOS
     const safePedidos = pedidos || { data: [], links: [], total: 0 };
 
-    // 2. LÓGICA V2: Separar o que exige ação imediata (Expedição)
-    const transferenciasAEnviar = safePedidos.data.filter(p => 
-        p.origem_user_id === auth.user.id && 
-        ['solicitado', 'aprovado', 'separado', 'aguardando_coleta'].includes(p.status)
+    // Transferências em que ESTA loja é a origem: exigem separação física.
+    const transferenciasAEnviar = safePedidos.data.filter(
+        (p) =>
+            p.origem_user_id === auth.user.id &&
+            ['solicitado', 'aprovado', 'separado', 'aguardando_coleta'].includes(p.status)
     );
 
-    const listaPrincipal = safePedidos.data; 
+    const listaPrincipal = safePedidos.data;
 
     const { data, setData, get, processing } = useForm({
         search: filters?.search || '',
@@ -29,23 +51,31 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
         loja_id: filters?.loja_id || '',
     });
 
-    // --- NOTIFICAÇÕES ---
+    const temFiltro = data.search || data.data_inicio || data.data_fim || data.status || data.loja_id;
+
+    // --- Notificações em tempo real ---
     useEffect(() => {
         if (!auth.user?.id || !window.Echo) return;
         const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
-        
+
         channel.notification((notification) => {
-            try { const audio = new Audio('/plim.mp3'); audio.play().catch(() => {}); } catch (e) {}
-            
-            const Toast = Swal.mixin({
-                toast: true, position: 'top-end', showConfirmButton: false, timer: 4000, timerProgressBar: true
-            });
-            
-            Toast.fire({
+            try {
+                const audio = new Audio('/plim.mp3');
+                audio.play().catch(() => {});
+            } catch (e) {}
+
+            Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true,
+            }).fire({
                 icon: 'info',
                 title: 'Atualização Logística',
-                text: notification.mensagem || 'Status atualizado.'
+                text: notification.mensagem || 'Status atualizado.',
             });
+
             router.reload({ only: ['pedidos'] });
         });
 
@@ -58,438 +88,502 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
     };
 
     const clearSearch = () => {
-        setData({
-            search: '',
-            data_inicio: '',
-            data_fim: '',
-            status: '',
-            loja_id: ''
-        });
-        // Força a limpeza na URL também
+        setData({ search: '', data_inicio: '', data_fim: '', status: '', loja_id: '' });
         router.get(route('pedidos.index'), {}, { preserveState: true });
     };
 
-    // --- NOVO RENDERIZADOR DE FLUXO (SOLICITANTE X ORIGEM) ---
-    const RenderLogisticaFlow = ({ pedido }) => {
-        const souOrigem = pedido.origem_user_id === auth.user.id;
-        const souDestino = pedido.user_id === auth.user.id;
-        const ehReposicao = !pedido.origem_user_id; // Vem do CD
-
-        return (
-            <div className="flex flex-col gap-1.5 w-full">
-                {/* LINHA DE CIMA: DE ONDE VEM? */}
-                <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400 font-bold uppercase text-[10px]">Origem</span>
-                    {ehReposicao ? (
-                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-bold flex items-center gap-1">
-                            <BuildingOffice2Icon className="w-3 h-3" /> CD MATRIZ
-                        </span>
-                    ) : (
-                        <span className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${souOrigem ? 'bg-yellow-50 text-yellow-800 border-yellow-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-                            <BuildingStorefrontIcon className="w-3 h-3" /> {pedido.origem?.filial} {souOrigem && '(Você)'}
-                        </span>
-                    )}
-                </div>
-
-                {/* CONECTOR VISUAL */}
-                <div className="flex items-center gap-2 opacity-30 px-2">
-                    <div className="h-4 w-0.5 bg-gray-400 mx-auto"></div>
-                </div>
-
-                {/* LINHA DE BAIXO: PARA ONDE VAI? */}
-                <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400 font-bold uppercase text-[10px]">Destino</span>
-                    <span className={`px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${souDestino ? 'bg-green-50 text-green-800 border-green-200' : 'bg-gray-50 text-gray-800 border-gray-200'}`}>
-                        <MapPinIcon className="w-3 h-3" /> {pedido.destino_final || pedido.user?.filial || pedido.user?.name} {souDestino && '(Você)'}
-                    </span>
-                </div>
-            </div>
-        );
-    };
+    const classeCampo =
+        'w-full rounded-lg border-line bg-surface-card text-xs py-2 text-content-primary focus:border-brand-500 focus:ring-brand-500';
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-xl text-gray-800">Gerenciamento de Pedidos</h2>}>
+        <AppLayout user={auth.user}>
             <Head title="Pedidos" />
 
-            <div className="py-8 bg-gray-100 min-h-screen pb-32">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
-                    
-                    {/* --- 1. BARRA DE AÇÕES E FILTROS --- */}
-                    <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-4">
-                        
-                        {/* Linha Superior: Botão Novo + Status Geral */}
-                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                            {perfil === 'loja' ? (
-                                <Link href={route('solicitar')} className="w-full md:w-auto bg-gray-900 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black transform hover:-translate-y-0.5 transition flex items-center justify-center gap-2">
-                                    <PlusIcon className="w-5 h-5" /> Nova Solicitação
-                                </Link>
-                            ) : (
-                                <div className="flex items-center gap-3 text-gray-600 w-full md:w-auto">
-                                    <span className="bg-gray-100 p-2 rounded-lg"><ChartBarIcon className="w-6 h-6" /></span>
-                                    <div>
-                                        <h3 className="font-bold text-lg leading-none text-gray-800">Visão Geral</h3>
-                                        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total: {safePedidos.total}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+            <PageHeader
+                title="Gerenciamento de Pedidos"
+                description={`${safePedidos.total} pedido(s) no total.`}
+                breadcrumbs={[{ label: 'Motos' }, { label: 'Pedidos' }]}
+                actions={
+                    perfil === 'loja' && (
+                        <Button href={route('solicitar')} icon={PlusIcon}>
+                            Nova Solicitação
+                        </Button>
+                    )
+                }
+            />
 
-                        <hr className="border-gray-100" />
-
-                        {/* Linha Inferior: Filtros */}
-                        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-12 gap-2">
-                            {/* Busca Textual */}
-                            <div className="md:col-span-4 relative">
-                                <input 
-                                    type="text" 
-                                    className="pl-9 w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2"
-                                    placeholder="Buscar ID, Chassi ou Loja..."
-                                    value={data.search}
-                                    onChange={e => setData('search', e.target.value)}
-                                />
-                                <span className="absolute left-3 top-2 text-gray-400"><MagnifyingGlassIcon className="w-4 h-4" /></span>
-                            </div>
-
-                            {/* Data Inicio */}
-                            <div className="md:col-span-2">
-                                <input 
-                                    type="date" 
-                                    className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2 text-gray-500"
-                                    value={data.data_inicio}
-                                    onChange={e => setData('data_inicio', e.target.value)}
-                                    title="Data Início"
-                                />
-                            </div>
-
-                            {/* Data Fim */}
-                            <div className="md:col-span-2">
-                                <input 
-                                    type="date" 
-                                    className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2 text-gray-500"
-                                    value={data.data_fim}
-                                    onChange={e => setData('data_fim', e.target.value)}
-                                    title="Data Fim"
-                                />
-                            </div>
-
-                            {/* Status */}
-                            <div className="md:col-span-2">
-                                <select 
-                                    className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2"
-                                    value={data.status}
-                                    onChange={e => setData('status', e.target.value)}
-                                >
-                                    <option value="">Status: Todos</option>
-                                    <option value="em_analise">Em Análise</option>
-                                    <option value="solicitado">Solicitado</option>
-                                    <option value="separado">Separado</option>
-                                    <option value="aguardando_coleta">Aguard. Coleta</option>
-                                    <option value="em_transito">Em Trânsito</option>
-                                    <option value="concluido">Concluído</option>
-                                    <option value="cancelado">Cancelado</option>
-                                </select>
-                            </div>
-
-                            {/* Loja (Se Disponível) */}
-                            {lojas && lojas.length > 0 && (
-                                <div className="md:col-span-2">
-                                    <select 
-                                        className="w-full border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-xs py-2"
-                                        value={data.loja_id}
-                                        onChange={e => setData('loja_id', e.target.value)}
-                                    >
-                                        <option value="">Loja: Todas</option>
-                                        {lojas.map(l => (
-                                            <option key={l.id} value={l.id}>{l.filial}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-
-                            {/* Botões */}
-                            <div className="md:col-span-12 flex gap-2 justify-end mt-2">
-                                {(data.search || data.data_inicio || data.data_fim || data.status || data.loja_id) && (
-                                    <button type="button" onClick={clearSearch} className="px-3 py-1 text-xs font-bold text-gray-500 hover:text-red-600 bg-gray-100 rounded hover:bg-gray-200 transition">
-                                        Limpar Filtros
-                                    </button>
-                                )}
-                                <button type="submit" className="px-4 py-1 text-xs font-bold text-white bg-blue-600 rounded hover:bg-blue-700 transition shadow-sm" disabled={processing}>
-                                    Filtrar Resultados
-                                </button>
-                            </div>
-                        </form>
+            {/* ---------- FILTROS ---------- */}
+            <Card padding="none" className="mb-6">
+                <form onSubmit={handleSearch} className="grid grid-cols-1 gap-2 p-4 md:grid-cols-12">
+                    <div className="relative md:col-span-4">
+                        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+                        <input
+                            type="text"
+                            className={`${classeCampo} pl-9`}
+                            placeholder="Buscar ID, chassi ou loja…"
+                            value={data.search}
+                            onChange={(e) => setData('search', e.target.value)}
+                        />
                     </div>
 
-                    {/* --- 2. DESTAQUE V2: TRANSFERÊNCIAS A ENVIAR --- */}
-                    {transferenciasAEnviar.length > 0 && (
-                        <div className="bg-orange-50 border-l-4 border-orange-500 rounded-xl shadow-md p-6 animate-fade-in-down relative overflow-hidden">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 relative z-10">
-                                <div>
-                                    <h3 className="text-lg font-black text-orange-900 flex items-center gap-2 uppercase">
-                                        <ExclamationTriangleIcon className="w-5 h-5" /> Atenção: Transferências Pendentes
-                                    </h3>
-                                    <p className="text-sm text-orange-800 mt-1 font-medium">
-                                        Você precisa preparar estas motos para envio.
-                                    </p>
-                                </div>
-                                <span className="mt-2 md:mt-0 bg-orange-600 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow animate-pulse">
-                                    {transferenciasAEnviar.length} Ações Requeridas
-                                </span>
-                            </div>
+                    <div className="md:col-span-2">
+                        <input
+                            type="date"
+                            className={classeCampo}
+                            value={data.data_inicio}
+                            onChange={(e) => setData('data_inicio', e.target.value)}
+                            title="Data início"
+                        />
+                    </div>
 
-                            <div className="bg-white/90 rounded-lg border border-orange-200 overflow-hidden relative z-10">
-                                {transferenciasAEnviar.map(p => (
-                                    <div key={p.id} className="p-4 border-b border-orange-100 flex flex-col md:flex-row justify-between items-center hover:bg-orange-50/50 transition gap-4">
-                                        <div className="flex items-center gap-4 w-full md:w-auto">
-                                            <div className="bg-orange-100 text-orange-800 font-black p-2 rounded text-md">#{p.id}</div>
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-gray-500 uppercase">Enviar Para:</span>
-                                                <span className="font-bold text-gray-800 text-lg">{p.user?.filial}</span>
-                                            </div>
-                                        </div>
-                                        <Link href={route('pedidos.show', p.id)} className="w-full md:w-auto text-center bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-6 rounded shadow-sm text-xs uppercase transition">
-                                            Resolver Agora ➔
-                                        </Link>
-                                    </div>
+                    <div className="md:col-span-2">
+                        <input
+                            type="date"
+                            className={classeCampo}
+                            value={data.data_fim}
+                            onChange={(e) => setData('data_fim', e.target.value)}
+                            title="Data fim"
+                        />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <select
+                            className={classeCampo}
+                            value={data.status}
+                            onChange={(e) => setData('status', e.target.value)}
+                        >
+                            <option value="">Status: todos</option>
+                            <option value="em_analise">Em Análise</option>
+                            <option value="solicitado">Solicitado</option>
+                            <option value="separado">Separado</option>
+                            <option value="aguardando_coleta">Aguard. Coleta</option>
+                            <option value="em_transito">Em Trânsito</option>
+                            <option value="concluido">Concluído</option>
+                            <option value="cancelado">Cancelado</option>
+                        </select>
+                    </div>
+
+                    {lojas && lojas.length > 0 && (
+                        <div className="md:col-span-2">
+                            <select
+                                className={classeCampo}
+                                value={data.loja_id}
+                                onChange={(e) => setData('loja_id', e.target.value)}
+                            >
+                                <option value="">Loja: todas</option>
+                                {lojas.map((l) => (
+                                    <option key={l.id} value={l.id}>
+                                        {l.filial}
+                                    </option>
                                 ))}
-                            </div>
+                            </select>
                         </div>
                     )}
 
-                    {/* --- 3. TABELA GERAL --- */}
-                    
-                    {/* VIEW DESKTOP (TABELA) */}
-                    <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">ID / Tipo</th>
-                                        <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider">Fluxo Logístico (Origem ➔ Destino)</th>
-                                        <th className="px-6 py-4 text-center text-xs font-extrabold text-gray-500 uppercase tracking-wider">Volume</th>
-                                        <th className="px-6 py-4 text-left text-xs font-extrabold text-gray-500 uppercase tracking-wider w-1/4">Status & Progresso</th>
-                                        <th className="px-6 py-4 text-right text-xs font-extrabold text-gray-500 uppercase tracking-wider">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-100 text-sm">
-                                    {listaPrincipal.length > 0 ? listaPrincipal.map((pedido) => (
-                                        <tr key={pedido.id} className="hover:bg-gray-50 transition duration-150 group">
-                                            
-                                            {/* ID e Tipo */}
-                                            <td className="px-6 py-4 whitespace-nowrap align-top">
-                                                <div className="text-sm font-black text-gray-800 group-hover:text-blue-600 transition">#{pedido.id}</div>
-                                                <div className="mt-1"><TipoBadge pedido={pedido} authId={auth.user.id} /></div>
-                                                <div className="text-[10px] text-gray-400 mt-1 font-mono">{new Date(pedido.created_at).toLocaleDateString()}</div>
-                                            </td>
-
-                                            {/* Fluxo Logístico */}
-                                            <td className="px-6 py-4 align-top">
-                                                <RenderLogisticaFlow pedido={pedido} />
-                                            </td>
-
-                                            {/* Quantidade */}
-                                            <td className="px-6 py-4 text-center align-middle">
-                                                <VolumeIndicator pedido={pedido} />
-                                            </td>
-
-                                            {/* Status */}
-                                            <td className="px-6 py-4 align-middle">
-                                                <StatusBadge status={pedido.status} />
-                                                <PartialShipmentBadge pedido={pedido} />
-                                                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden mt-2">
-                                                    <div className={`h-full ${safeGetStatusColor(pedido.status)} transition-all duration-700`} style={{ width: `${(safeGetStepNumber(pedido.status) / 5) * 100}%` }}></div>
-                                                </div>
-                                            </td>
-
-                                            {/* Ações */}
-                                            <td className="px-6 py-4 text-right align-middle">
-                                                <Link href={route('pedidos.show', pedido.id)} className="text-gray-500 hover:text-blue-600 font-bold text-xs bg-gray-50 hover:bg-blue-50 px-3 py-2 rounded transition border border-gray-200 hover:border-blue-200">
-                                                    ABRIR DETALHES
-                                                </Link>
-                                            </td>
-                                        </tr>
-                                    )) : (
-                                        <tr>
-                                            <td colSpan="5" className="px-6 py-20 text-center text-gray-400 bg-gray-50/50">
-                                                <p className="font-medium">Nenhum pedido encontrado.</p>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div className="flex justify-end gap-2 md:col-span-12">
+                        {temFiltro && (
+                            <Button variant="ghost" size="sm" onClick={clearSearch} type="button">
+                                Limpar filtros
+                            </Button>
+                        )}
+                        <Button type="submit" size="sm" loading={processing}>
+                            Filtrar
+                        </Button>
                     </div>
+                </form>
+            </Card>
 
-                    {/* VIEW MOBILE (CARDS INDIVIDUAIS) - ATUALIZADO */}
-                    <div className="md:hidden space-y-4">
-                        {listaPrincipal.map((pedido) => (
-                            <Link 
-                                key={pedido.id} 
-                                href={route('pedidos.show', pedido.id)} 
-                                className="block bg-white p-5 rounded-2xl shadow-sm border border-gray-200 active:scale-[0.98] transition-transform duration-100"
+            {/* ---------- AÇÃO PENDENTE: TRANSFERÊNCIAS A ENVIAR ---------- */}
+            {transferenciasAEnviar.length > 0 && (
+                <Card
+                    padding="none"
+                    className="mb-6 border-l-4 border-l-status-warning-solid"
+                    title="Transferências pendentes"
+                    subtitle="Estas motos saem da sua loja e precisam ser separadas."
+                    actions={
+                        <span className="rounded-full bg-status-warning-solid px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
+                            {transferenciasAEnviar.length} ação(ões)
+                        </span>
+                    }
+                >
+                    <div className="divide-y divide-line">
+                        {transferenciasAEnviar.map((p) => (
+                            <div
+                                key={p.id}
+                                className="flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center"
                             >
-                                {/* HEADER DO CARD */}
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex flex-col">
-                                        <span className="text-lg font-black text-gray-800 leading-none">#{pedido.id}</span>
-                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">
-                                            {new Date(pedido.created_at).toLocaleDateString()}
-                                        </span>
+                                <div className="flex items-center gap-3">
+                                    <span className="rounded-lg bg-status-warning-bg px-2.5 py-1.5 font-black text-status-warning-fg">
+                                        #{p.id}
+                                    </span>
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-content-muted">
+                                            Enviar para
+                                        </p>
+                                        <p className="font-bold text-content-primary">{p.user?.filial}</p>
                                     </div>
-                                    <TipoBadge pedido={pedido} authId={auth.user.id} />
-                                </div>
-                                
-                                {/* MEIOLO: FLUXO LOGÍSTICO EM CAIXA */}
-                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 mb-4">
-                                    <RenderLogisticaFlow pedido={pedido} />
                                 </div>
 
-                                {/* FOOTER DO CARD */}
-                                <div className="flex flex-col gap-2 border-t border-gray-100 pt-3">
-                                    <div className="flex justify-between items-center">
-                                        <StatusBadge status={pedido.status} />
-                                        <div className="flex items-center gap-2">
-                                            <VolumeIndicator pedido={pedido} />
-                                            <span className="text-gray-300 ml-1 text-lg">›</span>
-                                        </div>
-                                    </div>
-                                    <PartialShipmentBadge pedido={pedido} />
-                                </div>
-                            </Link>
+                                <Button
+                                    href={route('pedidos.show', p.id)}
+                                    size="sm"
+                                    icon={ArrowRightIcon}
+                                    iconRight
+                                    className="w-full justify-center sm:w-auto"
+                                >
+                                    Resolver agora
+                                </Button>
+                            </div>
                         ))}
                     </div>
+                </Card>
+            )}
 
-                    {/* PAGINAÇÃO */}
-                    {safePedidos.links && safePedidos.links.length > 3 && (
-                        <div className="flex flex-wrap justify-center gap-2 mt-8">
-                            {safePedidos.links.map((link, k) => (
-                                <Link key={k} href={link.url || '#'} className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${link.active ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 hover:bg-gray-50 border-gray-200'} ${!link.url ? 'opacity-50 pointer-events-none' : ''}`} dangerouslySetInnerHTML={{ __html: link.label }} />
-                            ))}
-                        </div>
-                    )}
-                </div>
+            {/* ---------- LISTA (DESKTOP) ---------- */}
+            <Card padding="none" className="hidden md:block">
+                {listaPrincipal.length > 0 ? (
+                    <div className="overflow-x-auto scrollbar-slim">
+                        <table className="min-w-full divide-y divide-line">
+                            <thead className="bg-surface-sunken">
+                                <tr>
+                                    {['ID / Tipo', 'Fluxo logístico', 'Volume', 'Status', ''].map((h, i) => (
+                                        <th
+                                            key={i}
+                                            className={`px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-content-secondary
+                                                ${i === 2 ? 'text-center' : i === 4 ? 'text-right' : 'text-left'}`}
+                                        >
+                                            {h}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+
+                            <tbody className="divide-y divide-line bg-surface-card">
+                                {listaPrincipal.map((pedido) => (
+                                    <tr key={pedido.id} className="group transition hover:bg-surface-sunken/60">
+                                        <td className="whitespace-nowrap px-4 py-3 align-top">
+                                            <div className="font-black text-content-primary transition group-hover:text-brand-700">
+                                                #{pedido.id}
+                                            </div>
+                                            <div className="mt-1">
+                                                <TipoBadge pedido={pedido} authId={auth.user.id} />
+                                            </div>
+                                            <div className="mt-1 text-[10px] text-content-muted">
+                                                {new Date(pedido.created_at).toLocaleDateString()}
+                                            </div>
+                                        </td>
+
+                                        <td className="px-4 py-3 align-top">
+                                            <FluxoLogistico pedido={pedido} authId={auth.user.id} />
+                                        </td>
+
+                                        <td className="px-4 py-3 text-center align-middle">
+                                            <VolumeIndicator pedido={pedido} />
+                                        </td>
+
+                                        <td className="px-4 py-3 align-middle">
+                                            <StatusBadge status={pedido.status} size="sm" />
+                                            <EmbarqueParcial pedido={pedido} />
+                                            <BarraProgresso status={pedido.status} />
+                                        </td>
+
+                                        <td className="px-4 py-3 text-right align-middle">
+                                            <Button href={route('pedidos.show', pedido.id)} variant="secondary" size="sm">
+                                                Abrir
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <EmptyState
+                        icon={InboxIcon}
+                        title="Nenhum pedido encontrado"
+                        description={
+                            temFiltro
+                                ? 'Nenhum resultado para os filtros aplicados.'
+                                : 'Ainda não há pedidos registrados.'
+                        }
+                        action={
+                            temFiltro && (
+                                <Button variant="secondary" onClick={clearSearch}>
+                                    Limpar filtros
+                                </Button>
+                            )
+                        }
+                    />
+                )}
+            </Card>
+
+            {/* ---------- LISTA (MOBILE) ---------- */}
+            <div className="space-y-3 md:hidden">
+                {listaPrincipal.length > 0 ? (
+                    listaPrincipal.map((pedido) => (
+                        <Link
+                            key={pedido.id}
+                            href={route('pedidos.show', pedido.id)}
+                            className="block rounded-card bg-surface-card p-4 shadow-card ring-1 ring-line transition active:scale-[0.99]"
+                        >
+                            <div className="mb-3 flex items-start justify-between">
+                                <div>
+                                    <span className="text-lg font-black leading-none text-content-primary">
+                                        #{pedido.id}
+                                    </span>
+                                    <span className="mt-1 block text-[10px] font-bold uppercase tracking-wide text-content-muted">
+                                        {new Date(pedido.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <TipoBadge pedido={pedido} authId={auth.user.id} />
+                            </div>
+
+                            <div className="mb-3 rounded-lg bg-surface-sunken p-3">
+                                <FluxoLogistico pedido={pedido} authId={auth.user.id} />
+                            </div>
+
+                            <div className="flex flex-col gap-2 border-t border-line pt-3">
+                                <div className="flex items-center justify-between">
+                                    <StatusBadge status={pedido.status} size="sm" />
+                                    <VolumeIndicator pedido={pedido} />
+                                </div>
+                                <EmbarqueParcial pedido={pedido} />
+                            </div>
+                        </Link>
+                    ))
+                ) : (
+                    <Card>
+                        <EmptyState icon={InboxIcon} title="Nenhum pedido encontrado" />
+                    </Card>
+                )}
             </div>
-        </AuthenticatedLayout>
+
+            {/* ---------- PAGINAÇÃO ---------- */}
+            {safePedidos.links && safePedidos.links.length > 3 && (
+                <div className="mt-6 flex flex-wrap justify-center gap-1">
+                    {safePedidos.links.map((link, k) => (
+                        <Link
+                            key={k}
+                            href={link.url || '#'}
+                            dangerouslySetInnerHTML={{ __html: link.label }}
+                            className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
+                                ${
+                                    link.active
+                                        ? 'bg-brand-600 text-white'
+                                        : link.url
+                                          ? 'text-content-secondary hover:bg-surface-sunken'
+                                          : 'pointer-events-none text-content-muted opacity-50'
+                                }`}
+                        />
+                    ))}
+                </div>
+            )}
+        </AppLayout>
     );
 }
 
-// --- HELPERS VISUAIS ATUALIZADOS ---
+/* ================= SUBCOMPONENTES ================= */
 
-function TipoBadge({ pedido, authId }) {
-    // CORREÇÃO: Só é transferência se a origem existir e for uma loja
-    const isGenuinaTransferencia = pedido.origem_user_id && pedido.origem && pedido.origem.perfil === 'loja';
+/**
+ * Origem → destino do pedido, destacando o lado que é o usuário logado.
+ * Saber "isto sai de mim" ou "isto vem para mim" é o que define a ação.
+ */
+function FluxoLogistico({ pedido, authId }) {
+    const souOrigem = pedido.origem_user_id === authId;
+    const souDestino = pedido.user_id === authId;
+    const ehReposicao = !pedido.origem_user_id; // veio do CD
 
-    if (isGenuinaTransferencia) {
-        const souOrigem = pedido.origem_user_id === authId;
-        const souDestino = pedido.user_id === authId;
-        
-        if(souOrigem) return <span className="text-[9px] bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><ArrowUpOnSquareIcon className="w-3 h-3" /> Saída</span>;
-        if(souDestino) return <span className="text-[9px] bg-green-100 text-green-800 px-2 py-1 rounded border border-green-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><ArrowDownOnSquareIcon className="w-3 h-3" /> Entrada</span>;
-        
-        return <span className="text-[9px] bg-purple-100 text-purple-800 px-2 py-1 rounded border border-purple-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><ArrowsRightLeftIcon className="w-3 h-3" /> Transf.</span>;
-    }
-    return <span className="text-[9px] bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-200 font-bold uppercase shadow-sm flex items-center gap-1 w-fit"><BuildingOffice2Icon className="w-3 h-3" /> Reposição</span>;
+    const marca = (destaque) =>
+        `inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold ring-1 ring-inset ${
+            destaque
+                ? 'bg-status-warning-bg text-status-warning-fg ring-status-warning-solid/20'
+                : 'bg-surface-sunken text-content-secondary ring-line'
+        }`;
+
+    return (
+        <div className="flex w-full flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase text-content-muted">Origem</span>
+                {ehReposicao ? (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-status-info-bg px-2 py-0.5 text-xs font-bold text-status-info-fg ring-1 ring-inset ring-status-info-solid/20">
+                        <BuildingOffice2Icon className="h-3 w-3" /> CD Matriz
+                    </span>
+                ) : (
+                    <span className={marca(souOrigem)}>
+                        <BuildingStorefrontIcon className="h-3 w-3" />
+                        {pedido.origem?.filial} {souOrigem && '(você)'}
+                    </span>
+                )}
+            </div>
+
+            <ArrowLongDownIcon className="h-3 w-3 self-center text-content-muted opacity-40" />
+
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold uppercase text-content-muted">Destino</span>
+                <span
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold ring-1 ring-inset ${
+                        souDestino
+                            ? 'bg-status-success-bg text-status-success-fg ring-status-success-solid/20'
+                            : 'bg-surface-sunken text-content-secondary ring-line'
+                    }`}
+                >
+                    <MapPinIcon className="h-3 w-3" />
+                    {pedido.destino_final || pedido.user?.filial || pedido.user?.name}{' '}
+                    {souDestino && '(você)'}
+                </span>
+            </div>
+        </div>
+    );
 }
 
-function safeString(value) { return String(value || '').toLowerCase(); }
+/** Reposição (vem do CD) x transferência entre lojas, e de que lado o usuário está. */
+function TipoBadge({ pedido, authId }) {
+    const ehTransferencia =
+        pedido.origem_user_id && pedido.origem && pedido.origem.perfil === 'loja';
 
-// Verifica se o pedido é um embarque parcial (algumas motos já embarcaram, outras não)
-function isPartialShipment(pedido) {
+    const base =
+        'inline-flex w-fit items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1 ring-inset';
+
+    if (ehTransferencia) {
+        if (pedido.origem_user_id === authId) {
+            return (
+                <span className={`${base} bg-status-warning-bg text-status-warning-fg ring-status-warning-solid/20`}>
+                    <ArrowUpOnSquareIcon className="h-3 w-3" /> Saída
+                </span>
+            );
+        }
+
+        if (pedido.user_id === authId) {
+            return (
+                <span className={`${base} bg-status-success-bg text-status-success-fg ring-status-success-solid/20`}>
+                    <ArrowDownOnSquareIcon className="h-3 w-3" /> Entrada
+                </span>
+            );
+        }
+
+        return (
+            <span className={`${base} bg-status-neutral-bg text-status-neutral-fg ring-status-neutral-solid/20`}>
+                <ArrowsRightLeftIcon className="h-3 w-3" /> Transf.
+            </span>
+        );
+    }
+
+    return (
+        <span className={`${base} bg-status-info-bg text-status-info-fg ring-status-info-solid/20`}>
+            <BuildingOffice2Icon className="h-3 w-3" /> Reposição
+        </span>
+    );
+}
+
+const paraTexto = (v) => String(v || '').toLowerCase();
+
+/**
+ * Embarque parcial: parte das motos do pedido já saiu, parte segue no CD.
+ * Sem esse aviso, o pedido aparece como "em trânsito" e a loja espera o total.
+ */
+function ehEmbarqueParcial(pedido) {
     const total = pedido.motos_count || 0;
     const pendentes = pedido.motos_separadas_count ?? 0;
     const embarcadas = total - pendentes;
-    return ['em_transito', 'expedido', 'coletado', 'em_transito_cd'].includes(safeString(pedido.status)) 
-        && pendentes > 0 && embarcadas > 0;
+
+    return (
+        ['em_transito', 'expedido', 'coletado', 'em_transito_cd'].includes(paraTexto(pedido.status)) &&
+        pendentes > 0 &&
+        embarcadas > 0
+    );
 }
 
-// Indicador de Volume com suporte a embarque parcial
 function VolumeIndicator({ pedido }) {
     const total = pedido.motos_count || 0;
     const pendentes = pedido.motos_separadas_count ?? 0;
     const embarcadas = total - pendentes;
-    const partial = isPartialShipment(pedido);
 
-    if (partial) {
+    if (ehEmbarqueParcial(pedido)) {
+        const circunferencia = 94.2; // 2πr, r = 15
+
         return (
-            <div className="flex flex-col items-center gap-0.5">
-                <div className="relative inline-flex items-center justify-center h-9 w-9">
-                    {/* Background ring */}
-                    <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="15" fill="none" stroke="#e5e7eb" strokeWidth="3" />
-                        <circle cx="18" cy="18" r="15" fill="none" stroke="#f97316" strokeWidth="3"
-                            strokeDasharray={`${(embarcadas / total) * 94.2} 94.2`}
-                            strokeLinecap="round" className="transition-all duration-700" />
+            <div className="inline-flex flex-col items-center gap-0.5">
+                <div className="relative inline-flex h-9 w-9 items-center justify-center">
+                    <svg className="h-9 w-9 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-line" />
+                        <circle
+                            cx="18"
+                            cy="18"
+                            r="15"
+                            fill="none"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            className="stroke-status-warning-solid transition-all duration-700"
+                            strokeDasharray={`${(embarcadas / total) * circunferencia} ${circunferencia}`}
+                        />
                     </svg>
-                    <span className="absolute text-[10px] font-black text-orange-600">{embarcadas}/{total}</span>
+                    <span className="absolute text-[10px] font-black text-status-warning-fg">
+                        {embarcadas}/{total}
+                    </span>
                 </div>
-                <span className="text-[8px] font-bold text-orange-500 uppercase leading-none">Parcial</span>
+                <span className="text-[8px] font-bold uppercase leading-none text-status-warning-fg">
+                    Parcial
+                </span>
             </div>
         );
     }
 
     return (
-        <span className="inline-flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold bg-gray-100 text-gray-700 border border-gray-200">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-sunken text-sm font-bold text-content-secondary ring-1 ring-inset ring-line">
             {total}
         </span>
     );
 }
 
-// Badge de Embarque Parcial
-function PartialShipmentBadge({ pedido }) {
-    if (!isPartialShipment(pedido)) return null;
-    const total = pedido.motos_count || 0;
+function EmbarqueParcial({ pedido }) {
+    if (!ehEmbarqueParcial(pedido)) return null;
+
     const pendentes = pedido.motos_separadas_count ?? 0;
 
     return (
-        <div className="mt-1.5 flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 animate-pulse">
-            <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-            </svg>
-            <span className="text-[9px] font-bold text-amber-700 uppercase tracking-wide">
-                Embarque Parcial · {pendentes} no CD
+        <div className="mt-1.5 flex w-fit items-center gap-1.5 rounded-md bg-status-warning-bg px-2 py-1 ring-1 ring-inset ring-status-warning-solid/20">
+            <ExclamationTriangleIcon className="h-3 w-3 shrink-0 text-status-warning-fg" />
+            <span className="text-[9px] font-bold uppercase tracking-wide text-status-warning-fg">
+                Embarque parcial · {pendentes} no CD
             </span>
         </div>
     );
 }
 
-function safeGetStepNumber(status) {
-    const map = { 
-        'em_analise': 0.5, 'solicitado': 1, 'separado': 2, 'aguardando_rota': 2.3, 'rota_confirmada': 2.6, 'aguardando_coleta': 2.8, 'coletado': 3.5, 
-        'expedido': 3.5, 'em_transito': 4, 'concluido': 5 
+/**
+ * Progresso do pedido ao longo do fluxo, de solicitado a concluído.
+ * Dá noção de "quanto falta" sem precisar abrir o detalhe.
+ */
+function BarraProgresso({ status }) {
+    const etapas = {
+        em_analise: 0.5,
+        solicitado: 1,
+        separado: 2,
+        aguardando_rota: 2.3,
+        rota_confirmada: 2.6,
+        aguardando_coleta: 2.8,
+        coletado: 3.5,
+        expedido: 3.5,
+        em_transito: 4,
+        concluido: 5,
     };
-    return map[String(status).toLowerCase()] || 1;
-}
 
-function safeGetStatusColor(status) {
-    const map = {
-        'em_analise': 'bg-purple-500', 'solicitado': 'bg-yellow-500', 'separado': 'bg-blue-500', 
-        'aguardando_rota': 'bg-pink-500', 'rota_confirmada': 'bg-teal-500', 'aguardando_coleta': 'bg-orange-400', 'coletado': 'bg-emerald-500', 'expedido': 'bg-cyan-500', 
-        'em_transito': 'bg-orange-500', 
-        'concluido': 'bg-green-500', 'cancelado': 'bg-red-500'
-    };
-    return map[safeString(status)] || 'bg-gray-400';
-}
+    const s = paraTexto(status);
+    const etapa = etapas[s] ?? 1;
 
-function StatusBadge({ status }) {
-    const s = safeString(status);
-    const config = {
-        'em_analise':      { label: 'Em Análise',    bg: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
-        'solicitado':      { label: 'Solicitado',    bg: 'bg-yellow-50 text-yellow-700 border-yellow-200', dot: 'bg-yellow-500' },
-        'separado':        { label: 'Separado',      bg: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
-        'aguardando_rota': { label: 'Aguard. Rota',  bg: 'bg-pink-50 text-pink-700 border-pink-200', dot: 'bg-pink-500' },
-        'rota_confirmada': { label: 'Rota Confirmada', bg: 'bg-teal-50 text-teal-700 border-teal-200', dot: 'bg-teal-500' },
-        'aguardando_coleta':{ label: 'Aguard. Coleta', bg: 'bg-orange-50 text-orange-700 border-orange-200', dot: 'bg-orange-500' },
-        'coletado':        { label: 'Coletado (P/ Rota)', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-        'expedido':        { label: 'Expedido',      bg: 'bg-cyan-50 text-cyan-700 border-cyan-200', dot: 'bg-cyan-500' },
-        'em_transito':     { label: 'Em Trânsito',   bg: 'bg-orange-500 text-white border-orange-600 shadow-md shadow-orange-500/20', dot: 'bg-white' },
-        'concluido':       { label: 'Concluído',     bg: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
-        'cancelado':       { label: 'Cancelado',     bg: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
-    }[s] || { label: s.toUpperCase(), bg: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400' };
+    const cor =
+        s === 'cancelado'
+            ? 'bg-status-danger-solid'
+            : s === 'concluido'
+              ? 'bg-status-success-solid'
+              : 'bg-status-info-solid';
 
     return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase border tracking-wider whitespace-nowrap ${config.bg}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`}></span>
-            {config.label}
-        </span>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
+            <div
+                className={`h-full transition-all duration-700 ${cor}`}
+                style={{ width: `${(etapa / 5) * 100}%` }}
+            />
+        </div>
     );
 }
