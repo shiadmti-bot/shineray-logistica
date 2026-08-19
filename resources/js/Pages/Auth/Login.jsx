@@ -74,7 +74,7 @@ export default function Login({ status, canResetPassword }) {
                 </div>
 
                 {/* Card de Login em Branco Puro com Alto Contraste */}
-                <div className="w-full bg-white/98 backdrop-blur-xl px-8 sm:px-10 py-10 shadow-2xl shadow-black/40 rounded-3xl border border-white/60 relative overflow-hidden transition-all duration-300">
+                <div className="w-full bg-white px-8 sm:px-10 py-10 shadow-2xl shadow-black/50 rounded-3xl border border-white relative overflow-hidden transition-all duration-300">
                     {/* Faixa decorativa superior */}
                     <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-brand-700"></div>
 
@@ -101,7 +101,7 @@ export default function Login({ status, canResetPassword }) {
                         
                         {/* E-MAIL */}
                         <div className="space-y-1.5">
-                            <InputLabel htmlFor="email" value="E-mail Corporativo" className="text-gray-700 font-bold text-xs uppercase" />
+                            <InputLabel htmlFor="email" value="E-mail Corporativo" className="text-gray-800 font-bold text-xs uppercase" />
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-600 transition-colors duration-200">
                                     <EnvelopeIcon className="h-5 w-5" />
@@ -111,7 +111,7 @@ export default function Login({ status, canResetPassword }) {
                                     type="email"
                                     name="email"
                                     value={data.email}
-                                    className="block w-full pl-11 pr-4 border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 rounded-2xl shadow-xs h-12 transition-all duration-200 bg-gray-50/80 focus:bg-white text-gray-900 text-sm"
+                                    className="block w-full pl-11 pr-4 border-gray-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 rounded-2xl shadow-xs h-12 transition-all duration-200 bg-gray-50 focus:bg-white text-gray-900 text-sm placeholder:text-gray-400"
                                     autoComplete="username"
                                     isFocused={true}
                                     onChange={(e) => setData('email', e.target.value)}
@@ -123,7 +123,7 @@ export default function Login({ status, canResetPassword }) {
 
                         {/* SENHA */}
                         <div className="space-y-1.5">
-                            <InputLabel htmlFor="password" value="Senha de Acesso" className="text-gray-700 font-bold text-xs uppercase" />
+                            <InputLabel htmlFor="password" value="Senha de Acesso" className="text-gray-800 font-bold text-xs uppercase" />
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-brand-600 transition-colors duration-200">
                                     <LockClosedIcon className="h-5 w-5" />
@@ -134,7 +134,7 @@ export default function Login({ status, canResetPassword }) {
                                     type={showPassword ? "text" : "password"}
                                     name="password"
                                     value={data.password}
-                                    className="block w-full pl-11 pr-12 border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 rounded-2xl shadow-xs h-12 transition-all duration-200 bg-gray-50/80 focus:bg-white text-gray-900 text-sm"
+                                    className="block w-full pl-11 pr-12 border-gray-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 rounded-2xl shadow-xs h-12 transition-all duration-200 bg-gray-50 focus:bg-white text-gray-900 text-sm placeholder:text-gray-400"
                                     autoComplete="current-password"
                                     onChange={(e) => setData('password', e.target.value)}
                                     placeholder="••••••••"
@@ -165,7 +165,7 @@ export default function Login({ status, canResetPassword }) {
                                     onChange={(e) => setData('remember', e.target.checked)}
                                     className="text-brand-600 focus:ring-brand-500 rounded border-gray-300 w-4 h-4 transition-transform group-hover:scale-105"
                                 />
-                                <span className="ms-2 text-xs font-medium text-gray-600 group-hover:text-gray-900 transition-colors">
+                                <span className="ms-2 text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
                                     Manter conectado
                                 </span>
                             </label>

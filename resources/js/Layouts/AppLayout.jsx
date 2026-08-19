@@ -84,6 +84,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
 
         return (
             <Link
+                data-tour={item.key}
                 href={safeRoute(item.route)}
                 className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition
                     ${ativo ? 'bg-white/20 text-white shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
@@ -100,7 +101,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
         const total = contarSecao(secao);
 
         return (
-            <Menu as="div" className="relative">
+            <Menu as="div" data-tour={secao.id} className="relative">
                 <Menu.Button
                     className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition
                         ${ativa ? 'bg-white/20 text-white shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
@@ -186,7 +187,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div className="flex h-16 items-center justify-between gap-3">
                         {/* --- Marca --- */}
-                        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+                        <Link href="/" data-tour="brand" className="flex shrink-0 items-center gap-2.5">
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-1.5 shadow-md transition hover:scale-105">
                                 <img src="/img/logo.png" alt="Shineray" className="h-6 w-auto object-contain" />
                             </div>
@@ -211,19 +212,22 @@ export default function AppLayout({ user, header, children, contained = true }) 
 
                         {/* --- Ações --- */}
                         <div className="flex shrink-0 items-center gap-1.5">
-                            <NotificationBell />
+                            <div data-tour="notificacoes">
+                                <NotificationBell />
+                            </div>
 
                             {/* Conta */}
-                            <Menu as="div" className="relative">
-                                <Menu.Button className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-2.5 text-sm font-bold text-white transition hover:bg-white/20">
-                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-black text-brand-700">
-                                        {currentUser.name.charAt(0).toUpperCase()}
-                                    </span>
-                                    <span className="hidden max-w-[8rem] truncate sm:inline">
-                                        {currentUser.name.split(' ')[0]}
-                                    </span>
-                                    <ChevronDownIcon className="h-3.5 w-3.5 opacity-70" />
-                                </Menu.Button>
+                            <div data-tour="perfil">
+                                <Menu as="div" className="relative">
+                                    <Menu.Button className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-2.5 text-sm font-bold text-white transition hover:bg-white/20">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-black text-brand-700">
+                                            {currentUser.name.charAt(0).toUpperCase()}
+                                        </span>
+                                        <span className="hidden max-w-[8rem] truncate sm:inline">
+                                            {currentUser.name.split(' ')[0]}
+                                        </span>
+                                        <ChevronDownIcon className="h-3.5 w-3.5 opacity-70" />
+                                    </Menu.Button>
 
                                 <Transition
                                     as={Fragment}
@@ -287,6 +291,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
                                     </Menu.Items>
                                 </Transition>
                             </Menu>
+                            </div>
 
                             {/* Hambúrguer (mobile) */}
                             <button
