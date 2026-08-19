@@ -1076,8 +1076,17 @@ class PedidoController extends Controller
                         break;
                     }
                 }
+
+                // v3: verifica também os itens de peça na carga mista
                 if ($todasConcluidas) {
-                    $romaneio->update(['status' => 'concluido']);
+                    $pecasPendentes = \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
+                        ->where('itemable_type', \App\Models\Peca::class)
+                        ->whereNotIn('status', [\App\Models\RomaneioItem::STATUS_ENTREGUE, \App\Models\RomaneioItem::STATUS_DIVERGENCIA, \App\Models\RomaneioItem::STATUS_RETORNADO])
+                        ->exists();
+
+                    if (!$pecasPendentes) {
+                        $romaneio->update(['status' => 'concluido']);
+                    }
                 }
             }
         }

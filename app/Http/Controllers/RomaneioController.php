@@ -563,7 +563,7 @@ class RomaneioController extends Controller
             // 1. Atualiza o Romaneio
             $romaneio->update(['status' => 'em_transito']);
 
-            // 2. Atualiza os Itens (Expedidos do CD ou já Coletados na Loja)
+            // 2. Atualiza os Itens de Moto (Expedidos do CD ou já Coletados na Loja)
             $pedidosAfetados = [];
 
             foreach ($romaneio->motos as $moto) {
@@ -581,26 +581,43 @@ class RomaneioController extends Controller
                 }
             }
 
-            // Atualiza os pedidos vinculados
+            // 3. Atualiza os Itens de Peça da Carga (v3)
+            $itensPecas = \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
+                ->where('itemable_type', \App\Models\Peca::class)
+                ->where('status', \App\Models\RomaneioItem::STATUS_CARREGADO)
+                ->with('pedido.user')
+                ->get();
+
+            foreach ($itensPecas as $itemPeca) {
+                $itemPeca->update(['status' => \App\Models\RomaneioItem::STATUS_EM_TRANSITO]);
+                if ($itemPeca->pedido) {
+                    $pedidosAfetados[$itemPeca->pedido->id] = $itemPeca->pedido;
+                }
+            }
+
+            // 4. Atualiza os pedidos vinculados (Motos e Peças)
             foreach ($pedidosAfetados as $pedido) {
-                if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado'])) {
+                if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado', 'aguardando_coleta'])) {
                     $pedido->update(['status' => 'em_transito']);
                     
                     // Log de Auditoria
+                    $tipoItemTexto = $pedido->tipo_carga === 'peca' ? 'Peças' : 'Motos';
                     PedidoLog::create([
                         'pedido_id' => $pedido->id,
                         'titulo' => 'Saiu para Entrega 🚚',
-                        'descricao' => "Carga #{$romaneio->id} deixou o pátio com motorista {$romaneio->motorista}."
+                        'descricao' => "{$tipoItemTexto} da Carga #{$romaneio->id} deixaram o pátio com motorista {$romaneio->motorista}."
                     ]);
 
                     // NOTIFICAÇÃO (ONESIGNAL)
                     try {
-                        (new \App\Services\OneSignalService())->sendToUser(
-                            [$pedido->user->onesignal_id],
-                            'Pedido em Trânsito 🚚',
-                            "O(s) item(ns) do seu pedido #{$pedido->id} saiu/saíram para entrega! Acompanhe o rastreio.",
-                            route('pedidos.show', $pedido->id)
-                        );
+                        if ($pedido->user?->onesignal_id) {
+                            (new \App\Services\OneSignalService())->sendToUser(
+                                [$pedido->user->onesignal_id],
+                                'Pedido em Trânsito 🚚',
+                                "O(s) item(ns) do seu pedido #{$pedido->id} saiu/saíram para entrega! Acompanhe o rastreio.",
+                                route('pedidos.show', $pedido->id)
+                            );
+                        }
                     } catch (\Exception $e) {}
                 }
             }

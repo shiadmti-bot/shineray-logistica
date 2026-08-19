@@ -278,6 +278,26 @@ class PecaAtendimentoController extends Controller
 
             $pedido->update(['status' => 'concluido']);
 
+            // Verifica se a carga foi integralmente entregue
+            if ($pedido->romaneio_id) {
+                $romaneio = Romaneio::with(['motos.pedidos'])->find($pedido->romaneio_id);
+                if ($romaneio && $romaneio->status !== 'concluido') {
+                    $motosConcluidas = $romaneio->motos->every(function ($m) {
+                        $p = $m->pedidos->first();
+                        return $p && in_array($p->status, ['concluido', 'cancelado', 'no_cd']);
+                    });
+
+                    $pecasConcluidas = RomaneioItem::where('romaneio_id', $romaneio->id)
+                        ->where('itemable_type', Peca::class)
+                        ->whereNotIn('status', [RomaneioItem::STATUS_ENTREGUE, RomaneioItem::STATUS_DIVERGENCIA, RomaneioItem::STATUS_RETORNADO])
+                        ->count() === 0;
+
+                    if ($motosConcluidas && $pecasConcluidas) {
+                        $romaneio->update(['status' => 'concluido']);
+                    }
+                }
+            }
+
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
                 'titulo'    => $divergencias > 0 ? 'Recebido com divergência' : 'Recebimento confirmado',
