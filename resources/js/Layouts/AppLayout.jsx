@@ -36,7 +36,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
     const { props, url } = usePage();
     const currentUser = user || props.auth?.user;
 
-    useOneSignal(props.config?.onesignal_app_id);
+    useOneSignal(props.config?.onesignal_app_id, currentUser);
 
     const [menuMobileAberto, setMenuMobileAberto] = useState(false);
 

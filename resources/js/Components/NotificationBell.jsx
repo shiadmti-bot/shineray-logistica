@@ -27,14 +27,14 @@ export default function NotificationBell() {
     });
 
     useEffect(() => {
-        // CONEXÃO WEBSOCKET
-        // O canal padrão de notificações do Laravel é App.Models.User.{id}
-        window.Echo.private(`App.Models.User.${auth.user.id}`)
-            .notification((notification) => {
-                
+        // CONEXÃO WEBSOCKET (Pusher / Laravel Echo)
+        if (typeof window !== 'undefined' && window.Echo && auth?.user?.id) {
+            const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
+            
+            channel.notification((notification) => {
                 // 1. Toca o som
                 const audio = new Audio('/plim.mp3');
-                audio.play().catch(()=>{});
+                audio.play().catch(() => {});
 
                 // 2. Mostra o Toast na tela
                 Toast.fire({
@@ -46,7 +46,7 @@ export default function NotificationBell() {
                 // 3. Adiciona na lista do sininho
                 setNotifications(prev => [
                     {
-                        id: Date.now(), // ID temporário
+                        id: Date.now(),
                         data: {
                             titulo: notification.titulo,
                             mensagem: notification.mensagem,
@@ -61,7 +61,14 @@ export default function NotificationBell() {
                 // 4. Incrementa contador
                 setUnreadCount(prev => prev + 1);
             });
-    }, []);
+
+            return () => {
+                try {
+                    window.Echo.leave(`App.Models.User.${auth.user.id}`);
+                } catch {}
+            };
+        }
+    }, [auth?.user?.id]);
 
     const markAsRead = () => {
         if (unreadCount > 0) {

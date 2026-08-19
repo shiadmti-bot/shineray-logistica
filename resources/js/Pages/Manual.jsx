@@ -113,14 +113,44 @@ export default function Manual({ auth }) {
                             </h3>
                             
                             <Step number="1" title="Criando a Solicitação de Motos">
-                                <p>No menu lateral, acesse <strong>Motos ➔ Nova Solicitação</strong>. Escolha o tipo de operação:</p>
-                                <ul className="list-disc ml-6 mt-3 space-y-2 text-sm text-content-secondary">
-                                    <li><strong>Reposição CD (Fábrica):</strong> Selecione a origem "Matriz / CD", informe o modelo, cor e o <strong>chassi exato</strong> disponível no estoque central do CD.</li>
-                                    <li><strong>Transferência entre Lojas:</strong> Selecione a loja cedente no campo "Origem", preencha o modelo e o <strong>chassi exato</strong> da moto física que se encontra na outra filial.</li>
-                                    <li><strong>Devolução ao CD:</strong> Alterne a chave para devolução caso precise devolver uma unidade por defeito, troca ou renegociação.</li>
-                                </ul>
-                                <div className="mt-3 bg-status-danger-bg border border-status-danger-solid/20 rounded-xl p-3">
-                                    <p className="text-sm text-status-danger-fg font-bold">⚠️ OBRIGATÓRIO: O preenchimento do Chassi é obrigatório em 100% dos pedidos. O sistema bloqueia chassis duplicados ou com formato inválido.</p>
+                                <p>No menu lateral, acesse <strong>Motos ➔ Nova Solicitação</strong>. O preenchimento varia conforme a finalidade do pedido:</p>
+                                
+                                <div className="mt-4 space-y-3">
+                                    {/* Caso 1: Estoque e Reposição */}
+                                    <div className="bg-status-info-bg/50 border border-status-info-solid/30 rounded-2xl p-4 space-y-2">
+                                        <div className="flex items-center gap-2 text-status-info-fg font-black text-sm uppercase">
+                                            <span>📦</span> 1. Pedidos para Estoque e Reposição Regular (Giro ao CD)
+                                        </div>
+                                        <p className="text-sm text-content-secondary leading-relaxed">
+                                            Preencha <strong>somente o Modelo, a Cor e a Quantidade</strong> desejada (ex: <em>5x SHI 175 EFI - Vermelha</em>).
+                                        </p>
+                                        <p className="text-xs text-status-info-fg font-medium">
+                                            💡 <strong>Importante:</strong> Nestes pedidos de reposição ao CD, <u>não se preenche chassi</u>. A equipe de expedição do CD é quem define e vincula quais chassis físicos serão separados e despachados.
+                                        </p>
+                                    </div>
+
+                                    {/* Caso 2: Venda Confirmada */}
+                                    <div className="bg-status-success-bg/50 border border-status-success-solid/30 rounded-2xl p-4 space-y-2">
+                                        <div className="flex items-center gap-2 text-status-success-fg font-black text-sm uppercase">
+                                            <span>🎯</span> 2. Motos Já Vendidas (Motivo: "Venda Confirmada (Cliente)")
+                                        </div>
+                                        <p className="text-sm text-content-secondary leading-relaxed">
+                                            Quando a moto já foi vendida na ponta para um cliente específico, selecione o motivo <strong>"Venda Confirmada (Cliente)"</strong> e informe <strong>todas as informações completas da moto, incluindo obrigatoriamente o Chassi</strong> (mínimo de 11 a 17 dígitos).
+                                        </p>
+                                        <p className="text-xs text-status-success-fg font-medium">
+                                            🔒 Isso garante a reserva daquela unidade física exata no estoque central do CD.
+                                        </p>
+                                    </div>
+
+                                    {/* Caso 3: Transferência entre Filiais */}
+                                    <div className="bg-status-warning-bg/50 border border-status-warning-solid/30 rounded-2xl p-4 space-y-2">
+                                        <div className="flex items-center gap-2 text-status-warning-fg font-black text-sm uppercase">
+                                            <span>🔄</span> 3. Transferência entre Lojas & Devolução ao CD
+                                        </div>
+                                        <p className="text-sm text-content-secondary leading-relaxed">
+                                            Em movimentações entre lojas ou devoluções à Matriz/CD, é exigido o preenchimento de <strong>todas as informações com o Chassi obrigatório</strong> de cada moto física, pois a unidade já existe fisicamente no pátio da loja cedente.
+                                        </p>
+                                    </div>
                                 </div>
                             </Step>
 
@@ -228,10 +258,9 @@ export default function Manual({ auth }) {
                             </h3>
 
                             <Step number="1" title="Aprovação e Cortes Parciais de Pedidos">
-                                <p>No menu <strong>Aprovações</strong>, o gestor analisa cada solicitação recebida:</p>
                                 <ul className="list-disc ml-6 mt-2 space-y-2 text-sm text-content-secondary">
                                     <li><strong>Aprovação Total:</strong> Autoriza o pedido completo para o CD iniciar a separação.</li>
-                                    <li><strong>Cortes Parciais:</strong> Se a loja solicitou 5 motos mas o crédito comporta apenas 3, o gestor pode reprovar chassis individuais clicando no ícone correspondente antes de aprovar.</li>
+                                    <li><strong>Cortes Parciais:</strong> Se a loja solicitou 5 motos mas o crédito ou cota comporta apenas 3, o gestor pode ajustar quantidades ou reprovar itens específicos antes de aprovar.</li>
                                     <li><strong>Rejeição:</strong> Cancela o pedido com justificativa registrada no log de auditoria.</li>
                                 </ul>
                             </Step>
@@ -255,7 +284,7 @@ export default function Manual({ auth }) {
                     </div>
                 )}
 
-                {/* ==================== 4. ABA CD ==================== */}
+                {/* ==================== 4. ABA CD / LOGÍSTICA ==================== */}
                 {activeTab === 'cd' && (
                     <div className="space-y-10 animate-fade-in">
                         <HeaderSection 
@@ -270,7 +299,7 @@ export default function Manual({ auth }) {
                             </h3>
 
                             <Step number="1" title="Separação de Pedidos no Pátio">
-                                <p>Assim que o Gestor aprova, o pedido entra como <span className="text-status-success-fg font-bold bg-status-success-bg px-2 py-0.5 rounded text-xs">Solicitado</span>. A equipe do CD localiza os chassis no pátio físico e clica em <strong>Separar</strong> para liberar as unidades para o pool de montagem de carga.</p>
+                                <p>Assim que o Gestor aprova, o pedido entra como <span className="text-status-success-fg font-bold bg-status-success-bg px-2 py-0.5 rounded text-xs">Solicitado</span>. Nos pedidos de estoque, a equipe do CD vincula os chassis físicos do pátio e clica em <strong>Separar</strong> para liberar as unidades para o pool de montagem de carga.</p>
                             </Step>
 
                             <Step number="2" title="Planejamento no Calendário de Rotas">

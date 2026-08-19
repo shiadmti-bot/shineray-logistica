@@ -3,19 +3,28 @@ import OneSignal from 'react-onesignal';
 import axios from 'axios';
 
 /**
- * Inicializa o OneSignal uma única vez por sessão de página.
- *
- * Extraído do AuthenticatedLayout para que o layout novo (AppLayout) não
- * precise duplicar a lógica — dois layouts inicializando o SDK em paralelo
- * registram o dispositivo duas vezes e geram notificação duplicada.
- *
- * O ref de guarda é intencional: o StrictMode do React roda o efeito duas vezes
- * em desenvolvimento, e sem ele o init dispara em duplicidade.
+ * Inicializa o OneSignal uma única vez por sessão de página e
+ * sincroniza o ID de notificação push com o backend.
  */
-export default function useOneSignal(appIdFromProps) {
+export default function useOneSignal(appIdFromProps, currentUser) {
     const iniciado = useRef(false);
 
     useEffect(() => {
+        const syncSubscription = async () => {
+            try {
+                const isOptedIn = OneSignal.User?.PushSubscription?.optedIn;
+                const subscriptionId = OneSignal.User?.PushSubscription?.id;
+                const userId = await OneSignal.User?.getOnesignalId?.();
+                const idToSave = subscriptionId || userId;
+
+                if (idToSave) {
+                    axios.post('/user/onesignal', { onesignal_id: idToSave }).catch(() => {});
+                }
+            } catch (err) {
+                // Silencioso se o usuário ainda não permitiu notificações
+            }
+        };
+
         const iniciar = async () => {
             if (iniciado.current || typeof window === 'undefined') return;
             iniciado.current = true;
@@ -29,6 +38,12 @@ export default function useOneSignal(appIdFromProps) {
                     notifyButton: { enable: true },
                 });
 
+                // Se houver usuário logado, associa o ID externo para segmentação
+                if (currentUser?.id && typeof OneSignal.login === 'function') {
+                    OneSignal.login(String(currentUser.id)).catch(() => {});
+                }
+
+                // Solicita permissão se ainda não foi decidida
                 try {
                     if (OneSignal.Slidedown) {
                         OneSignal.Slidedown.promptPush();
@@ -39,19 +54,21 @@ export default function useOneSignal(appIdFromProps) {
                     /* bloqueadores de anúncio derrubam o prompt; não é erro fatal */
                 }
 
-                OneSignal.User.PushSubscription.addEventListener('change', async (event) => {
+                // Sincroniza quando houver mudança de permissão
+                OneSignal.User?.PushSubscription?.addEventListener('change', async (event) => {
                     if (event.current.optedIn) {
-                        const userId = await OneSignal.User.getOnesignalId();
-                        if (userId) {
-                            axios.post('/user/onesignal', { onesignal_id: userId }).catch(() => {});
-                        }
+                        syncSubscription();
                     }
                 });
+
+                // Sincronização inicial de garantia
+                setTimeout(syncSubscription, 1500);
             } catch (error) {
                 console.warn('OneSignal status:', error);
             }
         };
 
         iniciar();
-    }, [appIdFromProps]);
+    }, [appIdFromProps, currentUser?.id]);
 }
+

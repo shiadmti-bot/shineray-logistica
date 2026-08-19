@@ -12,31 +12,44 @@ class OneSignalService
 
     public function __construct()
     {
-        // Pega as chaves do .env
         $this->appId = config('services.onesignal.app_id');
         $this->apiKey = config('services.onesignal.rest_api_key');
     }
 
     /**
-     * Envia notificação para usuários específicos (pelo ID do OneSignal)
+     * Envia notificação Push para usuários específicos (pelo ID do OneSignal / Subscription ID / User ID)
      */
     public function sendToUser(array $playerIds, string $titulo, string $mensagem, $url = null)
     {
         // Remove IDs vazios/nulos
-        $playerIds = array_filter($playerIds);
+        $playerIds = array_values(array_unique(array_filter($playerIds)));
 
         if (empty($playerIds)) {
             return;
         }
 
+        if (empty($this->appId) || empty($this->apiKey)) {
+            Log::warning('OneSignal: Notificação não enviada porque ONESIGNAL_APP_ID ou ONESIGNAL_REST_API_KEY não estão configurados no .env');
+            return;
+        }
+
         $fields = [
             'app_id' => $this->appId,
-            'include_player_ids' => array_values($playerIds),
-            'headings' => ['en' => $titulo], // O padrão é 'en', mas aceita o texto em PT
-            'contents' => ['en' => $mensagem],
+            'include_player_ids' => $playerIds,
+            'include_aliases' => [
+                'onesignal_id' => $playerIds,
+            ],
+            'target_channel' => 'push',
+            'headings' => [
+                'en' => $titulo,
+                'pt' => $titulo,
+            ],
+            'contents' => [
+                'en' => $mensagem,
+                'pt' => $mensagem,
+            ],
         ];
 
-        // Se tiver link para abrir
         if ($url) {
             $fields['url'] = $url;
         }
@@ -45,13 +58,15 @@ class OneSignalService
             $response = Http::withHeaders([
                 'Authorization' => 'Basic ' . $this->apiKey,
                 'Content-Type' => 'application/json',
-            ])->post('https://onesignal.com/api/v1/notifications', $fields);
+            ])->timeout(5)->post('https://onesignal.com/api/v1/notifications', $fields);
 
             if ($response->failed()) {
-                Log::error('Erro OneSignal: ' . $response->body());
+                Log::error('Erro OneSignal Push: ' . $response->body());
+            } else {
+                Log::info('OneSignal Push enviado com sucesso para: ' . implode(', ', $playerIds));
             }
         } catch (\Exception $e) {
-            Log::error('Exceção OneSignal: ' . $e->getMessage());
+            Log::error('Exceção OneSignal Push: ' . $e->getMessage());
         }
     }
-}
+}
