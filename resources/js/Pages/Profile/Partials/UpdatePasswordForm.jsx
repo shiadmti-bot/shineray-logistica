@@ -46,22 +46,12 @@ export default function UpdatePasswordForm({ className = '' }) {
 
     return (
         <section className={className}>
-            <header>
-                <h2 className="text-lg font-medium text-content-primary">
-                    Update Password
-                </h2>
-
-                <p className="mt-1 text-sm text-content-secondary">
-                    Ensure your account is using a long, random password to stay
-                    secure.
-                </p>
-            </header>
-
-            <form onSubmit={updatePassword} className="mt-6 space-y-6">
+            <form onSubmit={updatePassword} className="space-y-4">
                 <div>
                     <InputLabel
                         htmlFor="current_password"
-                        value="Current Password"
+                        value="Senha Atual"
+                        className="text-xs font-bold uppercase text-content-secondary mb-1"
                     />
 
                     <TextInput
@@ -72,18 +62,19 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('current_password', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className="block w-full border-line focus:border-brand-500 focus:ring-brand-500 rounded-xl shadow-xs text-sm bg-surface-sunken focus:bg-surface-card"
                         autoComplete="current-password"
+                        placeholder="••••••••"
                     />
 
                     <InputError
                         message={errors.current_password}
-                        className="mt-2"
+                        className="mt-1.5"
                     />
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="password" value="New Password" />
+                    <InputLabel htmlFor="password" value="Nova Senha" className="text-xs font-bold uppercase text-content-secondary mb-1" />
 
                     <TextInput
                         id="password"
@@ -91,17 +82,19 @@ export default function UpdatePasswordForm({ className = '' }) {
                         value={data.password}
                         onChange={(e) => setData('password', e.target.value)}
                         type="password"
-                        className="mt-1 block w-full"
+                        className="block w-full border-line focus:border-brand-500 focus:ring-brand-500 rounded-xl shadow-xs text-sm bg-surface-sunken focus:bg-surface-card"
                         autoComplete="new-password"
+                        placeholder="••••••••"
                     />
 
-                    <InputError message={errors.password} className="mt-2" />
+                    <InputError message={errors.password} className="mt-1.5" />
                 </div>
 
                 <div>
                     <InputLabel
                         htmlFor="password_confirmation"
-                        value="Confirm Password"
+                        value="Confirmar Nova Senha"
+                        className="text-xs font-bold uppercase text-content-secondary mb-1"
                     />
 
                     <TextInput
@@ -111,28 +104,31 @@ export default function UpdatePasswordForm({ className = '' }) {
                             setData('password_confirmation', e.target.value)
                         }
                         type="password"
-                        className="mt-1 block w-full"
+                        className="block w-full border-line focus:border-brand-500 focus:ring-brand-500 rounded-xl shadow-xs text-sm bg-surface-sunken focus:bg-surface-card"
                         autoComplete="new-password"
+                        placeholder="••••••••"
                     />
 
                     <InputError
                         message={errors.password_confirmation}
-                        className="mt-2"
+                        className="mt-1.5"
                     />
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                <div className="flex items-center gap-4 pt-2">
+                    <PrimaryButton className="bg-brand-600 hover:bg-brand-700 rounded-xl font-bold py-2.5 px-5 text-xs shadow-xs" disabled={processing}>
+                        {processing ? 'Salvando...' : 'Alterar Senha'}
+                    </PrimaryButton>
 
                     <Transition
                         show={recentlySuccessful}
-                        enter="transition ease-in-out"
-                        enterFrom="opacity-0"
-                        leave="transition ease-in-out"
+                        enter="transition ease-in-out duration-300"
+                        enterFrom="opacity-0 translate-y-1"
+                        leave="transition ease-in-out duration-300"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-content-secondary">
-                            Saved.
+                        <p className="text-xs font-bold text-status-success-fg flex items-center gap-1">
+                            <span>✅</span> Senha alterada com sucesso!
                         </p>
                     </Transition>
                 </div>

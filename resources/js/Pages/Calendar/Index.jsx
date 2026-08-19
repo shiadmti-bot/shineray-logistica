@@ -183,29 +183,29 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
         let label = isConfirmed ? "CONFIRMADO" : "PLANEJAMENTO";
 
         if (!canEdit && !props.is_my_route) {
-            containerClass = "bg-surface-sunken border-l-4 border-line-strong text-content-muted grayscale opacity-60";
+            containerClass = "bg-surface-sunken border border-line-strong text-content-muted grayscale opacity-60";
             icon = "🔒";
             label = "EXTERNA";
         } else if (props.is_past) {
             if (isConfirmed) {
-                // User requirement: Keep original green color instead of gray, just slightly dimmed
-                containerClass = "bg-status-success-bg border-l-4 border-status-success-solid text-status-success-fg opacity-85 cursor-not-allowed";
+                containerClass = "bg-status-success-bg border border-status-success-solid/40 text-status-success-fg opacity-80 cursor-not-allowed";
                 icon = "✅";
-                label = "PASSADO (CONF.)";
+                label = "Passado (Conf.)";
             } else {
-                containerClass = "bg-surface-sunken border-l-4 border-line-strong text-content-muted opacity-60 border-dashed text-opacity-80 cursor-not-allowed";
+                containerClass = "bg-surface-sunken border border-line text-content-muted opacity-60 cursor-not-allowed";
                 icon = "⚠️";
-                label = "PASSADO (PEND.)";
+                label = "Passado (Pend.)";
             }
         }
 
         return (
-            <div className={`w-full p-1.5 rounded-r shadow-sm text-[10px] md:text-xs leading-tight transition hover:brightness-95 cursor-pointer ${containerClass}`}>
-                <div className="flex justify-between items-center mb-0.5">
-                    <span className="font-black opacity-75 text-[9px] uppercase tracking-wider">{label}</span>
+            <div className={`w-full p-2 rounded-xl shadow-xs text-[11px] md:text-xs leading-tight transition-all duration-200 hover:scale-[1.01] hover:shadow-sm cursor-pointer ${containerClass}`}>
+                <div className="flex justify-between items-center mb-1">
+                    <span className="font-extrabold text-[9px] uppercase tracking-wider opacity-80">{label}</span>
                 </div>
-                <div className="font-bold truncate flex items-center gap-1">
-                    <span>{icon}</span> {eventInfo.event.title}
+                <div className="font-bold truncate flex items-center gap-1.5">
+                    <span className="text-xs">{icon}</span> 
+                    <span className="truncate">{eventInfo.event.title}</span>
                 </div>
             </div>
         );
@@ -213,74 +213,117 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
 
     return (
         <AppLayout user={auth.user}>
-            <Head title="Logística - Rotas" />
+            <Head title="Calendário de Rotas - Shineray By Sabel" />
             <PageHeader
                 title="Calendário de Rotas"
+                description="Planejamento tático de saídas, agendamentos e previsão de entrega por filial."
                 breadcrumbs={[
                     { label: 'Início', href: route('dashboard') },
-                    { label: 'Calendário' }
+                    { label: 'Calendário de Rotas' }
                 ]}
                 actions={
-                    minhaLoja && !canEdit && <span className="text-xs bg-surface-sunken text-content-secondary px-2 py-1 rounded font-bold">{minhaLoja}</span>
+                    minhaLoja && !canEdit && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 border border-brand-200 text-brand-700 text-xs font-black uppercase">
+                            📍 {minhaLoja}
+                        </span>
+                    )
                 }
             />
                     
-                    <div className="mb-6 flex flex-wrap gap-4 justify-end text-xs font-bold uppercase text-content-muted">
-                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-status-success-solid rounded"></span> Confirmado</div>
-                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-status-warning-solid rounded border border-status-warning-solid border-dashed"></span> Planejamento</div>
-                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-status-success-bg opacity-80 rounded"></span> Passado (Conf.)</div>
-                        <div className="flex items-center gap-2"><span className="w-3 h-3 bg-surface-sunken rounded border border-line-strong border-dashed"></span> Passado (Pend.)</div>
-                    </div>
+            {/* LEGENDA REFINADA */}
+            <div className="mb-6 flex flex-wrap items-center gap-3 justify-end text-xs font-bold text-content-secondary">
+                <div className="flex items-center gap-2 bg-surface-card px-3 py-1.5 rounded-full border border-line shadow-xs">
+                    <span className="w-2.5 h-2.5 bg-status-success-solid rounded-full"></span> 
+                    <span>Confirmado</span>
+                </div>
+                <div className="flex items-center gap-2 bg-surface-card px-3 py-1.5 rounded-full border border-line shadow-xs">
+                    <span className="w-2.5 h-2.5 bg-status-warning-solid rounded-full"></span> 
+                    <span>Planejado (Prévia)</span>
+                </div>
+                <div className="flex items-center gap-2 bg-surface-card px-3 py-1.5 rounded-full border border-line shadow-xs">
+                    <span className="w-2.5 h-2.5 bg-status-success-bg border border-status-success-solid/40 rounded-full"></span> 
+                    <span className="text-content-muted">Passado (Conf.)</span>
+                </div>
+                <div className="flex items-center gap-2 bg-surface-card px-3 py-1.5 rounded-full border border-line shadow-xs">
+                    <span className="w-2.5 h-2.5 bg-surface-sunken border border-line-strong rounded-full"></span> 
+                    <span className="text-content-muted">Passado (Pend.)</span>
+                </div>
+            </div>
 
-                    <div className="bg-surface-card p-2 md:p-6 rounded-2xl shadow-xl border-t-4 border-brand-800 overflow-hidden">
-                        <style>{`
-                            .fc-col-header-cell { background: #f9fafb; padding: 10px 0; }
-                            .fc-day-today { background-color: #fff1f2 !important; }
-                            .fc-event { cursor: pointer; }
-                            .fc-toolbar-title { font-size: 1.1rem !important; font-weight: 800; text-transform: uppercase; }
-                            .fc-button { background: #1f2937 !important; border: none !important; font-weight: bold !important; }
-                            .fc-button:hover { background: #000 !important; }
-                        `}</style>
-                        
-                        <FullCalendar
-                            plugins={[dayGridPlugin, interactionPlugin]}
-                            initialView={canEdit ? "dayGridMonth" : "dayGridWeek"}
-                            headerToolbar={{ left: 'prev,today,next', center: 'title', right: canEdit ? 'dayGridMonth,dayGridWeek' : 'dayGridWeek,dayGridMonth' }}
-                            locale={ptBrLocale}
-                            events={events}
-                            eventContent={renderEventContent}
-                            dateClick={handleDateClick}
-                            eventClick={handleEventClick}
-                            height="auto"
-                        />
-                    </div>
+            {/* CARD DO FULLCALENDAR COM ESTILO MODERNO */}
+            <div className="bg-surface-card p-4 md:p-8 rounded-3xl shadow-card border border-line overflow-hidden relative">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-600 via-brand-500 to-brand-700"></div>
+                <style>{`
+                    .fc { font-family: inherit; }
+                    .fc-col-header-cell { background: #f8fafc; padding: 12px 0 !important; border-color: #e2e8f0 !important; }
+                    .fc-col-header-cell-cushion { font-size: 0.75rem !important; font-weight: 800 !important; text-transform: uppercase !important; color: #64748b !important; letter-spacing: 0.05em !important; }
+                    .fc-day-today { background-color: rgba(225, 29, 72, 0.04) !important; }
+                    .fc-daygrid-day-number { font-size: 0.85rem !important; font-weight: 800 !important; color: #334155 !important; padding: 8px 10px !important; }
+                    .fc-daygrid-day { border-color: #f1f5f9 !important; transition: background 0.15s ease; }
+                    .fc-daygrid-day:hover { background-color: #f8fafc; }
+                    .fc-event { background: transparent !important; border: none !important; margin: 2px 4px !important; }
+                    .fc-toolbar { margin-bottom: 1.5rem !important; flex-wrap: wrap; gap: 0.75rem; }
+                    .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 900 !important; color: #0f172a !important; letter-spacing: -0.02em !important; }
+                    .fc-button { background: #ffffff !important; border: 1px solid #cbd5e1 !important; color: #334155 !important; font-weight: 700 !important; font-size: 0.8rem !important; border-radius: 0.75rem !important; padding: 0.45rem 0.9rem !important; box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important; transition: all 0.2s ease !important; }
+                    .fc-button:hover { background: #f8fafc !important; border-color: #94a3b8 !important; color: #0f172a !important; }
+                    .fc-button-active { background: #0f172a !important; border-color: #0f172a !important; color: #ffffff !important; box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; }
+                    .fc-button:disabled { opacity: 0.4 !important; }
+                    .fc-daygrid-event-dot { display: none !important; }
+                `}</style>
+                
+                <FullCalendar
+                    plugins={[dayGridPlugin, interactionPlugin]}
+                    initialView={canEdit ? "dayGridMonth" : "dayGridWeek"}
+                    headerToolbar={{ 
+                        left: 'prev,today,next', 
+                        center: 'title', 
+                        right: canEdit ? 'dayGridMonth,dayGridWeek' : 'dayGridWeek,dayGridMonth' 
+                    }}
+                    locale={ptBrLocale}
+                    events={events}
+                    eventContent={renderEventContent}
+                    dateClick={handleDateClick}
+                    eventClick={handleEventClick}
+                    height="auto"
+                />
+            </div>
 
-            {/* MODAL DE CRIAÇÃO / EDIÇÃO */}
+            {/* MODAL DE CRIAÇÃO / EDIÇÃO MODERNO */}
             {canEdit && isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-inverted/80 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-surface-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="bg-surface-inverted px-6 py-4 flex justify-between items-center text-white">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-inverted/70 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-surface-card rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-line">
+                        <div className="bg-gradient-to-r from-surface-card to-surface-sunken px-6 py-4 flex justify-between items-center border-b border-line">
                             <div>
-                                <h3 className="font-bold uppercase tracking-wider">{editingId ? 'Editar Rota' : 'Nova Rota'}</h3>
-                                <p className="text-xs text-content-muted">{new Date(selectedDate).toLocaleDateString()}</p>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-brand-600 bg-brand-50 px-2 py-0.5 rounded">
+                                    Agendamento
+                                </span>
+                                <h3 className="font-black text-lg text-content-primary mt-0.5">
+                                    {editingId ? 'Editar Rota Logística' : 'Nova Viagem'}
+                                </h3>
+                                <p className="text-xs text-content-muted">Data: {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
                             </div>
-                            <button onClick={() => setIsModalOpen(false)} className="text-content-muted hover:text-white text-xl">×</button>
+                            <button 
+                                onClick={() => setIsModalOpen(false)} 
+                                className="w-8 h-8 rounded-full bg-surface-sunken hover:bg-line text-content-secondary flex items-center justify-center transition"
+                            >
+                                ✕
+                            </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
                             <div>
-                                <label className="block text-xs font-bold text-content-muted uppercase mb-2">Paradas (Sequência)</label>
-                                <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar">
+                                <label className="block text-xs font-bold text-content-secondary uppercase mb-2">Paradas da Rota (Sequência)</label>
+                                <div className="space-y-2.5 max-h-[240px] overflow-y-auto pr-1 custom-scrollbar">
                                     {form.stops.map((stop, index) => (
-                                        <div key={index} className="flex gap-2 items-center">
-                                            <span className="text-xs font-bold w-6 text-content-muted">{index + 1}º</span>
+                                        <div key={index} className="flex gap-2 items-center bg-surface-sunken p-2 rounded-xl border border-line">
+                                            <span className="text-xs font-black w-6 text-center text-brand-600 bg-surface-card py-1 rounded-md shadow-xs">{index + 1}º</span>
                                             <select 
-                                                className="w-full border-line-strong rounded-lg text-sm"
+                                                className="w-full border-line focus:border-brand-500 focus:ring-brand-500 rounded-lg text-sm bg-surface-card"
                                                 value={stop} 
                                                 onChange={e => updateStop(index, e.target.value)} 
                                                 required
                                             >
-                                                <option value="">Selecione...</option>
+                                                <option value="">Selecione o destino...</option>
                                                 {destinos.map(l => (
                                                     <option key={l.id} value={l.id} disabled={form.stops.includes(String(l.id)) && stop != l.id}>
                                                         {l.name}
@@ -288,27 +331,63 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
                                                 ))}
                                             </select>
                                             {form.stops.length > 1 && (
-                                                <button type="button" onClick={() => removeStop(index)} className="text-status-danger-fg">🗑️</button>
+                                                <button type="button" onClick={() => removeStop(index)} className="p-1 text-status-danger-fg hover:bg-status-danger-bg rounded-md transition" title="Remover parada">
+                                                    🗑️
+                                                </button>
                                             )}
                                         </div>
                                     ))}
                                 </div>
-                                <button type="button" onClick={addStop} className="mt-2 text-xs font-bold text-status-info-fg hover:underline">+ Adicionar Parada</button>
+                                <button type="button" onClick={addStop} className="mt-2.5 text-xs font-bold text-brand-600 hover:text-brand-700 hover:underline inline-flex items-center gap-1">
+                                    + Adicionar Nova Parada
+                                </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3 pt-2">
-                                <button type="button" onClick={() => setForm({...form, status: 'planned'})} className={`py-3 rounded-lg border-2 text-xs font-bold uppercase ${form.status === 'planned' ? 'border-status-warning-solid bg-status-warning-bg text-status-warning-fg' : 'border-line text-content-muted'}`}>📅 Planejado</button>
-                                <button type="button" onClick={() => setForm({...form, status: 'confirmed'})} className={`py-3 rounded-lg border-2 text-xs font-bold uppercase ${form.status === 'confirmed' ? 'border-status-success-solid bg-status-success-bg text-status-success-fg' : 'border-line text-content-muted'}`}>✅ Confirmado</button>
+                            <div>
+                                <label className="block text-xs font-bold text-content-secondary uppercase mb-2">Status da Viagem</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setForm({...form, status: 'planned'})} 
+                                        className={`py-3 px-3 rounded-xl border-2 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5 ${
+                                            form.status === 'planned' 
+                                                ? 'border-status-warning-solid bg-status-warning-bg text-status-warning-fg shadow-xs' 
+                                                : 'border-line bg-surface-sunken text-content-muted hover:border-line-strong'
+                                        }`}
+                                    >
+                                        📅 Planejado
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setForm({...form, status: 'confirmed'})} 
+                                        className={`py-3 px-3 rounded-xl border-2 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5 ${
+                                            form.status === 'confirmed' 
+                                                ? 'border-status-success-solid bg-status-success-bg text-status-success-fg shadow-xs' 
+                                                : 'border-line bg-surface-sunken text-content-muted hover:border-line-strong'
+                                        }`}
+                                    >
+                                        ✅ Confirmado
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 pt-2">
                                 {editingId && (
-                                    <button type="button" onClick={handleDelete} className="px-4 py-3 bg-status-danger-bg text-status-danger-fg rounded-lg font-bold hover:bg-status-danger-bg transition">
+                                    <button 
+                                        type="button" 
+                                        onClick={handleDelete} 
+                                        className="px-4 py-3 bg-status-danger-bg hover:bg-status-danger-bg text-status-danger-fg rounded-xl font-bold transition flex items-center justify-center" 
+                                        title="Excluir Rota"
+                                    >
                                         🗑️
                                     </button>
                                 )}
-                                <button type="submit" disabled={processing} className="flex-1 py-3 bg-surface-inverted text-white rounded-lg font-bold shadow hover:bg-black transition disabled:opacity-50">
-                                    {processing ? 'Salvando...' : (editingId ? 'Atualizar Rota' : 'Salvar Rota')}
+                                <button 
+                                    type="submit" 
+                                    disabled={processing} 
+                                    className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold shadow-md transition disabled:opacity-50 text-sm"
+                                >
+                                    {processing ? 'Gravando...' : (editingId ? 'Salvar Alterações' : 'Confirmar Agendamento')}
                                 </button>
                             </div>
                         </form>

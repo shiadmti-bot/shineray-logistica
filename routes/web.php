@@ -231,8 +231,8 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/rotas', [CalendarController::class, 'getRotas'])->name('rotas'); 
         });
 
-        // Romaneios (Cargas)
-        Route::prefix('expedicao')->name('romaneios.')->group(function () {
+        // Romaneios (Cargas) - Apenas CD, Admin e Gestor
+        Route::prefix('expedicao')->name('romaneios.')->middleware('check_perfil:cd,admin,gestor')->group(function () {
             Route::get('/', [RomaneioController::class, 'index'])->name('index');
             Route::get('/nova', [RomaneioController::class, 'create'])->name('create');
             Route::post('/', [RomaneioController::class, 'store'])->name('store');
