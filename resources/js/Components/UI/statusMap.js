@@ -29,6 +29,8 @@ export const STATUS_MAP = {
     expedido:          { label: 'Expedido',          tone: 'info'    },
     em_transito:       { label: 'Em Trânsito',       tone: 'info'    },
     em_transito_cd:    { label: 'Em Trânsito p/ CD', tone: 'info'    },
+    parcial:           { label: 'Embarque Parcial',  tone: 'warning' },
+    em_transito_parcial: { label: 'Trânsito Parcial', tone: 'warning' },
     no_cd:             { label: 'No CD',             tone: 'neutral' },
     concluido:         { label: 'Concluído',         tone: 'success' },
     cancelado:         { label: 'Cancelado',         tone: 'danger'  },

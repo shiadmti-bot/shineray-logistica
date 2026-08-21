@@ -211,6 +211,8 @@ class PedidoController extends Controller
         $pedidos->through(function ($pedido) {
             $totalItens = (int) ($pedido->total_itens_qtd ?? 0);
             $pedido->motos_count = max($pedido->motos_count ?? 0, $totalItens);
+            // Conta as cotas que ainda não possuem chassi atribuído como pendentes no CD para o cálculo de embarque parcial
+            $pedido->motos_separadas_count = (int) ($pedido->motos_separadas_count ?? 0) + (int) ($pedido->saldo_chassi_pendente ?? 0);
             return $pedido;
         });
 

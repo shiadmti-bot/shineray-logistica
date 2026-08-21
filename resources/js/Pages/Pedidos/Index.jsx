@@ -487,7 +487,7 @@ function ehEmbarqueParcial(pedido) {
     const embarcadas = total - pendentes;
 
     return (
-        ['em_transito', 'expedido', 'coletado', 'em_transito_cd'].includes(paraTexto(pedido.status)) &&
+        ['em_transito', 'expedido', 'coletado', 'em_transito_cd', 'separado', 'solicitado'].includes(paraTexto(pedido.status)) &&
         pendentes > 0 &&
         embarcadas > 0
     );
