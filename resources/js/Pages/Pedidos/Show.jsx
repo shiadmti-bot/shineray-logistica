@@ -52,6 +52,21 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
     // CORREÇÃO: Só é transferência se houver origem E a origem for uma loja (evita que envios do CD sejam rotulados como transferência visualmente)
     const isTransferencia = !!(pedido.origem_user_id && pedido.origem && pedido.origem.perfil === "loja");
 
+    // --- CÁLCULO DE EMBARQUE PARCIAL (v2.6) ---
+    const saldoPendente = atribuicao?.saldo_pendente ?? 0;
+    const motosEmTransito = (pedido.motos || []).filter((m) =>
+        ['em_transito', 'transito_loja'].includes(m.status)
+    ).length;
+    const motosNoCd = (pedido.motos || []).filter((m) =>
+        ['em_analise', 'solicitado', 'separado', 'aguardando_rota', 'estoque_fabrica'].includes(m.status)
+    ).length;
+    const totalNaoDespachado = saldoPendente + motosNoCd;
+    const isEmbarqueParcial = motosEmTransito > 0 && totalNaoDespachado > 0;
+    const totalItensSolicitados =
+        (pedido.itens_pedido?.length
+            ? pedido.itens_pedido.reduce((acc, i) => acc + (i.quantidade || 0), 0)
+            : (pedido.motos?.length || 0)) || (motosEmTransito + totalNaoDespachado);
+
     // Calcula destinos reais a partir do pivot
     const destinosReais = [
         ...new Set(
@@ -252,6 +267,28 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
 
     // --- 4. CONFERÊNCIA DE ENTREGA ---
     const handleConferenciaEntrega = () => {
+        if (totalNaoDespachado > 0) {
+            return Swal.fire({
+                title: "Aguardando Despacho Integral",
+                html: `
+                    <div class="text-left text-sm space-y-3">
+                        <div class="bg-amber-50 p-3 rounded-lg border border-amber-200 text-amber-900 font-bold">
+                            ⚠️ Este pedido possui ${totalNaoDespachado} unidade(s) pendente(s) no CD.
+                        </div>
+                        <p class="text-gray-600 leading-relaxed">
+                            Por determinação da diretoria comercial e logística, a conferência com envio do comprovante só pode ser realizada quando <b>100% da carga</b> for despachada e entregue.
+                        </p>
+                        <p class="text-xs text-gray-400">
+                            Aguarde a equipe do CD enviar as unidades restantes na próxima rota ou solicite o encerramento do saldo em falta se não houver envio.
+                        </p>
+                    </div>
+                `,
+                icon: "info",
+                confirmButtonText: "Entendido",
+                confirmButtonColor: "#E52521",
+            });
+        }
+
         Swal.fire({
             title: '<h3 class="font-bold text-gray-800">Conferência de Entrega 📋</h3>',
             width: "650px",
@@ -475,8 +512,14 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                             <span className="text-red-600">#{pedido.id}</span>
                         </h2>
                         <TipoBadge isTransferencia={isTransferencia} />
+                        {isEmbarqueParcial && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-300 shadow-xs">
+                                <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                                Embarque Parcial ({motosEmTransito}/{totalItensSolicitados})
+                            </span>
+                        )}
                     </div>
-                    <BadgeStatus status={pedido.status} />
+                    {!isEmbarqueParcial && <BadgeStatus status={pedido.status} />}
                 </div>
             }
         >
@@ -484,6 +527,22 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
 
             <div className="py-8 bg-gray-100 min-h-screen pb-32 font-sans">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6 px-4">
+                    {/* --- ALERTA DE EMBARQUE PARCIAL --- */}
+                    {isEmbarqueParcial && (
+                        <div className="bg-amber-50 border-2 border-amber-300 p-5 rounded-2xl shadow-sm space-y-2">
+                            <div className="flex items-center gap-2 text-amber-900 font-black text-sm uppercase tracking-wide">
+                                <TruckIcon className="w-5 h-5 text-amber-600" />
+                                Embarque Parcial em Andamento ({motosEmTransito} de {totalItensSolicitados} unidades despachadas)
+                            </div>
+                            <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                                <strong>{motosEmTransito} motocicleta(s)</strong> deste pedido já estão a caminho da loja na Carga <strong>#{pedido.romaneio_id || 'em trânsito'}</strong>. As <strong>{totalNaoDespachado} unidade(s)</strong> restantes continuam no CD e serão enviadas na próxima viagem disponível.
+                            </p>
+                            <p className="text-[11px] text-amber-700">
+                                🔒 <em>Conforme a regra da diretoria, o recebimento final com foto do canhoto assinado só será liberado após o despacho integral (100%) das motos solicitadas.</em>
+                            </p>
+                        </div>
+                    )}
+
                     {/* --- 1. CARD DE DETALHES --- */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100">
                         {/* Origem */}
@@ -699,6 +758,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                     <Timeline
                         status={pedido.status}
                         isTransferencia={isTransferencia}
+                        isEmbarqueParcial={isEmbarqueParcial}
                     />
 
                     {/* --- 3.5 V2.6: COTAS AGUARDANDO CHASSI --- */}
@@ -1118,7 +1178,11 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                         <button
                             onClick={handleConferenciaEntrega}
                             disabled={compressing}
-                            className="pointer-events-auto bg-gray-900 hover:bg-black text-white font-bold py-4 px-8 rounded-full shadow-2xl transition transform hover:-translate-y-1 hover:scale-105 flex items-center gap-3 border-4 border-white/20 backdrop-blur-md"
+                            className={`pointer-events-auto text-white font-bold py-4 px-8 rounded-full shadow-2xl transition transform hover:-translate-y-1 hover:scale-105 flex items-center gap-3 border-4 border-white/20 backdrop-blur-md ${
+                                isEmbarqueParcial
+                                    ? "bg-amber-600 hover:bg-amber-700"
+                                    : "bg-gray-900 hover:bg-black"
+                            }`}
                         >
                             {compressing ? (
                                 <span className="animate-spin inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full"></span>
@@ -1126,7 +1190,9 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                                 <DocumentTextIcon className="w-6 h-6" />
                             )}{" "}
                             <span className="uppercase tracking-wide text-sm">
-                                Conferir e Finalizar Entrega
+                                {isEmbarqueParcial
+                                    ? `Recebimento Parcial (${motosEmTransito}/${totalItensSolicitados} em trânsito)`
+                                    : "Conferir e Finalizar Entrega"}
                             </span>
                         </button>
                     </div>
@@ -1174,13 +1240,16 @@ function getColorHex(cor) {
 }
 
 function TipoBadge({ isTransferencia }) {
-    return isTransferencia ? (
-        <span className="text-[10px] bg-orange-100 text-orange-800 px-2 py-1 rounded border border-orange-200 font-bold uppercase tracking-wide flex items-center gap-1">
-            <ArrowsRightLeftIcon className="w-3 h-3" /> Transferência
-        </span>
-    ) : (
-        <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-1 rounded border border-blue-200 font-bold uppercase tracking-wide flex items-center gap-1">
-            <BuildingOffice2Icon className="w-3 h-3" /> Reposição CD
+    if (isTransferencia) {
+        return (
+            <span className="bg-purple-100 text-purple-800 text-xs font-bold px-2.5 py-1 rounded-md border border-purple-200 uppercase tracking-wide flex items-center gap-1 shadow-sm">
+                <ArrowsRightLeftIcon className="w-3.5 h-3.5" /> Transferência
+            </span>
+        );
+    }
+    return (
+        <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-md border border-blue-200 uppercase tracking-wide flex items-center gap-1 shadow-sm">
+            <BuildingOffice2Icon className="w-3.5 h-3.5" /> Reposição CD
         </span>
     );
 }
@@ -1209,7 +1278,7 @@ function BadgeStatus({ status }) {
     );
 }
 
-function Timeline({ status, isTransferencia }) {
+function Timeline({ status, isTransferencia, isEmbarqueParcial = false }) {
     let steps = [];
     
     if (isTransferencia) {
@@ -1268,35 +1337,45 @@ function Timeline({ status, isTransferencia }) {
                 )}
                 {steps.map((step, index) => {
                     const stepWeight = statusWeight[step.id];
+                    const isParcialStep = isEmbarqueParcial && step.id === "em_transito";
                     const isActive =
-                        status !== "cancelado" && currentWeight >= stepWeight;
-                    const isCurrent = step.id === status;
+                        status !== "cancelado" && (currentWeight >= stepWeight || isParcialStep);
+                    const isCurrent = step.id === status || (isParcialStep && status !== "concluido");
+
+                    let circleClasses = "border-gray-200 bg-gray-100 text-gray-300";
+                    if (isParcialStep) {
+                        circleClasses = "border-amber-500 bg-amber-500 text-white scale-110 shadow-lg ring-4 ring-amber-200";
+                    } else if (isCurrent) {
+                        circleClasses = "border-blue-500 bg-blue-500 text-white scale-110 shadow-lg ring-4 ring-blue-200";
+                    } else if (isActive) {
+                        circleClasses = "border-green-500 bg-white text-green-600 scale-110 shadow-lg";
+                    }
+
+                    let labelClasses = "text-gray-400 translate-y-1 opacity-80";
+                    if (isParcialStep) {
+                        labelClasses = "text-amber-600 translate-y-0 opacity-100 font-black";
+                    } else if (isCurrent) {
+                        labelClasses = "text-blue-700 translate-y-0 opacity-100 font-black";
+                    } else if (isActive) {
+                        labelClasses = "text-green-700 translate-y-0 opacity-100";
+                    }
+
+                    const labelText = isParcialStep ? "Trânsito (Parcial)" : step.label;
+
                     return (
                         <div
                             key={step.id}
                             className="flex flex-col items-center relative group cursor-default"
                         >
                             <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-4 transition-all duration-500 z-20 ${
-                                    isCurrent 
-                                        ? "border-blue-500 bg-blue-500 text-white scale-110 shadow-lg ring-4 ring-blue-200" 
-                                        : isActive 
-                                            ? "border-green-500 bg-white text-green-600 scale-110 shadow-lg" 
-                                            : "border-gray-200 bg-gray-100 text-gray-300"
-                                }`}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-4 transition-all duration-500 z-20 ${circleClasses}`}
                             >
-                                {isActive && !isCurrent ? "✓" : index + 1}
+                                {isParcialStep ? "⏳" : (isActive && !isCurrent ? "✓" : index + 1)}
                             </div>
                             <span
-                                className={`absolute top-10 w-24 text-center text-[10px] font-bold uppercase transition-all duration-300 ${
-                                    isCurrent 
-                                        ? "text-blue-700 translate-y-0 opacity-100 font-black" 
-                                        : isActive 
-                                            ? "text-green-700 translate-y-0 opacity-100" 
-                                            : "text-gray-400 translate-y-1 opacity-80"
-                                }`}
+                                className={`absolute top-10 w-24 text-center text-[10px] font-bold uppercase transition-all duration-300 ${labelClasses}`}
                             >
-                                {step.label}
+                                {labelText}
                             </span>
                         </div>
                     );

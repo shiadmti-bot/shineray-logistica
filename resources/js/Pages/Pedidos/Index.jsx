@@ -398,7 +398,7 @@ function isPartialShipment(pedido) {
     const total = pedido.motos_count || 0;
     const pendentes = pedido.motos_separadas_count ?? 0;
     const embarcadas = total - pendentes;
-    return ['em_transito', 'expedido', 'coletado', 'em_transito_cd'].includes(safeString(pedido.status)) 
+    return ['em_transito', 'expedido', 'coletado', 'em_transito_cd', 'separado', 'solicitado'].includes(safeString(pedido.status)) 
         && pendentes > 0 && embarcadas > 0;
 }
 

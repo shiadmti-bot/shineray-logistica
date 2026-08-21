@@ -402,24 +402,41 @@ class RomaneioController extends Controller
 
             // Atualiza os pedidos vinculados
             foreach ($pedidosAfetados as $pedido) {
-                if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado'])) {
-                    $pedido->update(['status' => 'em_transito']);
-                    
+                if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado', 'aguardando_coleta', 'solicitado'])) {
+                    $saldoSemChassi = $pedido->saldoPendente();
+                    $motosNaoDespachadas = $pedido->motos()
+                        ->whereNotIn('motos.status', ['transito_loja', 'em_transito', 'concluido', 'vendida', 'cancelado', 'avariado'])
+                        ->count();
+
+                    $isTotalmenteDespachado = ($saldoSemChassi === 0 && $motosNaoDespachadas === 0);
+
+                    // Só avança o pedido pai para 'em_transito' se 100% dos itens solicitados foram despachados
+                    if ($isTotalmenteDespachado) {
+                        $pedido->update(['status' => 'em_transito']);
+                    }
+
                     // Log de Auditoria
+                    $detalheParcial = $isTotalmenteDespachado ? '' : ' (Embarque Parcial — itens restantes permanecem no CD)';
                     PedidoLog::create([
                         'pedido_id' => $pedido->id,
-                        'titulo' => 'Saiu para Entrega 🚚',
-                        'descricao' => "Carga #{$romaneio->id} deixou o pátio com motorista {$romaneio->motorista}."
+                        'titulo' => $isTotalmenteDespachado ? 'Saiu para Entrega 🚚' : 'Embarque Parcial Despachado 🚚',
+                        'descricao' => "Motos vinculadas à Carga #{$romaneio->id} deixaram o pátio com motorista {$romaneio->motorista}.{$detalheParcial}"
                     ]);
 
                     // NOTIFICAÇÃO (ONESIGNAL)
                     try {
-                        (new \App\Services\OneSignalService())->sendToUser(
-                            [$pedido->user->onesignal_id],
-                            'Pedido em Trânsito 🚚',
-                            "O(s) item(ns) do seu pedido #{$pedido->id} saiu/saíram para entrega! Acompanhe o rastreio.",
-                            route('pedidos.show', $pedido->id)
-                        );
+                        if ($pedido->user?->onesignal_id) {
+                            $msgPush = $isTotalmenteDespachado
+                                ? "O(s) item(ns) do seu pedido #{$pedido->id} saiu/saíram para entrega! Acompanhe o rastreio."
+                                : "Parte dos itens do seu pedido #{$pedido->id} saiu para entrega (Embarque Parcial). Acompanhe o rastreio.";
+
+                            (new \App\Services\OneSignalService())->sendToUser(
+                                [$pedido->user->onesignal_id],
+                                $isTotalmenteDespachado ? 'Pedido em Trânsito 🚚' : 'Embarque Parcial em Trânsito 🚚',
+                                $msgPush,
+                                route('pedidos.show', $pedido->id)
+                            );
+                        }
                     } catch (\Exception $e) {}
                 }
             }
