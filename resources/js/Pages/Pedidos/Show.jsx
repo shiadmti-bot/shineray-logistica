@@ -63,8 +63,8 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
     const totalNaoDespachado = saldoPendente + motosNoCd;
     const isEmbarqueParcial = motosEmTransito > 0 && totalNaoDespachado > 0;
     const totalItensSolicitados =
-        (pedido.itens_pedido?.length
-            ? pedido.itens_pedido.reduce((acc, i) => acc + (i.quantidade || 0), 0)
+        (cotas.length > 0
+            ? cotas.reduce((acc, i) => acc + Math.max(0, (i.quantidade || 0) - (i.qtd_cancelada || 0)), 0)
             : (pedido.motos?.length || 0)) || (motosEmTransito + totalNaoDespachado);
 
     // Calcula destinos reais a partir do pivot
@@ -873,13 +873,13 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                                 Motocicletas
                             </h3>
                             <span className="bg-gray-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
-                                {/* V2.6: conta as cotas solicitadas quando ainda não há chassis vinculados */}
-                                {pedido.motos?.length ||
-                                    cotas.reduce(
-                                        (acc, c) => acc + (c.quantidade - c.qtd_cancelada),
+                                {/* V2.6: conta as cotas ativas solicitadas ou as motos vinculadas em pedidos legados */}
+                                {(cotas.length > 0
+                                    ? cotas.reduce(
+                                        (acc, c) => acc + Math.max(0, (c.quantidade || 0) - (c.qtd_cancelada || 0)),
                                         0,
-                                    ) ||
-                                    0}{" "}
+                                    )
+                                    : pedido.motos?.length) || 0}{" "}
                                 Unidades
                             </span>
                         </div>

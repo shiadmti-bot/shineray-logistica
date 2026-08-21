@@ -163,10 +163,12 @@ class PedidoController extends Controller
                 ->whereColumn('pedido_itens.pedido_id', 'pedidos.id')
             ])
             ->addSelect(['total_itens_qtd' => \App\Models\PedidoItem::query()
-                ->selectRaw('COALESCE(SUM(quantidade), 0)')
+                ->selectRaw('COALESCE(SUM(GREATEST(quantidade - qtd_cancelada, 0)), 0)')
                 ->whereColumn('pedido_itens.pedido_id', 'pedidos.id')
             ])
-            ->withCount('motos')
+            ->withCount(['motos' => function ($query) {
+                $query->whereNotIn('motos.status', ['cancelado', 'cancelada', 'rejeitado']);
+            }])
             ->withCount(['motos as motos_separadas_count' => function ($query) {
                 // Conta quantas motos AINDA não entraram no fluxo logístico prático
                 $query->whereIn('status', ['em_analise', 'solicitado', 'separado', 'aguardando_rota', 'estoque_fabrica']);
@@ -210,7 +212,7 @@ class PedidoController extends Controller
 
         $pedidos->through(function ($pedido) {
             $totalItens = (int) ($pedido->total_itens_qtd ?? 0);
-            $pedido->motos_count = max($pedido->motos_count ?? 0, $totalItens);
+            $pedido->motos_count = $totalItens > 0 ? $totalItens : (int) ($pedido->motos_count ?? 0);
             // Conta as cotas que ainda não possuem chassi atribuído como pendentes no CD para o cálculo de embarque parcial
             $pedido->motos_separadas_count = (int) ($pedido->motos_separadas_count ?? 0) + (int) ($pedido->saldo_chassi_pendente ?? 0);
             return $pedido;
