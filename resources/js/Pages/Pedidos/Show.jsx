@@ -52,6 +52,8 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
         auth.user.perfil === "admin" || auth.user.perfil === "gestor";
     // Exclusivo do perfil ADMIN (não inclui gestor): remoção direta de itens
     const souAdminExclusivo = auth.user.perfil === "admin";
+    // O CD só deve ter a opção de recebimento se o destino final for para eles (ex: transferência/devolução para o CD)
+    const ehDestinatarioFinal = souDestino || (souCD && (pedido.user?.perfil === "cd" || pedido.status === "em_transito_cd" || !pedido.user_id));
         
     // CORREÇÃO: Só é transferência se houver origem E a origem for uma loja (evita que envios do CD sejam rotulados como transferência visualmente)
     const isTransferencia = !!(pedido.origem_user_id && pedido.origem && pedido.origem.perfil === "loja");
@@ -1163,7 +1165,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
 
             {/* FAB */}
             {["em_transito", "em_transito_cd"].includes(pedido.status) &&
-                (souDestino || souCD) && (
+                ehDestinatarioFinal && (
                     <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-50 pointer-events-none">
                         <button
                             onClick={handleConferenciaEntrega}

@@ -22,7 +22,7 @@ use Illuminate\Validation\ValidationException;
 class AtribuicaoChassiService
 {
     /** Status do pedido em que o CD pode bipar chassis. */
-    public const STATUS_ATRIBUIVEIS = ['solicitado', 'separado', 'aguardando_rota', 'rota_confirmada', 'no_cd'];
+    public const STATUS_ATRIBUIVEIS = ['solicitado', 'separado', 'aguardando_rota', 'rota_confirmada', 'no_cd', 'em_transito', 'expedido'];
 
     public function __construct(private MicroworkService $microwork)
     {
@@ -181,6 +181,12 @@ class AtribuicaoChassiService
             if (!in_array($pedido->status, self::STATUS_ATRIBUIVEIS, true)) {
                 throw ValidationException::withMessages([
                     'chassi' => "O pedido #{$pedido->id} está em '{$pedido->status}'. Não é possível desfazer a atribuição nesta etapa.",
+                ]);
+            }
+
+            if (in_array($moto->status, ['transito_loja', 'em_transito', 'concluido'])) {
+                throw ValidationException::withMessages([
+                    'chassi' => "A moto {$moto->chassi} já foi despachada na carga e está a caminho da loja. Não é possível desfazer a atribuição.",
                 ]);
             }
 
