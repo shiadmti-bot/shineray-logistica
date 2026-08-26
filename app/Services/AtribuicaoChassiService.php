@@ -246,6 +246,28 @@ class AtribuicaoChassiService
                 "{$pendente}x {$item->modelo} {$item->cor} não serão enviadas. Motivo: {$justificativa}"
             );
 
+            // Se após encerrar o saldo todos os itens restantes do pedido já estiverem em trânsito, atualiza para 'em_transito'
+            $pedido = $item->pedido;
+            $saldoSemChassi = $pedido->saldoPendente();
+            $motosEmTransito = $pedido->motos()
+                ->whereIn('motos.status', ['transito_loja', 'em_transito'])
+                ->count();
+            $motosNoCd = $pedido->motos()
+                ->whereNotIn('motos.status', ['transito_loja', 'em_transito', 'concluido', 'vendida', 'cancelado', 'avariado'])
+                ->count();
+
+            if ($saldoSemChassi === 0 && $motosNoCd === 0 && $motosEmTransito > 0) {
+                if ($pedido->status !== 'em_transito' && !in_array($pedido->status, ['concluido', 'cancelado', 'rejeitado'])) {
+                    $pedido->update(['status' => 'em_transito']);
+
+                    $this->log(
+                        $pedido,
+                        'Saiu para Entrega 🚚',
+                        'Todos os itens restantes do pedido estão agora em trânsito após o encerramento de saldo.'
+                    );
+                }
+            }
+
             return $item->refresh();
         });
     }

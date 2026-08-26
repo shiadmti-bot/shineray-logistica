@@ -815,6 +815,21 @@ class PedidoController extends Controller
                     ->with('warning', 'Moto removida. O pedido ficou vazio e foi cancelado automaticamente.');
             }
 
+            // Se o pedido ainda possui motos e todas as restantes já estão despachadas em trânsito
+            $saldoSemChassi = $pedido->saldoPendente();
+            $motosEmTransito = $pedido->motos()
+                ->whereIn('motos.status', ['transito_loja', 'em_transito'])
+                ->count();
+            $motosNoCd = $pedido->motos()
+                ->whereNotIn('motos.status', ['transito_loja', 'em_transito', 'concluido', 'vendida', 'cancelado', 'avariado'])
+                ->count();
+
+            if ($saldoSemChassi === 0 && $motosNoCd === 0 && $motosEmTransito > 0) {
+                if ($pedido->status !== 'em_transito' && !in_array($pedido->status, ['concluido', 'cancelado', 'rejeitado'])) {
+                    $pedido->update(['status' => 'em_transito']);
+                }
+            }
+
             return back()->with('success', 'Moto removida do pedido e devolvida ao estoque.');
         });
     }
