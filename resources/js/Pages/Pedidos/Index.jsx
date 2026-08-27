@@ -103,7 +103,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
             <PageHeader
                 title="Gerenciamento de Pedidos"
                 description={`${safePedidos.total} pedido(s) no total.`}
-                breadcrumbs={[{ label: 'Motos' }, { label: 'Pedidos' }]}
+                breadcrumbs={[{ label: 'Logística' }, { label: 'Pedidos' }]}
                 actions={
                     perfil === 'loja' && (
                         <Button href={route('solicitar')} icon={PlusIcon}>
