@@ -17,7 +17,7 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
     const [expandedPedidoIds, setExpandedPedidoIds] = useState([]);
 
     const { data, setData, post, processing, errors } = useForm({
-        pedidos_pecas_ids: [],
+        basquetas_ids: [],
         motorista: '',
         placa: '',
         rota_nome: '',
@@ -111,12 +111,12 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
         e.preventDefault();
         
         if (selectedMotoIds.length === 0 && selectedPecaIds.length === 0) {
-            Swal.fire('Vazio', 'Selecione ao menos uma moto ou um pedido de peças.', 'warning');
+            Swal.fire('Vazio', 'Selecione ao menos uma moto ou uma basqueta de peças.', 'warning');
             return;
         }
 
         data.motos_ids = selectedMotoIds;
-        data.pedidos_pecas_ids = selectedPecaIds;
+        data.basquetas_ids = selectedPecaIds;
         
         post(route('romaneios.store'), {
             onSuccess: () => Swal.fire({ icon: 'success', title: 'Sucesso', text: 'Carga gerada! Redirecionando...', timer: 2000, showConfirmButton: false }),
@@ -392,19 +392,20 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
                             <div className="space-y-4">
                                 <div className="rounded-card border border-status-info-solid/20 bg-status-info-bg/40 px-5 py-3">
                                     <p className="text-xs leading-relaxed text-content-secondary">
-                                        Só aparecem aqui os pedidos que o CD já <strong>separou</strong> — separar é o
-                                        que reserva o saldo. Embarcar não move estoque: a peça continua sendo do CD
-                                        até a loja conferir o recebimento.
+                                        A unidade de embarque é a <strong>basqueta</strong>, não o pedido: a caixa
+                                        da filial sai inteira, como manda o manual. Só aparecem aqui as já
+                                        <strong> faturadas</strong> — sem nota a mercadoria não roda. Embarcar não move
+                                        estoque: a peça continua sendo do CD até a loja conferir o recebimento.
                                     </p>
                                 </div>
 
                                 {pecasProntas.length === 0 ? (
                                     <div className="rounded-card border border-line bg-surface-card p-10 text-center">
                                         <p className="font-bold text-content-secondary">
-                                            Nenhum pedido de peças pronto para embarcar.
+                                            Nenhuma basqueta pronta para embarcar.
                                         </p>
                                         <p className="mt-1 text-sm text-content-muted">
-                                            Os pedidos aparecem aqui depois que o CD confirma a separação.
+                                            A caixa aparece aqui depois de faturada na tela de Basquetas.
                                         </p>
                                     </div>
                                 ) : (
@@ -431,10 +432,12 @@ export default function RomaneioCreate({ auth, expedicao = [], coletas = [], car
                                                     />
                                                     <div className="min-w-0 flex-1">
                                                         <h3 className="font-black text-content-primary">
-                                                            Pedido #{String(pedido.id).padStart(6, '0')}
+                                                            Basqueta #{String(pedido.id).padStart(6, '0')}
                                                         </h3>
                                                         <p className="text-[10px] font-bold uppercase tracking-wide text-content-muted">
                                                             {pedido.loja}
+                                                            {pedido.nota && ` · NF ${pedido.nota}`}
+                                                            {pedido.volumes && ` · ${pedido.volumes} volume(s)`}
                                                         </p>
                                                     </div>
                                                     <span className="shrink-0 rounded-full bg-status-info-bg px-3 py-1 text-sm font-bold text-status-info-fg">

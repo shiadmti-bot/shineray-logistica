@@ -59,16 +59,43 @@ class PecaAtendimentoController extends Controller
             return back()->withErrors(['geral' => 'Local de origem do pedido não definido.']);
         }
 
+        if (! $pedido->local_destino_id) {
+            return back()->withErrors(['geral' => 'Destino do pedido não definido — sem ele não há basqueta.']);
+        }
+
         $servico = app(EstoquePecaService::class);
         $falhas = [];
         $separados = 0;
 
         try {
             DB::transaction(function () use ($dados, $pedido, $origem, $servico, &$falhas, &$separados) {
+                /*
+                 * Passo 4 do manual: a peça separada vai para a basqueta
+                 * reservada daquela filial. Uma só por filial, aberta sob lock
+                 * — ver Basqueta::abertaPara.
+                 */
+                $basqueta = \App\Models\Basqueta::abertaPara($pedido->local_destino_id);
+
                 foreach ($dados['itens'] as $linha) {
                     $item = $pedido->itensPedido->firstWhere('id', $linha['item_id']);
 
                     if (! $item || ! $item->isPeca() || $linha['quantidade'] < 1) {
+                        continue;
+                    }
+
+                    /*
+                     * GATE 1 — a trava do manual.
+                     *
+                     * "Nenhuma embalagem é despachada sem a dupla confirmação
+                     * do Pós-Venda." A primeira confirmação é esta: sem
+                     * assinatura, a peça não sai da prateleira nem é reservada.
+                     *
+                     * A checagem é por ITEM e não pelo pedido porque a
+                     * liberação é item a item — o validador pode liberar 8 de
+                     * 10 e devolver 2 ao Call Center.
+                     */
+                    if (! $item->isLiberada()) {
+                        $falhas[] = "{$item->descricao}: aguardando liberação do Pós-Venda.";
                         continue;
                     }
 
@@ -91,6 +118,14 @@ class PecaAtendimentoController extends Controller
                         );
 
                         $item->increment('qtd_atribuida', $qtd);
+
+                        // Deposita a cota no caixote da filial. Separação
+                        // parcial reaponta para a mesma basqueta, então o
+                        // item não se divide entre duas caixas.
+                        if ($item->basqueta_id !== $basqueta->id) {
+                            $item->update(['basqueta_id' => $basqueta->id]);
+                        }
+
                         $separados += $qtd;
                     } catch (EstoqueInsuficienteException $e) {
                         // Coleta e segue: o CD precisa saber tudo que faltou de
@@ -100,12 +135,25 @@ class PecaAtendimentoController extends Controller
                 }
 
                 if ($separados > 0) {
+                    /*
+                     * O pedido continua em 'separado' — que é a verdade sobre
+                     * ELE. Quem passa a esperar a rota é a BASQUETA, e é ela
+                     * que carrega esse estado. Manter o pedido nos estados que
+                     * o calendário e a mesa de montagem já conhecem evita mexer
+                     * nas listas de status espalhadas por PedidoController.
+                     */
                     $pedido->update(['status' => 'separado']);
+
+                    $viagem = $basqueta->viagem;
 
                     PedidoLog::create([
                         'pedido_id' => $pedido->id,
                         'titulo'    => 'Peças separadas',
-                        'descricao' => Auth::user()->name . " separou {$separados} unidade(s).",
+                        'descricao' => Auth::user()->name . " separou {$separados} unidade(s)"
+                                     . " na basqueta #{$basqueta->id}."
+                                     . ($viagem
+                                        ? ' Sai na viagem de ' . $viagem->date . '.'
+                                        : ' Aguardando o CD marcar a viagem desta filial.'),
                     ]);
                 }
             });

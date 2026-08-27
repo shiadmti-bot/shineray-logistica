@@ -132,6 +132,25 @@ class CalendarController extends Controller
                 ]);
             }
             
+            /*
+             * --- BASQUETAS DE PEÇA (v3.1) ---
+             *
+             * O Passo 5 do manual — "a Logística define o dia de cada rota" —
+             * acontece exatamente aqui. Carimbar a viagem na basqueta é o que
+             * permite o CD responder "esta caixa sai quarta" sem copiar a data:
+             * se a viagem for remarcada, a basqueta acompanha sozinha.
+             *
+             * Só na confirmação (verde). Pré-agendado ainda não é promessa.
+             */
+            if ($request->status === 'confirmed') {
+                foreach (\App\Models\Basqueta::dasParadasDaViagem($schedule) as $basqueta) {
+                    $basqueta->update([
+                        'schedule_id' => $schedule->id,
+                        'status'      => \App\Models\Basqueta::STATUS_ROTA_CONFIRMADA,
+                    ]);
+                }
+            }
+
             // --- GATILHO DE FLUXO DE ROTA ---
             // Só muda para 'rota_confirmada' SE o calendário for 'confirmed' (Verde).
             // Se for 'scheduled' (Amarelo), apenas aloca a data, e o status recua ou se mantém.

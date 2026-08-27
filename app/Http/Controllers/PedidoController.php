@@ -201,10 +201,10 @@ class PedidoController extends Controller
             // ORDENAÇÃO POR PRIORIDADE (Ativos Primeiro)
             ->orderByRaw("
                 CASE 
-                    WHEN status IN ('em_analise', 'solicitado', 'separado', 'aguardando_rota', 'rota_confirmada', 'aguardando_coleta', 'coletado', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') THEN 1 
-                    ELSE 2 
+                    WHEN status IN ('em_analise', 'solicitado', 'em_atendimento', 'aguardando_confirmacao', 'aprovado', 'separado', 'aguardando_rota', 'rota_confirmada', 'aguardando_coleta', 'coletado', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') THEN 1
+                    ELSE 2
                 END ASC,
-                FIELD(status, 'em_analise', 'solicitado', 'separado', 'aguardando_rota', 'rota_confirmada', 'aguardando_coleta', 'coletado', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') ASC,
+                FIELD(status, 'em_analise', 'solicitado', 'em_atendimento', 'aguardando_confirmacao', 'aprovado', 'separado', 'aguardando_rota', 'rota_confirmada', 'aguardando_coleta', 'coletado', 'expedido', 'em_transito', 'em_transito_cd', 'no_cd') ASC,
                 created_at DESC
             ")
             ->paginate(15)
@@ -1449,9 +1449,18 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             'ativo'          => true,
             'saldo_pendente' => $pedido->saldoPendente(),
             'itens_carga'    => $itensCarga,
-            'pode_separar'   => $ehCd && in_array($pedido->status, ['solicitado', 'aprovado', 'separado'], true),
+            /*
+             * 'solicitado' saiu da lista na v3.1: um pedido recém-chegado ainda
+             * não passou pelo Gate 1, e separar antes da liberação é exatamente
+             * o que o manual proíbe. A trava de verdade é por item, em
+             * PecaAtendimentoController::separar — isto aqui só evita oferecer
+             * um botão que vai recusar tudo.
+             */
+            'pode_separar'   => $ehCd
+                                && in_array($pedido->status, ['aprovado', 'separado'], true)
+                                && $pedido->itensPedido->contains(fn ($i) => $i->isPeca() && $i->isLiberada()),
             'pode_carregar'  => $ehCd
-                                && $pedido->status === 'separado'
+                                && in_array($pedido->status, Pedido::STATUS_PECA_EMBARCAVEL, true)
                                 && $pedido->itensPedido->sum('qtd_atribuida') > 0,
             'pode_receber'   => ($ehCd || $user->estoque_local_id === $pedido->local_destino_id)
                                 && in_array($pedido->status, ['aguardando_coleta', 'em_transito', 'expedido'], true)

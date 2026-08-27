@@ -68,15 +68,36 @@ class PecaPedidoController extends Controller
 
     public function store(Request $request)
     {
+        /*
+         * peca_id deixa de ser obrigatório na v3.1.
+         *
+         * O manual descreve a filial pedindo o que não sabe nomear — "a peça
+         * que trava a marcha da JET" — e o Call Center identificando o código
+         * no e-Part. Exigir o SKU aqui empurrava esse caso todo para fora do
+         * sistema, de volta para a mensagem.
+         *
+         * A regra vira: OU o código, OU a descrição. Nenhum dos dois é pedido
+         * vazio; os dois juntos é a filial dando contexto além do código, o que
+         * ajuda o atendimento.
+         */
         $dados = $request->validate([
-            'itens'              => ['required', 'array', 'min:1'],
-            'itens.*.peca_id'    => ['required', 'exists:pecas,id'],
-            'itens.*.quantidade' => ['required', 'integer', 'min:1', 'max:999'],
-            'itens.*.motivo'     => ['nullable', 'string', 'max:255'],
-            'observacao'         => ['nullable', 'string', 'max:1000'],
+            'itens'                          => ['required', 'array', 'min:1'],
+            'itens.*.peca_id'                => ['nullable', 'exists:pecas,id'],
+            'itens.*.descricao_solicitada'   => ['nullable', 'string', 'max:500'],
+            'itens.*.quantidade'             => ['required', 'integer', 'min:1', 'max:999'],
+            'itens.*.motivo'                 => ['nullable', 'string', 'max:255'],
+            'observacao'                     => ['nullable', 'string', 'max:1000'],
         ], [
             'itens.required' => 'Adicione ao menos uma peça ao pedido.',
         ]);
+
+        foreach ($dados['itens'] as $i => $item) {
+            if (empty($item['peca_id']) && empty(trim($item['descricao_solicitada'] ?? ''))) {
+                return back()->withErrors([
+                    "itens.{$i}" => 'Escolha uma peça do catálogo ou descreva o que precisa.',
+                ])->withInput();
+            }
+        }
 
         $user = Auth::user();
         $cd = EstoqueLocal::cd();
@@ -96,18 +117,22 @@ class PecaPedidoController extends Controller
             ]);
 
             foreach ($dados['itens'] as $item) {
-                $peca = Peca::find($item['peca_id']);
+                // peca_id pode vir vazio: é o "pedido sem código" do manual.
+                // Quem preenche é o Call Center, na fila de atendimento.
+                $peca = ! empty($item['peca_id']) ? Peca::find($item['peca_id']) : null;
+                $descricao = trim($item['descricao_solicitada'] ?? '');
 
                 PedidoItem::create([
-                    'pedido_id'    => $pedido->id,
-                    'tipo'         => 'peca',
-                    'peca_id'      => $peca->id,
-                    'modelo'       => null, // não se aplica a peça
-                    'cor'          => null,
-                    'motivo'       => $item['motivo'] ?? null,
-                    'local'        => $user->filial,
-                    'quantidade'   => $item['quantidade'],
-                    'exige_chassi' => false,
+                    'pedido_id'            => $pedido->id,
+                    'tipo'                 => 'peca',
+                    'peca_id'              => $peca?->id,
+                    'descricao_solicitada' => $descricao !== '' ? $descricao : null,
+                    'modelo'               => null, // não se aplica a peça
+                    'cor'                  => null,
+                    'motivo'               => $item['motivo'] ?? null,
+                    'local'                => $user->filial,
+                    'quantidade'           => $item['quantidade'],
+                    'exige_chassi'         => false,
                 ]);
             }
 
@@ -233,13 +258,16 @@ class PecaPedidoController extends Controller
     private function resumoLegado(array $itens): array
     {
         return array_map(function (array $i) {
-            $peca = Peca::find($i['peca_id']);
+            $peca = ! empty($i['peca_id']) ? Peca::find($i['peca_id']) : null;
+            $descricao = trim($i['descricao_solicitada'] ?? '');
 
             return [
                 'tipo'       => 'peca',
                 'peca_id'    => $peca?->id,
-                'modelo'     => $peca?->descricao ?? 'Peça',
-                'cor'        => $peca?->codigo ?? '',
+                // Sem código, o resumo legado mostra o texto da filial — as
+                // telas antigas leem 'modelo' como o nome do item.
+                'modelo'     => $peca?->descricao ?: ($descricao ?: 'Peça'),
+                'cor'        => $peca?->codigo ?: ($peca ? '' : 'SEM CÓDIGO'),
                 'quantidade' => $i['quantidade'],
                 'motivo'     => $i['motivo'] ?? null,
             ];

@@ -31,6 +31,7 @@ import { Card, PageHeader, Button, EmptyState } from '@/Components/UI';
 export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja = {} }) {
     const [busca, setBusca] = useState(filtros.busca ?? '');
     const [carrinho, setCarrinho] = useState([]);
+    const [semCodigo, setSemCodigo] = useState('');
     const [observacao, setObservacao] = useState('');
 
     const { post, processing, errors } = useForm();
@@ -43,17 +44,23 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
         );
     };
 
+    /*
+     * O carrinho passou a ter duas espécies de linha: a do catálogo, com SKU,
+     * e a "sem código", que é só texto até o Call Center identificar. Por isso
+     * a chave local deixou de ser peca_id — item sem código não tem um.
+     */
     const adicionar = (peca) => {
-        setCarrinho((atual) => {
-            const existente = atual.find((i) => i.peca_id === peca.id);
+        const chave = `peca-${peca.id}`;
 
-            if (existente) {
+        setCarrinho((atual) => {
+            if (atual.some((i) => i.key === chave)) {
                 return atual.map((i) =>
-                    i.peca_id === peca.id ? { ...i, quantidade: i.quantidade + 1 } : i
+                    i.key === chave ? { ...i, quantidade: i.quantidade + 1 } : i
                 );
             }
 
             return [...atual, {
+                key: chave,
                 peca_id: peca.id,
                 codigo: peca.codigo,
                 descricao: peca.descricao,
@@ -63,15 +70,31 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
         });
     };
 
-    const alterarQtd = (pecaId, delta) => {
+    /** Passo 2 do manual: a filial pede o que não sabe nomear. */
+    const adicionarSemCodigo = () => {
+        const texto = semCodigo.trim();
+
+        if (texto.length < 3) return;
+
+        setCarrinho((atual) => [...atual, {
+            key: `livre-${Date.now()}`,
+            peca_id: null,
+            descricao_solicitada: texto,
+            quantidade: 1,
+        }]);
+
+        setSemCodigo('');
+    };
+
+    const alterarQtd = (key, delta) => {
         setCarrinho((atual) =>
             atual
-                .map((i) => (i.peca_id === pecaId ? { ...i, quantidade: i.quantidade + delta } : i))
+                .map((i) => (i.key === key ? { ...i, quantidade: i.quantidade + delta } : i))
                 .filter((i) => i.quantidade > 0)
         );
     };
 
-    const remover = (pecaId) => setCarrinho((a) => a.filter((i) => i.peca_id !== pecaId));
+    const remover = (key) => setCarrinho((a) => a.filter((i) => i.key !== key));
 
     const totalUnidades = useMemo(
         () => carrinho.reduce((s, i) => s + i.quantidade, 0),
@@ -80,7 +103,11 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
 
     const enviar = () => {
         router.post(route('pecas.solicitar.store'), {
-            itens: carrinho.map(({ peca_id, quantidade }) => ({ peca_id, quantidade })),
+            itens: carrinho.map(({ peca_id, quantidade, descricao_solicitada }) => ({
+                peca_id: peca_id ?? null,
+                descricao_solicitada: descricao_solicitada ?? null,
+                quantidade,
+            })),
             observacao,
         });
     };
@@ -161,7 +188,7 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                     ) : (
                         <div className="grid gap-3 sm:grid-cols-2">
                             {pecas.data.map((peca) => {
-                                const noCarrinho = carrinho.find((i) => i.peca_id === peca.id);
+                                const noCarrinho = carrinho.find((i) => i.key === `peca-${peca.id}`);
                                 const semAplicacao =
                                     peca.tipo_item === 'indefinido' && !peca.modelos.length;
 
@@ -301,7 +328,33 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                 </div>
 
                 {/* --- CARRINHO --- */}
-                <aside className="lg:sticky lg:top-20 lg:self-start">
+                <aside className="lg:sticky lg:top-20 lg:self-start space-y-4">
+                    {/* Passo 2 do manual: pedir sem saber o código. Antes isso
+                        acontecia por mensagem, fora do sistema. */}
+                    <Card title="Não achou no catálogo?" padding="sm">
+                        <p className="mb-2 text-xs text-content-secondary">
+                            Descreva a peça e o modelo da moto. O Estoque Central identifica
+                            o código e devolve para você conferir antes de separar.
+                        </p>
+                        <textarea
+                            value={semCodigo}
+                            onChange={(e) => setSemCodigo(e.target.value)}
+                            rows={2}
+                            maxLength={500}
+                            placeholder="Ex.: engrenagem que trava a marcha da JET 125, moto 2023"
+                            className="w-full rounded border-line-strong bg-surface text-xs text-content-primary placeholder-content-muted focus:ring-brand-500"
+                        />
+                        <Button
+                            className="mt-2 w-full"
+                            variant="secondary"
+                            icon={PlusIcon}
+                            disabled={semCodigo.trim().length < 3}
+                            onClick={adicionarSemCodigo}
+                        >
+                            Adicionar sem código
+                        </Button>
+                    </Card>
+
                     <Card
                         title="Seu pedido"
                         subtitle={totalUnidades > 0 ? `${totalUnidades} unidade(s)` : 'Nenhum item ainda'}
@@ -318,20 +371,26 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                             <>
                                 <ul className="max-h-80 divide-y divide-line overflow-y-auto scrollbar-slim">
                                     {carrinho.map((item) => (
-                                        <li key={item.peca_id} className="flex items-start gap-2 p-3">
+                                        <li key={item.key} className="flex items-start gap-2 p-3">
                                             <div className="min-w-0 flex-1">
-                                                <p className="truncate text-xs font-semibold text-content-primary">
-                                                    {item.descricao}
+                                                <p className="text-xs font-semibold text-content-primary">
+                                                    {item.peca_id ? item.descricao : item.descricao_solicitada}
                                                 </p>
-                                                <p className="font-mono text-[10px] text-content-muted">
-                                                    {item.codigo}
-                                                </p>
+                                                {item.peca_id ? (
+                                                    <p className="font-mono text-[10px] text-content-muted">
+                                                        {item.codigo}
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-status-warning-fg">
+                                                        Sem código · o CD vai identificar
+                                                    </p>
+                                                )}
                                             </div>
 
                                             <div className="flex shrink-0 items-center gap-1">
                                                 <button
                                                     type="button"
-                                                    onClick={() => alterarQtd(item.peca_id, -1)}
+                                                    onClick={() => alterarQtd(item.key, -1)}
                                                     className="rounded p-1 text-content-secondary hover:bg-surface-sunken"
                                                     aria-label="Diminuir"
                                                 >
@@ -342,7 +401,7 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                                                 </span>
                                                 <button
                                                     type="button"
-                                                    onClick={() => alterarQtd(item.peca_id, 1)}
+                                                    onClick={() => alterarQtd(item.key, 1)}
                                                     className="rounded p-1 text-content-secondary hover:bg-surface-sunken"
                                                     aria-label="Aumentar"
                                                 >
@@ -350,7 +409,7 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => remover(item.peca_id)}
+                                                    onClick={() => remover(item.key)}
                                                     className="ml-1 rounded p-1 text-status-danger-fg hover:bg-status-danger-bg"
                                                     aria-label="Remover"
                                                 >

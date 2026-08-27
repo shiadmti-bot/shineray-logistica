@@ -51,8 +51,33 @@ Route::any('/webhook/microwork', function (\Illuminate\Http\Request $request) {
 
     \Illuminate\Support\Facades\Artisan::call('microwork:sync-estoque');
     \App\Http\Controllers\CalendarController::limparRotasVencidas();
-    
+
     return response()->json(['message' => 'Estoque e rotas expiradas sincronizados via webhook com sucesso!']);
+});
+
+/*
+ * Cobrança diária das travas humanas do fluxo de peças.
+ *
+ * Separado do webhook acima de propósito: aquele roda a cada 10 minutos, e a
+ * cadência anti-spam de `pecas:cobrar` só é estável com UMA execução por dia.
+ * Misturar os dois transformaria a cobrança em spam de 10 em 10 minutos.
+ *
+ * Configure no vercel.json para bater uma vez ao dia — ver a chave `crons`.
+ */
+Route::any('/webhook/pecas-cobranca', function (\Illuminate\Http\Request $request) {
+    $authHeader = $request->header('Authorization');
+    $cronSecret = env('CRON_SECRET');
+
+    if ($cronSecret && $authHeader !== "Bearer $cronSecret") {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    \Illuminate\Support\Facades\Artisan::call('pecas:cobrar');
+
+    return response()->json([
+        'message' => 'Cobrança de pendências de peças executada.',
+        'saida'   => \Illuminate\Support\Facades\Artisan::output(),
+    ]);
 });
 
 /*
@@ -287,6 +312,51 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             // moto ela serve. Vira vínculo manual, com confiança alta.
             Route::post('/{peca}/aplicacao', [\App\Http\Controllers\PecaPedidoController::class, 'confirmarAplicacao'])
                 ->name('aplicacao.confirmar');
+
+            /*
+             * Passos 2 e 3 do manual: identificar o código e liberar o pedido.
+             * Acontece ANTES de qualquer movimento de estoque — ver
+             * PecaLiberacaoController. Sem a liberação, separar recusa.
+             */
+            Route::get('/atendimento', [\App\Http\Controllers\PecaLiberacaoController::class, 'index'])
+                ->name('atendimento');
+            Route::get('/atendimento/buscar', [\App\Http\Controllers\PecaLiberacaoController::class, 'buscar'])
+                ->name('atendimento.buscar');
+            Route::post('/pedidos/{pedido}/atender', [\App\Http\Controllers\PecaLiberacaoController::class, 'atender'])
+                ->name('atender');
+            Route::post('/pedidos/{pedido}/liberar', [\App\Http\Controllers\PecaLiberacaoController::class, 'liberar'])
+                ->name('liberar');
+            Route::post('/pedidos/{pedido}/recusar', [\App\Http\Controllers\PecaLiberacaoController::class, 'recusar'])
+                ->name('recusar');
+
+            /*
+             * Passo 4 do manual: o caixote reservado a cada filial. Enche na
+             * separação e esvazia na montagem de carga — ver Basqueta.
+             */
+            Route::get('/basquetas', [\App\Http\Controllers\BasquetaController::class, 'index'])
+                ->name('basquetas');
+
+            // Passo 6: recolher, faturar e emitir o romaneio de peças.
+            Route::post('/basquetas/{basqueta}/faturar', [\App\Http\Controllers\BasquetaController::class, 'faturar'])
+                ->name('basquetas.faturar');
+
+            // O documento que vai à conferência da filial (Passo 7).
+            Route::get('/basquetas/{basqueta}/romaneio', [\App\Http\Controllers\BasquetaController::class, 'romaneio'])
+                ->name('basquetas.romaneio');
+
+            /*
+             * GATE 2 — a filial confere antes do despacho. Dois desfechos:
+             * libera a caixa, ou devolve para ajuste cancelando a NF.
+             * A trava está em RomaneioController::embarcarPecas.
+             */
+            Route::post('/basquetas/{basqueta}/conferir', [\App\Http\Controllers\BasquetaController::class, 'conferir'])
+                ->name('basquetas.conferir');
+            Route::post('/basquetas/{basqueta}/ajustar', [\App\Http\Controllers\BasquetaController::class, 'ajustar'])
+                ->name('basquetas.ajustar');
+
+            // Fase 5: os números que medem a promessa do manual.
+            Route::get('/indicadores', [\App\Http\Controllers\PecaIndicadorController::class, 'index'])
+                ->name('indicadores');
 
             /*
              * Atendimento do pedido de peça. Três etapas com efeitos distintos

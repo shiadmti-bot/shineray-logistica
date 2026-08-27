@@ -11,7 +11,8 @@ export default function UserCreate({ auth, filiais, rotas }) {
         password_confirmation: '',
         perfil: 'loja', // Padrão
         filial: '',
-        default_route_id: '' // Campo da v2.0
+        default_route_id: '', // Campo da v2.0
+        valida_pecas: false   // V3.1: Assina a liberação de peças
     });
 
     const submit = (e) => {
@@ -117,6 +118,31 @@ export default function UserCreate({ auth, filiais, rotas }) {
                                         ))}
                                     </select>
                                     {errors.default_route_id && <div className="text-status-danger-fg text-xs mt-1">{errors.default_route_id}</div>}
+                                </div>
+                            )}
+
+                            {/* --- VALIDAÇÃO DE PEÇAS (Gate 1) ---
+                                Atribuição, não perfil: quem tem esta marca assina a liberação
+                                dos pedidos de peça, sem perder nada do acesso que já tem. */}
+                            {data.perfil !== 'loja' && (
+                                <div className="bg-surface-sunken p-4 rounded-lg border border-line mt-2">
+                                    <label className="flex items-start gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="mt-1 rounded border-line-strong text-brand-600 focus:ring-brand-500"
+                                            checked={data.valida_pecas}
+                                            onChange={e => setData('valida_pecas', e.target.checked)}
+                                        />
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-content-primary text-sm">
+                                                Pode liberar pedidos de peça
+                                            </h4>
+                                            <p className="text-xs text-content-muted mt-1">
+                                                Nenhuma peça é separada antes desta liberação. Marque apenas
+                                                quem confere o código e o preço com o Pós-Venda.
+                                            </p>
+                                        </div>
+                                    </label>
                                 </div>
                             )}
 

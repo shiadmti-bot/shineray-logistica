@@ -21,11 +21,13 @@ class EstoqueLocal extends Model
     protected $fillable = [
         'nome', 'slug', 'tipo', 'user_id', 'ativo',
         'codigo_empresa_microwork', // empresa correspondente no Microwork
+        'participa_pecas',          // entra na distribuição de peças
     ];
 
     protected $casts = [
         'ativo'                    => 'boolean',
         'codigo_empresa_microwork' => 'integer',
+        'participa_pecas'          => 'boolean',
     ];
 
     public const TIPO_CD   = 'cd';
@@ -60,6 +62,20 @@ class EstoqueLocal extends Model
     public function scopeLojas($query)
     {
         return $query->where('tipo', self::TIPO_LOJA);
+    }
+
+    /**
+     * Filiais que recebem peça — as únicas que ganham basqueta e aparecem na
+     * fila do Call Center.
+     *
+     * O CD tem participa_pecas = true porque é a origem de toda peça, mas não
+     * é filial: por isso o filtro por tipo aqui, e não só pela flag.
+     */
+    public function scopeFiliaisDePeca($query)
+    {
+        return $query->where('tipo', self::TIPO_LOJA)
+                     ->where('participa_pecas', true)
+                     ->where('ativo', true);
     }
 
     /**

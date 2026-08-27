@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 import {
@@ -33,6 +33,14 @@ import { Card, PageHeader, StatCard, Button, StatusBadge, EmptyState } from '@/C
  * de assinatura, sem cor de fundo).
  */
 export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
+    /*
+     * O manual pede três documentos e não um: romaneio de peças, de motos e da
+     * carga. Os dados já estavam todos aqui, misturados num manifesto só —
+     * o modo apenas escolhe o que sai na impressão.
+     *
+     * 'carga' é o padrão porque é o documento do motorista, o mais impresso.
+     */
+    const [modoImpressao, setModoImpressao] = useState('carga');
     /* ---------- Milk run: motos a coletar no caminho ---------- */
     const itensParaColetar = useMemo(
         () => (romaneio.motos || []).filter((m) => m.status === 'aguardando_coleta'),
@@ -210,6 +218,19 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                             <Button variant="ghost" icon={ArrowLeftIcon} href={route('romaneios.index')}>
                                 Voltar
                             </Button>
+                            {/* Três documentos, não um: o manual pede romaneio de
+                                peças, de motos e da carga. O modo decide o que o
+                                bloco de impressão renderiza. */}
+                            <select
+                                value={modoImpressao}
+                                onChange={(e) => setModoImpressao(e.target.value)}
+                                className="rounded border-line-strong bg-surface-card py-2 text-xs font-bold text-content-secondary focus:ring-brand-500"
+                                aria-label="O que imprimir"
+                            >
+                                <option value="carga">Carga completa</option>
+                                <option value="motos">Só motos</option>
+                                <option value="pecas">Só peças</option>
+                            </select>
                             <Button variant="secondary" icon={PrinterIcon} onClick={() => window.print()}>
                                 Imprimir
                             </Button>
@@ -632,7 +653,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                                 </div>
 
                                 {/* Motos */}
-                                {destino.motos.length > 0 && (
+                                {modoImpressao !== 'pecas' && destino.motos.length > 0 && (
                                     <table className="w-full border-collapse text-[10px]">
                                         <thead className="border-b border-black font-bold">
                                             <tr>
@@ -684,7 +705,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                                 {/* Peças — tabela própria porque as colunas não são
                                     as mesmas da moto (código e quantidade no lugar
                                     de chassi e cor). */}
-                                {destino.pecas.length > 0 && (
+                                {modoImpressao !== 'motos' && destino.pecas.length > 0 && (
                                     <table className="w-full border-collapse border-t border-black text-[10px]">
                                         <thead className="border-b border-black font-bold">
                                             <tr>

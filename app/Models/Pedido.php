@@ -36,6 +36,26 @@ class Pedido extends Model
         'itens' => 'array', // <--- Converte JSON <-> Array automaticamente
     ];
 
+    /**
+     * Estados em que um pedido de peça já separado ainda pode entrar numa carga.
+     *
+     * Depois de separado, o pedido de peça anda nos MESMOS trilhos da moto: o
+     * calendário o leva para 'aguardando_rota' e, na confirmação da viagem,
+     * para 'rota_confirmada' (ver CalendarController::store). Aceitar só
+     * 'separado' fazia a peça sumir da mesa de montagem assim que o gerente do
+     * CD confirmava a rota — com o saldo reservado e sem caminho de volta,
+     * porque 'rota_confirmada' também não está entre os estados que permitem
+     * separar de novo.
+     *
+     * A lista espelha a das motos em RomaneioController::create.
+     */
+    public const STATUS_PECA_EMBARCAVEL = [
+        'separado',
+        'aguardando_rota',
+        'aguardando_coleta',
+        'rota_confirmada',
+    ];
+
     // --- RELACIONAMENTOS ---
 
     // Quem pediu (Destino)

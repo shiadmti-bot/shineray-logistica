@@ -19,6 +19,11 @@ export const STATUS_MAP = {
     // --- Fluxo de Pedido ---
     em_analise:        { label: 'Em Análise',        tone: 'neutral' },
     solicitado:        { label: 'Solicitado',        tone: 'warning' },
+    // --- Peças: atendimento e liberação (v3.1) ---
+    // Os dois vivem antes da separação. Depois dela o pedido de peça anda
+    // nos mesmos estados da moto.
+    em_atendimento:        { label: 'Em Atendimento',   tone: 'info'    },
+    aguardando_confirmacao:{ label: 'Aguardando Liberação', tone: 'warning' },
     aprovado:          { label: 'Aprovado',          tone: 'info'    },
     rejeitado:         { label: 'Rejeitado',         tone: 'danger'  },
     separado:          { label: 'Separado',          tone: 'info'    },

@@ -12,6 +12,7 @@ import {
     ArrowUpOnSquareIcon,
     ArrowDownOnSquareIcon,
     ArrowsRightLeftIcon,
+    WrenchScrewdriverIcon,
     ArrowRightIcon,
     ArrowLongDownIcon,
     InboxIcon,
@@ -265,7 +266,8 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                                             <div className="font-black text-content-primary transition group-hover:text-brand-700">
                                                 #{pedido.id}
                                             </div>
-                                            <div className="mt-1">
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                <ProdutoBadge pedido={pedido} />
                                                 <TipoBadge pedido={pedido} authId={auth.user.id} />
                                             </div>
                                             <div className="mt-1 text-[10px] text-content-muted">
@@ -335,7 +337,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
                                         {new Date(pedido.created_at).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <TipoBadge pedido={pedido} authId={auth.user.id} />
+                                <div className="flex flex-wrap justify-end gap-1">
+                                    <ProdutoBadge pedido={pedido} />
+                                    <TipoBadge pedido={pedido} authId={auth.user.id} />
+                                </div>
                             </div>
 
                             <div className="mb-3 rounded-lg bg-surface-sunken p-3">
@@ -437,6 +442,26 @@ function FluxoLogistico({ pedido, authId }) {
 }
 
 /** Reposição (vem do CD) x transferência entre lojas, e de que lado o usuário está. */
+/**
+ * Que produto o pedido carrega.
+ *
+ * A logística é uma só, mas moto e peça têm processos distintos até o envio —
+ * chassi contra saldo, atribuição contra basqueta. Sem esta marca, um pedido de
+ * peça se parece com um de moto na lista e o número ao lado ("12") é lido como
+ * doze motos, quando são doze unidades de peça.
+ *
+ * Só aparece para peça: moto é o caso dominante e marcar os dois viraria ruído.
+ */
+function ProdutoBadge({ pedido }) {
+    if (pedido.tipo_carga !== 'peca') return null;
+
+    return (
+        <span className="inline-flex w-fit items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-brand-700 ring-1 ring-inset ring-brand-500/25">
+            <WrenchScrewdriverIcon className="h-3 w-3" /> Peças
+        </span>
+    );
+}
+
 function TipoBadge({ pedido, authId }) {
     const ehTransferencia =
         pedido.origem_user_id && pedido.origem && pedido.origem.perfil === 'loja';

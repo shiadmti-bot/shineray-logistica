@@ -163,35 +163,47 @@ class RomaneioController extends Controller
             ->values();
 
         /*
-         * 5. V3: PEDIDOS DE PEÇA PRONTOS PARA EMBARCAR.
+         * 5. BASQUETAS DE PEÇA PRONTAS PARA EMBARCAR.
          *
-         * Só entram os que o CD já separou (status 'separado'), porque separar é
-         * o que reserva o saldo — embarcar peça não separada mandaria para a rua
-         * o que não foi conferido na prateleira.
+         * Ficam de fora as que já estão em alguma carga (romaneio_id preenchido).
          *
-         * Ficam de fora os que já estão em alguma carga (romaneio_id preenchido).
+         * v3.1: a unidade de embarque virou a BASQUETA, não o pedido.
+         *
+         * O manual é explícito: todos os itens da basqueta da filial são
+         * recolhidos de uma vez. Listar pedido a pedido permitia embarcar meia
+         * caixa — e uma caixa meio embarcada não bate com a NF que já foi
+         * emitida para o conteúdo inteiro.
+         *
+         * GATE 2: só entram as LIBERADAS — faturadas e já conferidas pela
+         * filial. É a segunda metade da regra do manual: nenhuma embalagem é
+         * despachada sem a confirmação do Pós-Venda. Uma caixa faturada mas
+         * ainda não conferida não aparece aqui de propósito.
          */
-        $pecasProntas = Pedido::where('tipo_carga', 'peca')
-            ->where('status', 'separado')
+        $pecasProntas = \App\Models\Basqueta::where('status', \App\Models\Basqueta::STATUS_LIBERADA)
             ->whereNull('romaneio_id')
-            ->whereHas('itensPedido', fn ($q) => $q->where('qtd_atribuida', '>', 0))
-            ->with(['user:id,name,filial', 'localDestino:id,nome', 'itensPedido.peca:id,codigo,descricao,unidade'])
-            ->orderBy('created_at') // FIFO, igual à fila de chassi
+            ->with([
+                'local:id,nome',
+                'viagem:id,date',
+                'itens' => fn ($q) => $q->where('qtd_atribuida', '>', 0),
+                'itens.peca:id,codigo,descricao,unidade',
+            ])
+            ->orderBy('esvaziada_em') // FIFO, igual à fila de chassi
             ->get()
-            ->map(fn ($pedido) => [
-                'id'         => $pedido->id,
-                'loja'       => $pedido->localDestino->nome ?? $pedido->user->filial ?? $pedido->user->name,
-                'created_at' => $pedido->created_at,
-                'total_un'   => (int) $pedido->itensPedido->sum('qtd_atribuida'),
-                'itens'      => $pedido->itensPedido
-                    ->filter(fn ($i) => $i->qtd_atribuida > 0)
-                    ->map(fn ($i) => [
-                        'id'        => $i->id,
-                        'codigo'    => $i->peca->codigo ?? '-',
-                        'descricao' => $i->peca->descricao ?? 'Peça',
-                        'unidade'   => $i->peca->unidade ?? 'UN',
-                        'quantidade'=> $i->qtd_atribuida,
-                    ])->values(),
+            ->map(fn ($b) => [
+                'id'         => $b->id,
+                'loja'       => $b->local->nome ?? 'Filial removida',
+                'created_at' => $b->esvaziada_em,
+                'volumes'    => $b->volumes,
+                'nota'       => $b->notaVigente()?->rotulo,
+                'viagem'     => $b->viagem?->date,
+                'total_un'   => (int) $b->itens->sum('qtd_atribuida'),
+                'itens'      => $b->itens->map(fn ($i) => [
+                    'id'        => $i->id,
+                    'codigo'    => $i->peca->codigo ?? '-',
+                    'descricao' => $i->peca->descricao ?? 'Peça',
+                    'unidade'   => $i->peca->unidade ?? 'UN',
+                    'quantidade'=> $i->qtd_atribuida,
+                ])->values(),
             ])
             ->values();
 
@@ -296,12 +308,15 @@ class RomaneioController extends Controller
             'romaneio_id' => 'nullable|exists:romaneios,id',
             // v3: carga mista. A carga precisa de motos OU de peças — antes
             // motos_ids era sempre obrigatório e uma carga só de peças não passava.
-            'motos_ids'          => 'required_without:pedidos_pecas_ids|array',
+            'motos_ids'          => 'required_without:basquetas_ids|array',
             'motos_ids.*'        => 'integer|exists:motos,id',
-            'pedidos_pecas_ids'  => 'required_without:motos_ids|array',
-            'pedidos_pecas_ids.*'=> 'integer|exists:pedidos,id',
+            // v3.1: a seleção de peça passou a ser por BASQUETA. O nome do
+            // campo mudou junto para não aceitar silenciosamente ids de pedido
+            // vindos de uma tela em cache.
+            'basquetas_ids'      => 'required_without:motos_ids|array',
+            'basquetas_ids.*'    => 'integer|exists:basquetas,id',
         ], [
-            'motos_ids.required_without' => 'Selecione ao menos uma moto ou um pedido de peças.',
+            'motos_ids.required_without' => 'Selecione ao menos uma moto ou uma basqueta de peças.',
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -389,7 +404,7 @@ class RomaneioController extends Controller
             // D) v3: embarca os pedidos de peça selecionados.
             // O saldo NÃO se move aqui — a peça continua sendo do CD enquanto
             // está no caminhão. A baixa acontece no recebimento pela loja.
-            $pecasEmbarcadas = $this->embarcarPecas($request->input('pedidos_pecas_ids', []), $romaneio);
+            $pecasEmbarcadas = $this->embarcarPecas($request->input('basquetas_ids', []), $romaneio);
 
             $msg = 'Romaneio salvo! Itens vinculados à carga com sucesso.';
             if ($pecasEmbarcadas > 0) {
@@ -412,24 +427,42 @@ class RomaneioController extends Controller
      * transferência acontece quando a loja confere o recebimento. Só o vínculo
      * com a carga e o status do pedido mudam aqui.
      *
-     * @param  array<int, int>  $pedidoIds
+     * v3.1: EMBARCA A BASQUETA INTEIRA, nunca um pedido solto.
+     *
+     * A caixa já foi faturada com o conteúdo completo. Embarcar parte dela
+     * deixaria mercadoria no galpão coberta por uma nota que diz que ela saiu —
+     * por isso a unidade de seleção é a basqueta, e o laço percorre tudo o que
+     * está dentro.
+     *
+     * @param  array<int, int>  $basquetaIds
      * @return int  itens de peça criados
      */
-    private function embarcarPecas(array $pedidoIds, Romaneio $romaneio): int
+    private function embarcarPecas(array $basquetaIds, Romaneio $romaneio): int
     {
-        if (empty($pedidoIds)) {
+        if (empty($basquetaIds)) {
             return 0;
         }
 
-        $pedidos = Pedido::where('tipo_carga', 'peca')
-            ->whereIn('id', $pedidoIds)
-            ->with('itensPedido')
+        /*
+         * A TRAVA DO GATE 2 VIVE AQUI, não na tela.
+         *
+         * Filtrar por STATUS_LIBERADA no próprio WHERE faz com que uma basqueta
+         * não conferida simplesmente não seja encontrada — mesmo que o id venha
+         * numa requisição forjada ou de uma tela em cache aberta antes de um
+         * pedido de ajuste.
+         */
+        $basquetas = \App\Models\Basqueta::whereIn('id', $basquetaIds)
+            ->where('status', \App\Models\Basqueta::STATUS_LIBERADA)
+            ->whereNull('romaneio_id')
+            ->with('itens.pedido')
             ->get();
 
         $criados = 0;
 
-        foreach ($pedidos as $pedido) {
-            foreach ($pedido->itensPedido as $item) {
+        foreach ($basquetas as $basqueta) {
+            $pedidosTocados = [];
+
+            foreach ($basqueta->itens as $item) {
                 // Só embarca o que foi de fato separado.
                 if (! $item->isPeca() || $item->qtd_atribuida < 1) {
                     continue;
@@ -445,26 +478,42 @@ class RomaneioController extends Controller
                         'pedido_item_id' => $item->id,
                     ],
                     [
-                        'pedido_id'        => $pedido->id,
+                        'pedido_id'        => $item->pedido_id,
                         'quantidade'       => $item->qtd_atribuida,
                         'status'           => \App\Models\RomaneioItem::STATUS_CARREGADO,
-                        'local_destino_id' => $pedido->local_destino_id,
+                        'local_destino_id' => $basqueta->estoque_local_id,
                     ]
                 );
 
+                $pedidosTocados[$item->pedido_id] = true;
                 $criados++;
             }
 
-            $pedido->update([
+            $basqueta->update([
                 'romaneio_id' => $romaneio->id,
-                'status'      => 'aguardando_coleta',
+                'status'      => \App\Models\Basqueta::STATUS_DESPACHADA,
             ]);
 
-            \App\Models\PedidoLog::create([
-                'pedido_id' => $pedido->id,
-                'titulo'    => 'Peças incluídas na carga',
-                'descricao' => "Carga #{$romaneio->id} montada por " . (Auth::user()->name ?? 'sistema') . '.',
-            ]);
+            $nota = $basqueta->notaVigente();
+
+            /*
+             * Cada pedido acompanha o próprio histórico, e uma basqueta reúne
+             * vários. O status vai para todos os que tiveram cota embarcada.
+             */
+            foreach (array_keys($pedidosTocados) as $pedidoId) {
+                Pedido::where('id', $pedidoId)->update([
+                    'romaneio_id' => $romaneio->id,
+                    'status'      => 'aguardando_coleta',
+                ]);
+
+                \App\Models\PedidoLog::create([
+                    'pedido_id' => $pedidoId,
+                    'titulo'    => 'Peças incluídas na carga',
+                    'descricao' => "Basqueta #{$basqueta->id} embarcada na carga #{$romaneio->id}"
+                                 . ($nota ? " sob a NF {$nota->rotulo}" : '')
+                                 . ' por ' . (Auth::user()->name ?? 'sistema') . '.',
+                ]);
+            }
         }
 
         return $criados;

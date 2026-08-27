@@ -92,6 +92,7 @@ class UserController extends Controller implements HasMiddleware
             'perfil' => 'required|in:loja,cd,admin,gestor', // Adicionei gestor
             'filial' => 'nullable|string',
             'default_route_id' => 'nullable|exists:routes,id', // Validação v2.0
+            'valida_pecas' => 'boolean', // v3.1: assina a liberação de peças
         ]);
 
         User::create([
@@ -101,6 +102,7 @@ class UserController extends Controller implements HasMiddleware
             'perfil' => $request->perfil,
             'filial' => $request->filial ?? 'Matriz',
             'default_route_id' => $request->default_route_id, // Salva a rota
+            'valida_pecas' => $request->boolean('valida_pecas'),
         ]);
 
         return redirect()->route('users.index')->with('success', 'Usuário criado com sucesso!');
@@ -131,9 +133,15 @@ class UserController extends Controller implements HasMiddleware
             'filial' => 'nullable|string',
             
             // Regras da V2
-            'default_route_id' => 'nullable|exists:schedules,id',
+            // FK aponta para `routes` (ver migration 2026_02_04_142558). Estava
+            // validando contra `schedules`, o que aceitava id de viagem como se
+            // fosse rota — e recusava rota válida cujo id não existisse lá.
+            'default_route_id' => 'nullable|exists:routes,id',
             'is_interior' => 'boolean', // Aceita true/false/1/0
-            
+
+            // Regra da V3.1
+            'valida_pecas' => 'boolean', // assina a liberação de peças
+
             // Senha opcional
             'password' => 'nullable|string|min:8|confirmed',
         ]);

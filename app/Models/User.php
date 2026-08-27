@@ -34,7 +34,8 @@ class User extends Authenticatable
         'is_interior',      // Nome da loja/cidade
         'last_seen_at',     // Visto por último (Online)
         'default_route_id', // <--- NOVO (v2): Vincula a loja a uma rota logística
-        'estoque_local_id'  // <--- NOVO (v3): Local de estoque desta loja/CD
+        'estoque_local_id', // <--- NOVO (v3): Local de estoque desta loja/CD
+        'valida_pecas'      // <--- NOVO (v3.1): Assina a liberação de pedidos de peça
     ];
 
     /**
@@ -59,7 +60,24 @@ class User extends Authenticatable
             'password' => 'hashed',
             'last_seen_at' => 'datetime',
             'is_interior' => 'boolean',
+            'valida_pecas' => 'boolean',
         ];
+    }
+
+    /**
+     * Pode liberar um pedido de peça para separação (Gate 1 do manual do
+     * Call Center).
+     *
+     * Atribuição, não perfil: é ortogonal a `perfil` de propósito, para que a
+     * pessoa continue com o acesso que já tem. Ver a migration
+     * 2026_08_26_100100 para o raciocínio completo.
+     *
+     * Admin entra por herança — sem isso, um sistema sem validador marcado
+     * ficaria sem ninguém capaz de destravar a fila.
+     */
+    public function podeValidarPecas(): bool
+    {
+        return (bool) $this->valida_pecas || $this->perfil === 'admin';
     }
 
     // 4. Configuração da Auditoria (Spatie)

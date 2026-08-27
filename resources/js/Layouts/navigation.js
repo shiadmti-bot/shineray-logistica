@@ -90,6 +90,25 @@ export const NAV_SECTIONS = [
                 perfis: ['loja', 'admin'],
             },
             {
+                // Passos 2 e 3 do manual do Call Center: identificar o código
+                // e liberar. Sem passar por aqui, nada é separado.
+                key: 'pecas-atendimento',
+                label: 'Atendimento',
+                icon: ClipboardDocumentCheckIcon,
+                route: 'pecas.atendimento',
+                match: 'pecas.atendimento*',
+                perfis: ['admin', 'cd'],
+            },
+            {
+                // Passo 4: o caixote de cada filial, enchendo até o dia da carga.
+                key: 'pecas-basquetas',
+                label: 'Basquetas',
+                icon: ArchiveBoxIcon,
+                route: 'pecas.basquetas',
+                match: 'pecas.basquetas*',
+                perfis: ['admin', 'cd', 'gestor'],
+            },
+            {
                 key: 'pecas-estoque',
                 label: 'Estoque de Peças',
                 icon: WrenchScrewdriverIcon,
@@ -103,6 +122,15 @@ export const NAV_SECTIONS = [
                 route: 'pecas.estoque.index',
                 match: 'pecas.estoque.*',
                 perfis: ['admin', 'cd', 'loja'],
+            },
+            {
+                // Fase 5: mede onde o fluxo trava e o que o Gate 2 pegou.
+                key: 'pecas-indicadores',
+                icon: PresentationChartLineIcon,
+                label: 'Indicadores',
+                route: 'pecas.indicadores',
+                match: 'pecas.indicadores*',
+                perfis: ['admin', 'gestor', 'cd'],
             },
             {
                 key: 'pecas-pendencias',
