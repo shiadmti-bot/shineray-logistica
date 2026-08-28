@@ -952,7 +952,9 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
 
                                         <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-6 md:pl-6 md:border-l border-line">
                                             {/* MOTIVO (USANDO LÓGICA GESTOR) */}
-                                            <div className="flex flex-col items-start md:items-end min-w-[140px]">
+                                            {/* min-w só a partir de md: dois blocos de 140px
+                                                + gap estouravam a largura em telas de 320px. */}
+                                            <div className="flex flex-col items-start md:items-end md:min-w-[140px]">
                                                 <span className="text-[9px] font-bold text-content-muted uppercase tracking-widest mb-1">
                                                     Motivo
                                                 </span>

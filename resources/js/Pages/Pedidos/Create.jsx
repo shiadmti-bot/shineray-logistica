@@ -738,12 +738,15 @@ export default function PedidoCreate({
                                                 )}
                                             </div>
 
-                                            <div className="grid grid-cols-5 gap-3">
-                                                <div className="col-span-2">
+                                            {/* Empilha no celular: Cor e Motivo lado a lado
+                                                em 360px deixavam os dois selects com ~150px,
+                                                estreitos demais para ler a opção escolhida. */}
+                                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+                                                <div className="sm:col-span-2">
                                                     <label className="block text-xs font-bold text-content-muted uppercase mb-1">Cor *</label>
                                                     {campoCor(item, index, true)}
                                                 </div>
-                                                <div className="col-span-3">
+                                                <div className="sm:col-span-3">
                                                     <label className="block text-xs font-bold text-content-muted uppercase mb-1">Motivo *</label>
                                                     {campoMotivo(item, index, true)}
                                                 </div>

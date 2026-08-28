@@ -14,7 +14,11 @@ export default function Auditoria({ auth, logs }) {
                 ]}
             />
 
-            <div className="bg-surface-card overflow-hidden shadow-sm sm:rounded-lg border-t-4 border-black">
+            {/* overflow-x-auto no lugar de overflow-hidden: a tabela tem 5 colunas
+                largas e, recortada, o log ficava inalcançável no celular em vez
+                de apenas rolar de lado. */}
+            <div className="bg-surface-card shadow-sm sm:rounded-lg border-t-4 border-black">
+                <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
                             <thead className="bg-surface-sunken border-b">
                                 <tr>
@@ -66,7 +70,9 @@ export default function Auditoria({ auth, logs }) {
                                 ))}
                             </tbody>
                         </table>
-                        {/* Paginação simples */}
+                </div>
+                        {/* Paginação simples — fora da área de rolagem, para os
+                            botões ficarem sempre visíveis sem rolar de lado. */}
                         <div className="p-4 flex justify-center gap-2">
                             {logs.prev_page_url && <a href={logs.prev_page_url} className="px-3 py-1 bg-surface-sunken rounded">Anterior</a>}
                             {logs.next_page_url && <a href={logs.next_page_url} className="px-3 py-1 bg-surface-sunken rounded">Próxima</a>}

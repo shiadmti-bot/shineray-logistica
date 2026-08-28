@@ -163,7 +163,10 @@ function LinhaBasqueta({ basqueta, expandida, onAlternar }) {
 
             {expandida && (
                 <div className="border-t border-line">
-                    <table className="w-full text-xs">
+                    {/* Quatro colunas com descrição de peça não cabem em 360px:
+                        sem esta rolagem, a coluna de quantidade saía da tela. */}
+                    <div className="overflow-x-auto">
+                    <table className="w-full min-w-[440px] text-xs">
                         <thead>
                             <tr className="bg-surface-sunken text-content-muted">
                                 <th className="px-4 py-2 text-left font-bold uppercase tracking-wide">Código</th>
@@ -188,6 +191,7 @@ function LinhaBasqueta({ basqueta, expandida, onAlternar }) {
                             ))}
                         </tbody>
                     </table>
+                    </div>
 
                     <Faturamento basqueta={basqueta} />
                 </div>

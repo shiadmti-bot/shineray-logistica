@@ -127,3 +127,23 @@
 .notice-content s {
     text-decoration: line-through !important;
 }
+
+/*
+|--------------------------------------------------------------------------
+| ÁREA SEGURA (iOS)
+|--------------------------------------------------------------------------
+| A barra de ações fixa da montagem de carga (Romaneios/Create) já usava
+| `safe-area-bottom`, mas a classe nunca existiu — nem no tailwind.config.js
+| nem aqui. No iPhone com indicador de gestos, o botão de gerar carga ficava
+| por baixo dele, e o CD monta carga no celular.
+|
+| Depende de `viewport-fit=cover` na meta viewport; sem isso env() devolve 0
+| e o padding simplesmente não aparece — degrada sem quebrar.
+*/
+.safe-area-bottom {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+}
