@@ -40,6 +40,17 @@ export const STATUS_MAP = {
     concluido:         { label: 'Concluído',         tone: 'success' },
     cancelado:         { label: 'Cancelado',         tone: 'danger'  },
 
+    /* --- Devolução Loja → CD (v3) ---
+     * Femininos de propósito: 'aprovado'/'cancelado' acima são do pedido, e um
+     * dia os dois aparecem na mesma tela. Rótulos distintos evitam a leitura
+     * errada de que é o mesmo objeto. */
+    rascunho:             { label: 'Rascunho',              tone: 'neutral' },
+    aguardando_aprovacao: { label: 'Aguardando Diretoria',  tone: 'warning' },
+    aprovada:             { label: 'Aprovada',              tone: 'info'    },
+    recusada:             { label: 'Recusada',              tone: 'danger'  },
+    recebida:             { label: 'Recebida no CD',        tone: 'success' },
+    cancelada:            { label: 'Cancelada',             tone: 'danger'  },
+
     // --- Estoque de Moto ---
     disponivel:      { label: 'Disponível',      tone: 'success' },
     estoque_fabrica: { label: 'Estoque Fábrica', tone: 'neutral' },

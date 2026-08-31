@@ -12,6 +12,7 @@ import {
     PresentationChartLineIcon,
     WrenchScrewdriverIcon,
     ArrowsRightLeftIcon,
+    ArrowUturnLeftIcon,
     ClipboardDocumentCheckIcon,
     ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
@@ -69,6 +70,16 @@ export const NAV_SECTIONS = [
                 route: 'pedidos.index',
                 match: 'pedidos.*',
                 badge: 'pedidosPendentes',
+            },
+            {
+                // Logística reversa (v3): a moto voltando da loja para o CD,
+                // com checklist de conferência nas duas pontas.
+                key: 'motos-devolucoes',
+                label: 'Devoluções',
+                icon: ArrowUturnLeftIcon,
+                route: 'devolucoes.index',
+                match: 'devolucoes.*',
+                badge: 'devolucoesPendentes',
             },
         ],
     },

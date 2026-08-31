@@ -95,6 +95,55 @@ class Romaneio extends Model
      * ser escritas juntas. Chame este método sempre que atribuir uma moto à
      * carga, em vez de gravar motos.romaneio_id diretamente.
      */
+    /**
+     * Fecha a carga se nada mais nela estiver pendente.
+     *
+     * A regra existia inline dentro de PedidoController::finalizarEntrega, o
+     * único lugar que fechava carga. Com a devolução (v3) tendo recebimento
+     * próprio — o checklist do CD, em DevolucaoController::receber — passaram a
+     * ser dois, e uma regra de fechamento em duas cópias é uma carga que fica
+     * "em trânsito" para sempre assim que as cópias divergirem.
+     *
+     * 'no_cd' conta como resolvido de propósito: é transbordo, e o pedido
+     * seguirá numa carga nova.
+     *
+     * @return bool true se a carga foi fechada agora
+     */
+    public function fecharSeTudoEntregue(): bool
+    {
+        if ($this->status === 'concluido') {
+            return false;
+        }
+
+        $this->loadMissing('motos.pedidos');
+
+        foreach ($this->motos as $moto) {
+            $pedido = $moto->pedidos->first();
+
+            if (! $pedido || ! in_array($pedido->status, ['concluido', 'cancelado', 'no_cd'], true)) {
+                return false;
+            }
+        }
+
+        // Carga mista: peça pendente também segura o fechamento.
+        $pecasPendentes = RomaneioItem::where('romaneio_id', $this->id)
+            ->where('itemable_type', Peca::class)
+            ->whereNotIn('status', [
+                RomaneioItem::STATUS_ENTREGUE,
+                RomaneioItem::STATUS_DIVERGENCIA,
+                RomaneioItem::STATUS_RETORNADO,
+            ])
+            ->exists();
+
+        if ($pecasPendentes) {
+            return false;
+        }
+
+        $this->update(['status' => 'concluido']);
+
+        return true;
+    }
+
     public function sincronizarItemMoto(Moto $moto, ?Pedido $pedido = null, ?int $localDestinoId = null): RomaneioItem
     {
         $pedido ??= $moto->pedido_atual;

@@ -293,6 +293,57 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
 
         /*
         |--------------------------------------------------------------------------
+        | MÓDULO 3.2: DEVOLUÇÃO DE MOTOS — LOGÍSTICA REVERSA (V3)
+        |--------------------------------------------------------------------------
+        | Exclusivo Loja -> CD, e só de moto. A devolução é o DOSSIÊ (checklist
+        | nas duas pontas + fotos); o frete continua sendo um Pedido de
+        | transferência, criado na aprovação — ver DevolucaoController::aprovar.
+        |
+        | Três portões, e o middleware de cada rota diz de quem é cada um:
+        |   a loja preenche e envia | o gestor decide | o CD confere e fecha.
+        */
+        Route::prefix('devolucoes')->name('devolucoes.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\DevolucaoController::class, 'index'])->name('index');
+
+            // Abertura: quem devolve é a loja (admin entra por herança, mas
+            // precisa dizer de qual loja partem as motos).
+            Route::get('/nova', [\App\Http\Controllers\DevolucaoController::class, 'create'])
+                ->middleware('check_perfil:loja,admin')->name('create');
+            Route::post('/', [\App\Http\Controllers\DevolucaoController::class, 'store'])
+                ->middleware('check_perfil:loja,admin')->name('store');
+
+            Route::get('/{devolucao}', [\App\Http\Controllers\DevolucaoController::class, 'show'])->name('show');
+            Route::get('/{devolucao}/imprimir', [\App\Http\Controllers\DevolucaoController::class, 'imprimir'])->name('imprimir');
+            Route::patch('/{devolucao}', [\App\Http\Controllers\DevolucaoController::class, 'update'])->name('update');
+
+            // A conferência: a mesma rota serve às duas etapas. Quem pode
+            // escrever em cada uma é decidido por etapa, não por rota — ver
+            // DevolucaoController::autorizarEtapa.
+            Route::post('/{devolucao}/itens/{item}/conferir', [\App\Http\Controllers\DevolucaoController::class, 'conferir'])
+                ->name('conferir');
+
+            Route::post('/{devolucao}/anexos', [\App\Http\Controllers\DevolucaoController::class, 'anexar'])->name('anexos.store');
+            Route::delete('/{devolucao}/anexos/{anexo}', [\App\Http\Controllers\DevolucaoController::class, 'removerAnexo'])
+                ->name('anexos.destroy');
+
+            // PORTÃO 1 — a loja envia
+            Route::post('/{devolucao}/enviar', [\App\Http\Controllers\DevolucaoController::class, 'enviar'])->name('enviar');
+            Route::post('/{devolucao}/cancelar', [\App\Http\Controllers\DevolucaoController::class, 'cancelar'])->name('cancelar');
+
+            // PORTÃO 2 — só a diretoria autoriza a moto a sair da loja
+            Route::post('/{devolucao}/aprovar', [\App\Http\Controllers\DevolucaoController::class, 'aprovar'])
+                ->middleware('check_perfil:gestor,admin')->name('aprovar');
+            Route::post('/{devolucao}/recusar', [\App\Http\Controllers\DevolucaoController::class, 'recusar'])
+                ->middleware('check_perfil:gestor,admin')->name('recusar');
+
+            // PORTÃO 3 — o CD confere no destino e fecha
+            Route::post('/{devolucao}/receber', [\App\Http\Controllers\DevolucaoController::class, 'receber'])
+                ->middleware('check_perfil:cd,admin')->name('receber');
+        });
+
+
+        /*
+        |--------------------------------------------------------------------------
         | MÓDULO 3.1: ESTOQUE DE PEÇAS (V3)
         |--------------------------------------------------------------------------
         | Peça é fungível (saldo por SKU/local), diferente de moto (chassi).

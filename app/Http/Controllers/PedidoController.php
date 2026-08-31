@@ -946,6 +946,17 @@ class PedidoController extends Controller
             abort(403, 'O CD não tem permissão para finalizar pedidos. O recebimento oficial deve ser feito pela loja de destino.');
         }
 
+        // V3: pedido que é o frete de uma devolução fecha na tela da devolução.
+        // Fechar por aqui pularia o checklist de destino — e uma moto que chega
+        // avariada entraria no estoque do CD como boa, sem ninguém assinar.
+        $devolucao = $pedido->devolucao;
+        if ($devolucao && $devolucao->status !== \App\Models\Devolucao::STATUS_RECEBIDA) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'arquivo_romaneio' => "Este pedido é o transporte da Devolução #{$devolucao->id}. "
+                    . 'O recebimento é feito na tela da devolução, com o checklist de conferência do CD preenchido moto a moto.',
+            ]);
+        }
+
         // --- TRAVA DE ENTREGA PARCIAL (REQUISIÇÃO DA GESTÃO) ---
         // Impede que a loja finalize o pedido se ainda houver motos presas no CD aguardando rota/coleta.
         // IMPORTANTE: Qualificar com 'motos.status' para evitar ambiguidade com a pivot table 'pedido_moto'.
@@ -1084,30 +1095,10 @@ class PedidoController extends Controller
         
         $romaneiosAfetados = $pedido->motos->pluck('romaneio_id')->filter()->unique();
 
+        // A regra de fechamento vive em Romaneio::fecharSeTudoEntregue(), porque
+        // a devolução (v3) também fecha carga pelo caminho dela.
         foreach ($romaneiosAfetados as $rom_id) {
-            $romaneio = \App\Models\Romaneio::with('motos.pedidos')->find($rom_id);
-            if ($romaneio && $romaneio->status !== 'concluido') {
-                $todasConcluidas = true;
-                foreach ($romaneio->motos as $rm) {
-                    $rp = $rm->pedidos->first();
-                    if (!$rp || !in_array($rp->status, ['concluido', 'cancelado', 'no_cd'])) {
-                        $todasConcluidas = false;
-                        break;
-                    }
-                }
-
-                // v3: verifica também os itens de peça na carga mista
-                if ($todasConcluidas) {
-                    $pecasPendentes = \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
-                        ->where('itemable_type', \App\Models\Peca::class)
-                        ->whereNotIn('status', [\App\Models\RomaneioItem::STATUS_ENTREGUE, \App\Models\RomaneioItem::STATUS_DIVERGENCIA, \App\Models\RomaneioItem::STATUS_RETORNADO])
-                        ->exists();
-
-                    if (!$pecasPendentes) {
-                        $romaneio->update(['status' => 'concluido']);
-                    }
-                }
-            }
+            \App\Models\Romaneio::with('motos.pedidos')->find($rom_id)?->fecharSeTudoEntregue();
         }
         
         $this->registrarLog($pedido, 'Concluído', $qtdAvarias ? "Finalizado com $qtdAvarias avarias." : "Recebimento 100%.");

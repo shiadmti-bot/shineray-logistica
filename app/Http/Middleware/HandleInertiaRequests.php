@@ -82,6 +82,32 @@ public function share(Request $request): array
                         ->when(! $ehCd, fn ($q) => $q->where('local_destino_id', $user->estoque_local_id))
                         ->count();
                 },
+
+                /*
+                 * Devoluções: o contador mostra o que ESTE perfil precisa
+                 * tocar, não um total. O gestor tem uma fila de decisão, o CD
+                 * tem moto chegando para conferir e a loja tem rascunho parado
+                 * — três números diferentes no mesmo lugar do menu.
+                 */
+                'devolucoesPendentes' => function () use ($request) {
+                    $user = $request->user();
+
+                    if (! $user) {
+                        return 0;
+                    }
+
+                    return match ($user->perfil) {
+                        'gestor' => \App\Models\Devolucao::pendentesDeAprovacao()->count(),
+                        'cd'     => \App\Models\Devolucao::where('status', \App\Models\Devolucao::STATUS_APROVADA)->count(),
+                        'admin'  => \App\Models\Devolucao::emAndamento()->count(),
+                        'loja'   => \App\Models\Devolucao::where('user_id', $user->id)
+                            ->whereIn('status', [
+                                \App\Models\Devolucao::STATUS_RASCUNHO,
+                                \App\Models\Devolucao::STATUS_AGUARDANDO,
+                            ])->count(),
+                        default  => 0,
+                    };
+                },
             ],
         ];
     }

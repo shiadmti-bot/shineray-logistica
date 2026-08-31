@@ -139,6 +139,19 @@ class Pedido extends Model
         return $this->belongsTo(Romaneio::class);
     }
 
+    /**
+     * Dossiê da devolução que gerou este pedido (v3). NULL na esmagadora
+     * maioria dos pedidos, que são reposição ou transferência comum.
+     *
+     * Quando existe, este pedido é apenas o FRETE: quem fecha a entrega é
+     * DevolucaoController::receber, com o checklist de destino assinado — e não
+     * PedidoController::finalizarEntrega, que não tem como colher esse veredito.
+     */
+    public function devolucao()
+    {
+        return $this->hasOne(Devolucao::class);
+    }
+
     public function logs()
     {
         return $this->hasMany(PedidoLog::class);
