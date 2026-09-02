@@ -139,7 +139,7 @@ class UserController extends Controller implements HasMiddleware
             'default_route_id' => $request->default_route_id,
             'is_interior' => $request->boolean('is_interior'),
             'valida_pecas' => $request->boolean('valida_pecas'),
-            'valida_motos' => $request->boolean('valida_motos') || ($request->perfil === 'gestor'),
+            'valida_motos' => $request->boolean('valida_motos'),
             'estoque_local_id' => $estoqueLocalId,
         ]);
 
@@ -177,7 +177,7 @@ class UserController extends Controller implements HasMiddleware
 
         $validated['is_interior'] = $request->boolean('is_interior');
         $validated['valida_pecas'] = $request->boolean('valida_pecas');
-        $validated['valida_motos'] = $request->boolean('valida_motos') || ($validated['perfil'] === 'gestor');
+        $validated['valida_motos'] = $request->boolean('valida_motos');
 
         if (empty($validated['password'])) {
             unset($validated['password']);

@@ -224,8 +224,8 @@ export function navegacaoPara(userOrPerfil) {
         ? Boolean(userOrPerfil?.valida_pecas)
         : (perfil === 'admin' || perfil === 'cd');
     const validaMotos = typeof userOrPerfil === 'object'
-        ? (userOrPerfil?.valida_motos !== undefined ? Boolean(userOrPerfil.valida_motos) : (perfil === 'gestor' || perfil === 'admin'))
-        : (perfil === 'gestor' || perfil === 'admin');
+        ? Boolean(userOrPerfil?.valida_motos)
+        : (perfil === 'admin');
     const isAdmin = perfil === 'admin';
 
     return NAV_SECTIONS

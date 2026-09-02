@@ -402,14 +402,13 @@ export default function UserCreate({ auth, filiais, rotas }) {
                             >
                                 <div className="space-y-3.5">
                                     {/* Validador de Motos */}
-                                    <div className={`rounded-xl border p-4 transition ${data.valida_motos || data.perfil === 'gestor' ? 'border-amber-400 bg-amber-50/20' : 'border-line bg-surface-sunken/40'}`}>
+                                    <div className={`rounded-xl border p-4 transition ${data.valida_motos ? 'border-amber-400 bg-amber-50/20' : 'border-line bg-surface-sunken/40'}`}>
                                         <label className="flex items-start gap-3.5 cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                checked={data.valida_motos || data.perfil === 'gestor'}
-                                                disabled={data.perfil === 'gestor'}
+                                                checked={Boolean(data.valida_motos)}
                                                 onChange={(e) => setData('valida_motos', e.target.checked)}
-                                                className="mt-1 h-4 w-4 rounded border-line-strong text-amber-600 focus:ring-amber-500 disabled:opacity-60"
+                                                className="mt-1 h-4 w-4 rounded border-line-strong text-amber-600 focus:ring-amber-500 cursor-pointer"
                                             />
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
@@ -557,12 +556,12 @@ export default function UserCreate({ auth, filiais, rotas }) {
                                             <span className="text-content-muted">Valida Motos:</span>
                                             <span
                                                 className={`font-bold ${
-                                                    data.valida_motos || data.perfil === 'gestor' || data.perfil === 'admin'
+                                                    data.valida_motos || data.perfil === 'admin'
                                                         ? 'text-amber-700'
                                                         : 'text-content-muted'
                                                 }`}
                                             >
-                                                {data.valida_motos || data.perfil === 'gestor' || data.perfil === 'admin' ? 'Sim (Aprova Motos)' : 'Não'}
+                                                {data.valida_motos || data.perfil === 'admin' ? 'Sim (Aprova Motos)' : 'Não'}
                                             </span>
                                         </div>
 

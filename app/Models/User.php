@@ -75,7 +75,7 @@ class User extends Authenticatable
             return true;
         }
 
-        return (bool) ($this->valida_motos ?? ($this->perfil === 'gestor'));
+        return (bool) $this->valida_motos;
     }
 
     /**

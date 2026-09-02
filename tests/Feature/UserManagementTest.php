@@ -185,4 +185,29 @@ class UserManagementTest extends TestCase
             ->where('currentTipo', 'peca')
         );
     }
+
+    public function test_admin_pode_criar_gestor_sem_aprovar_motos()
+    {
+        $email = 'posvenda_gestor_' . uniqid() . '@shineray.com.br';
+
+        $response = $this->actingAs($this->admin)->post(route('users.store'), [
+            'name' => 'Darlan Pós-Venda Teste',
+            'email' => $email,
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'perfil' => 'gestor',
+            'valida_motos' => false,
+            'valida_pecas' => true,
+        ]);
+
+        $response->assertRedirect(route('users.index'));
+
+        $user = User::where('email', $email)->first();
+        $this->assertNotNull($user);
+        $this->assertEquals('gestor', $user->perfil);
+        $this->assertFalse((bool) $user->valida_motos);
+        $this->assertTrue((bool) $user->valida_pecas);
+        $this->assertFalse($user->podeValidarMotos());
+        $this->assertTrue($user->podeValidarPecas());
+    }
 }
