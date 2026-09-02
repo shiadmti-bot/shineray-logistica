@@ -35,7 +35,8 @@ class User extends Authenticatable
         'last_seen_at',     // Visto por último (Online)
         'default_route_id', // <--- NOVO (v2): Vincula a loja a uma rota logística
         'estoque_local_id', // <--- NOVO (v3): Local de estoque desta loja/CD
-        'valida_pecas'      // <--- NOVO (v3.1): Assina a liberação de pedidos de peça
+        'valida_pecas',     // <--- NOVO (v3.1): Assina a liberação de pedidos de peça
+        'valida_motos',     // <--- NOVO (v3.2): Assina a aprovação de pedidos de motos
     ];
 
     /**
@@ -61,7 +62,20 @@ class User extends Authenticatable
             'last_seen_at' => 'datetime',
             'is_interior' => 'boolean',
             'valida_pecas' => 'boolean',
+            'valida_motos' => 'boolean',
         ];
+    }
+
+    /**
+     * Pode aprovar ou rejeitar pedidos de motos e estornos (Gestão Comercial).
+     */
+    public function podeValidarMotos(): bool
+    {
+        if ($this->perfil === 'admin') {
+            return true;
+        }
+
+        return (bool) ($this->valida_motos ?? ($this->perfil === 'gestor'));
     }
 
     /**

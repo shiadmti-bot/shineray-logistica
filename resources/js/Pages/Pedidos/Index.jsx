@@ -16,23 +16,15 @@ import {
     ArrowRightIcon,
     ArrowLongDownIcon,
     InboxIcon,
+    CubeIcon,
 } from '@heroicons/react/24/outline';
 
-import { Card, PageHeader, Button, StatusBadge, EmptyState } from '@/Components/UI';
+import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs } from '@/Components/UI';
 
 /**
- * Gerenciamento de Pedidos — repaginado para o design system v3.
- *
- * A lógica é a mesma: notificações via Echo, filtros, destaque de
- * transferências que exigem ação e o indicador de embarque parcial. O que
- * mudou é a camada visual — as ~11 paletas de status escritas à mão aqui
- * (roxo, ciano, teal, esmeralda…) deram lugar ao StatusBadge central, que é
- * a mesma marcação usada em Peças e Cargas.
- *
- * Mantém as duas apresentações: tabela no desktop, cartão no celular. O CD e
- * o motorista usam o celular, e uma tabela rolando de lado não serve para eles.
+ * Gerenciamento de Pedidos — com separação limpa entre Motos e Peças.
  */
-export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) {
+export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, tipoCounts, currentTipo = 'all' }) {
     const safePedidos = pedidos || { data: [], links: [], total: 0 };
 
     // Transferências em que ESTA loja é a origem: exigem separação física.
@@ -50,9 +42,10 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
         data_fim: filters?.data_fim || '',
         status: filters?.status || '',
         loja_id: filters?.loja_id || '',
+        tipo: filters?.tipo || '',
     });
 
-    const temFiltro = data.search || data.data_inicio || data.data_fim || data.status || data.loja_id;
+    const temFiltro = data.search || data.data_inicio || data.data_fim || data.status || data.loja_id || data.tipo;
 
     // --- Notificações em tempo real ---
     useEffect(() => {
@@ -83,14 +76,82 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
         return () => channel.stopListening('Notification');
     }, [auth.user?.id]);
 
+    const tabsTipo = [
+        { key: 'all', label: 'Todos os Pedidos', count: tipoCounts?.all ?? safePedidos.total, icon: InboxIcon },
+        { key: 'moto', label: 'Pedidos de Motos', count: tipoCounts?.moto ?? 0, icon: CubeIcon },
+        { key: 'peca', label: 'Pedidos de Peças', count: tipoCounts?.peca ?? 0, icon: WrenchScrewdriverIcon },
+    ];
+
+    const handleTabChange = (tipoKey) => {
+        router.get(
+            route('pedidos.index'),
+            {
+                search: data.search || undefined,
+                data_inicio: data.data_inicio || undefined,
+                data_fim: data.data_fim || undefined,
+                status: data.status || undefined,
+                loja_id: data.loja_id || undefined,
+                tipo: tipoKey !== 'all' ? tipoKey : undefined,
+            },
+            { preserveState: true, replace: true }
+        );
+    };
+
     const handleSearch = (e) => {
         e.preventDefault();
         get(route('pedidos.index'), { preserveState: true, preserveScroll: true });
     };
 
     const clearSearch = () => {
-        setData({ search: '', data_inicio: '', data_fim: '', status: '', loja_id: '' });
-        router.get(route('pedidos.index'), {}, { preserveState: true });
+        setData({ search: '', data_inicio: '', data_fim: '', status: '', loja_id: '', tipo: currentTipo !== 'all' ? currentTipo : '' });
+        router.get(
+            route('pedidos.index'),
+            { tipo: currentTipo !== 'all' ? currentTipo : undefined },
+            { preserveState: true }
+        );
+    };
+
+    const tituloPagina = currentTipo === 'moto'
+        ? 'Pedidos de Motos'
+        : currentTipo === 'peca'
+        ? 'Pedidos de Peças'
+        : 'Gerenciamento de Pedidos';
+
+    const breadcrumbs = currentTipo === 'moto'
+        ? [{ label: 'Motos', href: route('motos.index') }, { label: 'Pedidos de Motos' }]
+        : currentTipo === 'peca'
+        ? [{ label: 'Peças', href: route('pecas.index') }, { label: 'Pedidos de Peças' }]
+        : [{ label: 'Logística' }, { label: 'Todos os Pedidos' }];
+
+    const renderActions = () => {
+        if (perfil !== 'loja') return null;
+
+        if (currentTipo === 'peca') {
+            return (
+                <Button href={route('pecas.solicitar')} icon={PlusIcon}>
+                    Solicitar Peças
+                </Button>
+            );
+        }
+
+        if (currentTipo === 'moto') {
+            return (
+                <Button href={route('solicitar')} icon={PlusIcon}>
+                    Nova Solicitação (Motos)
+                </Button>
+            );
+        }
+
+        return (
+            <div className="flex items-center gap-2">
+                <Button href={route('solicitar')} variant="secondary" icon={PlusIcon} size="sm">
+                    Nova Moto
+                </Button>
+                <Button href={route('pecas.solicitar')} icon={PlusIcon} size="sm">
+                    Nova Peça
+                </Button>
+            </div>
+        );
     };
 
     const classeCampo =
@@ -98,23 +159,25 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas }) 
 
     return (
         <AppLayout user={auth.user}>
-            <Head title="Pedidos" />
+            <Head title={tituloPagina} />
 
             <PageHeader
-                title="Gerenciamento de Pedidos"
-                description={`${safePedidos.total} pedido(s) no total.`}
-                breadcrumbs={[{ label: 'Logística' }, { label: 'Pedidos' }]}
-                actions={
-                    perfil === 'loja' && (
-                        <Button href={route('solicitar')} icon={PlusIcon}>
-                            Nova Solicitação
-                        </Button>
-                    )
-                }
+                title={tituloPagina}
+                description={`${safePedidos.total} pedido(s) listado(s).`}
+                breadcrumbs={breadcrumbs}
+                actions={renderActions()}
             />
 
-            {/* ---------- FILTROS ---------- */}
+            {/* ---------- FILTROS & ABAS ---------- */}
             <Card padding="none" className="mb-6">
+                <div className="border-b border-line px-4 pt-2">
+                    <Tabs
+                        tabs={tabsTipo}
+                        active={currentTipo}
+                        onChange={handleTabChange}
+                        className="border-b-0"
+                    />
+                </div>
                 <form onSubmit={handleSearch} className="grid grid-cols-1 gap-2 p-4 md:grid-cols-12">
                     <div className="relative md:col-span-4">
                         <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />

@@ -381,8 +381,8 @@ class PecaLiberacaoController extends Controller
 
     private function autorizarCd(): void
     {
-        if (! in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
-            abort(403, 'Apenas o Estoque Central atende pedidos de peça.');
+        if (! in_array(Auth::user()->perfil, ['cd', 'admin'], true) && ! Auth::user()->podeValidarPecas()) {
+            abort(403, 'Apenas o Estoque Central ou Validadores de Peças têm acesso a esta fila.');
         }
     }
 

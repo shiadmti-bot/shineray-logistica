@@ -73,6 +73,7 @@ class UserController extends Controller implements HasMiddleware
                     'last_seen_human' => $user->last_seen_at ? $user->last_seen_at->diffForHumans() : 'Nunca',
                     'is_interior' => (bool) $user->is_interior,
                     'valida_pecas' => (bool) $user->valida_pecas,
+                    'valida_motos' => (bool) $user->valida_motos,
                     'default_route' => $user->defaultRoute ? [
                         'id' => $user->defaultRoute->id,
                         'code' => $user->defaultRoute->code
@@ -111,6 +112,7 @@ class UserController extends Controller implements HasMiddleware
             'default_route_id' => 'nullable|exists:routes,id',
             'is_interior' => 'boolean',
             'valida_pecas' => 'boolean',
+            'valida_motos' => 'boolean',
         ]);
 
         $filial = $request->filial;
@@ -137,6 +139,7 @@ class UserController extends Controller implements HasMiddleware
             'default_route_id' => $request->default_route_id,
             'is_interior' => $request->boolean('is_interior'),
             'valida_pecas' => $request->boolean('valida_pecas'),
+            'valida_motos' => $request->boolean('valida_motos') || ($request->perfil === 'gestor'),
             'estoque_local_id' => $estoqueLocalId,
         ]);
 
@@ -168,8 +171,13 @@ class UserController extends Controller implements HasMiddleware
             'default_route_id' => 'nullable|exists:routes,id',
             'is_interior' => 'boolean',
             'valida_pecas' => 'boolean',
+            'valida_motos' => 'boolean',
             'password' => 'nullable|string|min:8|confirmed',
         ]);
+
+        $validated['is_interior'] = $request->boolean('is_interior');
+        $validated['valida_pecas'] = $request->boolean('valida_pecas');
+        $validated['valida_motos'] = $request->boolean('valida_motos') || ($validated['perfil'] === 'gestor');
 
         if (empty($validated['password'])) {
             unset($validated['password']);

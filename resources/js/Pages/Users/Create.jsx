@@ -18,6 +18,7 @@ import {
     CheckCircleIcon,
     ArrowLeftIcon,
     CheckIcon,
+    CubeIcon,
 } from '@heroicons/react/24/outline';
 
 export default function UserCreate({ auth, filiais, rotas }) {
@@ -33,6 +34,7 @@ export default function UserCreate({ auth, filiais, rotas }) {
         is_interior: false,
         default_route_id: '',
         valida_pecas: false,
+        valida_motos: false,
     });
 
     const perfisConfig = [
@@ -392,34 +394,63 @@ export default function UserCreate({ auth, filiais, rotas }) {
                             </Card>
                         )}
 
-                        {/* 5. VALIDAÇÃO DE PEÇAS (GATE 1) */}
+                        {/* 5. ATRIBUIÇÕES DE VALIDAÇÃO (SEPARAÇÃO MOTOS VS PEÇAS) */}
                         {data.perfil !== 'loja' && (
                             <Card
-                                title="5. Atribuições do Módulo de Peças"
-                                subtitle="Permissão técnica para atuar no fluxo de pós-venda do Call Center."
+                                title="5. Atribuições de Validação (Módulos Independentes)"
+                                subtitle="Quem valida peças NÃO necessariamente valida motos, e vice-versa. Configure cada alçada."
                             >
-                                <div className="rounded-xl border border-line bg-surface-sunken/40 p-4">
-                                    <label className="flex items-start gap-3.5 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={data.valida_pecas}
-                                            onChange={(e) => setData('valida_pecas', e.target.checked)}
-                                            className="mt-1 h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-brand-500"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-bold text-sm text-content-primary">
-                                                    Validador de Peças (Gate 1)
-                                                </span>
-                                                <span className="rounded bg-brand-50 px-2 py-0.5 text-[10px] font-extrabold text-brand-700 uppercase">
-                                                    Pós-Venda
-                                                </span>
+                                <div className="space-y-3.5">
+                                    {/* Validador de Motos */}
+                                    <div className={`rounded-xl border p-4 transition ${data.valida_motos || data.perfil === 'gestor' ? 'border-amber-400 bg-amber-50/20' : 'border-line bg-surface-sunken/40'}`}>
+                                        <label className="flex items-start gap-3.5 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.valida_motos || data.perfil === 'gestor'}
+                                                disabled={data.perfil === 'gestor'}
+                                                onChange={(e) => setData('valida_motos', e.target.checked)}
+                                                className="mt-1 h-4 w-4 rounded border-line-strong text-amber-600 focus:ring-amber-500 disabled:opacity-60"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-content-primary">
+                                                        Validador de Motos (Gestão Comercial)
+                                                    </span>
+                                                    <span className="rounded bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold text-amber-700 uppercase">
+                                                        Motos
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1 text-xs text-content-secondary leading-relaxed">
+                                                    Autoriza a aprovar ou rejeitar pedidos de reposição e transferência de motos e aprovar estornos/devoluções no painel de Motos. Não dá acesso à liberação de peças.
+                                                </p>
                                             </div>
-                                            <p className="mt-1 text-xs text-content-secondary leading-relaxed">
-                                                Autoriza o usuário a assinar a liberação de itens sem código ou com divergência de preço na Fila de Atendimento. Nenhuma peça vai para separação antes desta assinatura.
-                                            </p>
-                                        </div>
-                                    </label>
+                                        </label>
+                                    </div>
+
+                                    {/* Validador de Peças */}
+                                    <div className={`rounded-xl border p-4 transition ${data.valida_pecas ? 'border-brand-400 bg-brand-50/20' : 'border-line bg-surface-sunken/40'}`}>
+                                        <label className="flex items-start gap-3.5 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.valida_pecas}
+                                                onChange={(e) => setData('valida_pecas', e.target.checked)}
+                                                className="mt-1 h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-brand-500"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-content-primary">
+                                                        Validador de Peças (Pós-Venda - Gate 1)
+                                                    </span>
+                                                    <span className="rounded bg-brand-50 px-2 py-0.5 text-[10px] font-extrabold text-brand-700 uppercase">
+                                                        Peças
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1 text-xs text-content-secondary leading-relaxed">
+                                                    Autoriza a assinar a liberação técnica de peças sem código ou com divergência de preço na Fila de Atendimento do Pós-Venda. Não dá acesso a aprovações de motos.
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
                             </Card>
                         )}
@@ -521,18 +552,33 @@ export default function UserCreate({ auth, filiais, rotas }) {
                                 )}
 
                                 {data.perfil !== 'loja' && (
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-content-muted">Valida Peças:</span>
-                                        <span
-                                            className={`font-bold ${
-                                                data.valida_pecas
-                                                    ? 'text-brand-700'
-                                                    : 'text-content-muted'
-                                            }`}
-                                        >
-                                            {data.valida_pecas ? 'Sim (Gate 1 Ativo)' : 'Não'}
-                                        </span>
-                                    </div>
+                                    <>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-content-muted">Valida Motos:</span>
+                                            <span
+                                                className={`font-bold ${
+                                                    data.valida_motos || data.perfil === 'gestor' || data.perfil === 'admin'
+                                                        ? 'text-amber-700'
+                                                        : 'text-content-muted'
+                                                }`}
+                                            >
+                                                {data.valida_motos || data.perfil === 'gestor' || data.perfil === 'admin' ? 'Sim (Aprova Motos)' : 'Não'}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-content-muted">Valida Peças:</span>
+                                            <span
+                                                className={`font-bold ${
+                                                    data.valida_pecas || data.perfil === 'admin'
+                                                        ? 'text-brand-700'
+                                                        : 'text-content-muted'
+                                                }`}
+                                            >
+                                                {data.valida_pecas || data.perfil === 'admin' ? 'Sim (Gate 1 Ativo)' : 'Não'}
+                                            </span>
+                                        </div>
+                                    </>
                                 )}
                             </div>
 

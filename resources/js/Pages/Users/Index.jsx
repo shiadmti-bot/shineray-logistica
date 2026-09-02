@@ -18,6 +18,7 @@ import {
     TruckIcon,
     WrenchScrewdriverIcon,
     ClockIcon,
+    CubeIcon,
 } from '@heroicons/react/24/outline';
 
 export default function UsersIndex({ auth, users, stats, filters }) {
@@ -336,14 +337,25 @@ export default function UsersIndex({ auth, users, stats, filters }) {
 
                                     {/* Permissões Especiais */}
                                     <td className="px-4 py-4 whitespace-nowrap text-xs">
-                                        {user.valida_pecas ? (
-                                            <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-1 font-bold text-brand-700 ring-1 ring-brand-200">
-                                                <WrenchScrewdriverIcon className="h-3 w-3" />
-                                                Valida Peças (Gate 1)
-                                            </span>
-                                        ) : (
-                                            <span className="text-content-muted">Padrão</span>
-                                        )}
+                                        <div className="flex flex-col gap-1">
+                                            {user.valida_motos || user.perfil === 'gestor' || user.perfil === 'admin' ? (
+                                                <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200 w-fit">
+                                                    <CubeIcon className="h-3 w-3" />
+                                                    Valida Motos
+                                                </span>
+                                            ) : null}
+
+                                            {user.valida_pecas || user.perfil === 'admin' ? (
+                                                <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 font-bold text-brand-700 ring-1 ring-brand-200 w-fit">
+                                                    <WrenchScrewdriverIcon className="h-3 w-3" />
+                                                    Valida Peças (Gate 1)
+                                                </span>
+                                            ) : null}
+
+                                            {!user.valida_motos && !user.valida_pecas && user.perfil !== 'gestor' && user.perfil !== 'admin' && (
+                                                <span className="text-content-muted">Padrão</span>
+                                            )}
+                                        </div>
                                     </td>
 
                                     {/* Ações */}
@@ -442,12 +454,20 @@ export default function UsersIndex({ auth, users, stats, filters }) {
                                 </div>
                             )}
 
-                            {user.valida_pecas && (
-                                <div className="text-xs">
-                                    <span className="inline-flex items-center gap-1 rounded bg-brand-50 px-2 py-0.5 font-bold text-brand-700">
-                                        <WrenchScrewdriverIcon className="h-3 w-3" />
-                                        Validador de Peças (Gate 1)
-                                    </span>
+                            {(user.valida_motos || user.valida_pecas || user.perfil === 'gestor' || user.perfil === 'admin') && (
+                                <div className="flex flex-wrap gap-1.5 text-xs pt-1">
+                                    {(user.valida_motos || user.perfil === 'gestor' || user.perfil === 'admin') && (
+                                        <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 font-bold text-amber-800 ring-1 ring-amber-200">
+                                            <CubeIcon className="h-3 w-3" />
+                                            Valida Motos
+                                        </span>
+                                    )}
+                                    {(user.valida_pecas || user.perfil === 'admin') && (
+                                        <span className="inline-flex items-center gap-1 rounded bg-brand-50 px-2 py-0.5 font-bold text-brand-700 ring-1 ring-brand-200">
+                                            <WrenchScrewdriverIcon className="h-3 w-3" />
+                                            Valida Peças (Gate 1)
+                                        </span>
+                                    )}
                                 </div>
                             )}
 

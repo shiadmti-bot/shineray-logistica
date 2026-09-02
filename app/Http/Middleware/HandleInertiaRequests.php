@@ -40,9 +40,9 @@ public function share(Request $request): array
                     'email' => $request->user()->email,
                     'perfil' => $request->user()->perfil,
                     'filial' => $request->user()->filial,
-                    // Atribuição de peças: a interface usa para decidir se
-                    // mostra o botão de liberar. A trava real é no servidor.
+                    // Atribuições independentes de validação:
                     'valida_pecas' => $request->user()->podeValidarPecas(),
+                    'valida_motos' => $request->user()->podeValidarMotos(),
                     'notifications' => $request->user()->notifications()->take(10)->get(),
                     'unread_count' => $request->user()->unreadNotifications()->count(),
                 ] : null,

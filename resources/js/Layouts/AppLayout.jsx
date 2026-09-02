@@ -69,7 +69,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
         }
     };
 
-    const secoes = navegacaoPara(currentUser.perfil);
+    const secoes = navegacaoPara(currentUser);
     const contadores = props.navCounts ?? {};
 
     const contarSecao = (secao) =>
@@ -85,7 +85,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
         return (
             <Link
                 data-tour={item.key}
-                href={safeRoute(item.route)}
+                href={safeRoute(item.route, item.params)}
                 className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition
                     ${ativo ? 'bg-white/20 text-white shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
             >
@@ -143,7 +143,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
                                     <Menu.Item key={item.key}>
                                         {({ active }) => (
                                             <Link
-                                                href={safeRoute(item.route)}
+                                                href={safeRoute(item.route, item.params)}
                                                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition
                                                     ${
                                                         ativo
@@ -331,7 +331,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
                                             return (
                                                 <Link
                                                     key={item.key}
-                                                    href={safeRoute(item.route)}
+                                                    href={safeRoute(item.route, item.params)}
                                                     className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition
                                                         ${
                                                             ativo

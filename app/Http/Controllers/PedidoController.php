@@ -145,6 +145,7 @@ class PedidoController extends Controller
         $dataFim = $request->input('data_fim');
         $statusFiltro = $request->input('status');
         $lojaFiltro = $request->input('loja_id');
+        $tipoCarga = $request->input('tipo'); // 'moto', 'peca', ou null
 
         $pedidos = Pedido::select('pedidos.*')
             ->with([
@@ -180,6 +181,9 @@ class PedidoController extends Controller
                         ->orWhere('origem_user_id', $user->id);
                 });
             })
+            // Filtro por Tipo de Carga (Motos vs Peças)
+            ->when($tipoCarga === 'moto', fn($q) => $q->where('tipo_carga', '!=', 'peca'))
+            ->when($tipoCarga === 'peca', fn($q) => $q->where('tipo_carga', 'peca'))
             // Filtro por Texto (ID, Status, Chassi, Loja)
             ->when($termo, function($q) use ($termo) {
                 $q->where(function($sub) use ($termo) {
@@ -218,10 +222,27 @@ class PedidoController extends Controller
             return $pedido;
         });
 
+        // Contadores por Tipo para as Abas
+        $baseCounts = Pedido::query()
+            ->when($user->perfil === 'loja', function($q) use ($user) {
+                $q->where(function($sub) use ($user) {
+                    $sub->where('user_id', $user->id)
+                        ->orWhere('origem_user_id', $user->id);
+                });
+            });
+
+        $tipoCounts = [
+            'all'   => (clone $baseCounts)->count(),
+            'moto'  => (clone $baseCounts)->where('tipo_carga', '!=', 'peca')->count(),
+            'peca'  => (clone $baseCounts)->where('tipo_carga', 'peca')->count(),
+        ];
+
         return Inertia::render('Pedidos/Index', [
             'pedidos' => $pedidos, 
             'perfil' => $user->perfil, 
-            'filters' => $request->only(['search', 'data_inicio', 'data_fim', 'status', 'loja_id']),
+            'filters' => $request->only(['search', 'data_inicio', 'data_fim', 'status', 'loja_id', 'tipo']),
+            'tipoCounts' => $tipoCounts,
+            'currentTipo' => $tipoCarga ?: 'all',
             // Enviar lista de lojas para o filtro (apenas se tiver permissão)
             'lojas' => in_array($user->perfil, ['admin', 'gestor', 'cd']) ? User::where('perfil', 'loja')->orderBy('filial')->get(['id', 'filial']) : []
         ]);

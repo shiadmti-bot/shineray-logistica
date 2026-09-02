@@ -19,9 +19,12 @@ class GestorController extends Controller
      */
     public function index()
     {
-        // 1. Pedidos Normais (Fluxo de Venda + Transferências)
+        $this->autorizarGestorMotos();
+
+        // 1. Pedidos Normais de Motos (Fluxo de Venda + Transferências) - Peças não entram aqui
         $pedidos = Pedido::with(['user', 'motos', 'origem', 'itensPedido'])
             ->where('status', 'em_analise')
+            ->where('tipo_carga', '!=', 'peca')
             ->latest()
             ->get()
             ->map(function ($pedido) {
@@ -101,6 +104,8 @@ class GestorController extends Controller
      */
     public function show($id)
     {
+        $this->autorizarGestorMotos();
+
         $pedido = Pedido::with(['user', 'motos', 'logs', 'itensPedido', 'origem'])->findOrFail($id);
 
         // Busca a última mensagem do chat 'Gestor' enviada pela Loja
@@ -123,6 +128,8 @@ class GestorController extends Controller
      */
     public function aprovar(Request $request, $id)
     {
+        $this->autorizarGestorMotos();
+
         $pedido = Pedido::with('motos')->findOrFail($id);
         
         $motosRejeitadasIds = $request->input('rejeitadas', []);
@@ -229,6 +236,8 @@ class GestorController extends Controller
      */
     public function rejeitar(Request $request, $id)
     {
+        $this->autorizarGestorMotos();
+
         $pedido = Pedido::with('motos', 'user')->findOrFail($id);
         $motivo = $request->input('justificativa') ?: $request->input('motivo', 'Rejeitado pelo Gestor Comercial');
         $userGestor = Auth::user();
@@ -268,6 +277,8 @@ class GestorController extends Controller
      */
     public function aprovarEstorno(Request $request, $id)
     {
+        $this->autorizarGestorMotos();
+
         $moto = Moto::findOrFail($id);
         
         // 1. Guarda apenas os pedidos ATIVOS aos quais ela pertencia (para não apagar histórico de concluídos)
@@ -314,6 +325,8 @@ class GestorController extends Controller
      */
     public function historico(Request $request)
     {
+        $this->autorizarGestorMotos();
+
         // Inicia Query no PedidoLog filtrando apenas auditorias
         $query = PedidoLog::where('titulo', 'LIKE', 'Auditoria Comercial%')
             ->with(['pedido' => function($q) {
@@ -358,5 +371,16 @@ class GestorController extends Controller
                 'data_fim'    => $request->input('data_fim') ?? '',
             ]
         ]);
+    }
+
+    /**
+     * Validação de autorização do Gestor de Motos / Diretoria Comercial.
+     * Quem valida apenas peças NÃO tem acesso a este módulo.
+     */
+    private function autorizarGestorMotos(): void
+    {
+        if (! Auth::user()->podeValidarMotos()) {
+            abort(403, 'Acesso restrito ao Gestor de Motos ou Administrador.');
+        }
     }
 }

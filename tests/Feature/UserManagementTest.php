@@ -119,4 +119,70 @@ class UserManagementTest extends TestCase
         $userLoja->refresh();
         $this->assertFalse((bool) $userLoja->is_interior);
     }
+
+    public function test_separacao_validador_de_pecas_nao_valida_motos_e_nao_acessa_gestor()
+    {
+        // Usuário do Pós-Venda que valida peças
+        $validadorPecas = User::factory()->create([
+            'perfil' => 'cd',
+            'valida_pecas' => true,
+            'valida_motos' => false,
+        ]);
+
+        $this->assertTrue($validadorPecas->podeValidarPecas());
+        $this->assertFalse($validadorPecas->podeValidarMotos());
+
+        // Tentar acessar o painel de aprovação de motos deve retornar 403
+        $response = $this->actingAs($validadorPecas)->get(route('gestor.index'));
+        $response->assertStatus(403);
+    }
+
+    public function test_separacao_validador_de_motos_nao_valida_pecas()
+    {
+        // Gestor Comercial que valida motos
+        $gestorMotos = User::factory()->create([
+            'perfil' => 'gestor',
+            'valida_motos' => true,
+            'valida_pecas' => false,
+        ]);
+
+        $this->assertTrue($gestorMotos->podeValidarMotos());
+        $this->assertFalse($gestorMotos->podeValidarPecas());
+
+        // Consegue acessar aprovação de motos normalmente
+        $response = $this->actingAs($gestorMotos)->get(route('gestor.index'));
+        $response->assertStatus(200);
+    }
+
+    public function test_validador_de_pecas_pode_acessar_fila_de_atendimento_mesmo_sem_ser_cd()
+    {
+        $validadorExclusivo = User::factory()->create([
+            'perfil' => 'gestor',
+            'valida_pecas' => true,
+            'valida_motos' => false,
+        ]);
+
+        // Acessa fila de atendimento de peças sem receber 403
+        $response = $this->actingAs($validadorExclusivo)->get(route('pecas.atendimento'));
+        $response->assertStatus(200);
+    }
+
+    public function test_pedidos_index_permite_filtrar_por_tipo_moto_e_peca()
+    {
+        $response = $this->actingAs($this->admin)->get(route('pedidos.index', ['tipo' => 'moto']));
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Pedidos/Index')
+            ->where('currentTipo', 'moto')
+            ->has('tipoCounts.moto')
+            ->has('tipoCounts.peca')
+        );
+
+        $responsePeca = $this->actingAs($this->admin)->get(route('pedidos.index', ['tipo' => 'peca']));
+        $responsePeca->assertStatus(200);
+        $responsePeca->assertInertia(fn ($page) => $page
+            ->component('Pedidos/Index')
+            ->where('currentTipo', 'peca')
+        );
+    }
 }

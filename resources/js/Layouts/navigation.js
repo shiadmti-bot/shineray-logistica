@@ -1,44 +1,35 @@
 import {
     HomeIcon,
-    CalendarIcon,
-    PlusCircleIcon,
     ArchiveBoxIcon,
-    TruckIcon,
-    ClipboardDocumentListIcon,
-    FolderIcon,
+    PlusCircleIcon,
     CubeIcon,
-    UsersIcon,
-    QuestionMarkCircleIcon,
-    PresentationChartLineIcon,
-    WrenchScrewdriverIcon,
-    ArrowsRightLeftIcon,
-    ArrowUturnLeftIcon,
+    TruckIcon,
     ClipboardDocumentCheckIcon,
+    FolderIcon,
+    UsersIcon,
+    PresentationChartLineIcon,
+    QuestionMarkCircleIcon,
+    ClipboardDocumentListIcon,
+    ArrowsRightLeftIcon,
+    CalendarIcon,
+    WrenchScrewdriverIcon,
     ExclamationTriangleIcon,
+    ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline';
 
 /**
- * NAVEGAÇÃO DO SISTEMA (v3)
+ * ESTRUTURA GLOBAL DE NAVEGAÇÃO
  *
- * Antes o menu era JSX condicional dentro do layout: cada perfil tinha seu bloco
- * de <CustomNavLink>, com itens repetidos entre perfis. Com Peças entrando, o
- * menu horizontal passaria de ~8 para ~14 itens e o JSX ficaria impossível de
- * manter.
- *
- * Aqui a navegação é DADO, agrupado em seções. O layout só renderiza.
- * Adicionar uma tela = uma linha nesta lista.
- *
- * Cada item:
- *   route   -> nome da rota Laravel (resolvido com segurança pelo layout)
- *   match   -> padrão para marcar o item como ativo (default: a própria rota)
- *   perfis  -> quem enxerga. Omitir = todos.
- *   badge   -> chave em page.props.navCounts para o contador (ex.: pendências)
- *   pronto  -> false = tela ainda não construída; some do menu automaticamente
+ * Itens separados estritamente por contexto:
+ * - Motos: operações, estoque, pedidos e aprovação de motos.
+ * - Peças: catálogo, pedidos de peças, validação técnica (Gate 1) e basquetas.
+ * - Logística: expedição e cargas.
+ * - Gestão: relatórios, auditoria e usuários.
  */
 export const NAV_SECTIONS = [
     {
         id: 'geral',
-        label: null, // sem cabeçalho: itens de topo
+        label: null,
         items: [
             { key: 'dashboard', label: 'Início', icon: HomeIcon, route: 'dashboard' },
             { key: 'calendario', label: 'Calendário', icon: CalendarIcon, route: 'calendar.index', match: 'calendar.*' },
@@ -58,22 +49,21 @@ export const NAV_SECTIONS = [
             },
             {
                 key: 'motos-estoque',
-                label: 'Estoque',
+                label: 'Estoque de Motos',
                 icon: CubeIcon,
                 route: 'motos.index',
                 match: 'motos.*',
             },
             {
                 key: 'motos-pedidos',
-                label: 'Pedidos',
+                label: 'Pedidos de Motos',
                 icon: ArchiveBoxIcon,
                 route: 'pedidos.index',
+                params: { tipo: 'moto' },
                 match: 'pedidos.*',
                 badge: 'pedidosPendentes',
             },
             {
-                // Logística reversa (v3): a moto voltando da loja para o CD,
-                // com checklist de conferência nas duas pontas.
                 key: 'motos-devolucoes',
                 label: 'Devoluções',
                 icon: ArrowUturnLeftIcon,
@@ -81,14 +71,19 @@ export const NAV_SECTIONS = [
                 match: 'devolucoes.*',
                 badge: 'devolucoesPendentes',
             },
+            {
+                // Validação e corte comercial exclusivo de motos
+                key: 'motos-aprovacoes',
+                label: 'Aprovações de Motos',
+                icon: ClipboardDocumentCheckIcon,
+                route: 'gestor.index',
+                match: 'gestor.*',
+                requireValidaMotos: true,
+                badge: 'aprovacoesPendentes',
+            },
         ],
     },
 
-    /*
-     * PEÇAS — a fundação de dados existe (pecas, peca_estoques, peca_movimentos,
-     * EstoquePecaService). As telas ainda não. `pronto: false` mantém os itens
-     * fora do menu até cada tela ser construída; basta virar para true.
-     */
     {
         id: 'pecas',
         label: 'Peças',
@@ -101,17 +96,23 @@ export const NAV_SECTIONS = [
                 perfis: ['loja', 'admin'],
             },
             {
-                // Passos 2 e 3 do manual do Call Center: identificar o código
-                // e liberar. Sem passar por aqui, nada é separado.
+                key: 'pecas-pedidos',
+                label: 'Pedidos de Peças',
+                icon: ArchiveBoxIcon,
+                route: 'pedidos.index',
+                params: { tipo: 'peca' },
+                match: 'pedidos.*',
+            },
+            {
+                // Gate 1: Identificação técnica e liberação pelo Pós-Venda
                 key: 'pecas-atendimento',
-                label: 'Atendimento',
+                label: 'Validação & Atendimento',
                 icon: ClipboardDocumentCheckIcon,
                 route: 'pecas.atendimento',
                 match: 'pecas.atendimento*',
-                perfis: ['admin', 'cd'],
+                requireValidaPecas: true,
             },
             {
-                // Passo 4: o caixote de cada filial, enchendo até o dia da carga.
                 key: 'pecas-basquetas',
                 label: 'Basquetas',
                 icon: ArchiveBoxIcon,
@@ -135,7 +136,6 @@ export const NAV_SECTIONS = [
                 perfis: ['admin', 'cd', 'loja'],
             },
             {
-                // Fase 5: mede onde o fluxo trava e o que o Gate 2 pegou.
                 key: 'pecas-indicadores',
                 icon: PresentationChartLineIcon,
                 label: 'Indicadores',
@@ -196,15 +196,6 @@ export const NAV_SECTIONS = [
                 perfis: ['admin', 'gestor'],
             },
             {
-                key: 'aprovacoes',
-                label: 'Aprovações',
-                icon: ClipboardDocumentCheckIcon,
-                route: 'gestor.index',
-                match: 'gestor.*',
-                perfis: ['gestor', 'admin'],
-                badge: 'aprovacoesPendentes',
-            },
-            {
                 key: 'usuarios',
                 label: 'Usuários',
                 icon: UsersIcon,
@@ -225,17 +216,41 @@ export const NAV_SECTIONS = [
 ];
 
 /**
- * Seções visíveis para um perfil, já sem itens não prontos nem seções vazias.
+ * Seções visíveis para um perfil/usuário, com respeito estrito a validações independentes.
  */
-export function navegacaoPara(perfil) {
+export function navegacaoPara(userOrPerfil) {
+    const perfil = typeof userOrPerfil === 'string' ? userOrPerfil : (userOrPerfil?.perfil || 'loja');
+    const validaPecas = typeof userOrPerfil === 'object'
+        ? Boolean(userOrPerfil?.valida_pecas)
+        : (perfil === 'admin' || perfil === 'cd');
+    const validaMotos = typeof userOrPerfil === 'object'
+        ? (userOrPerfil?.valida_motos !== undefined ? Boolean(userOrPerfil.valida_motos) : (perfil === 'gestor' || perfil === 'admin'))
+        : (perfil === 'gestor' || perfil === 'admin');
+    const isAdmin = perfil === 'admin';
+
     return NAV_SECTIONS
         .map((secao) => ({
             ...secao,
-            items: secao.items.filter(
-                (item) =>
-                    item.pronto !== false &&
-                    (!item.perfis || item.perfis.includes(perfil))
-            ),
+            items: secao.items.filter((item) => {
+                if (item.pronto === false) return false;
+
+                // Restrição por perfil genérico
+                if (item.perfis && !item.perfis.includes(perfil)) {
+                    return false;
+                }
+
+                // Restrição específica: Validador de Motos (Gestor Comercial / Diretoria)
+                if (item.requireValidaMotos && !validaMotos && !isAdmin) {
+                    return false;
+                }
+
+                // Restrição específica: Validador de Peças (Pós-Venda - Gate 1) ou Operação CD
+                if (item.requireValidaPecas && !validaPecas && perfil !== 'cd' && !isAdmin) {
+                    return false;
+                }
+
+                return true;
+            }),
         }))
         .filter((secao) => secao.items.length > 0);
 }
