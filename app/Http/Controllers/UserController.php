@@ -34,14 +34,34 @@ class UserController extends Controller implements HasMiddleware
     // --- 1. LISTAGEM (INDEX) ---
     public function index(Request $request)
     {
-        $users = User::with('defaultRoute') // Carrega a relação da rota
+        $stats = [
+            'total' => User::count(),
+            'lojas' => User::where('perfil', 'loja')->count(),
+            'cd' => User::where('perfil', 'cd')->count(),
+            'gestores' => User::whereIn('perfil', ['gestor', 'admin'])->count(),
+            'online' => User::where('last_seen_at', '>=', now()->subMinutes(5))->count(),
+        ];
+
+        $users = User::with('defaultRoute')
             ->when($request->search, function ($query, $search) {
-                $query->where('name', 'like', "%{$search}%")
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
                       ->orWhere('email', 'like', "%{$search}%")
                       ->orWhere('filial', 'like', "%{$search}%");
+                });
             })
-            ->orderBy('last_seen_at', 'desc') // Prioriza quem está online/recente
-            ->paginate(10)
+            ->when($request->perfil && $request->perfil !== 'all', function ($query) use ($request) {
+                if ($request->perfil === 'online') {
+                    $query->where('last_seen_at', '>=', now()->subMinutes(5));
+                } elseif ($request->perfil === 'gestao') {
+                    $query->whereIn('perfil', ['gestor', 'admin']);
+                } else {
+                    $query->where('perfil', $request->perfil);
+                }
+            })
+            ->orderBy('last_seen_at', 'desc')
+            ->paginate(12)
+            ->withQueryString()
             ->through(function ($user) {
                 return [
                     'id' => $user->id,
@@ -51,11 +71,10 @@ class UserController extends Controller implements HasMiddleware
                     'filial' => $user->filial,
                     'is_online' => $user->last_seen_at && $user->last_seen_at->diffInMinutes(now()) < 5,
                     'last_seen_human' => $user->last_seen_at ? $user->last_seen_at->diffForHumans() : 'Nunca',
-                    // --- O PULO DO GATO ESTÁ AQUI ---
-                    // Se esta linha não existir, o frontend recebe 'undefined' e mostra Capital por padrão
-                    'is_interior' => (bool) $user->is_interior, 
+                    'is_interior' => (bool) $user->is_interior,
+                    'valida_pecas' => (bool) $user->valida_pecas,
                     'default_route' => $user->defaultRoute ? [
-                        'id' => $user->defaultRoute->id, 
+                        'id' => $user->defaultRoute->id,
                         'code' => $user->defaultRoute->code
                     ] : null,
                 ];
@@ -63,17 +82,15 @@ class UserController extends Controller implements HasMiddleware
 
         return Inertia::render('Users/Index', [
             'users' => $users,
-            'filters' => $request->only(['search'])
+            'stats' => $stats,
+            'filters' => $request->only(['search', 'perfil'])
         ]);
     }
 
     // --- 2. TELA DE CRIAÇÃO ---
     public function create()
     {
-        // Carrega filiais para o select
         $filiais = Filial::orderBy('uf', 'desc')->orderBy('cidade')->get();
-        
-        // v2.0: Carrega rotas ativas para o select
         $rotas = Route::where('active', true)->orderBy('code')->get();
 
         return Inertia::render('Users/Create', [
@@ -89,26 +106,44 @@ class UserController extends Controller implements HasMiddleware
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'perfil' => 'required|in:loja,cd,admin,gestor', // Adicionei gestor
+            'perfil' => 'required|in:loja,cd,admin,gestor',
             'filial' => 'nullable|string',
-            'default_route_id' => 'nullable|exists:routes,id', // Validação v2.0
-            'valida_pecas' => 'boolean', // v3.1: assina a liberação de peças
+            'default_route_id' => 'nullable|exists:routes,id',
+            'is_interior' => 'boolean',
+            'valida_pecas' => 'boolean',
         ]);
+
+        $filial = $request->filial;
+        if (empty($filial)) {
+            $filial = ($request->perfil === 'cd') ? 'CD Ananindeua' : 'Matriz';
+        }
+
+        // Auto-vincula estoque_local_id quando aplicável
+        $estoqueLocalId = null;
+        if ($request->perfil === 'cd') {
+            $estoqueLocalId = \App\Models\EstoqueLocal::where('tipo', \App\Models\EstoqueLocal::TIPO_CD)->value('id');
+        } elseif ($request->perfil === 'loja' && $filial) {
+            $partes = explode('/', $filial);
+            $cidade = trim($partes[0]);
+            $estoqueLocalId = \App\Models\EstoqueLocal::where('nome', 'LIKE', "%{$cidade}%")->value('id');
+        }
 
         User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'perfil' => $request->perfil,
-            'filial' => $request->filial ?? 'Matriz',
-            'default_route_id' => $request->default_route_id, // Salva a rota
+            'filial' => $filial,
+            'default_route_id' => $request->default_route_id,
+            'is_interior' => $request->boolean('is_interior'),
             'valida_pecas' => $request->boolean('valida_pecas'),
+            'estoque_local_id' => $estoqueLocalId,
         ]);
 
         return redirect()->route('users.index')->with('success', 'Usuário criado com sucesso!');
     }
 
-    // --- 4. TELA DE EDIÇÃO (NOVO - Faltava isso!) ---
+    // --- 4. TELA DE EDIÇÃO ---
     public function edit($id)
     {
         $user = User::findOrFail($id);
@@ -122,38 +157,37 @@ class UserController extends Controller implements HasMiddleware
         ]);
     }
 
-    // --- 5. ATUALIZAR (UPDATE - NOVO - Faltava isso!) ---
+    // --- 5. ATUALIZAR (UPDATE) ---
     public function update(Request $request, User $user)
     {
-        // 1. Validação (Adicionamos as regras novas)
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
-            'perfil' => 'required|string',
+            'perfil' => 'required|in:loja,cd,admin,gestor',
             'filial' => 'nullable|string',
-            
-            // Regras da V2
-            // FK aponta para `routes` (ver migration 2026_02_04_142558). Estava
-            // validando contra `schedules`, o que aceitava id de viagem como se
-            // fosse rota — e recusava rota válida cujo id não existisse lá.
             'default_route_id' => 'nullable|exists:routes,id',
-            'is_interior' => 'boolean', // Aceita true/false/1/0
-
-            // Regra da V3.1
-            'valida_pecas' => 'boolean', // assina a liberação de peças
-
-            // Senha opcional
+            'is_interior' => 'boolean',
+            'valida_pecas' => 'boolean',
             'password' => 'nullable|string|min:8|confirmed',
         ]);
 
-        // 2. Tratamento da Senha (só altera se preenchida)
         if (empty($validated['password'])) {
             unset($validated['password']);
         } else {
             $validated['password'] = bcrypt($validated['password']);
         }
 
-        // 3. Atualização (Agora vai funcionar porque está no $fillable)
+        // Se estoque_local_id ainda estiver nulo, sincroniza agora
+        if (!$user->estoque_local_id) {
+            if ($validated['perfil'] === 'cd') {
+                $validated['estoque_local_id'] = \App\Models\EstoqueLocal::where('tipo', \App\Models\EstoqueLocal::TIPO_CD)->value('id');
+            } elseif ($validated['perfil'] === 'loja' && !empty($validated['filial'])) {
+                $partes = explode('/', $validated['filial']);
+                $cidade = trim($partes[0]);
+                $validated['estoque_local_id'] = \App\Models\EstoqueLocal::where('nome', 'LIKE', "%{$cidade}%")->value('id');
+            }
+        }
+
         $user->update($validated);
 
         return back()->with('success', 'Dados do usuário atualizados com sucesso!');
