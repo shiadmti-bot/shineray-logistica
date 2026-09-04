@@ -129,9 +129,14 @@ class RomaneioController extends Controller
 
         // 3. Cargas em Aberto (Para adicionar itens nelas)
         $cargasEmAberto = Romaneio::where('status', 'aberto')
-            ->withCount('motos')
+            ->withCount(['motos', 'itensPecas'])
             ->orderBy('id', 'desc')
             ->get();
+
+        // Rotas ativas cadastradas para sugestão/seleção rápida
+        $rotas = \App\Models\Route::where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
 
         // 4. V2.6: Pedidos genéricos aguardando o CD informar os chassis.
         // Sem isto o pedido sem chassi jamais apareceria nesta tela, pois as
@@ -213,6 +218,7 @@ class RomaneioController extends Controller
             'cargasEmAberto' => $cargasEmAberto,
             'aguardandoChassi' => $aguardandoChassi,
             'pecasProntas' => $pecasProntas,
+            'rotas' => $rotas,
         ]);
     }
 

@@ -211,6 +211,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         */
         Route::prefix('pedidos')->name('pedidos.')->group(function () {
             Route::get('/', [PedidoController::class, 'index'])->name('index');
+            Route::get('/novo', [PedidoController::class, 'create'])->name('create');
             Route::post('/', [PedidoController::class, 'store'])->name('store');
             Route::get('/exportar', [PedidoController::class, 'exportar'])->name('exportar');
             
