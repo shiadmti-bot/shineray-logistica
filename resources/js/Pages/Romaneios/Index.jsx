@@ -331,9 +331,18 @@ function Volume({ romaneio }) {
 
 const paraTexto = (v) => String(v ?? '').toLowerCase();
 
-/** Etapa da carga no fluxo, de aberta a concluída. */
+/** Etapa da carga no fluxo, de aberta a concluída com cores semânticas vibrantes. */
 function BarraProgresso({ status }) {
-    const etapas = { aberto: 1, expedido: 2, em_transito: 3, concluido: 4 };
+    const etapas = {
+        aberto: 1,
+        carregado: 1.5,
+        aguardando_saida: 1.8,
+        expedido: 2.2,
+        em_transito: 3.2,
+        concluido: 4,
+        cancelado: 4,
+        retornado: 4,
+    };
     const s = paraTexto(status);
 
     return (
@@ -347,13 +356,17 @@ function BarraProgresso({ status }) {
 }
 
 function corDoStatus(status) {
-    return (
-        {
-            aberto: 'bg-status-warning-solid',
-            expedido: 'bg-status-info-solid',
-            em_transito: 'bg-status-info-solid',
-            concluido: 'bg-status-success-solid',
-            cancelado: 'bg-status-danger-solid',
-        }[paraTexto(status)] || 'bg-status-neutral-solid'
-    );
+    const s = paraTexto(status);
+    const mapaCores = {
+        aberto: 'bg-amber-500',
+        carregado: 'bg-indigo-500',
+        aguardando_saida: 'bg-pink-500',
+        expedido: 'bg-cyan-500',
+        em_transito: 'bg-blue-600',
+        concluido: 'bg-emerald-600',
+        cancelado: 'bg-rose-500',
+        retornado: 'bg-rose-500',
+    };
+
+    return mapaCores[s] || 'bg-brand-600';
 }

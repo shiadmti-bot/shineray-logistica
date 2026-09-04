@@ -1,1 +1,0 @@
-import{j as s}from"./app-BqrkR_dZ.js";function m({value:t,className:e="",children:n,...o}){return s.jsx("label",{...o,className:"block text-sm font-medium text-content-secondary "+e,children:t||n})}export{m as I};

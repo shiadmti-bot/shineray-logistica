@@ -5,6 +5,7 @@ use App\Http\Controllers\MotoController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\RomaneioController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\FilialController;
 use App\Http\Controllers\GestorController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CalendarController; 
@@ -474,6 +475,15 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::patch('/{id}/toggle-interior', [UserController::class, 'toggleInterior'])
                 ->name('toggle-interior')
                 ->middleware('can:admin');
+        });
+
+        // Gestão e Organização de Filiais (Admin/Gestor)
+        Route::prefix('filiais')->name('filiais.')->middleware('check_perfil:admin,gestor')->group(function () {
+            Route::get('/', [FilialController::class, 'index'])->name('index');
+            Route::post('/', [FilialController::class, 'store'])->name('store');
+            Route::put('/{filial}', [FilialController::class, 'update'])->name('update');
+            Route::delete('/{filial}', [FilialController::class, 'destroy'])->name('destroy');
+            Route::patch('/{filial}/toggle', [FilialController::class, 'toggle'])->name('toggle');
         });
 
         // Perfil do Usuário

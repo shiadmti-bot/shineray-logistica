@@ -15,6 +15,7 @@ import {
     WrenchScrewdriverIcon,
     ExclamationTriangleIcon,
     ArrowUturnLeftIcon,
+    BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline';
 
 /**
@@ -202,6 +203,14 @@ export const NAV_SECTIONS = [
                 route: 'users.index',
                 match: 'users.*',
                 perfis: ['admin'],
+            },
+            {
+                key: 'filiais',
+                label: 'Filiais',
+                icon: BuildingStorefrontIcon,
+                route: 'filiais.index',
+                match: 'filiais.*',
+                perfis: ['admin', 'gestor'],
             },
         ],
     },

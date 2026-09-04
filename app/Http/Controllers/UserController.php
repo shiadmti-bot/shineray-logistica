@@ -91,7 +91,7 @@ class UserController extends Controller implements HasMiddleware
     // --- 2. TELA DE CRIAÇÃO ---
     public function create()
     {
-        $filiais = Filial::orderBy('uf', 'desc')->orderBy('cidade')->get();
+        $filiais = Filial::ativas()->orderBy('uf')->orderBy('cidade')->get();
         $rotas = Route::where('active', true)->orderBy('code')->get();
 
         return Inertia::render('Users/Create', [
@@ -106,7 +106,7 @@ class UserController extends Controller implements HasMiddleware
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'password' => 'required|string|min:8|confirmed',
             'perfil' => 'required|in:loja,cd,admin,gestor',
             'filial' => 'nullable|string',
             'default_route_id' => 'nullable|exists:routes,id',
@@ -150,7 +150,13 @@ class UserController extends Controller implements HasMiddleware
     public function edit($id)
     {
         $user = User::findOrFail($id);
-        $filiais = Filial::orderBy('uf', 'desc')->orderBy('cidade')->get();
+        $cidadeAtual = explode('/', $user->filial ?? '')[0];
+        $filiais = Filial::where('ativo', true)
+            ->orWhere('nome', $user->filial)
+            ->orWhere('cidade', $cidadeAtual)
+            ->orderBy('uf')
+            ->orderBy('cidade')
+            ->get();
         $rotas = Route::where('active', true)->orderBy('code')->get();
 
         return Inertia::render('Users/Edit', [

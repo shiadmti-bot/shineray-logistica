@@ -416,6 +416,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                                     <VolumeIndicator pedido={pedido} />
                                 </div>
                                 <EmbarqueParcial pedido={pedido} />
+                                <BarraProgresso status={pedido.status} />
                             </div>
                         </Link>
                     ))
@@ -639,32 +640,62 @@ function EmbarqueParcial({ pedido }) {
 }
 
 /**
+ * Mapeamento de cor vibrante por status para indicar avanço no fluxo.
+ * Restaura o dinamismo visual da V2 mantendo o acabamento elegante da V3.
+ */
+function corDoStatusPedido(status) {
+    const s = paraTexto(status);
+    const mapaCores = {
+        em_analise: 'bg-slate-400',
+        solicitado: 'bg-amber-500',
+        em_atendimento: 'bg-purple-500',
+        aguardando_confirmacao: 'bg-amber-500',
+        aprovado: 'bg-indigo-500',
+        separado: 'bg-teal-500',
+        aguardando_rota: 'bg-pink-500',
+        rota_confirmada: 'bg-purple-600',
+        aguardando_coleta: 'bg-orange-500',
+        coletado: 'bg-emerald-500',
+        expedido: 'bg-cyan-500',
+        em_transito: 'bg-blue-600',
+        em_transito_cd: 'bg-blue-600',
+        no_cd: 'bg-sky-600',
+        concluido: 'bg-emerald-600',
+        cancelado: 'bg-rose-500',
+        rejeitado: 'bg-rose-500',
+    };
+
+    return mapaCores[s] || 'bg-brand-600';
+}
+
+/**
  * Progresso do pedido ao longo do fluxo, de solicitado a concluído.
- * Dá noção de "quanto falta" sem precisar abrir o detalhe.
+ * Dá noção clara de "quanto falta" com cores semânticas imediatas.
  */
 function BarraProgresso({ status }) {
     const etapas = {
         em_analise: 0.5,
         solicitado: 1,
+        em_atendimento: 1.2,
+        aguardando_confirmacao: 1.5,
+        aprovado: 1.8,
         separado: 2,
         aguardando_rota: 2.3,
         rota_confirmada: 2.6,
         aguardando_coleta: 2.8,
-        coletado: 3.5,
+        coletado: 3.2,
         expedido: 3.5,
-        em_transito: 4,
+        em_transito: 4.2,
+        em_transito_cd: 4.2,
+        no_cd: 4.5,
         concluido: 5,
+        cancelado: 5,
+        rejeitado: 5,
     };
 
     const s = paraTexto(status);
     const etapa = etapas[s] ?? 1;
-
-    const cor =
-        s === 'cancelado'
-            ? 'bg-status-danger-solid'
-            : s === 'concluido'
-              ? 'bg-status-success-solid'
-              : 'bg-status-info-solid';
+    const cor = corDoStatusPedido(status);
 
     return (
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
