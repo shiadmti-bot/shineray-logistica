@@ -230,23 +230,48 @@ class FilialController extends Controller
         $this->autorizar();
 
         $chave = $filial->chave_filial;
+        $local = $filial->estoqueLocal();
 
-        // Verifica vínculos com usuários
+        // 1. Verifica vínculos com usuários cadastrados
         $temUsuarios = User::where('filial', $chave)
             ->orWhere('filial', $filial->nome)
+            ->orWhere('filial', 'LIKE', "%{$filial->cidade}%")
             ->exists();
 
-        // Verifica se local de estoque tem pedidos ou movimentações
-        $local = $filial->estoqueLocal();
-        $temPedidos = false;
-        if ($local) {
+        // 2. Verifica vínculos com pedidos (motos ou peças)
+        $temPedidos = Pedido::whereHas('user', function ($u) use ($chave, $filial) {
+            $u->where('filial', $chave)
+              ->orWhere('filial', $filial->nome)
+              ->orWhere('filial', 'LIKE', "%{$filial->cidade}%");
+        })->orWhereHas('origem', function ($o) use ($chave, $filial) {
+            $o->where('filial', $chave)
+              ->orWhere('filial', $filial->nome)
+              ->orWhere('filial', 'LIKE', "%{$filial->cidade}%");
+        })->exists();
+
+        if ($local && !$temPedidos) {
             $temPedidos = Pedido::where('local_origem_id', $local->id)
                 ->orWhere('local_destino_id', $local->id)
                 ->exists();
         }
 
-        if ($temUsuarios || $temPedidos) {
-            // Em vez de quebrar integridade referencial, desativa com mensagem explicativa
+        // 3. Verifica se há peças, basquetas ou movimentações no estoque desta filial
+        $temPecas = false;
+        if ($local) {
+            $temPecas = \App\Models\Basqueta::where('estoque_local_id', $local->id)->exists()
+                || \App\Models\PecaMovimento::where('local_id', $local->id)->orWhere('local_contraparte_id', $local->id)->exists()
+                || \App\Models\RomaneioItem::where('local_destino_id', $local->id)->exists()
+                || \App\Models\PecaEstoque::where('local_id', $local->id)->where('saldo', '>', 0)->exists();
+        }
+
+        // 4. Verifica se há motos alocadas nesta filial
+        $temMotos = \App\Models\Moto::whereHas('loja', function ($u) use ($chave, $filial) {
+            $u->where('filial', $chave)->orWhere('filial', $filial->nome);
+        })->orWhere('localizacao_atual', 'LIKE', "%{$filial->cidade}%")
+          ->exists();
+
+        if ($temUsuarios || $temPedidos || $temPecas || $temMotos) {
+            // Em vez de quebrar integridade referencial e histórico de rastreio, desativa com segurança
             $filial->update(['ativo' => false]);
             if ($local) {
                 $local->update(['ativo' => false]);
@@ -254,11 +279,11 @@ class FilialController extends Controller
 
             return back()->with(
                 'success',
-                "A filial {$filial->nome} possui histórico vinculado (usuários ou pedidos) e foi desativada com segurança para não aparecer em novas seleções."
+                "A filial {$filial->nome} possui histórico de rastreio vinculado (pedidos, motos ou peças) e foi desativada com segurança para preservar todo o histórico de auditoria."
             );
         }
 
-        // Sem vínculos: exclusão segura
+        // Sem nenhum vínculo histórico: exclusão segura
         if ($local) {
             $local->delete();
         }
