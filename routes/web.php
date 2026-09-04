@@ -471,6 +471,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/{user}/editar', [UserController::class, 'edit'])->name('edit');
             Route::put('/{user}', [UserController::class, 'update'])->name('update');
             Route::delete('/{id}', [UserController::class, 'destroy'])->name('destroy');
+            Route::patch('/{id}/restore', [UserController::class, 'restore'])->name('restore');
             
             Route::patch('/{id}/toggle-interior', [UserController::class, 'toggleInterior'])
                 ->name('toggle-interior')

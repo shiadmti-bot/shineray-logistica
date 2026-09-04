@@ -280,13 +280,25 @@ class PedidoController extends Controller
         // Isso permite que devolvamsos motos para "alguém"
         $cdUser = User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->first();
 
-        // [CORREÇÃO] Lista de locais de entrega para o dropdown (Injecao Backend)
-        $locaisEntrega = User::where('perfil', 'loja')
-            ->whereNotNull('filial')
-            ->where('filial', '!=', '')
-            ->orderBy('filial')
-            ->pluck('filial')
+        // [CORREÇÃO] Lista de locais de entrega para o dropdown (Injeção Backend)
+        // Carrega exclusivamente filiais ATIVAS cadastradas
+        $filiaisAtivas = \App\Models\Filial::ativas()
+            ->orderBy('uf')
+            ->orderBy('cidade')
+            ->get()
+            ->map(fn($f) => $f->chave_filial)
             ->toArray();
+
+        $locaisEntrega = !empty($filiaisAtivas)
+            ? $filiaisAtivas
+            : User::where('perfil', 'loja')
+                ->whereNotNull('filial')
+                ->where('filial', '!=', '')
+                ->orderBy('filial')
+                ->pluck('filial')
+                ->unique()
+                ->values()
+                ->toArray();
         
         // Adiciona destinos padrão que não são lojas (se necessário)
         if (!in_array('Matriz / CD', $locaisEntrega)) {
@@ -357,6 +369,28 @@ class PedidoController extends Controller
             'modo' => 'nullable|string|in:cd,transferencia,devolucao', // 'devolucao' aceito só por compatibilidade
             'cd_user_id' => 'nullable|exists:users,id'
         ]);
+
+        // Validação: Garante que nenhuma filial desativada receba novos envios
+        foreach ($request->itens as $idx => $item) {
+            $dest = trim($item['local'] ?? '');
+            if ($dest && $dest !== 'Matriz / CD' && !str_starts_with($dest, 'PDV ')) {
+                $partes = explode('/', $dest);
+                $cidade = trim($partes[0]);
+                $uf = isset($partes[1]) ? trim($partes[1]) : null;
+
+                $filialQuery = \App\Models\Filial::where('cidade', $cidade);
+                if ($uf) {
+                    $filialQuery->where('uf', $uf);
+                }
+                $filialModel = $filialQuery->first();
+
+                if ($filialModel && !$filialModel->ativo) {
+                    return back()->withErrors([
+                        "itens.{$idx}.local" => "A filial {$dest} está inativa e não pode receber novos envios."
+                    ])->withInput();
+                }
+            }
+        }
 
         return DB::transaction(function () use ($request) {
             $user = Auth::user();

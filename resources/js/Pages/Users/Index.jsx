@@ -19,6 +19,8 @@ import {
     WrenchScrewdriverIcon,
     ClockIcon,
     CubeIcon,
+    ArchiveBoxIcon,
+    ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 export default function UsersIndex({ auth, users, stats, filters }) {
@@ -91,6 +93,33 @@ export default function UsersIndex({ auth, users, stats, filters }) {
         });
     };
 
+    const handleRestore = (user) => {
+        Swal.fire({
+            title: 'Restaurar Acesso?',
+            text: `Deseja restabelecer o acesso de "${user.name}" (${user.email})?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#16a34a',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Sim, restaurar acesso',
+            cancelButtonText: 'Cancelar',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                router.patch(route('users.restore', user.id), {}, {
+                    onSuccess: () => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Acesso Restaurado',
+                            text: 'O usuário está ativo novamente no sistema.',
+                            timer: 2000,
+                            showConfirmButton: false,
+                        });
+                    },
+                });
+            }
+        });
+    };
+
     const toggleRota = (user) => {
         const proximoModo = user.is_interior ? 'CAPITAL (Direto)' : 'INTERIOR (Via CD)';
         const descricao = user.is_interior
@@ -139,6 +168,9 @@ export default function UsersIndex({ auth, users, stats, filters }) {
         { key: 'cd', label: 'Operação CD', count: stats?.cd ?? 0, icon: BuildingOffice2Icon },
         { key: 'gestao', label: 'Gestão & Admin', count: stats?.gestores ?? 0, icon: ShieldCheckIcon },
         { key: 'online', label: 'Online Agora', count: stats?.online ?? 0, icon: SignalIcon },
+        ...(stats?.arquivados > 0
+            ? [{ key: 'arquivados', label: 'Arquivados', count: stats.arquivados, icon: ArchiveBoxIcon }]
+            : []),
     ];
 
     return (
@@ -269,6 +301,11 @@ export default function UsersIndex({ auth, users, stats, filters }) {
                                                             Você
                                                         </span>
                                                     )}
+                                                    {user.is_trashed && (
+                                                        <span className="rounded bg-status-danger-bg border border-status-danger-solid/30 px-1.5 py-0.5 text-[10px] font-extrabold text-status-danger-fg uppercase">
+                                                            Arquivado
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs text-content-secondary truncate">{user.email}</div>
                                                 <div className="flex items-center gap-1 mt-0.5 text-[11px] text-content-muted">
@@ -361,24 +398,38 @@ export default function UsersIndex({ auth, users, stats, filters }) {
                                     {/* Ações */}
                                     <td className="py-4 pl-4 pr-6 text-right whitespace-nowrap">
                                         <div className="flex items-center justify-end gap-2">
-                                            <Button
-                                                href={route('users.edit', user.id)}
-                                                variant="secondary"
-                                                size="sm"
-                                                icon={PencilSquareIcon}
-                                            >
-                                                Editar
-                                            </Button>
-
-                                            {user.id !== auth.user.id && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDelete(user)}
-                                                    className="inline-flex items-center justify-center rounded-lg p-1.5 text-content-muted transition hover:bg-status-danger-bg hover:text-status-danger-fg"
-                                                    title="Remover usuário"
+                                            {user.is_trashed ? (
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    icon={ArrowPathIcon}
+                                                    onClick={() => handleRestore(user)}
+                                                    className="border-status-success-solid text-status-success-fg hover:bg-status-success-bg/30"
                                                 >
-                                                    <TrashIcon className="h-4 w-4" />
-                                                </button>
+                                                    Restaurar Acesso
+                                                </Button>
+                                            ) : (
+                                                <>
+                                                    <Button
+                                                        href={route('users.edit', user.id)}
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        icon={PencilSquareIcon}
+                                                    >
+                                                        Editar
+                                                    </Button>
+
+                                                    {user.id !== auth.user.id && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDelete(user)}
+                                                            className="inline-flex items-center justify-center rounded-lg p-1.5 text-content-muted transition hover:bg-status-danger-bg hover:text-status-danger-fg"
+                                                            title="Arquivar usuário"
+                                                        >
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     </td>
@@ -408,6 +459,11 @@ export default function UsersIndex({ auth, users, stats, filters }) {
                                             {user.id === auth.user.id && (
                                                 <span className="rounded bg-brand-50 px-1 py-0.2 text-[10px] font-extrabold text-brand-700 uppercase">
                                                     Você
+                                                </span>
+                                            )}
+                                            {user.is_trashed && (
+                                                <span className="rounded bg-status-danger-bg border border-status-danger-solid/30 px-1.5 py-0.5 text-[10px] font-extrabold text-status-danger-fg uppercase">
+                                                    Arquivado
                                                 </span>
                                             )}
                                         </div>
@@ -472,24 +528,38 @@ export default function UsersIndex({ auth, users, stats, filters }) {
                             )}
 
                             <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
-                                <Button
-                                    href={route('users.edit', user.id)}
-                                    variant="secondary"
-                                    size="sm"
-                                    icon={PencilSquareIcon}
-                                    className="flex-1"
-                                >
-                                    Editar
-                                </Button>
-                                {user.id !== auth.user.id && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDelete(user)}
-                                        className="inline-flex items-center justify-center rounded-lg border border-line-strong p-2 text-status-danger-fg hover:bg-status-danger-bg transition"
-                                        title="Remover"
+                                {user.is_trashed ? (
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        icon={ArrowPathIcon}
+                                        onClick={() => handleRestore(user)}
+                                        className="flex-1 border-status-success-solid text-status-success-fg hover:bg-status-success-bg/30"
                                     >
-                                        <TrashIcon className="h-4 w-4" />
-                                    </button>
+                                        Restaurar Acesso
+                                    </Button>
+                                ) : (
+                                    <>
+                                        <Button
+                                            href={route('users.edit', user.id)}
+                                            variant="secondary"
+                                            size="sm"
+                                            icon={PencilSquareIcon}
+                                            className="flex-1"
+                                        >
+                                            Editar
+                                        </Button>
+                                        {user.id !== auth.user.id && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDelete(user)}
+                                                className="inline-flex items-center justify-center rounded-lg border border-line-strong p-2 text-status-danger-fg hover:bg-status-danger-bg transition"
+                                                title="Arquivar"
+                                            >
+                                                <TrashIcon className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>

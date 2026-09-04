@@ -57,8 +57,16 @@ class FilialController extends Controller
         // Distribuição por UF
         $ufsDistribuicao = $todasFiliais->groupBy('uf')->map(fn ($group) => $group->count())->toArray();
 
-        // Mapeamento rápido de contagem de usuários por filial
-        $usuariosPorFilial = User::whereNotNull('filial')
+        // Mapeamento rápido de contagem de usuários ativos e arquivados por filial
+        $usuariosAtivos = User::whereNotNull('filial')
+            ->where('filial', '!=', '')
+            ->select('filial', DB::raw('count(*) as total'))
+            ->groupBy('filial')
+            ->pluck('total', 'filial')
+            ->toArray();
+
+        $usuariosArquivados = User::onlyTrashed()
+            ->whereNotNull('filial')
             ->where('filial', '!=', '')
             ->select('filial', DB::raw('count(*) as total'))
             ->groupBy('filial')
@@ -70,26 +78,28 @@ class FilialController extends Controller
             ->orderBy('cidade')
             ->paginate(25)
             ->withQueryString()
-            ->through(function (Filial $f) use ($usuariosPorFilial) {
+            ->through(function (Filial $f) use ($usuariosAtivos, $usuariosArquivados) {
                 $chave = $f->chave_filial;
                 $local = $f->estoqueLocal();
 
-                // Calcula usuários vinculados somando pela chave "Cidade/UF" e pelo nome direto
-                $qtdUsers = ($usuariosPorFilial[$chave] ?? 0) + ($usuariosPorFilial[$f->nome] ?? 0);
+                $qtdAtivos = ($usuariosAtivos[$chave] ?? 0) + ($usuariosAtivos[$f->nome] ?? 0);
+                $qtdArquivados = ($usuariosArquivados[$chave] ?? 0) + ($usuariosArquivados[$f->nome] ?? 0);
 
                 return [
-                    'id'               => $f->id,
-                    'nome'             => $f->nome,
-                    'cidade'           => $f->cidade,
-                    'uf'               => $f->uf,
-                    'ativo'            => (bool) $f->ativo,
-                    'codigo_empresa'   => $f->codigo_empresa,
-                    'chave_filial'     => $chave,
-                    'rotulo_completo'  => $f->rotulo_completo,
-                    'usuarios_count'   => $qtdUsers,
-                    'estoque_local_id' => $local?->id,
-                    'participa_pecas'  => (bool) ($local?->participa_pecas ?? true),
-                    'created_at'       => $f->created_at?->format('d/m/Y'),
+                    'id'                  => $f->id,
+                    'nome'                => $f->nome,
+                    'cidade'              => $f->cidade,
+                    'uf'                  => $f->uf,
+                    'ativo'               => (bool) $f->ativo,
+                    'codigo_empresa'      => $f->codigo_empresa,
+                    'chave_filial'        => $chave,
+                    'rotulo_completo'     => $f->rotulo_completo,
+                    'usuarios_count'      => $f->ativo ? $qtdAtivos : ($qtdAtivos + $qtdArquivados),
+                    'usuarios_ativos'     => $qtdAtivos,
+                    'usuarios_arquivados' => $qtdArquivados,
+                    'estoque_local_id'    => $local?->id,
+                    'participa_pecas'     => (bool) ($local?->participa_pecas ?? true),
+                    'created_at'          => $f->created_at?->format('d/m/Y'),
                 ];
             });
 
@@ -193,16 +203,26 @@ class FilialController extends Controller
             return back()->withErrors(['cidade' => "Outra filial já utiliza a cidade {$dados['cidade']}/{$dados['uf']}."])->withInput();
         }
 
-        DB::transaction(function () use ($filial, $dados, $request) {
+        $estavaAtivo = (bool) $filial->ativo;
+        $novoStatus = $dados['ativo'];
+
+        DB::transaction(function () use ($filial, $dados, $request, $estavaAtivo, $novoStatus) {
             $filial->update($dados);
 
             // Sincroniza EstoqueLocal
             $local = $filial->estoqueLocal();
             if ($local) {
                 $local->update([
-                    'ativo'           => $filial->ativo,
+                    'ativo'           => $novoStatus,
                     'participa_pecas' => $request->boolean('participa_pecas', $local->participa_pecas),
                 ]);
+            }
+
+            // Arquiva ou restaura os usuários vinculados conforme a mudança de status
+            if ($estavaAtivo && !$novoStatus) {
+                $filial->arquivarUsuarios();
+            } elseif (!$estavaAtivo && $novoStatus) {
+                $filial->restaurarUsuarios();
             }
         });
 
@@ -221,8 +241,15 @@ class FilialController extends Controller
             $local->update(['ativo' => $novoStatus]);
         }
 
-        $acao = $novoStatus ? 'ativada' : 'desativada';
-        return back()->with('success', "Filial {$filial->nome} {$acao} com sucesso!");
+        if (!$novoStatus) {
+            $qtdArquivados = $filial->arquivarUsuarios();
+            $msg = "Filial {$filial->nome} desativada com sucesso! {$qtdArquivados} conta(s) vinculada(s) foram arquivadas e a filial foi removida das opções de envio e cadastro.";
+        } else {
+            $qtdRestaurados = $filial->restaurarUsuarios();
+            $msg = "Filial {$filial->nome} reativada com sucesso! {$qtdRestaurados} conta(s) foram restauradas e a filial voltou a ficar disponível para envios e cadastros.";
+        }
+
+        return back()->with('success', $msg);
     }
 
     public function destroy(Filial $filial)
@@ -233,10 +260,12 @@ class FilialController extends Controller
         $local = $filial->estoqueLocal();
 
         // 1. Verifica vínculos com usuários cadastrados
-        $temUsuarios = User::where('filial', $chave)
-            ->orWhere('filial', $filial->nome)
-            ->orWhere('filial', 'LIKE', "%{$filial->cidade}%")
-            ->exists();
+        $temUsuarios = User::withTrashed()
+            ->where(function ($q) use ($chave, $filial) {
+                $q->where('filial', $chave)
+                  ->orWhere('filial', $filial->nome)
+                  ->orWhere('filial', 'LIKE', "%{$filial->cidade}%");
+            })->exists();
 
         // 2. Verifica vínculos com pedidos (motos ou peças)
         $temPedidos = Pedido::whereHas('user', function ($u) use ($chave, $filial) {
@@ -271,15 +300,16 @@ class FilialController extends Controller
           ->exists();
 
         if ($temUsuarios || $temPedidos || $temPecas || $temMotos) {
-            // Em vez de quebrar integridade referencial e histórico de rastreio, desativa com segurança
+            // Em vez de quebrar integridade referencial e histórico de rastreio, desativa com segurança e arquiva usuários
             $filial->update(['ativo' => false]);
             if ($local) {
                 $local->update(['ativo' => false]);
             }
+            $qtdArquivados = $filial->arquivarUsuarios();
 
             return back()->with(
                 'success',
-                "A filial {$filial->nome} possui histórico de rastreio vinculado (pedidos, motos ou peças) e foi desativada com segurança para preservar todo o histórico de auditoria."
+                "A filial {$filial->nome} possui histórico de rastreio vinculado e foi desativada com segurança para preservar a auditoria. {$qtdArquivados} conta(s) vinculada(s) foram arquivadas."
             );
         }
 

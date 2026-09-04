@@ -35,14 +35,19 @@ class UserController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $stats = [
-            'total' => User::count(),
-            'lojas' => User::where('perfil', 'loja')->count(),
-            'cd' => User::where('perfil', 'cd')->count(),
-            'gestores' => User::whereIn('perfil', ['gestor', 'admin'])->count(),
-            'online' => User::where('last_seen_at', '>=', now()->subMinutes(5))->count(),
+            'total'      => User::count(),
+            'lojas'      => User::where('perfil', 'loja')->count(),
+            'cd'         => User::where('perfil', 'cd')->count(),
+            'gestores'   => User::whereIn('perfil', ['gestor', 'admin'])->count(),
+            'online'     => User::where('last_seen_at', '>=', now()->subMinutes(5))->count(),
+            'arquivados' => User::onlyTrashed()->count(),
         ];
 
-        $users = User::with('defaultRoute')
+        $query = $request->perfil === 'arquivados'
+            ? User::onlyTrashed()->with('defaultRoute')
+            : User::with('defaultRoute');
+
+        $users = $query
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
@@ -50,7 +55,7 @@ class UserController extends Controller implements HasMiddleware
                       ->orWhere('filial', 'like', "%{$search}%");
                 });
             })
-            ->when($request->perfil && $request->perfil !== 'all', function ($query) use ($request) {
+            ->when($request->perfil && !in_array($request->perfil, ['all', 'arquivados']), function ($query) use ($request) {
                 if ($request->perfil === 'online') {
                     $query->where('last_seen_at', '>=', now()->subMinutes(5));
                 } elseif ($request->perfil === 'gestao') {
@@ -64,18 +69,19 @@ class UserController extends Controller implements HasMiddleware
             ->withQueryString()
             ->through(function ($user) {
                 return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'perfil' => $user->perfil,
-                    'filial' => $user->filial,
-                    'is_online' => $user->last_seen_at && $user->last_seen_at->diffInMinutes(now()) < 5,
+                    'id'              => $user->id,
+                    'name'            => $user->name,
+                    'email'           => $user->email,
+                    'perfil'          => $user->perfil,
+                    'filial'          => $user->filial,
+                    'is_online'       => $user->last_seen_at && $user->last_seen_at->diffInMinutes(now()) < 5,
                     'last_seen_human' => $user->last_seen_at ? $user->last_seen_at->diffForHumans() : 'Nunca',
-                    'is_interior' => (bool) $user->is_interior,
-                    'valida_pecas' => (bool) $user->valida_pecas,
-                    'valida_motos' => (bool) $user->valida_motos,
-                    'default_route' => $user->defaultRoute ? [
-                        'id' => $user->defaultRoute->id,
+                    'is_interior'     => (bool) $user->is_interior,
+                    'valida_pecas'    => (bool) $user->valida_pecas,
+                    'valida_motos'    => (bool) $user->valida_motos,
+                    'is_trashed'      => (bool) $user->trashed(),
+                    'default_route'   => $user->defaultRoute ? [
+                        'id'   => $user->defaultRoute->id,
                         'code' => $user->defaultRoute->code
                     ] : null,
                 ];
@@ -118,6 +124,15 @@ class UserController extends Controller implements HasMiddleware
         $filial = $request->filial;
         if (empty($filial)) {
             $filial = ($request->perfil === 'cd') ? 'CD Ananindeua' : 'Matriz';
+        } elseif (!in_array($filial, ['Matriz', 'CD Ananindeua'])) {
+            $partes = explode('/', $filial);
+            $cidade = trim($partes[0]);
+            $uf = isset($partes[1]) ? trim($partes[1]) : null;
+
+            $ativa = Filial::ativas()->where('cidade', $cidade)->when($uf, fn($q) => $q->where('uf', $uf))->exists();
+            if (!$ativa) {
+                return back()->withErrors(['filial' => "A filial {$filial} está inativa e não pode receber novos usuários."])->withInput();
+            }
         }
 
         // Auto-vincula estoque_local_id quando aplicável
@@ -150,10 +165,8 @@ class UserController extends Controller implements HasMiddleware
     public function edit($id)
     {
         $user = User::findOrFail($id);
-        $cidadeAtual = explode('/', $user->filial ?? '')[0];
-        $filiais = Filial::where('ativo', true)
-            ->orWhere('nome', $user->filial)
-            ->orWhere('cidade', $cidadeAtual)
+        // Carrega apenas filiais ativas para não permitir alocar em filiais desativadas
+        $filiais = Filial::ativas()
             ->orderBy('uf')
             ->orderBy('cidade')
             ->get();
@@ -181,6 +194,17 @@ class UserController extends Controller implements HasMiddleware
             'password' => 'nullable|string|min:8|confirmed',
         ]);
 
+        if (!empty($validated['filial']) && !in_array($validated['filial'], ['Matriz', 'CD Ananindeua'])) {
+            $partes = explode('/', $validated['filial']);
+            $cidade = trim($partes[0]);
+            $uf = isset($partes[1]) ? trim($partes[1]) : null;
+
+            $ativa = Filial::ativas()->where('cidade', $cidade)->when($uf, fn($q) => $q->where('uf', $uf))->exists();
+            if (!$ativa) {
+                return back()->withErrors(['filial' => "A filial {$validated['filial']} está inativa. Selecione uma filial ativa."])->withInput();
+            }
+        }
+
         $validated['is_interior'] = $request->boolean('is_interior');
         $validated['valida_pecas'] = $request->boolean('valida_pecas');
         $validated['valida_motos'] = $request->boolean('valida_motos');
@@ -207,7 +231,7 @@ class UserController extends Controller implements HasMiddleware
         return back()->with('success', 'Dados do usuário atualizados com sucesso!');
     }
 
-    // --- 6. EXCLUIR ---
+    // --- 6. EXCLUIR / ARQUIVAR ---
     public function destroy($id)
     {
         if (Auth::id() == $id) {
@@ -215,7 +239,16 @@ class UserController extends Controller implements HasMiddleware
         }
 
         User::findOrFail($id)->delete();
-        return redirect()->back()->with('success', 'Usuário removido.');
+        return redirect()->back()->with('success', 'Usuário arquivado com sucesso.');
+    }
+
+    // --- 7. RESTAURAR USUÁRIO ARQUIVADO ---
+    public function restore($id)
+    {
+        $user = User::onlyTrashed()->findOrFail($id);
+        $user->restore();
+
+        return back()->with('success', "Acesso do usuário {$user->name} restaurado com sucesso!");
     }
 
     public function toggleInterior($id)

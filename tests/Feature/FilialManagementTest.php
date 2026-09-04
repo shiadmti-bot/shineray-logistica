@@ -197,4 +197,91 @@ class FilialManagementTest extends TestCase
             return in_array($filialAtiva->id, $ids) && !in_array($filialInativa->id, $ids);
         });
     }
+
+    public function test_desativar_filial_arquiva_automaticamente_usuarios_vinculados_e_reativar_restaura()
+    {
+        $cidade = 'AutoArchive_' . uniqid();
+        $filial = Filial::create([
+            'nome'   => "Shineray {$cidade}",
+            'cidade' => $cidade,
+            'uf'     => 'PA',
+            'ativo'  => true,
+        ]);
+
+        $user = User::factory()->create([
+            'filial' => "{$cidade}/PA",
+        ]);
+
+        // 1. Desativa a filial via toggle
+        $this->actingAs($this->admin)->patch(route('filiais.toggle', $filial->id));
+
+        $filial->refresh();
+        $user->refresh();
+
+        $this->assertFalse($filial->ativo);
+        $this->assertTrue($user->trashed());
+
+        // 2. Reativa a filial via toggle
+        $this->actingAs($this->admin)->patch(route('filiais.toggle', $filial->id));
+
+        $filial->refresh();
+        $user->refresh();
+
+        $this->assertTrue($filial->ativo);
+        $this->assertFalse($user->trashed());
+    }
+
+    public function test_pedidos_create_nao_contem_filial_desativada_em_locais_entrega()
+    {
+        $cidadeAtiva = 'EntAtiva_' . uniqid();
+        $filialAtiva = Filial::create([
+            'nome'   => "Shineray {$cidadeAtiva}",
+            'cidade' => $cidadeAtiva,
+            'uf'     => 'PA',
+            'ativo'  => true,
+        ]);
+
+        $cidadeInativa = 'EntInativa_' . uniqid();
+        $filialInativa = Filial::create([
+            'nome'   => "Shineray {$cidadeInativa}",
+            'cidade' => $cidadeInativa,
+            'uf'     => 'PA',
+            'ativo'  => false,
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(route('pedidos.create'));
+        $response->assertStatus(200);
+
+        $response->assertInertia(function ($page) use ($filialAtiva, $filialInativa) {
+            $locais = $page->toArray()['props']['locaisEntrega'];
+
+            return in_array($filialAtiva->chave_filial, $locais)
+                && !in_array($filialInativa->chave_filial, $locais);
+        });
+    }
+
+    public function test_pedido_com_destino_a_filial_desativada_e_bloqueado()
+    {
+        $cidadeInativa = 'BloqDest_' . uniqid();
+        $filialInativa = Filial::create([
+            'nome'   => "Shineray {$cidadeInativa}",
+            'cidade' => $cidadeInativa,
+            'uf'     => 'PA',
+            'ativo'  => false,
+        ]);
+
+        $response = $this->actingAs($this->admin)->post(route('pedidos.store'), [
+            'itens' => [
+                [
+                    'modelo'     => 'SHI 175',
+                    'cor'        => 'PRETA',
+                    'motivo'     => 'Venda Confirmada',
+                    'local'      => $filialInativa->chave_filial,
+                    'quantidade' => 1,
+                ]
+            ]
+        ]);
+
+        $response->assertSessionHasErrors('itens.0.local');
+    }
 }

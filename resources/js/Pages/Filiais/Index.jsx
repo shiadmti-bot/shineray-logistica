@@ -128,19 +128,73 @@ export default function FiliaisIndex({ auth, filiais, stats, filters, todasUfs =
     };
 
     const toggleAtivo = (filial) => {
-        router.patch(
-            route('filiais.toggle', filial.id),
-            {},
-            {
-                preserveScroll: true,
-            }
-        );
+        if (filial.ativo) {
+            Swal.fire({
+                title: 'Desativar Filial?',
+                html: `
+                    <p class="text-sm text-content-secondary mb-3">Ao desativar a filial <b>${filial.nome}</b>:</p>
+                    <ul class="text-left text-xs list-disc pl-5 space-y-1.5 text-content-secondary bg-surface-sunken p-3 rounded-lg border border-line">
+                        <li><b>${filial.usuarios_count || 0} conta(s) de usuário vinculada(s)</b> serão <b>automaticamente arquivadas</b>;</li>
+                        <li>A filial <b>sumirá das opções de envio</b> de novos pedidos e transferências;</li>
+                        <li>Ficará <b>bloqueada para novos cadastros</b> de usuários até ser reativada;</li>
+                        <li>Todo o histórico passado de pedidos, motos e peças permanece <b>100% íntegro e rastreável</b>.</li>
+                    </ul>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ea580c',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sim, desativar filial',
+                cancelButtonText: 'Cancelar',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    router.patch(
+                        route('filiais.toggle', filial.id),
+                        {},
+                        {
+                            preserveScroll: true,
+                        }
+                    );
+                }
+            });
+        } else {
+            Swal.fire({
+                title: 'Reativar Filial?',
+                html: `
+                    <p class="text-sm text-content-secondary mb-3">Deseja reativar a filial <b>${filial.nome}</b>?</p>
+                    <ul class="text-left text-xs list-disc pl-5 space-y-1.5 text-content-secondary bg-surface-sunken p-3 rounded-lg border border-line">
+                        <li>Os <b>usuários arquivados serão automaticamente restaurados</b>;</li>
+                        <li>A filial <b>voltará a receber novos envios</b> e pedidos;</li>
+                        <li>Voltará a estar disponível nas opções de cadastro.</li>
+                    </ul>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#16a34a',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Sim, reativar filial',
+                cancelButtonText: 'Cancelar',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    router.patch(
+                        route('filiais.toggle', filial.id),
+                        {},
+                        {
+                            preserveScroll: true,
+                        }
+                    );
+                }
+            });
+        }
     };
 
     const confirmarExclusao = (filial) => {
         Swal.fire({
             title: 'Excluir / Desativar Filial?',
-            text: `Deseja realmente remover "${filial.nome}"? Se houver histórico de pedidos ou usuários vinculados, ela será desativada com segurança.`,
+            html: `
+                <p class="text-sm text-content-secondary mb-2">Deseja remover <b>${filial.nome}</b>?</p>
+                <p class="text-xs text-content-muted">Se houver histórico de pedidos, motos ou peças, ela será <b>desativada com segurança</b> e os usuários vinculados serão <b>automaticamente arquivados</b> para preservar a rastreabilidade.</p>
+            `,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#dc2626',
@@ -348,9 +402,16 @@ export default function FiliaisIndex({ auth, filiais, stats, filters, todasUfs =
                                         </td>
 
                                         <td className="px-4 py-3 text-center whitespace-nowrap">
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2.5 py-0.5 text-xs font-bold text-content-secondary ring-1 ring-line">
+                                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${
+                                                !filial.ativo && (filial.usuarios_arquivados > 0 || filial.usuarios_count > 0)
+                                                    ? 'bg-status-warning-bg text-status-warning-fg ring-status-warning-solid/30'
+                                                    : 'bg-surface-sunken text-content-secondary ring-line'
+                                            }`}>
                                                 <UsersIcon className="h-3 w-3" />
                                                 {filial.usuarios_count} conta(s)
+                                                {!filial.ativo && (filial.usuarios_arquivados > 0 || filial.usuarios_count > 0) && (
+                                                    <span className="text-[10px] font-semibold opacity-90">(arquivadas)</span>
+                                                )}
                                             </span>
                                         </td>
 
@@ -453,9 +514,16 @@ export default function FiliaisIndex({ auth, filiais, stats, filters, todasUfs =
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 text-xs">
-                                    <span className="inline-flex items-center gap-1 rounded bg-surface-sunken px-2 py-0.5 text-content-secondary ring-1 ring-line">
+                                    <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 ring-1 ${
+                                        !filial.ativo && (filial.usuarios_arquivados > 0 || filial.usuarios_count > 0)
+                                            ? 'bg-status-warning-bg text-status-warning-fg ring-status-warning-solid/30 font-bold'
+                                            : 'bg-surface-sunken text-content-secondary ring-line'
+                                    }`}>
                                         <UsersIcon className="h-3 w-3" />
                                         {filial.usuarios_count} conta(s)
+                                        {!filial.ativo && (filial.usuarios_arquivados > 0 || filial.usuarios_count > 0) && (
+                                            <span className="text-[10px] opacity-90">(arquivadas)</span>
+                                        )}
                                     </span>
                                     {filial.participa_pecas && (
                                         <span className="inline-flex items-center gap-1 rounded bg-brand-50 px-2 py-0.5 text-brand-800 font-bold ring-1 ring-brand-200">
