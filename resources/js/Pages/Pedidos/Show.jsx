@@ -30,6 +30,8 @@ import {
     ChatBubbleBottomCenterTextIcon,
     PlayIcon,
     StopIcon,
+    CubeIcon,
+    WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 
 export default function PedidoShow({ auth, pedido, atribuicao = null, peca = null }) {
@@ -37,11 +39,13 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
     const [compressing, setCompressing] = useState(false);
     const formAcoes = useForm({});
 
+    const ehPeca = !!peca?.ativo || pedido.tipo_carga === 'peca';
+
     // V2.6: bipagem de chassis pelo CD. Pedidos legados vêm com atribuicao.legado = true
     // e nada disto é renderizado — a tela se comporta como na versão anterior.
     const cotas = pedido.itens_pedido || [];
-    const cotasPendentes = cotas.filter((c) => c.qtd_pendente > 0);
-    const podeAtribuir = !!atribuicao?.permitido && !atribuicao?.legado;
+    const cotasPendentes = ehPeca ? [] : cotas.filter((c) => c.qtd_pendente > 0);
+    const podeAtribuir = !ehPeca && !!atribuicao?.permitido && !atribuicao?.legado;
     const [bipando, setBipando] = useState({}); // { [cotaId]: chassiDigitado }
 
     // Identifica o Papel do Usuário
@@ -56,7 +60,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
     const ehDestinatarioFinal = souDestino || (souCD && (pedido.user?.perfil === "cd" || pedido.status === "em_transito_cd" || !pedido.user_id));
         
     // CORREÇÃO: Só é transferência se houver origem E a origem for uma loja (evita que envios do CD sejam rotulados como transferência visualmente)
-    const isTransferencia = !!(pedido.origem_user_id && pedido.origem && pedido.origem.perfil === "loja");
+    const isTransferencia = !ehPeca && !!(pedido.origem_user_id && pedido.origem && pedido.origem.perfil === "loja");
 
     // --- CÁLCULO DE EMBARQUE PARCIAL (v2.6/v3) ---
     const saldoPendente = atribuicao?.saldo_pendente ?? 0;
@@ -67,7 +71,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
         ['em_analise', 'solicitado', 'separado', 'aguardando_rota', 'estoque_fabrica'].includes(m.status)
     ).length;
     const totalNaoDespachado = saldoPendente + motosNoCd;
-    const isEmbarqueParcial = motosEmTransito > 0 && totalNaoDespachado > 0;
+    const isEmbarqueParcial = !ehPeca && motosEmTransito > 0 && totalNaoDespachado > 0;
     const totalItensSolicitados =
         (cotas.length > 0
             ? cotas.reduce((acc, i) => acc + Math.max(0, (i.quantidade || 0) - (i.qtd_cancelada || 0)), 0)
@@ -515,13 +519,13 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                 <PageHeader
                     title={`Pedido #${pedido.id}`}
                     breadcrumbs={[
-                        { label: peca?.ativo ? "Peças" : "Motos" },
+                        { label: ehPeca ? "Peças" : "Motos" },
                         { label: "Pedidos", href: route("pedidos.index") },
                         { label: `#${pedido.id}` },
                     ]}
                     actions={
                         <div className="flex items-center gap-2">
-                            <TipoBadge isTransferencia={isTransferencia} />
+                            <TipoBadge isTransferencia={isTransferencia} isPeca={ehPeca} />
                             {isEmbarqueParcial ? (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-status-warning-bg text-status-warning-fg ring-1 ring-inset ring-status-warning-solid/20 shadow-xs">
                                     <ExclamationTriangleIcon className="w-3.5 h-3.5" />
@@ -674,7 +678,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         a informação: `warning` = alguém precisa agir, `info` =
                         está em curso, aguarde.
                     */}
-                    {isTransferencia && pedido.status === "solicitado" && souOrigem && (
+                    {!ehPeca && isTransferencia && pedido.status === "solicitado" && souOrigem && (
                         <AlertaContexto
                             tom="warning"
                             icon={ExclamationTriangleIcon}
@@ -685,7 +689,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         </AlertaContexto>
                     )}
 
-                    {isTransferencia && pedido.status === "solicitado" && (souCD || souAdmin) && !souOrigem && (
+                    {!ehPeca && isTransferencia && pedido.status === "solicitado" && (souCD || souAdmin) && !souOrigem && (
                         <AlertaContexto
                             tom="info"
                             icon={ClockIcon}
@@ -696,7 +700,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         </AlertaContexto>
                     )}
 
-                    {pedido.status === "aguardando_rota" && (
+                    {!ehPeca && pedido.status === "aguardando_rota" && (
                         <AlertaContexto
                             tom="warning"
                             icon={TruckIcon}
@@ -708,14 +712,14 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         </AlertaContexto>
                     )}
 
-                    {pedido.status === "rota_confirmada" && (
+                    {!ehPeca && pedido.status === "rota_confirmada" && (
                         <AlertaContexto tom="info" icon={MapPinIcon} titulo="Rota confirmada">
                             O CD agendou uma viagem que passará na loja de destino. Aguardando a
                             carga ser montada.
                         </AlertaContexto>
                     )}
 
-                    {pedido.status === "aguardando_coleta" && (
+                    {!ehPeca && pedido.status === "aguardando_coleta" && (
                         <AlertaContexto
                             tom="warning"
                             icon={ExclamationTriangleIcon}
@@ -748,10 +752,11 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         status={pedido.status}
                         isTransferencia={isTransferencia}
                         isEmbarqueParcial={isEmbarqueParcial}
+                        isPeca={ehPeca}
                     />
 
                     {/* --- 3.5 V2.6: COTAS AGUARDANDO CHASSI --- */}
-                    {cotas.length > 0 && cotasPendentes.length > 0 && (
+                    {!ehPeca && cotas.length > 0 && cotasPendentes.length > 0 && (
                         <div className="bg-surface-card rounded-card shadow-sm border-2 border-status-warning-solid/40 overflow-hidden">
                             <div className="px-6 py-4 bg-status-warning-bg border-b border-status-warning-solid/20 flex flex-wrap justify-between items-center gap-2">
                                 <h3 className="font-black text-status-warning-fg text-sm uppercase tracking-wide flex items-center gap-2">
@@ -853,6 +858,118 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                     )}
 
                     {/* --- 4. LISTA DE ITENS (LÓGICA GESTOR APLICADA) --- */}
+                    {ehPeca ? (
+                        /* --- LISTA DE ITENS (PEÇAS) --- */
+                        <div className="bg-surface-card rounded-card shadow-sm border border-line overflow-hidden">
+                            <div className="px-6 py-4 bg-surface-sunken/80 border-b border-line flex justify-between items-center backdrop-blur-sm">
+                                <h3 className="font-black text-content-primary text-sm uppercase tracking-wide flex items-center gap-2">
+                                    <WrenchScrewdriverIcon className="w-5 h-5 text-content-secondary" />
+                                    Peças Solicitadas
+                                </h3>
+                                <span className="bg-surface-inverted text-content-inverted text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm">
+                                    {(pedido.itens_pedido || []).reduce(
+                                        (acc, c) => acc + Math.max(0, (c.quantidade || 0) - (c.qtd_cancelada || 0)),
+                                        0,
+                                    )}{" "}
+                                    Unidades ({(pedido.itens_pedido || []).length} {(pedido.itens_pedido || []).length === 1 ? 'item' : 'itens'})
+                                </span>
+                            </div>
+
+                            <div className="divide-y divide-line">
+                                {(pedido.itens_pedido || []).map((item, idx) => {
+                                    const liberada = !!item.confirmado_em;
+                                    const recusada = !!item.recusa_motivo && !liberada;
+                                    const identificada = !!item.peca_id;
+
+                                    return (
+                                        <div
+                                            key={item.id || idx}
+                                            className="group p-5 flex flex-col md:flex-row items-center justify-between gap-6 hover:bg-surface-sunken transition duration-150 ease-in-out"
+                                        >
+                                            <div className="flex items-center gap-5 flex-1 w-full md:w-auto">
+                                                <div className="h-14 w-14 rounded-card bg-surface-card border border-line flex items-center justify-center text-content-muted shadow-sm flex-shrink-0 group-hover:scale-105 transition">
+                                                    <CubeIcon className="w-6 h-6 text-brand-600" />
+                                                </div>
+                                                <div className="flex-1 min-w-0 space-y-1">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <h4 className="font-extrabold text-content-primary text-base">
+                                                            {item.quantidade}x {item.peca?.descricao || item.descricao_solicitada || "Peça não identificada"}
+                                                        </h4>
+                                                        {item.peca?.codigo ? (
+                                                            <span className="font-mono text-xs text-status-info-fg bg-status-info-bg/50 px-2 py-0.5 rounded border border-status-info-solid/20 font-bold tracking-wider">
+                                                                {item.peca.codigo}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-status-warning-fg bg-status-warning-bg/50 px-2 py-0.5 rounded border border-status-warning-solid/20 font-bold uppercase tracking-wide">
+                                                                Aguardando SKU (CD)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-2 text-xs text-content-secondary">
+                                                        {item.peca?.unidade && (
+                                                            <span className="font-semibold uppercase tracking-wide text-[11px] bg-surface-card px-2 py-0.5 rounded border border-line">
+                                                                UN: {item.peca.unidade}
+                                                            </span>
+                                                        )}
+                                                        {item.preco_unitario && (
+                                                            <span className="text-content-muted text-[11px]">
+                                                                Preço unit.: <strong>R$ {Number(item.preco_unitario).toFixed(2)}</strong>
+                                                            </span>
+                                                        )}
+                                                        {item.basqueta && (
+                                                            <span className="inline-flex items-center gap-1 font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded border border-brand-200 text-[11px]">
+                                                                🧺 Basqueta #{item.basqueta.codigo || item.basqueta.id}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {item.motivo && (
+                                                        <p className="text-[11px] text-content-muted font-medium">
+                                                            Motivo: <span className="text-content-secondary">{item.motivo}</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 md:pl-6 md:border-l border-line">
+                                                <div className="flex flex-col items-start md:items-end">
+                                                    <span className="text-[9px] font-bold text-content-muted uppercase tracking-widest mb-1">
+                                                        Status Item
+                                                    </span>
+                                                    {recusada ? (
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide bg-status-danger-bg text-status-danger-fg border border-status-danger-solid/20">
+                                                            <XCircleIcon className="w-3.5 h-3.5" /> Recusado Pós-Venda
+                                                        </span>
+                                                    ) : liberada ? (
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide bg-status-success-bg text-status-success-fg border border-status-success-solid/20">
+                                                            <CheckCircleIcon className="w-3.5 h-3.5" /> Liberado (Gate 1)
+                                                        </span>
+                                                    ) : identificada ? (
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide bg-status-info-bg text-status-info-fg border border-status-info-solid/20">
+                                                            <ClockIcon className="w-3.5 h-3.5" /> Aguard. Liberação
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wide bg-status-warning-bg text-status-warning-fg border border-status-warning-solid/20">
+                                                            <ClockIcon className="w-3.5 h-3.5" /> Em Atendimento
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[10px] text-content-muted font-bold mt-1">
+                                                        Separado: {item.qtd_atribuida || 0}/{item.quantidade}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {(pedido.itens_pedido || []).length === 0 && (
+                                    <div className="p-8 text-center text-content-secondary">
+                                        <ExclamationTriangleIcon className="w-12 h-12 mx-auto text-content-muted mb-3" />
+                                        <p className="font-bold text-content-secondary text-lg">Nenhuma peça encontrada neste pedido.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
                     <div className="bg-surface-card rounded-card shadow-sm border border-line overflow-hidden">
                         <div className="px-6 py-4 bg-surface-sunken/80 border-b border-line flex justify-between items-center backdrop-blur-sm">
                             <h3 className="font-black text-content-primary text-sm uppercase tracking-wide flex items-center gap-2">
@@ -939,7 +1056,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                                     getColorHex(
                                                                         item.cor,
                                                                     ),
-                                                            }}
+                                                                }}
                                                         ></span>
                                                         <span className="text-[10px] font-bold text-content-secondary uppercase tracking-wide">
                                                             {item.cor ||
@@ -1078,9 +1195,10 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                             )}
                         </div>
                     </div>
+                    )}
 
                     {/* --- 5. AÇÕES GLOBAIS --- */}
-                    {pedido.status !== "cancelado" &&
+                    {!ehPeca && pedido.status !== "cancelado" &&
                         pedido.status !== "concluido" && (
                             <div className="mt-8 rounded-card border-l-4 border-brand-600 bg-surface-card p-6 shadow-card">
                                 <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-content-primary">
@@ -1166,7 +1284,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
             </div>
 
             {/* FAB */}
-            {["em_transito", "em_transito_cd"].includes(pedido.status) &&
+            {!ehPeca && ["em_transito", "em_transito_cd"].includes(pedido.status) &&
                 ehDestinatarioFinal && (
                     <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-50 pointer-events-none">
                         <button
@@ -1230,7 +1348,14 @@ function getColorHex(cor) {
     return map[c] || "#9ca3af";
 }
 
-function TipoBadge({ isTransferencia }) {
+function TipoBadge({ isTransferencia, isPeca = false }) {
+    if (isPeca) {
+        return (
+            <span className="text-[10px] bg-brand-50 text-brand-700 px-2 py-1 rounded border border-brand-200 font-bold uppercase tracking-wide flex items-center gap-1">
+                <WrenchScrewdriverIcon className="w-3 h-3" /> Peças · Reposição CD
+            </span>
+        );
+    }
     return isTransferencia ? (
         <span className="text-[10px] bg-status-warning-bg text-status-warning-fg px-2 py-1 rounded border border-status-warning-solid/20 font-bold uppercase tracking-wide flex items-center gap-1">
             <ArrowsRightLeftIcon className="w-3 h-3" /> Transferência
@@ -1242,10 +1367,36 @@ function TipoBadge({ isTransferencia }) {
     );
 }
 
-function Timeline({ status, isTransferencia, isEmbarqueParcial = false }) {
+function Timeline({ status, isTransferencia, isEmbarqueParcial = false, isPeca = false }) {
     let steps = [];
+    let statusWeight = {};
     
-    if (isTransferencia) {
+    if (isPeca) {
+        // Fluxo de Peças (v3): Solicitado -> Liberação Pós-Venda -> Aprovado -> Separado -> Em Trânsito -> Concluído
+        steps = [
+            { id: "solicitado", label: "Solicitado" },
+            { id: "aguardando_confirmacao", label: "Liberação" },
+            { id: "aprovado", label: "Aprovado" },
+            { id: "separado", label: "Separado" },
+            { id: "em_transito", label: "Em Trânsito" },
+            { id: "concluido", label: "Entregue" },
+        ];
+
+        statusWeight = {
+            solicitado: 1,
+            em_atendimento: 1.5,
+            aguardando_confirmacao: 2,
+            aprovado: 3,
+            separado: 4,
+            aguardando_rota: 4.2,
+            rota_confirmada: 4.5,
+            expedido: 4.8,
+            em_transito: 5,
+            em_transito_cd: 5,
+            concluido: 6,
+            cancelado: -1,
+        };
+    } else if (isTransferencia) {
         // Transferência: Fluxo padronizado
         steps = [
             { id: "em_analise", label: "Em Análise" },
@@ -1258,6 +1409,20 @@ function Timeline({ status, isTransferencia, isEmbarqueParcial = false }) {
             { id: "em_transito", label: "Em Trânsito" },
             { id: "concluido", label: "Entregue" },
         ];
+
+        statusWeight = {
+            em_analise: 0,
+            solicitado: 1,
+            separado: 2,
+            aguardando_rota: 2.5,
+            rota_confirmada: 2.8,
+            aguardando_coleta: 3,
+            coletado: 3.5,
+            expedido: 3.5,
+            em_transito: 4,
+            concluido: 5,
+            cancelado: -1,
+        };
     } else {
         // Reposição (CD → Loja): Fluxo padronizado
         steps = [
@@ -1269,21 +1434,22 @@ function Timeline({ status, isTransferencia, isEmbarqueParcial = false }) {
             { id: "em_transito", label: "Em Trânsito" },
             { id: "concluido", label: "Entregue" },
         ];
+
+        statusWeight = {
+            em_analise: 0,
+            solicitado: 1,
+            separado: 2,
+            aguardando_rota: 2.5,
+            rota_confirmada: 2.8,
+            aguardando_coleta: 3,
+            coletado: 3.5,
+            expedido: 3.5,
+            em_transito: 4,
+            concluido: 5,
+            cancelado: -1,
+        };
     }
 
-    const statusWeight = {
-        em_analise: 0,
-        solicitado: 1,
-        separado: 2,
-        aguardando_rota: 2.5,
-        rota_confirmada: 2.8,
-        aguardando_coleta: 3,
-        coletado: 3.5,
-        expedido: 3.5,
-        em_transito: 4,
-        concluido: 5,
-        cancelado: -1,
-    };
     const currentWeight = statusWeight[status] || 0;
     const maxWeight = Math.max(...steps.map(s => statusWeight[s.id] || 0));
 
@@ -1304,7 +1470,9 @@ function Timeline({ status, isTransferencia, isEmbarqueParcial = false }) {
                     const isParcialStep = isEmbarqueParcial && step.id === "em_transito";
                     const isActive =
                         status !== "cancelado" && (currentWeight >= stepWeight || isParcialStep);
-                    const isCurrent = step.id === status || (isParcialStep && status !== "concluido");
+                    const isCurrent = isPeca
+                        ? (step.id === status || (step.id === "aguardando_confirmacao" && status === "em_atendimento") || (isParcialStep && status !== "concluido"))
+                        : (step.id === status || (isParcialStep && status !== "concluido"));
 
                     let circleClasses = "border-line bg-surface-sunken text-content-muted";
                     if (isParcialStep) {

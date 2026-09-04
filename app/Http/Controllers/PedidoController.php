@@ -1442,21 +1442,27 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             },
             'itensPedido.canceladoPor:id,name', // V2.6: cotas do pedido
             'itensPedido.peca:id,codigo,descricao,unidade', // v3: cotas de peça
+            'itensPedido.identificadoPor:id,name',
+            'itensPedido.confirmadoPor:id,name',
+            'itensPedido.basqueta:id,codigo,status',
             'romaneio',
             'logs' => fn($q) => $q->latest()
         ])->findOrFail($id);
+
+        $ehPeca = $pedido->tipo_carga === 'peca';
 
         return Inertia::render('Pedidos/Show', [
             'pedido' => $pedido,
             // v3: dados do fluxo de peça. Para pedido de moto vem tudo vazio e
             // a tela se comporta exatamente como antes.
             'peca' => $this->contextoPeca($pedido),
-            // V2.6: metadados da atribuição de chassis. Pedido legado => tudo zerado,
-            // e a tela se comporta exatamente como na versão anterior.
+            // V2.6: metadados da atribuição de chassis. Pedido legado ou de peças => tudo zerado,
+            // e a tela não exibe fluxo de chassi.
             'atribuicao' => [
-                'legado'         => $pedido->itensPedido->isEmpty(),
-                'saldo_pendente' => (int) $pedido->itensPedido->sum(fn($i) => $i->qtd_pendente),
-                'permitido'      => in_array(Auth::user()->perfil, ['cd', 'admin'], true)
+                'legado'         => $ehPeca || $pedido->itensPedido->isEmpty(),
+                'saldo_pendente' => $ehPeca ? 0 : (int) $pedido->itensPedido->sum(fn($i) => $i->qtd_pendente),
+                'permitido'      => ! $ehPeca
+                                    && in_array(Auth::user()->perfil, ['cd', 'admin'], true)
                                     && in_array($pedido->status, \App\Services\AtribuicaoChassiService::STATUS_ATRIBUIVEIS, true),
             ],
         ]);
@@ -1511,6 +1517,8 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             'pode_receber'   => ($ehCd || $user->estoque_local_id === $pedido->local_destino_id)
                                 && in_array($pedido->status, ['aguardando_coleta', 'em_transito', 'expedido'], true)
                                 && $itensCarga->isNotEmpty(),
+            'pode_atender'   => $ehCd && in_array($pedido->status, ['solicitado', 'em_atendimento', 'aguardando_confirmacao'], true),
+            'pode_liberar'   => $user->podeValidarPecas() && in_array($pedido->status, ['solicitado', 'em_atendimento', 'aguardando_confirmacao'], true),
             // Cargas abertas, para escolher em qual embarcar.
             'cargas_abertas' => $ehCd
                 ? \App\Models\Romaneio::whereNotIn('status', ['concluido', 'cancelado'])

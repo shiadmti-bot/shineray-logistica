@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { router } from '@inertiajs/react';
+import { router, Link } from '@inertiajs/react';
 import {
     WrenchScrewdriverIcon,
     TruckIcon,
     ClipboardDocumentCheckIcon,
     ExclamationTriangleIcon,
     CheckCircleIcon,
+    ClockIcon,
 } from '@heroicons/react/24/outline';
 
 import { Card, Button, StatusBadge } from '@/Components/UI';
@@ -251,14 +252,42 @@ export default function PainelAtendimento({ pedido, peca }) {
                 </Card>
             )}
 
-            {/* --- ESTADO FINAL --- */}
+            {/* --- ESTADO INFORMATIVO QUANDO NÃO HÁ AÇÃO DIRETA NESTA TELA --- */}
             {!peca.pode_separar && !peca.pode_carregar && !peca.pode_receber && (
                 <Card>
-                    <div className="flex items-center gap-3 text-sm text-content-secondary">
-                        <CheckCircleIcon className="h-5 w-5 text-status-success-fg" />
-                        <span>
-                            Nenhuma ação pendente para este pedido de peças no seu perfil.
-                        </span>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 text-sm text-content-secondary">
+                            <ClockIcon className="h-6 w-6 text-status-info-fg shrink-0" />
+                            <div>
+                                <p className="font-bold text-content-primary">
+                                    {pedido.status === 'solicitado' && "Aguardando Atendimento do CD / Call Center"}
+                                    {pedido.status === 'em_atendimento' && "Em Atendimento no CD"}
+                                    {pedido.status === 'aguardando_confirmacao' && "Aguardando Liberação do Pós-Venda (Gate 1)"}
+                                    {pedido.status === 'aprovado' && "Aprovado — Aguardando Separação no CD"}
+                                    {pedido.status === 'separado' && "Separado — Aguardando Montagem da Carga"}
+                                    {['expedido', 'em_transito'].includes(pedido.status) && "Em Trânsito para a Loja"}
+                                    {pedido.status === 'concluido' && "Pedido de Peças Concluído e Recebido"}
+                                </p>
+                                <p className="text-xs text-content-muted mt-0.5">
+                                    {pedido.status === 'solicitado' && "Os itens solicitados estão na fila do Call Center para conferência técnica de SKU e catálogo."}
+                                    {pedido.status === 'aguardando_confirmacao' && "Os códigos de peças foram vinculados e aguardam assinatura de liberação do Pós-Venda."}
+                                    {pedido.status === 'aprovado' && "Pedido liberado tecnicamente. O operador do CD fará a separação e alocação na basqueta."}
+                                    {pedido.status === 'separado' && "Peças devidamente acondicionadas na basqueta da filial, aguardando embarque em caminhão."}
+                                    {['expedido', 'em_transito'].includes(pedido.status) && "A carga contendo as basquetas deste pedido está a caminho do destino."}
+                                    {pedido.status === 'concluido' && "Conferência física finalizada com sucesso."}
+                                </p>
+                            </div>
+                        </div>
+
+                        {(peca.pode_atender || peca.pode_liberar) && ['solicitado', 'em_atendimento', 'aguardando_confirmacao'].includes(pedido.status) && (
+                            <Link
+                                href={route('pecas.atendimento')}
+                                className="inline-flex items-center gap-2 whitespace-nowrap rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-brand-700 transition"
+                            >
+                                <WrenchScrewdriverIcon className="w-4 h-4" />
+                                {peca.pode_liberar ? 'Ir para Liberação Pós-Venda' : 'Ir para Atendimento'}
+                            </Link>
+                        )}
                     </div>
                 </Card>
             )}
