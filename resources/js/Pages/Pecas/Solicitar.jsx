@@ -328,7 +328,7 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                 </div>
 
                 {/* --- CARRINHO --- */}
-                <aside className="lg:sticky lg:top-20 lg:self-start space-y-4">
+                <aside className="lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-slim space-y-4 pr-1">
                     {/* Passo 2 do manual: pedir sem saber o código. Antes isso
                         acontecia por mensagem, fora do sistema. */}
                     <Card title="Não achou no catálogo?" padding="sm">
@@ -369,7 +369,7 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                             </div>
                         ) : (
                             <>
-                                <ul className="max-h-80 divide-y divide-line overflow-y-auto scrollbar-slim">
+                                <ul className="max-h-52 divide-y divide-line overflow-y-auto scrollbar-slim">
                                     {carrinho.map((item) => (
                                         <li key={item.key} className="flex items-start gap-2 p-3">
                                             <div className="min-w-0 flex-1">

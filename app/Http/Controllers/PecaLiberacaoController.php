@@ -40,27 +40,52 @@ class PecaLiberacaoController extends Controller
     private const EM_ATENDIMENTO = ['solicitado', 'em_atendimento', 'aguardando_confirmacao'];
 
     /**
-     * Fila do Call Center: o que falta identificar e o que espera assinatura.
+     * Fila do Call Center e Mesa de Aprovações do Pós-Venda.
      */
     public function index(Request $request)
     {
         $this->autorizarCd();
 
-        $pedidos = Pedido::where('tipo_carga', 'peca')
-            ->whereIn('status', self::EM_ATENDIMENTO)
+        $user = Auth::user();
+        $podeLiberar = $user->podeValidarPecas();
+        $podeAtender = in_array($user->perfil, ['cd', 'admin'], true);
+
+        $queryBase = Pedido::where('tipo_carga', 'peca')
             ->with([
                 'user:id,name,filial',
                 'localDestino:id,nome',
                 'itensPedido.peca:id,codigo,descricao,unidade,preco_referencia',
                 'itensPedido.identificadoPor:id,name',
             ])
-            ->orderBy('created_at') // FIFO: quem pediu primeiro é atendido primeiro
+            ->orderBy('created_at');
+
+        // Aprovações do Pós-Venda: pedidos em que todos os itens já têm código e aguardam Gate 1
+        $aprovacoes = (clone $queryBase)
+            ->where('status', 'aguardando_confirmacao')
             ->get()
             ->map(fn (Pedido $p) => $this->serializarPedido($p));
 
+        // Triagem do CD: pedidos com itens sem código ou devolvidos por recusa
+        $triagem = (clone $queryBase)
+            ->whereIn('status', ['solicitado', 'em_atendimento'])
+            ->get()
+            ->map(fn (Pedido $p) => $this->serializarPedido($p));
+
+        $abaPadrao = $podeLiberar ? 'aprovacoes' : 'triagem';
+        $abaAtiva = $request->query('aba', $abaPadrao);
+        if (! in_array($abaAtiva, ['aprovacoes', 'triagem'], true)) {
+            $abaAtiva = $abaPadrao;
+        }
+
         return Inertia::render('Pecas/Atendimento', [
-            'pedidos'      => $pedidos->values(),
-            'podeLiberar'  => Auth::user()->podeValidarPecas(),
+            'aprovacoes'       => $aprovacoes->values(),
+            'triagem'          => $triagem->values(),
+            'pedidos'          => ($abaAtiva === 'aprovacoes' ? $aprovacoes : $triagem)->values(),
+            'totalAprovacoes'  => $aprovacoes->count(),
+            'totalTriagem'     => $triagem->count(),
+            'abaAtiva'         => $abaAtiva,
+            'podeLiberar'      => $podeLiberar,
+            'podeAtender'      => $podeAtender,
         ]);
     }
 
@@ -229,18 +254,48 @@ class PecaLiberacaoController extends Controller
         $this->autorizarValidador();
 
         $dados = $request->validate([
-            'itens'   => ['required', 'array', 'min:1'],
+            'itens'   => ['nullable', 'array'],
             'itens.*' => ['required', 'exists:pedido_itens,id'],
         ]);
 
-        $pedido = Pedido::with('itensPedido')->findOrFail($pedidoId);
+        $pedido = Pedido::with('itensPedido.peca')->findOrFail($pedidoId);
 
         $this->garantirEmAtendimento($pedido);
 
-        $liberados = 0;
+        $itensAlvo = ! empty($dados['itens'])
+            ? $dados['itens']
+            : $pedido->itensPedido
+                ->filter(fn (PedidoItem $i) => $i->isPeca() && $i->isIdentificada() && ! $i->isLiberada())
+                ->pluck('id')
+                ->all();
 
-        DB::transaction(function () use ($dados, $pedido, &$liberados) {
-            foreach ($dados['itens'] as $itemId) {
+        if (empty($itensAlvo)) {
+            return back()->withErrors(['geral' => 'Nenhum item elegível para liberação.']);
+        }
+
+        $liberados = 0;
+        $autoAssinados = 0;
+
+        /*
+         * SEGREGAÇÃO DAS DUAS ASSINATURAS (v3.2).
+         *
+         * O desenho sempre foi dois atos: quem procura o código no e-Part não é
+         * quem responde pela escolha. Mas nada garantia que fossem duas pessoas
+         * — um validador identificava o SKU e assinava a própria identificação,
+         * gravando o mesmo nome em identificado_por e confirmado_por. A dupla
+         * confirmação do manual virava uma só, e a auditoria ficava sem o dado
+         * que justifica os dois campos.
+         *
+         * O admin é a saída de emergência, e existe por um motivo concreto: se
+         * a empresa tiver um único validador e ele também identificar, uma
+         * trava sem exceção travaria a fila inteira. Quando o admin acumula os
+         * dois papéis, o log diz isso com todas as letras — a exceção fica
+         * visível na trilha, em vez de implícita na autorização.
+         */
+        $ehAdmin = Auth::user()->perfil === 'admin';
+
+        DB::transaction(function () use ($itensAlvo, $pedido, $ehAdmin, &$liberados, &$autoAssinados) {
+            foreach ($itensAlvo as $itemId) {
                 $item = $pedido->itensPedido->firstWhere('id', $itemId);
 
                 // Sem código não há o que assinar: a liberação é sobre uma
@@ -249,13 +304,33 @@ class PecaLiberacaoController extends Controller
                     continue;
                 }
 
-                $item->update([
+                if ($item->identificado_por === Auth::id() && ! $ehAdmin) {
+                    $autoAssinados++;
+                    continue;
+                }
+
+                $updates = [
                     'confirmado_por' => Auth::id(),
                     'confirmado_em'  => now(),
                     'recusa_motivo'  => null,
-                ]);
+                ];
 
+                if ($item->preco_unitario === null && $item->peca?->preco_referencia) {
+                    $updates['preco_unitario'] = $item->peca->preco_referencia;
+                }
+
+                $item->update($updates);
                 $liberados++;
+
+                // Acúmulo pelo admin: registrado item a item, porque é a
+                // exceção à dupla confirmação e precisa ser encontrável depois.
+                if ($item->identificado_por === Auth::id()) {
+                    activity()
+                        ->performedOn($item)
+                        ->causedBy(Auth::user())
+                        ->withProperties(['pedido_id' => $pedido->id, 'peca_id' => $item->peca_id])
+                        ->log('Admin identificou e liberou o mesmo item (acúmulo dos dois atos do Gate 1)');
+                }
             }
 
             if ($liberados === 0) {
@@ -286,11 +361,25 @@ class PecaLiberacaoController extends Controller
             ]);
         });
 
+        /*
+         * A mensagem precisa dizer QUE regra barrou, senão o operador só vê um
+         * botão que não faz nada e conclui que o sistema está quebrado.
+         */
         if ($liberados === 0) {
-            return back()->withErrors(['geral' => 'Nenhum item elegível para liberação.']);
+            return back()->withErrors([
+                'geral' => $autoAssinados > 0
+                    ? "Você identificou {$autoAssinados} item(ns) deste pedido e não pode liberar a própria identificação — a dupla confirmação do Pós-Venda exige duas pessoas. Peça a outro validador para assinar."
+                    : 'Nenhum item elegível para liberação.',
+            ]);
         }
 
-        return back()->with('success', "{$liberados} item(ns) liberado(s) para separação.");
+        $msg = "{$liberados} item(ns) liberado(s) para separação.";
+
+        if ($autoAssinados > 0) {
+            $msg .= " {$autoAssinados} item(ns) ficaram de fora por terem sido identificados por você — outro validador precisa assiná-los.";
+        }
+
+        return back()->with('success', $msg);
     }
 
     /**
@@ -349,33 +438,50 @@ class PecaLiberacaoController extends Controller
 
     private function serializarPedido(Pedido $p): array
     {
+        $itensPeca = $p->itensPedido->filter(fn (PedidoItem $i) => $i->isPeca());
+
+        $itensSerializados = $itensPeca->map(function (PedidoItem $i) {
+            $precoUnitario = $i->preco_unitario !== null ? (float) $i->preco_unitario : ($i->peca?->preco_referencia !== null ? (float) $i->peca->preco_referencia : null);
+            $subtotal = $precoUnitario !== null ? round($precoUnitario * $i->quantidade, 2) : 0;
+
+            return [
+                'id'                   => $i->id,
+                'quantidade'           => $i->quantidade,
+                'motivo'               => $i->motivo,
+                'descricao_solicitada' => $i->descricao_solicitada,
+                'preco_unitario'       => $precoUnitario,
+                'subtotal'             => $subtotal,
+                'recusa_motivo'        => $i->recusa_motivo,
+                'identificada'         => $i->isIdentificada(),
+                'liberada'             => $i->isLiberada(),
+                'identificado_por'     => $i->identificadoPor?->name,
+                'peca'                 => $i->peca ? [
+                    'id'        => $i->peca->id,
+                    'codigo'    => $i->peca->codigo,
+                    'descricao' => $i->peca->descricao,
+                    'unidade'   => $i->peca->unidade,
+                    'preco'     => $i->peca->preco_referencia,
+                ] : null,
+            ];
+        })->values();
+
+        $valorTotal = $itensSerializados->sum('subtotal');
+        $totalUnidades = $itensSerializados->sum('quantidade');
+        $itensSemCodigo = $itensSerializados->where('identificada', false)->count();
+        $itensAguardando = $itensSerializados->where('identificada', true)->where('liberada', false)->count();
+
         return [
-            'id'         => $p->id,
-            'status'     => $p->status,
-            'loja'       => $p->localDestino->nome ?? $p->user->filial ?? $p->user->name,
-            'solicitante'=> $p->user->name,
-            'observacao' => $p->observacao,
-            'created_at' => $p->created_at,
-            'itens'      => $p->itensPedido
-                ->filter(fn (PedidoItem $i) => $i->isPeca())
-                ->map(fn (PedidoItem $i) => [
-                    'id'                   => $i->id,
-                    'quantidade'           => $i->quantidade,
-                    'motivo'               => $i->motivo,
-                    'descricao_solicitada' => $i->descricao_solicitada,
-                    'preco_unitario'       => $i->preco_unitario,
-                    'recusa_motivo'        => $i->recusa_motivo,
-                    'identificada'         => $i->isIdentificada(),
-                    'liberada'             => $i->isLiberada(),
-                    'identificado_por'     => $i->identificadoPor?->name,
-                    'peca'                 => $i->peca ? [
-                        'id'        => $i->peca->id,
-                        'codigo'    => $i->peca->codigo,
-                        'descricao' => $i->peca->descricao,
-                        'unidade'   => $i->peca->unidade,
-                        'preco'     => $i->peca->preco_referencia,
-                    ] : null,
-                ])->values(),
+            'id'                     => $p->id,
+            'status'                 => $p->status,
+            'loja'                   => $p->localDestino->nome ?? $p->user->filial ?? $p->user->name,
+            'solicitante'            => $p->user->name,
+            'observacao'             => $p->observacao,
+            'created_at'             => $p->created_at,
+            'valor_total'            => $valorTotal,
+            'total_unidades'         => $totalUnidades,
+            'itens_sem_codigo_count' => $itensSemCodigo,
+            'itens_aguardando_count' => $itensAguardando,
+            'itens'                  => $itensSerializados,
         ];
     }
 

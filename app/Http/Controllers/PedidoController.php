@@ -1511,12 +1511,32 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             'pode_separar'   => $ehCd
                                 && in_array($pedido->status, ['aprovado', 'separado'], true)
                                 && $pedido->itensPedido->contains(fn ($i) => $i->isPeca() && $i->isLiberada()),
+            /*
+             * v3.2: embarcar exige uma basqueta LIBERADA, porque a caixa é a
+             * unidade de embarque e o Gate 2 mora nela. Oferecer o botão antes
+             * disso só produziria uma recusa — a trava real está em
+             * EmbarqueBasquetaService.
+             */
             'pode_carregar'  => $ehCd
                                 && in_array($pedido->status, Pedido::STATUS_PECA_EMBARCAVEL, true)
-                                && $pedido->itensPedido->sum('qtd_atribuida') > 0,
+                                && $pedido->itensPedido->sum('qtd_atribuida') > 0
+                                && \App\Models\Basqueta::whereIn(
+                                        'id',
+                                        $pedido->itensPedido->pluck('basqueta_id')->filter()->unique()
+                                   )
+                                   ->where('status', \App\Models\Basqueta::STATUS_LIBERADA)
+                                   ->whereNull('romaneio_id')
+                                   ->exists(),
+            /*
+             * Só se recebe o que saiu. O status do pedido não basta: uma
+             * separação parcial mantém o pedido em 'aguardando_coleta' mesmo
+             * depois de o caminhão partir, e a carga só sai de fato quando os
+             * itens vão para 'em_transito' em RomaneioController::iniciarTransito.
+             */
             'pode_receber'   => ($ehCd || $user->estoque_local_id === $pedido->local_destino_id)
-                                && in_array($pedido->status, ['aguardando_coleta', 'em_transito', 'expedido'], true)
-                                && $itensCarga->isNotEmpty(),
+                                && $itensCarga->contains(
+                                    fn ($i) => $i['status'] === \App\Models\RomaneioItem::STATUS_EM_TRANSITO
+                                ),
             'pode_atender'   => $ehCd && in_array($pedido->status, ['solicitado', 'em_atendimento', 'aguardando_confirmacao'], true),
             'pode_liberar'   => $user->podeValidarPecas() && in_array($pedido->status, ['solicitado', 'em_atendimento', 'aguardando_confirmacao'], true),
             // Cargas abertas, para escolher em qual embarcar.

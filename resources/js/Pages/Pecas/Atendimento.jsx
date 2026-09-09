@@ -3,68 +3,182 @@ import { Head, router } from '@inertiajs/react';
 import {
     MagnifyingGlassIcon,
     CheckCircleIcon,
-    XCircleIcon,
     PaperAirplaneIcon,
     ExclamationTriangleIcon,
     LockClosedIcon,
+    ClipboardDocumentCheckIcon,
+    ArrowUturnLeftIcon,
+    ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
 
 import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, Button, EmptyState, StatusBadge } from '@/Components/UI';
 
+function formatMoeda(valor) {
+    if (valor === null || valor === undefined || valor === '') return 'R$ 0,00';
+    const num = Number(valor);
+    if (isNaN(num)) return 'R$ 0,00';
+    return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatData(dataIso) {
+    if (!dataIso) return '';
+    const d = new Date(dataIso);
+    return d.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
 /**
- * Fila do Call Center — Passos 2 e 3 do manual.
+ * Mesa de Peças — Separação estrita em dois atos e papéis independentes:
  *
- * Duas colunas de trabalho, na ordem em que o manual as descreve:
- *   IDENTIFICAR  o CD acha o código no e-Part e informa o preço.
- *   LIBERAR      um dos validadores assina que a peça é a certa.
+ * 1. APROVAÇÕES DO PÓS-VENDA (Gate 1):
+ *    Exclusivo para quem valida peças. Tela limpa, executiva, com itens,
+ *    preços, totais e botões diretos de Aprovar Pedido ou Recusar Item.
  *
- * A liberação é item a item de propósito. Um pedido de 10 peças em que 8 estão
- * certas não deveria esperar as outras 2 — as certas seguem, as duvidosas
- * voltam para o Call Center com o motivo.
- *
- * O e-Part não expõe dados, então a consulta continua sendo humana. O que a
- * tela faz é sugerir a partir do catálogo Microwork e guardar a escolha: qual
- * SKU, por quem, por qual preço.
+ * 2. TRIAGEM & IDENTIFICAÇÃO (CD):
+ *    Para a equipe do CD pesquisar o SKU no e-Part para itens solicitados
+ *    sem código de catálogo. Ao concluir, envia para a fila de aprovação.
  */
-export default function PecasAtendimento({ pedidos = [], podeLiberar = false }) {
-    const [aberto, setAberto] = useState(pedidos[0]?.id ?? null);
+export default function PecasAtendimento({
+    aprovacoes = [],
+    triagem = [],
+    pedidos = [],
+    totalAprovacoes = 0,
+    totalTriagem = 0,
+    abaAtiva = 'aprovacoes',
+    podeLiberar = false,
+    podeAtender = false,
+}) {
+    // Compatibilidade com coleções fornecidas pelo backend
+    const listaAprovacoes = useMemo(() => {
+        if (aprovacoes && aprovacoes.length > 0) return aprovacoes;
+        return pedidos.filter((p) => p.status === 'aguardando_confirmacao');
+    }, [aprovacoes, pedidos]);
+
+    const listaTriagem = useMemo(() => {
+        if (triagem && triagem.length > 0) return triagem;
+        return pedidos.filter((p) => p.status !== 'aguardando_confirmacao');
+    }, [triagem, pedidos]);
+
+    const [aba, setAba] = useState(() => {
+        if (abaAtiva && ['aprovacoes', 'triagem'].includes(abaAtiva)) {
+            return abaAtiva;
+        }
+        return podeLiberar ? 'aprovacoes' : 'triagem';
+    });
+
+    const pedidosAtuais = aba === 'aprovacoes' ? listaAprovacoes : listaTriagem;
+    const [aberto, setAberto] = useState(pedidosAtuais[0]?.id ?? null);
+
+    const trocarAba = (novaAba) => {
+        setAba(novaAba);
+        const novaLista = novaAba === 'aprovacoes' ? listaAprovacoes : listaTriagem;
+        setAberto(novaLista[0]?.id ?? null);
+    };
 
     const pedido = useMemo(
-        () => pedidos.find((p) => p.id === aberto) ?? null,
-        [pedidos, aberto]
+        () => pedidosAtuais.find((p) => p.id === aberto) ?? null,
+        [pedidosAtuais, aberto]
     );
+
+    const qtdAprovacoes = totalAprovacoes || listaAprovacoes.length;
+    const qtdTriagem = totalTriagem || listaTriagem.length;
 
     return (
         <AppLayout>
-            <Head title="Atendimento de Peças" />
+            <Head title={aba === 'aprovacoes' ? 'Aprovações de Peças' : 'Triagem de Peças'} />
 
             <PageHeader
-                title="Atendimento de Peças"
-                subtitle="Identifique o código e libere o pedido para separação"
-                breadcrumbs={[{ label: 'Peças' }, { label: 'Atendimento' }]}
+                title={aba === 'aprovacoes' ? 'Aprovações de Peças' : 'Triagem de Peças'}
+                subtitle={
+                    aba === 'aprovacoes'
+                        ? 'Mesa de liberação técnica do Pós-Venda (Gate 1). Revise e autorize as peças para separação no CD.'
+                        : 'Identificação de códigos e preços no e-Part para solicitações sem catálogo.'
+                }
+                breadcrumbs={[
+                    { label: 'Peças' },
+                    { label: aba === 'aprovacoes' ? 'Aprovações' : 'Triagem' },
+                ]}
             />
 
-            {pedidos.length === 0 ? (
+            {/* Abas de Navegação Superior (Segregação de Papéis) */}
+            <div className="flex border-b border-line mb-6 gap-2">
+                <button
+                    type="button"
+                    onClick={() => trocarAba('aprovacoes')}
+                    className={`flex items-center gap-2 pb-3 px-4 text-sm font-semibold border-b-2 transition ${
+                        aba === 'aprovacoes'
+                            ? 'border-brand-600 text-brand-600'
+                            : 'border-transparent text-content-secondary hover:text-content-primary'
+                    }`}
+                >
+                    <ClipboardDocumentCheckIcon className="h-5 w-5" />
+                    <span>Aprovações do Pós-Venda (Gate 1)</span>
+                    {qtdAprovacoes > 0 && (
+                        <span className="rounded-full bg-brand-100 text-brand-800 px-2 py-0.5 text-xs font-bold font-mono">
+                            {qtdAprovacoes}
+                        </span>
+                    )}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => trocarAba('triagem')}
+                    className={`flex items-center gap-2 pb-3 px-4 text-sm font-semibold border-b-2 transition ${
+                        aba === 'triagem'
+                            ? 'border-brand-600 text-brand-600'
+                            : 'border-transparent text-content-secondary hover:text-content-primary'
+                    }`}
+                >
+                    <MagnifyingGlassIcon className="h-5 w-5" />
+                    <span>Triagem & Identificação (CD)</span>
+                    {qtdTriagem > 0 && (
+                        <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-bold font-mono">
+                            {qtdTriagem}
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {pedidosAtuais.length === 0 ? (
                 <EmptyState
                     icon={CheckCircleIcon}
-                    title="Nada na fila"
-                    description="Toda solicitação de peça já foi identificada e liberada."
+                    title={aba === 'aprovacoes' ? 'Nenhuma aprovação pendente' : 'Nenhum pedido em triagem'}
+                    description={
+                        aba === 'aprovacoes'
+                            ? 'Todos os pedidos identificados já foram assinados e liberados pelo Pós-Venda.'
+                            : 'Todas as solicitações de balcão já foram identificadas com código SKU.'
+                    }
                 />
             ) : (
-                <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+                <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
                     <FilaLateral
-                        pedidos={pedidos}
+                        pedidos={pedidosAtuais}
                         aberto={aberto}
                         onAbrir={setAberto}
+                        aba={aba}
                     />
 
                     {pedido ? (
-                        <DetalhePedido
-                            key={pedido.id}
-                            pedido={pedido}
-                            podeLiberar={podeLiberar}
-                        />
+                        aba === 'aprovacoes' ? (
+                            <MesaAprovacao
+                                key={`aprovacao-${pedido.id}`}
+                                pedido={pedido}
+                                podeLiberar={podeLiberar}
+                            />
+                        ) : (
+                            <MesaTriagem
+                                key={`triagem-${pedido.id}`}
+                                pedido={pedido}
+                                podeAtender={podeAtender}
+                                podeLiberar={podeLiberar}
+                            />
+                        )
                     ) : (
                         <EmptyState
                             icon={MagnifyingGlassIcon}
@@ -79,14 +193,21 @@ export default function PecasAtendimento({ pedidos = [], podeLiberar = false }) 
 }
 
 /* ------------------------------------------------------------------ */
+/* FILA LATERAL                                                        */
+/* ------------------------------------------------------------------ */
 
-function FilaLateral({ pedidos, aberto, onAbrir }) {
+function FilaLateral({ pedidos, aberto, onAbrir, aba }) {
     return (
-        <Card title="Fila" subtitle={`${pedidos.length} pedido(s)`} padding="none">
+        <Card
+            title={aba === 'aprovacoes' ? 'Aguardando Assinatura' : 'Fila de Identificação'}
+            subtitle={`${pedidos.length} pedido(s)`}
+            padding="none"
+        >
             <ul className="divide-y divide-line">
                 {pedidos.map((p) => {
-                    const semCodigo = p.itens.filter((i) => !i.identificada).length;
-                    const aguardando = p.itens.filter((i) => i.identificada && !i.liberada).length;
+                    const semCodigo = p.itens_sem_codigo_count ?? p.itens.filter((i) => !i.identificada).length;
+                    const aguardando = p.itens_aguardando_count ?? p.itens.filter((i) => i.identificada && !i.liberada).length;
+                    const valorTotal = p.valor_total ?? p.itens.reduce((acc, i) => acc + (Number(i.preco_unitario || 0) * i.quantidade), 0);
 
                     return (
                         <li key={p.id}>
@@ -95,8 +216,8 @@ function FilaLateral({ pedidos, aberto, onAbrir }) {
                                 onClick={() => onAbrir(p.id)}
                                 className={`w-full px-4 py-3 text-left transition ${
                                     aberto === p.id
-                                        ? 'bg-brand-50 border-l-2 border-brand-600'
-                                        : 'border-l-2 border-transparent hover:bg-surface-sunken'
+                                        ? 'bg-brand-50 border-l-4 border-brand-600'
+                                        : 'border-l-4 border-transparent hover:bg-surface-sunken'
                                 }`}
                             >
                                 <div className="flex items-baseline justify-between gap-2">
@@ -108,16 +229,35 @@ function FilaLateral({ pedidos, aberto, onAbrir }) {
                                 <p className="mt-1 truncate text-sm font-semibold text-content-primary">
                                     {p.loja}
                                 </p>
-                                <div className="mt-1 flex flex-wrap gap-x-3 text-[11px]">
-                                    {semCodigo > 0 && (
-                                        <span className="font-bold text-status-warning-fg">
-                                            {semCodigo} sem código
-                                        </span>
-                                    )}
-                                    {aguardando > 0 && (
-                                        <span className="font-bold text-status-info-fg">
-                                            {aguardando} aguardando liberação
-                                        </span>
+                                <p className="text-xs text-content-secondary truncate">
+                                    {p.solicitante}
+                                </p>
+
+                                <div className="mt-2 flex items-center justify-between text-[11px]">
+                                    {aba === 'aprovacoes' ? (
+                                        <>
+                                            <span className="font-bold text-status-info-fg">
+                                                {aguardando} item(ns)
+                                            </span>
+                                            <span className="font-mono font-semibold text-content-primary">
+                                                {formatMoeda(valorTotal)}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {semCodigo > 0 ? (
+                                                <span className="font-bold text-status-warning-fg">
+                                                    {semCodigo} sem código
+                                                </span>
+                                            ) : (
+                                                <span className="font-bold text-status-info-fg">
+                                                    Pronto p/ envio
+                                                </span>
+                                            )}
+                                            <span className="text-content-muted">
+                                                {p.itens.length} itens
+                                            </span>
+                                        </>
                                     )}
                                 </div>
                             </button>
@@ -130,16 +270,290 @@ function FilaLateral({ pedidos, aberto, onAbrir }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* MESA DE APROVAÇÃO DO PÓS-VENDA (GATE 1)                            */
+/* ------------------------------------------------------------------ */
 
-function DetalhePedido({ pedido, podeLiberar }) {
-    // Rascunho local: peca_id e preço por item, antes de salvar.
+function MesaAprovacao({ pedido, podeLiberar }) {
+    const [processando, setProcessando] = useState(false);
+    const [itemRecusando, setItemRecusando] = useState(null);
+    const [motivoRecusa, setMotivoRecusa] = useState('');
+
+    const itensElegiveis = pedido.itens.filter((i) => i.identificada && !i.liberada);
+
+    const aprovarPedido = () => {
+        if (!podeLiberar) return;
+        setProcessando(true);
+        router.post(
+            route('pecas.liberar', pedido.id),
+            { itens: itensElegiveis.map((i) => i.id) },
+            { preserveScroll: true, onFinish: () => setProcessando(false) }
+        );
+    };
+
+    const confirmarRecusa = () => {
+        if (!itemRecusando || motivoRecusa.trim().length < 3) return;
+        setProcessando(true);
+        router.post(
+            route('pecas.recusar', pedido.id),
+            { item_id: itemRecusando.id, motivo: motivoRecusa },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setItemRecusando(null);
+                    setMotivoRecusa('');
+                },
+                onFinish: () => setProcessando(false),
+            }
+        );
+    };
+
+    const valorTotal = pedido.valor_total ?? pedido.itens.reduce((acc, i) => acc + (Number(i.preco_unitario || 0) * i.quantidade), 0);
+    const totalUnidades = pedido.total_unidades ?? pedido.itens.reduce((acc, i) => acc + i.quantidade, 0);
+
+    return (
+        <div className="space-y-4">
+            {/* Header do Pedido */}
+            <Card padding="sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-base font-bold text-content-primary">
+                                Pedido #{pedido.id}
+                            </span>
+                            <StatusBadge status={pedido.status} />
+                        </div>
+                        <p className="text-sm font-semibold text-content-primary mt-0.5">
+                            Destino: <span className="text-brand-600 font-bold">{pedido.loja}</span>
+                        </p>
+                        <p className="text-xs text-content-muted">
+                            Solicitado por {pedido.solicitante} em {formatData(pedido.created_at)}
+                        </p>
+                    </div>
+
+                    <div className="text-right">
+                        <span className="text-xs text-content-muted block">Valor Total Estimado</span>
+                        <span className="font-mono text-lg font-bold text-content-primary">
+                            {formatMoeda(valorTotal)}
+                        </span>
+                        <span className="text-xs text-content-secondary block">
+                            {totalUnidades} unidade(s) em {pedido.itens.length} item(ns)
+                        </span>
+                    </div>
+                </div>
+
+                {pedido.observacao && (
+                    <div className="mt-3 rounded-lg border border-line bg-surface-sunken p-3 text-xs text-content-secondary">
+                        <span className="font-bold text-content-primary uppercase tracking-wide">Observação da Loja: </span>
+                        {pedido.observacao}
+                    </div>
+                )}
+            </Card>
+
+            {/* Tabela de Peças Solicitadas */}
+            <Card
+                title="Peças para Validação Técnica"
+                subtitle="Verifique se os códigos e preços atendem à necessidade da filial antes de assinar a liberação"
+                padding="none"
+            >
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                        <thead className="border-b border-line bg-surface-sunken text-content-secondary font-semibold uppercase tracking-wider text-[11px]">
+                            <tr>
+                                <th className="px-4 py-3">Código / SKU</th>
+                                <th className="px-4 py-3">Descrição da Peça</th>
+                                <th className="px-4 py-3 text-center">Qtd</th>
+                                <th className="px-4 py-3 text-right">Preço Unit.</th>
+                                <th className="px-4 py-3 text-right">Subtotal</th>
+                                <th className="px-4 py-3 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                            {pedido.itens.map((item) => {
+                                const precoUnit = Number(item.preco_unitario || item.peca?.preco || 0);
+                                const sub = Number(item.subtotal || (precoUnit * item.quantidade));
+
+                                return (
+                                    <tr key={item.id} className="hover:bg-surface-sunken/50 transition">
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            {item.peca?.codigo ? (
+                                                <span className="inline-block font-mono font-bold text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded border border-brand-200">
+                                                    {item.peca.codigo}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-block font-mono text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200">
+                                                    Sem código
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <p className="font-semibold text-content-primary">
+                                                {item.peca?.descricao || item.descricao_solicitada || 'Item sem descrição'}
+                                            </p>
+                                            {item.motivo && (
+                                                <p className="text-[11px] text-content-muted mt-0.5">
+                                                    Motivo: {item.motivo}
+                                                </p>
+                                            )}
+                                            {item.recusa_motivo && (
+                                                <p className="text-[11px] text-status-danger-fg font-medium mt-1">
+                                                    ⚠️ Devolvido: {item.recusa_motivo}
+                                                </p>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-center font-bold text-content-primary">
+                                            {item.quantidade} {item.peca?.unidade || 'UN'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono tabular-nums text-content-secondary">
+                                            {formatMoeda(precoUnit)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-content-primary">
+                                            {formatMoeda(sub)}
+                                        </td>
+                                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                                            {item.liberada ? (
+                                                <span className="inline-flex items-center gap-1 rounded bg-status-success-bg px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-status-success-fg">
+                                                    <CheckCircleIcon className="h-3.5 w-3.5" /> Liberado
+                                                </span>
+                                            ) : (
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <span className="rounded bg-status-info-bg px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-status-info-fg">
+                                                        Aguardando
+                                                    </span>
+                                                    {podeLiberar && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setItemRecusando(item);
+                                                                setMotivoRecusa('');
+                                                            }}
+                                                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-status-danger-fg hover:bg-status-danger-bg transition"
+                                                            title="Recusar este item e devolver ao CD para nova identificação técnica"
+                                                        >
+                                                            <ArrowUturnLeftIcon className="h-3.5 w-3.5" /> Recusar
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+
+            {/* Modal / Dialog de Recusa do Item */}
+            {itemRecusando && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl border border-line">
+                        <div className="flex items-start gap-3">
+                            <div className="rounded-full bg-status-danger-bg p-2 text-status-danger-fg">
+                                <ExclamationTriangleIcon className="h-6 w-6" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-base font-bold text-content-primary">
+                                    Recusar Peça na Liberação
+                                </h3>
+                                <p className="text-xs text-content-secondary mt-1">
+                                    O item <strong>{itemRecusando.peca?.descricao || itemRecusando.descricao_solicitada}</strong> ({itemRecusando.peca?.codigo}) será devolvido à Triagem do CD para localização da peça correta.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mt-4">
+                            <label className="block text-xs font-semibold text-content-secondary mb-1">
+                                Motivo da Incompatibilidade / Recusa *
+                            </label>
+                            <textarea
+                                rows={3}
+                                value={motivoRecusa}
+                                onChange={(e) => setMotivoRecusa(e.target.value)}
+                                placeholder="Ex.: O código informado é da Phoenix 50, mas a moto da oficina é uma Jet 125..."
+                                className="w-full rounded-lg border-line-strong bg-surface p-2.5 text-xs text-content-primary placeholder-content-muted focus:ring-brand-500 focus:border-brand-500"
+                            />
+                        </div>
+
+                        <div className="mt-5 flex justify-end gap-2">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setItemRecusando(null)}
+                                disabled={processando}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                variant="danger"
+                                icon={ArrowUturnLeftIcon}
+                                loading={processando}
+                                disabled={motivoRecusa.trim().length < 3}
+                                onClick={confirmarRecusa}
+                            >
+                                Confirmar Recusa
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Card de Assinatura & Decisão do Pós-Venda */}
+            <Card padding="md" className="border-2 border-brand-500/20 bg-gradient-to-r from-surface to-brand-50/20">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-content-primary flex items-center gap-2">
+                            <ClipboardDocumentCheckIcon className="h-5 w-5 text-brand-600" />
+                            Liberação do Pós-Venda (Gate 1)
+                        </h4>
+                        <p className="text-xs text-content-secondary max-w-xl">
+                            {itensElegiveis.length > 0
+                                ? `Há ${itensElegiveis.length} item(ns) pronto(s) para liberação. Ao assinar, as peças serão disponibilizadas para separação física na basqueta pelo CD.`
+                                : 'Todos os itens deste pedido já foram assinados e liberados.'}
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {podeLiberar ? (
+                            <Button
+                                size="lg"
+                                icon={CheckCircleIcon}
+                                loading={processando}
+                                disabled={itensElegiveis.length === 0}
+                                onClick={aprovarPedido}
+                            >
+                                {itensElegiveis.length > 0
+                                    ? `Aprovar Pedido (${itensElegiveis.length} itens)`
+                                    : 'Pedido Liberado'}
+                            </Button>
+                        ) : (
+                            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
+                                <LockClosedIcon className="h-4 w-4 shrink-0 text-amber-600" />
+                                <span>Apenas usuários com permissão de <strong>Validador de Peças</strong> podem assinar.</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* MESA DE TRIAGEM & IDENTIFICAÇÃO (CD)                               */
+/* ------------------------------------------------------------------ */
+
+function MesaTriagem({ pedido, podeAtender, podeLiberar }) {
     const [rascunho, setRascunho] = useState(() =>
-        Object.fromEntries(pedido.itens.map((i) => [i.id, {
-            peca_id: i.peca?.id ?? null,
-            peca: i.peca ?? null,
-            preco_unitario: i.preco_unitario ?? '',
-            quantidade: i.quantidade,
-        }]))
+        Object.fromEntries(
+            pedido.itens.map((i) => [
+                i.id,
+                {
+                    peca_id: i.peca?.id ?? null,
+                    peca: i.peca ?? null,
+                    preco_unitario: i.preco_unitario !== null && i.preco_unitario !== undefined ? i.preco_unitario : (i.peca?.preco ?? ''),
+                    quantidade: i.quantidade,
+                },
+            ])
+        )
     );
 
     const [processando, setProcessando] = useState(false);
@@ -164,58 +578,70 @@ function DetalhePedido({ pedido, podeLiberar }) {
         );
     };
 
-    const liberarTodos = () => {
-        const elegiveis = pedido.itens.filter((i) => i.identificada && !i.liberada).map((i) => i.id);
-
-        if (elegiveis.length === 0) return;
-
-        setProcessando(true);
-        router.post(
-            route('pecas.liberar', pedido.id),
-            { itens: elegiveis },
-            { preserveScroll: true, onFinish: () => setProcessando(false) }
-        );
-    };
-
     const todosIdentificados = pedido.itens.every((i) => rascunho[i.id]?.peca_id);
-    const aguardandoLiberacao = pedido.itens.filter((i) => i.identificada && !i.liberada);
+    const identificadosCount = pedido.itens.filter((i) => rascunho[i.id]?.peca_id).length;
 
     return (
         <div className="space-y-4">
-            <Card
-                title={`Pedido #${pedido.id} — ${pedido.loja}`}
-                subtitle={`Solicitado por ${pedido.solicitante}`}
-                padding="sm"
-            >
+            {/* Header do Pedido */}
+            <Card padding="sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-base font-bold text-content-primary">
+                                Pedido #{pedido.id}
+                            </span>
+                            <StatusBadge status={pedido.status} />
+                        </div>
+                        <p className="text-sm font-semibold text-content-primary mt-0.5">
+                            Destino: <span className="text-brand-600 font-bold">{pedido.loja}</span>
+                        </p>
+                        <p className="text-xs text-content-muted">
+                            Solicitado por {pedido.solicitante} em {formatData(pedido.created_at)}
+                        </p>
+                    </div>
+
+                    <div className="text-right">
+                        <span className="text-xs text-content-muted block">Progresso da Triagem</span>
+                        <span className="font-mono text-base font-bold text-content-primary">
+                            {identificadosCount} / {pedido.itens.length} identificados
+                        </span>
+                    </div>
+                </div>
+
                 {pedido.observacao && (
-                    <p className="rounded bg-surface-sunken p-3 text-xs text-content-secondary">
-                        <span className="font-bold uppercase tracking-wide">Observação da loja: </span>
+                    <div className="mt-3 rounded-lg border border-line bg-surface-sunken p-3 text-xs text-content-secondary">
+                        <span className="font-bold text-content-primary uppercase tracking-wide">Observação da Loja: </span>
                         {pedido.observacao}
-                    </p>
+                    </div>
                 )}
             </Card>
 
+            {/* Lista de Itens para Identificação */}
             <div className="space-y-3">
                 {pedido.itens.map((item) => (
-                    <LinhaItem
+                    <LinhaTriagemItem
                         key={item.id}
                         item={item}
                         rascunho={rascunho[item.id]}
                         onDefinir={definir}
-                        pedidoId={pedido.id}
-                        podeLiberar={podeLiberar}
-                        processando={processando}
                     />
                 ))}
             </div>
 
+            {/* Painel de Ações de Triagem */}
             <Card padding="sm">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs text-content-secondary">
-                        {todosIdentificados
-                            ? 'Todos os itens têm código. Pode enviar para liberação.'
-                            : 'Identifique o código de todos os itens para enviar à liberação.'}
-                    </p>
+                    <div>
+                        <p className="text-xs font-semibold text-content-primary">
+                            {todosIdentificados
+                                ? '✅ Todos os itens têm código e preço preenchidos. Pronto para envio.'
+                                : '⚠️ Identifique o código de todos os itens para liberar o envio ao Pós-Venda.'}
+                        </p>
+                        <p className="text-[11px] text-content-secondary mt-0.5">
+                            Ao enviar, o pedido avança para a mesa de aprovação do Pós-Venda (Gate 1).
+                        </p>
+                    </div>
 
                     <div className="flex flex-wrap gap-2">
                         <Button
@@ -223,7 +649,7 @@ function DetalhePedido({ pedido, podeLiberar }) {
                             loading={processando}
                             onClick={() => salvar(false)}
                         >
-                            Salvar rascunho
+                            Salvar Rascunho
                         </Button>
 
                         <Button
@@ -232,51 +658,24 @@ function DetalhePedido({ pedido, podeLiberar }) {
                             disabled={!todosIdentificados}
                             onClick={() => salvar(true)}
                         >
-                            Enviar para liberação
+                            Enviar para Liberação do Pós-Venda
                         </Button>
                     </div>
                 </div>
             </Card>
-
-            {aguardandoLiberacao.length > 0 && (
-                <Card
-                    title="Liberação do Pós-Venda"
-                    subtitle={`${aguardandoLiberacao.length} item(ns) aguardando assinatura`}
-                    padding="sm"
-                >
-                    {podeLiberar ? (
-                        <>
-                            <p className="mb-3 text-xs text-content-secondary">
-                                Nenhuma peça é separada antes desta liberação. Confira código,
-                                descrição e preço antes de assinar.
-                            </p>
-                            <Button icon={CheckCircleIcon} loading={processando} onClick={liberarTodos}>
-                                Liberar {aguardandoLiberacao.length} item(ns)
-                            </Button>
-                        </>
-                    ) : (
-                        <div className="flex items-start gap-2 text-xs text-content-secondary">
-                            <LockClosedIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-muted" />
-                            <span>
-                                Você não tem atribuição para liberar peças. Um dos validadores
-                                precisa assinar antes da separação.
-                            </span>
-                        </div>
-                    )}
-                </Card>
-            )}
         </div>
     );
 }
 
 /* ------------------------------------------------------------------ */
+/* LINHA DE ITEM NA TRIAGEM                                           */
+/* ------------------------------------------------------------------ */
 
-function LinhaItem({ item, rascunho, onDefinir, pedidoId, podeLiberar, processando }) {
+function LinhaTriagemItem({ item, rascunho, onDefinir }) {
     const [termo, setTermo] = useState('');
     const [resultados, setResultados] = useState([]);
     const [buscando, setBuscando] = useState(false);
-    const [recusando, setRecusando] = useState(false);
-    const [motivo, setMotivo] = useState('');
+    const [editando, setEditando] = useState(!rascunho?.peca_id);
 
     const buscar = async (valor) => {
         setTermo(valor);
@@ -306,24 +705,13 @@ function LinhaItem({ item, rascunho, onDefinir, pedidoId, podeLiberar, processan
         onDefinir(item.id, 'peca_id', peca.id);
         onDefinir(item.id, 'peca', peca);
 
-        // O preço do catálogo entra como sugestão; o operador sobrescreve se
-        // o valor combinado com a filial for outro.
         if (!rascunho?.preco_unitario && peca.preco) {
             onDefinir(item.id, 'preco_unitario', peca.preco);
         }
 
         setTermo('');
         setResultados([]);
-    };
-
-    const recusar = () => {
-        if (motivo.trim().length < 3) return;
-
-        router.post(
-            route('pecas.recusar', pedidoId),
-            { item_id: item.id, motivo },
-            { preserveScroll: true, onSuccess: () => { setRecusando(false); setMotivo(''); } }
-        );
+        setEditando(false);
     };
 
     const escolhida = rascunho?.peca ?? null;
@@ -344,13 +732,13 @@ function LinhaItem({ item, rascunho, onDefinir, pedidoId, podeLiberar, processan
                     <span className="inline-flex items-center gap-1 rounded bg-status-success-bg px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-status-success-fg">
                         <CheckCircleIcon className="h-3.5 w-3.5" /> Liberado
                     </span>
-                ) : item.identificada ? (
+                ) : escolhida ? (
                     <span className="rounded bg-status-info-bg px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-status-info-fg">
-                        Aguardando liberação
+                        Identificado
                     </span>
                 ) : (
                     <span className="rounded bg-status-warning-bg px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-status-warning-fg">
-                        Sem código
+                        Sem código no e-Part
                     </span>
                 )}
             </div>
@@ -359,33 +747,28 @@ function LinhaItem({ item, rascunho, onDefinir, pedidoId, podeLiberar, processan
                 <div className="mt-3 flex items-start gap-2 rounded border border-status-danger-solid/30 bg-status-danger-bg p-2">
                     <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-status-danger-fg" />
                     <p className="text-[11px] text-status-danger-fg">
-                        <span className="font-bold">Recusado na liberação: </span>
+                        <span className="font-bold">Recusado na liberação anterior: </span>
                         {item.recusa_motivo}
                     </p>
                 </div>
             )}
 
-            {/* Item já assinado não é reaberto por edição — trocar o SKU sob uma
-                assinatura existente invalidaria a liberação silenciosamente. */}
-            {item.liberada ? (
-                <p className="mt-3 font-mono text-xs text-content-secondary">
-                    {escolhida?.codigo} — {escolhida?.descricao}
-                    {item.preco_unitario && ` · R$ ${item.preco_unitario}`}
-                </p>
-            ) : (
-                <div className="mt-3 space-y-3">
-                    {escolhida && (
-                        <div className="flex flex-wrap items-center gap-3 rounded bg-surface-sunken p-2">
-                            <div className="min-w-0 flex-1">
-                                <p className="font-mono text-xs font-bold text-content-primary">
+            <div className="mt-3 space-y-3">
+                {escolhida && !editando ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded bg-surface-sunken p-2.5 border border-line">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
                                     {escolhida.codigo}
-                                </p>
-                                <p className="truncate text-[11px] text-content-secondary">
+                                </span>
+                                <span className="truncate text-xs font-semibold text-content-primary">
                                     {escolhida.descricao}
-                                </p>
+                                </span>
                             </div>
+                        </div>
 
-                            <label className="flex items-center gap-1 text-[11px] text-content-secondary">
+                        <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-1 text-[11px] font-semibold text-content-secondary">
                                 R$
                                 <input
                                     type="number"
@@ -393,11 +776,11 @@ function LinhaItem({ item, rascunho, onDefinir, pedidoId, podeLiberar, processan
                                     min="0"
                                     value={rascunho?.preco_unitario ?? ''}
                                     onChange={(e) => onDefinir(item.id, 'preco_unitario', e.target.value)}
-                                    className="w-24 rounded border-line-strong bg-surface py-1 text-xs tabular-nums"
+                                    className="w-24 rounded border-line-strong bg-surface py-1 text-xs tabular-nums font-mono"
                                 />
                             </label>
 
-                            <label className="flex items-center gap-1 text-[11px] text-content-secondary">
+                            <label className="flex items-center gap-1 text-[11px] font-semibold text-content-secondary">
                                 Qtd
                                 <input
                                     type="number"
@@ -405,40 +788,64 @@ function LinhaItem({ item, rascunho, onDefinir, pedidoId, podeLiberar, processan
                                     max={item.quantidade}
                                     value={rascunho?.quantidade ?? item.quantidade}
                                     onChange={(e) => onDefinir(item.id, 'quantidade', e.target.value)}
-                                    className="w-16 rounded border-line-strong bg-surface py-1 text-xs tabular-nums"
+                                    className="w-16 rounded border-line-strong bg-surface py-1 text-xs tabular-nums font-mono"
                                 />
                             </label>
-                        </div>
-                    )}
 
+                            <button
+                                type="button"
+                                onClick={() => setEditando(true)}
+                                className="text-[11px] font-semibold text-brand-600 hover:underline inline-flex items-center gap-1"
+                            >
+                                <ArrowsRightLeftIcon className="h-3.5 w-3.5" /> Trocar
+                            </button>
+                        </div>
+                    </div>
+                ) : (
                     <div className="relative">
-                        <MagnifyingGlassIcon className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-content-muted" />
-                        <input
-                            value={termo}
-                            onChange={(e) => buscar(e.target.value)}
-                            placeholder={escolhida ? 'Trocar peça…' : 'Buscar código ou descrição no catálogo…'}
-                            className="w-full rounded border-line-strong bg-surface py-2 pl-8 text-xs placeholder-content-muted focus:ring-brand-500"
-                        />
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <MagnifyingGlassIcon className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-content-muted" />
+                                <input
+                                    value={termo}
+                                    onChange={(e) => buscar(e.target.value)}
+                                    placeholder="Buscar código SKU ou descrição no catálogo do e-Part / Microwork..."
+                                    className="w-full rounded border-line-strong bg-surface py-2 pl-9 pr-3 text-xs placeholder-content-muted focus:ring-brand-500"
+                                />
+                            </div>
+                            {escolhida && editando && (
+                                <Button variant="secondary" size="sm" onClick={() => setEditando(false)}>
+                                    Manter atual
+                                </Button>
+                            )}
+                        </div>
 
                         {(resultados.length > 0 || buscando) && (
-                            <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded border border-line bg-surface shadow-lg">
+                            <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-line bg-surface shadow-lg divide-y divide-line">
                                 {buscando && (
-                                    <li className="px-3 py-2 text-xs text-content-muted">Buscando…</li>
+                                    <li className="px-3 py-2 text-xs text-content-muted">Pesquisando no catálogo...</li>
                                 )}
                                 {resultados.map((p) => (
                                     <li key={p.id}>
                                         <button
                                             type="button"
                                             onClick={() => escolher(p)}
-                                            className="w-full px-3 py-2 text-left hover:bg-surface-sunken"
+                                            className="w-full px-3 py-2 text-left hover:bg-surface-sunken transition"
                                         >
-                                            <p className="font-mono text-xs font-bold text-content-primary">
-                                                {p.codigo}
-                                            </p>
-                                            <p className="text-[11px] text-content-secondary">{p.descricao}</p>
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-mono text-xs font-bold text-brand-700">
+                                                    {p.codigo}
+                                                </p>
+                                                {p.preco && (
+                                                    <span className="font-mono text-xs text-content-secondary font-semibold">
+                                                        {formatMoeda(p.preco)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-content-primary">{p.descricao}</p>
                                             {p.onde_tem?.length > 0 && (
                                                 <p className="mt-0.5 text-[10px] text-content-muted">
-                                                    {p.onde_tem.map((o) => `${o.local}: ${o.saldo}`).join(' · ')}
+                                                    Saldos: {p.onde_tem.map((o) => `${o.local}: ${o.saldo}`).join(' · ')}
                                                 </p>
                                             )}
                                         </button>
@@ -447,42 +854,8 @@ function LinhaItem({ item, rascunho, onDefinir, pedidoId, podeLiberar, processan
                             </ul>
                         )}
                     </div>
-
-                    {podeLiberar && item.identificada && (
-                        recusando ? (
-                            <div className="space-y-2">
-                                <input
-                                    value={motivo}
-                                    onChange={(e) => setMotivo(e.target.value)}
-                                    placeholder="O que está errado? Ex.: essa serve na JEF, não na JET"
-                                    className="w-full rounded border-line-strong bg-surface py-2 text-xs placeholder-content-muted focus:ring-brand-500"
-                                />
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="danger"
-                                        loading={processando}
-                                        disabled={motivo.trim().length < 3}
-                                        onClick={recusar}
-                                    >
-                                        Confirmar recusa
-                                    </Button>
-                                    <Button variant="secondary" onClick={() => setRecusando(false)}>
-                                        Cancelar
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setRecusando(true)}
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-status-danger-fg hover:underline"
-                            >
-                                <XCircleIcon className="h-4 w-4" /> Recusar este item
-                            </button>
-                        )
-                    )}
-                </div>
-            )}
+                )}
+            </div>
         </Card>
     );
 }

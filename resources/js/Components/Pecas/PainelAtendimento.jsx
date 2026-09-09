@@ -146,8 +146,8 @@ export default function PainelAtendimento({ pedido, peca }) {
             {/* --- CARGA (CD) --- */}
             {peca.pode_carregar && (
                 <Card
-                    title="Incluir na carga"
-                    subtitle="As peças separadas embarcam junto com as motos — a mesma carga leva os dois."
+                    title="Embarcar basqueta"
+                    subtitle="Embarca a caixa inteira da filial, já faturada e conferida — pode levar cotas de outros pedidos da mesma loja."
                 >
                     <div className="flex flex-col gap-3 sm:flex-row">
                         <select

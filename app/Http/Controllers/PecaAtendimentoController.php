@@ -5,12 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\EstoqueLocal;
 use App\Models\Peca;
 use App\Models\Pedido;
-use App\Models\PedidoItem;
 use App\Models\PedidoLog;
 use App\Models\Romaneio;
 use App\Models\RomaneioItem;
 use App\Services\Estoque\EstoqueInsuficienteException;
 use App\Services\Estoque\EstoquePecaService;
+use App\Services\Pecas\EmbarqueBasquetaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +37,9 @@ use Illuminate\Support\Facades\DB;
  */
 class PecaAtendimentoController extends Controller
 {
+    /** Estados terminais: o pedido não aceita mais movimento de estoque. */
+    private const ENCERRADOS = ['concluido', 'cancelado', 'rejeitado'];
+
     /**
      * CD separa as peças: reserva o saldo do que conseguiu localizar.
      */
@@ -52,6 +55,20 @@ class PecaAtendimentoController extends Controller
 
         $this->autorizarCd();
         $this->garantirPedidoDePeca($pedido);
+
+        /*
+         * Pedido encerrado não volta a separar.
+         *
+         * Uma separação parcial seguida de recebimento deixa qtd_pendente > 0
+         * num pedido já 'concluido'. Sem esta guarda, o CD conseguia reservar
+         * saldo novo para ele — e essa reserva ficava presa, porque não há mais
+         * nenhum evento futuro naquele pedido que a libere.
+         */
+        if (in_array($pedido->status, self::ENCERRADOS, true)) {
+            return back()->withErrors([
+                'geral' => "Este pedido está como '{$pedido->status}' e não aceita mais separação.",
+            ]);
+        }
 
         $origem = $pedido->local_origem_id ?? EstoqueLocal::cd()?->id;
 
@@ -171,11 +188,27 @@ class PecaAtendimentoController extends Controller
     }
 
     /**
-     * Coloca as peças já separadas em uma carga.
+     * Embarca, a partir da tela do pedido, a(s) basqueta(s) que guardam as
+     * cotas dele.
      *
-     * Aqui `romaneio_itens` entra em uso de verdade: a mesma carga passa a
-     * carregar motos (via motos.romaneio_id, mantido) e peças (via itens
-     * polimórficos), que era o objetivo do modelo de carga mista.
+     * O QUE MUDOU NA v3.2 E POR QUÊ
+     *
+     * Este método montava linhas de romaneio direto do pedido, sem olhar a
+     * basqueta. Era a segunda porta para a carga, e a única sem Gate 2: dava
+     * para despachar mercadoria sem nota emitida e sem a filial ter conferido
+     * nada. Pior, a caixa ficava órfã — seguia 'aberta' segurando saldo
+     * reservado de peça que já tinha saído do galpão, e nunca mais era
+     * encontrada pela mesa de montagem, que só enxerga basqueta liberada.
+     *
+     * Agora este caminho e a mesa de montagem passam pelo MESMO
+     * EmbarqueBasquetaService. A tela continua servindo à conveniência de quem
+     * está com o pedido aberto; o que ela não faz mais é pular a fila de
+     * portões.
+     *
+     * EMBARCA A CAIXA INTEIRA, e é assim que tem que ser: a basqueta é uma
+     * caixa física lacrada sob uma nota só, reunindo cotas de vários pedidos da
+     * mesma filial. Não existe embarcar meio pedido — o que sobe no caminhão é
+     * a caixa. Por isso a mensagem de retorno diz quantos pedidos foram junto.
      */
     public function adicionarNaCarga(Request $request, $pedidoId)
     {
@@ -193,47 +226,39 @@ class PecaAtendimentoController extends Controller
             return back()->withErrors(['geral' => 'Esta carga já foi encerrada.']);
         }
 
-        $criados = 0;
+        $servico = app(EmbarqueBasquetaService::class);
+        $basquetaIds = $servico->basquetasDoPedido($pedido);
 
-        DB::transaction(function () use ($pedido, $romaneio, &$criados) {
-            foreach ($pedido->itensPedido as $item) {
-                if (! $item->isPeca() || $item->qtd_atribuida < 1) {
-                    continue;
-                }
-
-                // updateOrCreate: reenviar o pedido para a mesma carga atualiza
-                // a quantidade em vez de duplicar a linha.
-                RomaneioItem::updateOrCreate(
-                    [
-                        'romaneio_id'    => $romaneio->id,
-                        'itemable_type'  => Peca::class,
-                        'itemable_id'    => $item->peca_id,
-                        'pedido_item_id' => $item->id,
-                    ],
-                    [
-                        'pedido_id'        => $pedido->id,
-                        'quantidade'       => $item->qtd_atribuida,
-                        'status'           => RomaneioItem::STATUS_CARREGADO,
-                        'local_destino_id' => $pedido->local_destino_id,
-                    ]
-                );
-
-                $criados++;
-            }
-
-            $pedido->update([
-                'romaneio_id' => $romaneio->id,
-                'status'      => 'aguardando_coleta',
+        if (empty($basquetaIds)) {
+            return back()->withErrors([
+                'geral' => 'Nenhuma peça separada neste pedido está em uma basqueta. Separe as peças antes de embarcar.',
             ]);
+        }
 
-            PedidoLog::create([
-                'pedido_id' => $pedido->id,
-                'titulo'    => 'Peças incluídas na carga',
-                'descricao' => "Carga #{$romaneio->id} — {$criados} item(ns).",
-            ]);
-        });
+        $resultado = DB::transaction(
+            fn () => $servico->embarcar($basquetaIds, $romaneio)
+        );
 
-        return back()->with('success', "{$criados} item(ns) incluído(s) na carga #{$romaneio->id}.");
+        /*
+         * Zero embarcado não é erro de sistema: é o Gate 2 fazendo o trabalho
+         * dele. O operador precisa saber QUAL caixa travou e em que estado ela
+         * está, senão vai caçar a informação em outra tela.
+         */
+        if ($resultado['itens'] === 0) {
+            return back()->withErrors(['geral' => $servico->motivoDeRecusa($basquetaIds)]);
+        }
+
+        $caixas = $resultado['basquetas']->count();
+        $recusadas = count($basquetaIds) - $caixas;
+
+        $msg = "{$resultado['itens']} item(ns) embarcado(s) na carga #{$romaneio->id}"
+             . ' em ' . ($caixas === 1 ? '1 basqueta' : "{$caixas} basquetas") . '.';
+
+        if ($recusadas > 0) {
+            $msg .= ' ' . $servico->motivoDeRecusa($basquetaIds);
+        }
+
+        return back()->with('success', $msg);
     }
 
     /**
@@ -266,12 +291,50 @@ class PecaAtendimentoController extends Controller
         $servico = app(EstoquePecaService::class);
         $recebido = 0;
         $divergencias = 0;
+        $jaBaixados = 0;
 
-        DB::transaction(function () use ($dados, $pedido, $origem, $destino, $servico, &$recebido, &$divergencias) {
+        DB::transaction(function () use ($dados, $pedido, $origem, $destino, $servico, &$recebido, &$divergencias, &$jaBaixados) {
+            /*
+             * TRAVA DE RECEBIMENTO DUPLO.
+             *
+             * Sem o lock, duas requisições simultâneas — duplo clique, retry de
+             * rede num galpão com sinal ruim, voltar e reenviar o formulário —
+             * leem as mesmas linhas em 'em_transito' e cada uma executa a
+             * transferência. O saldo sairia do CD e entraria na loja em dobro,
+             * com duas pernas de ledger que parecem legítimas.
+             *
+             * O lock no pedido serializa as duas; a segunda encontra os itens
+             * já em 'entregue' e cai no guard abaixo.
+             */
+            Pedido::where('id', $pedido->id)->lockForUpdate()->first();
+
             foreach ($dados['itens'] as $linha) {
                 $itemCarga = RomaneioItem::with('itemable')->find($linha['item_id']);
 
                 if (! $itemCarga || ! $itemCarga->isPeca() || $itemCarga->pedido_id !== $pedido->id) {
+                    continue;
+                }
+
+                /*
+                 * Item já baixado não se recebe de novo. Conferir de novo é
+                 * legítimo (a tela permite reabrir), mas mover o saldo outra
+                 * vez não — a peça só entra uma vez na loja.
+                 */
+                if (in_array($itemCarga->status, [
+                    RomaneioItem::STATUS_ENTREGUE,
+                    RomaneioItem::STATUS_DIVERGENCIA,
+                    RomaneioItem::STATUS_RETORNADO,
+                ], true)) {
+                    $jaBaixados++;
+                    continue;
+                }
+
+                /*
+                 * Só o que saiu de fato pode ser recebido. 'carregado' é peça
+                 * que está na carga mas ainda no galpão — receber aí baixaria
+                 * do CD mercadoria que nunca foi embarcada.
+                 */
+                if ($itemCarga->status !== RomaneioItem::STATUS_EM_TRANSITO) {
                     continue;
                 }
 
@@ -324,7 +387,29 @@ class PecaAtendimentoController extends Controller
                 ]);
             }
 
-            $pedido->update(['status' => 'concluido']);
+            /*
+             * O pedido só encerra quando não sobra linha de carga pendente.
+             *
+             * Antes da v3.2 esta linha ficava fora de qualquer condição: um
+             * envio que não casasse nenhum item — ids de outro pedido, tudo
+             * zerado, itens já baixados — encerrava o pedido com zero
+             * recebimento e o tirava de todas as filas de acompanhamento.
+             *
+             * Recebimento parcial mantém o pedido aberto de propósito: o que
+             * ficou para trás continua visível para a filial cobrar.
+             */
+            $pendentesNaCarga = RomaneioItem::where('pedido_id', $pedido->id)
+                ->pecas()
+                ->whereNotIn('status', [
+                    RomaneioItem::STATUS_ENTREGUE,
+                    RomaneioItem::STATUS_DIVERGENCIA,
+                    RomaneioItem::STATUS_RETORNADO,
+                ])
+                ->count();
+
+            if ($pendentesNaCarga === 0 && ($recebido > 0 || $divergencias > 0)) {
+                $pedido->update(['status' => 'concluido']);
+            }
 
             // Verifica se a carga foi integralmente entregue
             if ($pedido->romaneio_id) {
@@ -346,6 +431,12 @@ class PecaAtendimentoController extends Controller
                 }
             }
 
+            // Envio que não moveu nada não vira evento no histórico: poluiria a
+            // timeline do pedido com um recebimento que não aconteceu.
+            if ($recebido === 0 && $divergencias === 0) {
+                return;
+            }
+
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
                 'titulo'    => $divergencias > 0 ? 'Recebido com divergência' : 'Recebimento confirmado',
@@ -355,10 +446,22 @@ class PecaAtendimentoController extends Controller
             ]);
         });
 
+        if ($recebido === 0 && $divergencias === 0) {
+            return back()->withErrors([
+                'geral' => $jaBaixados > 0
+                    ? 'Estes itens já haviam sido recebidos — nada foi movimentado.'
+                    : 'Nenhum item elegível para recebimento. Confirme se a carga já saiu do CD.',
+            ]);
+        }
+
         $msg = "{$recebido} unidade(s) recebida(s) no estoque.";
 
         if ($divergencias > 0) {
             $msg .= " {$divergencias} item(ns) com divergência — o CD foi notificado.";
+        }
+
+        if ($jaBaixados > 0) {
+            $msg .= " {$jaBaixados} item(ns) já estavam baixados e foram ignorados.";
         }
 
         return back()->with('success', $msg);

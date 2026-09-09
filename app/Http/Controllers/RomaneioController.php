@@ -423,106 +423,22 @@ class RomaneioController extends Controller
     }
 
     /**
-     * Embarca pedidos de peça já separados nesta carga (v3).
+     * Embarca as basquetas selecionadas nesta carga (v3).
      *
-     * Mesma mecânica de PecaAtendimentoController::adicionarNaCarga — mantida
-     * aqui para que a mesa de montagem consiga fechar a carga inteira de uma vez,
-     * em vez de obrigar o operador a abrir pedido por pedido.
+     * A mecânica vive em EmbarqueBasquetaService, que é o ponto único de
+     * embarque de peça — a mesa de montagem e a tela do pedido passam pelo
+     * MESMO código, então o Gate 2 não depende de por onde o operador entrou.
      *
      * NÃO MOVE SALDO. A peça continua sendo do CD enquanto está no caminhão; a
-     * transferência acontece quando a loja confere o recebimento. Só o vínculo
-     * com a carga e o status do pedido mudam aqui.
-     *
-     * v3.1: EMBARCA A BASQUETA INTEIRA, nunca um pedido solto.
-     *
-     * A caixa já foi faturada com o conteúdo completo. Embarcar parte dela
-     * deixaria mercadoria no galpão coberta por uma nota que diz que ela saiu —
-     * por isso a unidade de seleção é a basqueta, e o laço percorre tudo o que
-     * está dentro.
+     * transferência acontece quando a loja confere o recebimento.
      *
      * @param  array<int, int>  $basquetaIds
      * @return int  itens de peça criados
      */
     private function embarcarPecas(array $basquetaIds, Romaneio $romaneio): int
     {
-        if (empty($basquetaIds)) {
-            return 0;
-        }
-
-        /*
-         * A TRAVA DO GATE 2 VIVE AQUI, não na tela.
-         *
-         * Filtrar por STATUS_LIBERADA no próprio WHERE faz com que uma basqueta
-         * não conferida simplesmente não seja encontrada — mesmo que o id venha
-         * numa requisição forjada ou de uma tela em cache aberta antes de um
-         * pedido de ajuste.
-         */
-        $basquetas = \App\Models\Basqueta::whereIn('id', $basquetaIds)
-            ->where('status', \App\Models\Basqueta::STATUS_LIBERADA)
-            ->whereNull('romaneio_id')
-            ->with('itens.pedido')
-            ->get();
-
-        $criados = 0;
-
-        foreach ($basquetas as $basqueta) {
-            $pedidosTocados = [];
-
-            foreach ($basqueta->itens as $item) {
-                // Só embarca o que foi de fato separado.
-                if (! $item->isPeca() || $item->qtd_atribuida < 1) {
-                    continue;
-                }
-
-                // updateOrCreate: reprocessar a mesma carga atualiza a quantidade
-                // em vez de duplicar a linha.
-                \App\Models\RomaneioItem::updateOrCreate(
-                    [
-                        'romaneio_id'    => $romaneio->id,
-                        'itemable_type'  => \App\Models\Peca::class,
-                        'itemable_id'    => $item->peca_id,
-                        'pedido_item_id' => $item->id,
-                    ],
-                    [
-                        'pedido_id'        => $item->pedido_id,
-                        'quantidade'       => $item->qtd_atribuida,
-                        'status'           => \App\Models\RomaneioItem::STATUS_CARREGADO,
-                        'local_destino_id' => $basqueta->estoque_local_id,
-                    ]
-                );
-
-                $pedidosTocados[$item->pedido_id] = true;
-                $criados++;
-            }
-
-            $basqueta->update([
-                'romaneio_id' => $romaneio->id,
-                'status'      => \App\Models\Basqueta::STATUS_DESPACHADA,
-            ]);
-
-            $nota = $basqueta->notaVigente();
-
-            /*
-             * Cada pedido acompanha o próprio histórico, e uma basqueta reúne
-             * vários. O status vai para todos os que tiveram cota embarcada.
-             */
-            foreach (array_keys($pedidosTocados) as $pedidoId) {
-                Pedido::where('id', $pedidoId)->update([
-                    'romaneio_id' => $romaneio->id,
-                    'status'      => 'aguardando_coleta',
-                ]);
-
-                \App\Models\PedidoLog::create([
-                    'pedido_id' => $pedidoId,
-                    'titulo'    => 'Peças incluídas na carga',
-                    'descricao' => "Basqueta #{$basqueta->id} embarcada na carga #{$romaneio->id}"
-                                 . ($nota ? " sob a NF {$nota->rotulo}" : '')
-                                 . ' por ' . (Auth::user()->name ?? 'sistema') . '.',
-                ]);
-            }
-        }
-
-        return $criados;
+        return app(\App\Services\Pecas\EmbarqueBasquetaService::class)
+            ->embarcar($basquetaIds, $romaneio)['itens'];
     }
 
     // 4. VISUALIZAR DETALHES
@@ -745,13 +661,46 @@ class RomaneioController extends Controller
                     } catch (\Exception $e) {}
                 }
 
+                /*
+                 * PEÇA NÃO SE CONCLUI POR AUSÊNCIA DE MOTO (v3.2).
+                 *
+                 * Este bloco fechava a carga assim que ela ficasse sem moto —
+                 * regra escrita quando carga só levava moto. Com carga mista,
+                 * uma carga de peças satisfazia `motos()->count() === 0` e era
+                 * marcada 'concluido' com a mercadoria ainda em trânsito, sem
+                 * nunca ter sido recebida por ninguém.
+                 */
+                $pecasEmAberto = \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
+                    ->pecas()
+                    ->whereNotIn('status', [
+                        \App\Models\RomaneioItem::STATUS_ENTREGUE,
+                        \App\Models\RomaneioItem::STATUS_DIVERGENCIA,
+                        \App\Models\RomaneioItem::STATUS_RETORNADO,
+                    ])
+                    ->count();
+
                 if ($itensRecebidos > 0) {
-                    // AUDITORIA/FIX: Se após o transbordo a carga ficou vazia, conclui a carga
-                    if ($romaneio->fresh()->motos()->count() === 0) {
+                    if ($romaneio->fresh()->motos()->count() === 0 && $pecasEmAberto === 0) {
                         $romaneio->update(['status' => 'concluido']);
                     }
-                    
-                    return back()->with('success', "$itensRecebidos itens deram entrada no CD (Transbordo).");
+
+                    $msg = "$itensRecebidos itens deram entrada no CD (Transbordo).";
+
+                    /*
+                     * O transbordo de PEÇA ainda não é automatizado: as motos
+                     * voltam para 'no_cd' e liberam para nova carga, mas a
+                     * basqueta já foi despachada sob uma nota e reembarcá-la
+                     * envolve decisão fiscal que o sistema não toma sozinho.
+                     * Avisar é melhor do que ignorar em silêncio — antes, o
+                     * operador não tinha como saber que as peças ficaram para
+                     * trás.
+                     */
+                    if ($pecasEmAberto > 0) {
+                        $msg .= " Atenção: {$pecasEmAberto} item(ns) de peça continuam vinculados a esta carga"
+                              . ' e não entram no transbordo automático. Trate a basqueta manualmente com o Pós-Venda.';
+                    }
+
+                    return back()->with('success', $msg);
                 }
             }
 

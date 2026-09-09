@@ -350,16 +350,39 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         |--------------------------------------------------------------------------
         | Peça é fungível (saldo por SKU/local), diferente de moto (chassi).
         | Toda escrita de saldo passa por App\Services\Estoque\EstoquePecaService.
+        |
+        | ONDE O PAPEL É DECLARADO (v3.2)
+        |
+        | Antes, este grupo era o único módulo sem `check_perfil` — a defesa
+        | vivia inteira dentro dos controllers, o que funcionava onde alguém
+        | escreveu a checagem e falhava em silêncio onde esqueceu.
+        |
+        | Agora a regra é: quando o papel é PERFIL, ele é declarado aqui, onde um
+        | auditor vai procurar. Quando depende de ATRIBUIÇÃO (`valida_pecas`) ou
+        | do local de destino, fica no controller — `check_perfil` não sabe
+        | expressar "perfil CD OU quem assina", e as rotas de liberação e
+        | conferência são exatamente esse caso. As checagens de controller
+        | permanecem como segunda camada, nunca substituídas por estas.
         */
         Route::prefix('pecas')->name('pecas.')->group(function () {
             Route::get('/', [\App\Http\Controllers\PecaController::class, 'index'])->name('index');
 
-            // Solicitação da loja ao CD (mesma estrutura de Pedido das motos,
-            // com tipo_carga = 'peca').
-            Route::get('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'create'])
-                ->name('solicitar');
-            Route::post('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'store'])
-                ->name('solicitar.store');
+            /*
+             * Solicitação da loja ao CD (mesma estrutura de Pedido das motos,
+             * com tipo_carga = 'peca').
+             *
+             * SÓ LOJA E ADMIN. Quem pede peça é quem tem oficina e um
+             * `estoque_local_id` para receber. CD e gestor não têm destino
+             * válido: o pedido nasceria com origem igual ao destino, ou sem
+             * destino nenhum, e morreria preso na separação sem caminho de
+             * saída — ver PecaPedidoController::store.
+             */
+            Route::middleware('check_perfil:loja,admin')->group(function () {
+                Route::get('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'create'])
+                    ->name('solicitar');
+                Route::post('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'store'])
+                    ->name('solicitar.store');
+            });
 
             // Captura de conhecimento: quem tem a peça na mão confirma em qual
             // moto ela serve. Vira vínculo manual, com confiança alta.
@@ -415,11 +438,19 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
              * Atendimento do pedido de peça. Três etapas com efeitos distintos
              * sobre o estoque — ver PecaAtendimentoController:
              *   separar -> reserva | carga -> nada | receber -> transfere
+             *
+             * Separar e embarcar são do CD, e só dele: quem tira da prateleira
+             * é quem responde pelo saldo. Receber fica fora deste grupo porque
+             * quem confere é a FILIAL DE DESTINO — regra de local, não de
+             * perfil, resolvida em PecaAtendimentoController::autorizarDestino.
              */
-            Route::post('/pedidos/{pedido}/separar', [\App\Http\Controllers\PecaAtendimentoController::class, 'separar'])
-                ->name('separar');
-            Route::post('/pedidos/{pedido}/carga', [\App\Http\Controllers\PecaAtendimentoController::class, 'adicionarNaCarga'])
-                ->name('carga');
+            Route::middleware('check_perfil:cd,admin')->group(function () {
+                Route::post('/pedidos/{pedido}/separar', [\App\Http\Controllers\PecaAtendimentoController::class, 'separar'])
+                    ->name('separar');
+                Route::post('/pedidos/{pedido}/carga', [\App\Http\Controllers\PecaAtendimentoController::class, 'adicionarNaCarga'])
+                    ->name('carga');
+            });
+
             Route::post('/pedidos/{pedido}/receber', [\App\Http\Controllers\PecaAtendimentoController::class, 'receber'])
                 ->name('receber');
 
@@ -431,14 +462,25 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
                 Route::get('/sugerir-minimo', [\App\Http\Controllers\PecaPendenciaController::class, 'sugerirMinimo'])->name('sugerir');
             });
 
-            // Entrada e inventário — onde o saldo gerenciado nasce.
-            Route::prefix('estoque')->name('estoque.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\PecaEstoqueController::class, 'index'])->name('index');
-                Route::get('/buscar', [\App\Http\Controllers\PecaEstoqueController::class, 'buscar'])->name('buscar');
-                Route::post('/entrada', [\App\Http\Controllers\PecaEstoqueController::class, 'entrada'])->name('entrada');
-                Route::post('/inventario', [\App\Http\Controllers\PecaEstoqueController::class, 'inventario'])->name('inventario');
-                Route::post('/transferir', [\App\Http\Controllers\PecaEstoqueController::class, 'transferir'])->name('transferir');
-            });
+            /*
+             * Entrada e inventário — onde o saldo gerenciado nasce.
+             *
+             * O GESTOR FICA DE FORA, e é uma decisão de segregação de funções:
+             * ele aprova e audita, então não deve poder mexer no saldo que
+             * audita. Quem escreve estoque é o CD (em qualquer local) e a loja
+             * (só no próprio) — a segunda metade dessa regra está em
+             * PecaEstoqueController::autorizarLocal, porque depende do local e
+             * não só do perfil.
+             */
+            Route::prefix('estoque')->name('estoque.')
+                ->middleware('check_perfil:cd,admin,loja')
+                ->group(function () {
+                    Route::get('/', [\App\Http\Controllers\PecaEstoqueController::class, 'index'])->name('index');
+                    Route::get('/buscar', [\App\Http\Controllers\PecaEstoqueController::class, 'buscar'])->name('buscar');
+                    Route::post('/entrada', [\App\Http\Controllers\PecaEstoqueController::class, 'entrada'])->name('entrada');
+                    Route::post('/inventario', [\App\Http\Controllers\PecaEstoqueController::class, 'inventario'])->name('inventario');
+                    Route::post('/transferir', [\App\Http\Controllers\PecaEstoqueController::class, 'transferir'])->name('transferir');
+                });
         });
 
 

@@ -145,7 +145,14 @@ class PecaEstoqueController extends Controller
             'observacao' => ['nullable', 'string', 'max:255'],
         ]);
 
+        /*
+         * As DUAS pontas são verificadas. Só a origem não basta: uma loja
+         * validada apenas na saída poderia empurrar saldo para o local de
+         * outra filial, inflando um estoque que não é dela e que ela não
+         * responde por.
+         */
         $this->autorizarLocal($dados['origem_id']);
+        $this->autorizarLocal($dados['destino_id']);
 
         try {
             app(EstoquePecaService::class)->transferir(
@@ -195,13 +202,32 @@ class PecaEstoqueController extends Controller
     }
 
     /**
-     * Impede que uma loja movimente o estoque de outra.
+     * Quem pode escrever no saldo de um local.
+     *
+     * LISTA BRANCA, NÃO LISTA NEGRA (v3.2).
+     *
+     * Antes isto restringia apenas `perfil === 'loja'`, o que significava que
+     * todo perfil não previsto entrava — o gestor inclusive, escrevendo em
+     * qualquer filial. Quem aprova e audita não deve mexer no saldo que audita,
+     * e um perfil novo criado amanhã não deve herdar acesso de escrita só por
+     * não constar de uma negativa.
+     *
+     * CD e admin escrevem em qualquer local (é o trabalho deles); a loja
+     * escreve só no próprio.
      */
     private function autorizarLocal(int $localId): void
     {
         $user = Auth::user();
 
-        if ($user->perfil === 'loja' && $user->estoque_local_id !== $localId) {
+        if (in_array($user->perfil, ['cd', 'admin'], true)) {
+            return;
+        }
+
+        if ($user->perfil !== 'loja') {
+            abort(403, 'Seu perfil não movimenta estoque de peças.');
+        }
+
+        if ($user->estoque_local_id !== $localId) {
             abort(403, 'Você só pode movimentar o estoque da sua própria loja.');
         }
     }

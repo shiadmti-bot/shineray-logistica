@@ -102,11 +102,51 @@ class PecaPedidoController extends Controller
         $user = Auth::user();
         $cd = EstoqueLocal::cd();
 
-        $pedido = DB::transaction(function () use ($dados, $user, $cd) {
+        /*
+         * ORIGEM E DESTINO SÃO VERIFICADOS ANTES DE GRAVAR (v3.2).
+         *
+         * O destino saía direto de $user->estoque_local_id, sem checagem. Um
+         * usuário sem local vinculado criava um pedido com destino nulo que
+         * atravessava o Gate 1 inteiro sem reclamar — atender e liberar não
+         * olham destino — e só morria na separação, no "sem ele não há
+         * basqueta", ficando preso ali sem caminho de saída.
+         *
+         * Falhar aqui é o oposto disso: nada é gravado, e a mensagem diz a quem
+         * recorrer. A rota já restringe a loja e admin; esta é a segunda
+         * camada, e a que cobre a loja cujo cadastro ficou incompleto.
+         */
+        if (! $user->estoque_local_id) {
+            return back()->withErrors([
+                'geral' => 'Seu usuário não tem um local de estoque vinculado, então não há para onde enviar a peça. Peça ao administrador para vincular sua filial antes de solicitar.',
+            ])->withInput();
+        }
+
+        if (! $cd) {
+            return back()->withErrors([
+                'geral' => 'O Estoque Central não está cadastrado como local de peças. Avise o administrador.',
+            ])->withInput();
+        }
+
+        /*
+         * Origem igual a destino é pedir para si mesmo: não há transferência
+         * possível, e o EstoquePecaService recusaria com uma exceção sem
+         * tratamento no recebimento — erro 500 muito depois do ponto onde a
+         * decisão errada foi tomada.
+         */
+        if ($cd->id === $user->estoque_local_id) {
+            return back()->withErrors([
+                'geral' => 'Seu usuário está vinculado ao próprio Estoque Central. Use a tela de entrada de estoque em vez de abrir um pedido.',
+            ])->withInput();
+        }
+
+        $todosComCodigo = collect($dados['itens'])->every(fn ($item) => ! empty($item['peca_id']));
+        $statusInicial = $todosComCodigo ? 'aguardando_confirmacao' : 'solicitado';
+
+        $pedido = DB::transaction(function () use ($dados, $user, $cd, $todosComCodigo, $statusInicial) {
             $pedido = Pedido::create([
                 'user_id'          => $user->id,
                 'tipo_carga'       => 'peca',
-                'status'           => 'solicitado',
+                'status'           => $statusInicial,
                 'origem_user_id'   => null, // CD atende
                 'local_origem_id'  => $cd?->id,
                 'local_destino_id' => $user->estoque_local_id,
@@ -127,6 +167,9 @@ class PecaPedidoController extends Controller
                     'tipo'                 => 'peca',
                     'peca_id'              => $peca?->id,
                     'descricao_solicitada' => $descricao !== '' ? $descricao : null,
+                    'preco_unitario'       => $peca?->preco_referencia,
+                    'identificado_por'     => $peca ? $user->id : null,
+                    'identificado_em'      => $peca ? now() : null,
                     'modelo'               => null, // não se aplica a peça
                     'cor'                  => null,
                     'motivo'               => $item['motivo'] ?? null,
@@ -147,20 +190,28 @@ class PecaPedidoController extends Controller
              */
 
             $totalItens = collect($dados['itens'])->sum('quantidade');
+            $logDescricao = "{$user->name} solicitou {$totalItens} unidade(s) em "
+                . count($dados['itens']) . ' item(ns) de peça.';
+            if ($todosComCodigo) {
+                $logDescricao .= ' Todos os itens foram identificados via catálogo e encaminhados diretamente para liberação do Pós-Venda.';
+            }
 
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
-                'titulo'    => 'Solicitação de peças criada',
-                'descricao' => "{$user->name} solicitou {$totalItens} unidade(s) em "
-                             . count($dados['itens']) . ' item(ns) de peça.',
+                'titulo'    => $todosComCodigo ? 'Solicitação de peças enviada para liberação' : 'Solicitação de peças criada',
+                'descricao' => $logDescricao,
             ]);
 
             return $pedido;
         });
 
+        $msgSucesso = $todosComCodigo
+            ? 'Solicitação de peças enviada para liberação do Pós-Venda.'
+            : 'Solicitação de peças enviada para triagem do CD.';
+
         return redirect()
             ->route('pedidos.show', $pedido->id)
-            ->with('success', 'Solicitação de peças enviada ao CD.');
+            ->with('success', $msgSucesso);
     }
 
     /**
@@ -184,8 +235,42 @@ class PecaPedidoController extends Controller
         }
 
         if (! $dados['serve']) {
-            // Não serve: remove o vínculo, inclusive um deduzido errado.
+            /*
+             * REMOVER É PRIVILÉGIO DO CD (v3.2).
+             *
+             * Confirmar que uma peça serve é captura de conhecimento e continua
+             * aberta a todos — é o que resolve as peças sem aplicação, por quem
+             * tem a peça na mão. Apagar é outra coisa: destrói vínculo que
+             * vale para TODA a rede, e o sync do Microwork nunca o recria,
+             * porque vínculo manual tem confiança alta. Um engano de uma filial
+             * viraria buraco permanente no catálogo de todas.
+             */
+            if (! in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
+                return back()->withErrors([
+                    'familia' => 'Só o Estoque Central remove uma aplicação do catálogo, porque o vínculo vale para toda a rede. Avise o CD se este modelo estiver errado.',
+                ]);
+            }
+
+            $removidos = $peca->aplicacoes()->where('familia', $familia)->get();
+
             $peca->aplicacoes()->where('familia', $familia)->delete();
+
+            /*
+             * A remoção precisa deixar rastro. O texto_origem registra quem
+             * confirmou, mas nada registrava quem apagou — e era justamente a
+             * operação destrutiva que ficava sem dono.
+             */
+            foreach ($removidos as $aplicacao) {
+                activity()
+                    ->performedOn($peca)
+                    ->causedBy(Auth::user())
+                    ->withProperties([
+                        'familia'   => $familia,
+                        'origem'    => $aplicacao->origem,
+                        'confianca' => $aplicacao->confianca,
+                    ])
+                    ->log("Aplicação {$familia} removida da peça {$peca->codigo}");
+            }
 
             return back()->with('success', "Registrado: não serve em {$familia}.");
         }

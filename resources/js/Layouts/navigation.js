@@ -16,6 +16,7 @@ import {
     ExclamationTriangleIcon,
     ArrowUturnLeftIcon,
     BuildingStorefrontIcon,
+    MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
 /**
@@ -105,13 +106,26 @@ export const NAV_SECTIONS = [
                 match: 'pedidos.*',
             },
             {
-                // Gate 1: Identificação técnica e liberação pelo Pós-Venda
-                key: 'pecas-atendimento',
-                label: 'Validação & Atendimento',
+                // Gate 1: Liberação técnica pelo Pós-Venda
+                key: 'pecas-aprovacoes',
+                label: 'Aprovações de Peças',
                 icon: ClipboardDocumentCheckIcon,
                 route: 'pecas.atendimento',
+                params: { aba: 'aprovacoes' },
                 match: 'pecas.atendimento*',
                 requireValidaPecas: true,
+                badge: 'pecasAprovacoesPendentes',
+            },
+            {
+                // Triagem e identificação no e-Part pelo CD
+                key: 'pecas-triagem',
+                label: 'Triagem de Peças',
+                icon: MagnifyingGlassIcon,
+                route: 'pecas.atendimento',
+                params: { aba: 'triagem' },
+                match: 'pecas.atendimento*',
+                perfis: ['admin', 'cd'],
+                badge: 'pecasTriagemPendentes',
             },
             {
                 key: 'pecas-basquetas',
@@ -253,8 +267,8 @@ export function navegacaoPara(userOrPerfil) {
                     return false;
                 }
 
-                // Restrição específica: Validador de Peças (Pós-Venda - Gate 1) ou Operação CD
-                if (item.requireValidaPecas && !validaPecas && perfil !== 'cd' && !isAdmin) {
+                // Restrição específica: Validador de Peças (Pós-Venda - Gate 1)
+                if (item.requireValidaPecas && !validaPecas && !isAdmin) {
                     return false;
                 }
 

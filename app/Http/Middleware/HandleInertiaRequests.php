@@ -68,6 +68,26 @@ public function share(Request $request): array
              * parcial que não precise delas.
              */
             'navCounts' => [
+                'pecasAprovacoesPendentes' => function () use ($request) {
+                    $user = $request->user();
+                    if (! $user || (! $user->podeValidarPecas() && $user->perfil !== 'admin')) {
+                        return 0;
+                    }
+                    return \App\Models\Pedido::where('tipo_carga', 'peca')
+                        ->where('status', 'aguardando_confirmacao')
+                        ->count();
+                },
+
+                'pecasTriagemPendentes' => function () use ($request) {
+                    $user = $request->user();
+                    if (! $user || (! in_array($user->perfil, ['cd', 'admin'], true))) {
+                        return 0;
+                    }
+                    return \App\Models\Pedido::where('tipo_carga', 'peca')
+                        ->whereIn('status', ['solicitado', 'em_atendimento'])
+                        ->count();
+                },
+
                 'pecasPendencias' => function () use ($request) {
                     $user = $request->user();
 

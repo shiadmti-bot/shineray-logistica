@@ -442,4 +442,60 @@ class PecaFluxoCompletoTest extends TestCase
         // Pedido concluído
         $this->assertEquals('concluido', $pedido->status);
     }
+
+    /**
+     * Teste: Pedido com 100% dos itens selecionados do catálogo.
+     * Deve atribuir automaticamente preco_referencia e nascer em aguardando_confirmacao (Gate 1),
+     * sem necessidade de triagem no CD.
+     */
+    public function test_solicitacao_100_porcento_catalogo_nasce_em_aguardando_confirmacao_com_precos_e_libera_direto()
+    {
+        $response = $this->actingAs($this->lojaUser)->post(route('pecas.solicitar.store'), [
+            'itens' => [
+                [
+                    'peca_id'    => $this->pecaA->id,
+                    'quantidade' => 3,
+                    'motivo'     => 'Reposição preventiva',
+                ],
+                [
+                    'peca_id'    => $this->pecaB->id,
+                    'quantidade' => 5,
+                    'motivo'     => 'Cliente aguardando',
+                ],
+            ],
+            'observacao' => 'Itens com código de catálogo',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $pedido = Pedido::where('user_id', $this->lojaUser->id)->latest()->first();
+
+        $this->assertNotNull($pedido);
+        $this->assertEquals('peca', $pedido->tipo_carga);
+        $this->assertEquals('aguardando_confirmacao', $pedido->status);
+        $this->assertEquals(2, $pedido->itensPedido()->count());
+
+        foreach ($pedido->itensPedido as $item) {
+            $this->assertTrue($item->isIdentificada());
+            $this->assertNotNull($item->preco_unitario);
+            $this->assertEquals($item->peca->preco_referencia, (float) $item->preco_unitario);
+            $this->assertFalse($item->isLiberada());
+        }
+
+        // Validador de Pós-Venda consulta a fila de aprovações
+        $responseIndex = $this->actingAs($this->validadorPecas)->get(route('pecas.atendimento', ['aba' => 'aprovacoes']));
+        $responseIndex->assertStatus(200);
+
+        // Validador assina e aprova
+        $responseLiberar = $this->actingAs($this->validadorPecas)->post(route('pecas.liberar', $pedido->id), [
+            'itens' => $pedido->itensPedido->pluck('id')->all(),
+        ]);
+
+        $responseLiberar->assertSessionHasNoErrors();
+        $pedido->refresh();
+        $this->assertEquals('aprovado', $pedido->status);
+
+        foreach ($pedido->itensPedido as $item) {
+            $this->assertTrue($item->isLiberada());
+        }
+    }
 }
