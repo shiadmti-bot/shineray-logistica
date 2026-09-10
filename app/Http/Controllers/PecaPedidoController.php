@@ -52,6 +52,12 @@ class PecaPedidoController extends Controller
             )
             : null;
 
+        $locais = $user->perfil === 'admin'
+            ? EstoqueLocal::filiaisDePeca()
+                ->orderBy('nome')
+                ->get(['id', 'nome'])
+            : [];
+
         return Inertia::render('Pecas/Solicitar', [
             'pecas'   => $pecas,
             'modelos' => $this->modelosDisponiveis(),
@@ -63,6 +69,8 @@ class PecaPedidoController extends Controller
                 'nome'  => $user->filial ?: $user->name,
                 'local' => $user->estoque_local_id,
             ],
+            'locais'  => $locais,
+            'isAdmin' => $user->perfil === 'admin',
         ]);
     }
 
@@ -87,6 +95,7 @@ class PecaPedidoController extends Controller
             'itens.*.quantidade'             => ['required', 'integer', 'min:1', 'max:999'],
             'itens.*.motivo'                 => ['nullable', 'string', 'max:255'],
             'observacao'                     => ['nullable', 'string', 'max:1000'],
+            'local_destino_id'               => ['nullable', 'exists:estoque_locais,id'],
         ], [
             'itens.required' => 'Adicione ao menos uma peça ao pedido.',
         ]);
@@ -105,19 +114,26 @@ class PecaPedidoController extends Controller
         /*
          * ORIGEM E DESTINO SÃO VERIFICADOS ANTES DE GRAVAR (v3.2).
          *
-         * O destino saía direto de $user->estoque_local_id, sem checagem. Um
-         * usuário sem local vinculado criava um pedido com destino nulo que
-         * atravessava o Gate 1 inteiro sem reclamar — atender e liberar não
-         * olham destino — e só morria na separação, no "sem ele não há
-         * basqueta", ficando preso ali sem caminho de saída.
-         *
-         * Falhar aqui é o oposto disso: nada é gravado, e a mensagem diz a quem
-         * recorrer. A rota já restringe a loja e admin; esta é a segunda
-         * camada, e a que cobre a loja cujo cadastro ficou incompleto.
+         * Para lojas, o destino sai direto de $user->estoque_local_id.
+         * Para administradores, permite escolher a filial de destino do pedido,
+         * ou utiliza o estoque_local_id do admin se possuir um.
          */
-        if (! $user->estoque_local_id) {
+        $localDestinoId = ($user->perfil === 'admin' && !empty($dados['local_destino_id']))
+            ? (int) $dados['local_destino_id']
+            : $user->estoque_local_id;
+
+        if (! $localDestinoId) {
             return back()->withErrors([
-                'geral' => 'Seu usuário não tem um local de estoque vinculado, então não há para onde enviar a peça. Peça ao administrador para vincular sua filial antes de solicitar.',
+                'geral' => $user->perfil === 'admin'
+                    ? 'Escolha a filial de destino da peça antes de enviar a solicitação.'
+                    : 'Seu usuário não tem um local de estoque vinculado, então não há para onde enviar a peça. Peça ao administrador para vincular sua filial antes de solicitar.',
+            ])->withInput();
+        }
+
+        $localDestino = EstoqueLocal::find($localDestinoId);
+        if (! $localDestino) {
+            return back()->withErrors([
+                'geral' => 'A filial de destino selecionada não foi encontrada.',
             ])->withInput();
         }
 
@@ -133,23 +149,27 @@ class PecaPedidoController extends Controller
          * tratamento no recebimento — erro 500 muito depois do ponto onde a
          * decisão errada foi tomada.
          */
-        if ($cd->id === $user->estoque_local_id) {
+        if ($cd->id === $localDestinoId) {
             return back()->withErrors([
-                'geral' => 'Seu usuário está vinculado ao próprio Estoque Central. Use a tela de entrada de estoque em vez de abrir um pedido.',
+                'geral' => 'O destino não pode ser o próprio Estoque Central. Use a tela de entrada de estoque em vez de abrir um pedido.',
             ])->withInput();
         }
 
         $todosComCodigo = collect($dados['itens'])->every(fn ($item) => ! empty($item['peca_id']));
         $statusInicial = $todosComCodigo ? 'aguardando_confirmacao' : 'solicitado';
 
-        $pedido = DB::transaction(function () use ($dados, $user, $cd, $todosComCodigo, $statusInicial) {
+        $pedido = DB::transaction(function () use ($dados, $user, $cd, $localDestino, $localDestinoId, $todosComCodigo, $statusInicial) {
+            $userIdDestino = ($user->perfil === 'admin' && $localDestino->user_id)
+                ? $localDestino->user_id
+                : $user->id;
+
             $pedido = Pedido::create([
-                'user_id'          => $user->id,
+                'user_id'          => $userIdDestino,
                 'tipo_carga'       => 'peca',
                 'status'           => $statusInicial,
                 'origem_user_id'   => null, // CD atende
                 'local_origem_id'  => $cd?->id,
-                'local_destino_id' => $user->estoque_local_id,
+                'local_destino_id' => $localDestinoId,
                 'observacao'       => $dados['observacao'] ?? null,
                 // `itens` (JSON) é mantido por compatibilidade com as telas
                 // legadas de pedido, que leem esse campo diretamente.
@@ -173,7 +193,7 @@ class PecaPedidoController extends Controller
                     'modelo'               => null, // não se aplica a peça
                     'cor'                  => null,
                     'motivo'               => $item['motivo'] ?? null,
-                    'local'                => $user->filial,
+                    'local'                => $localDestino->nome ?: $user->filial,
                     'quantidade'           => $item['quantidade'],
                     'exige_chassi'         => false,
                 ]);

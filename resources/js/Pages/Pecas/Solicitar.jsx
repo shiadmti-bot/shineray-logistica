@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     MagnifyingGlassIcon,
     ShoppingCartIcon,
@@ -28,13 +28,21 @@ import { Card, PageHeader, Button, EmptyState } from '@/Components/UI';
  * as lojas. É assim que as ~1.400 peças sem aplicação se resolvem, sem ninguém
  * precisar sentar para preencher planilha.
  */
-export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja = {} }) {
+export default function SolicitarPecas({
+    pecas,
+    modelos = [],
+    filtros = {},
+    loja = {},
+    locais = [],
+    isAdmin = false,
+}) {
+    const { errors: pageErrors = {} } = usePage().props;
     const [busca, setBusca] = useState(filtros.busca ?? '');
     const [carrinho, setCarrinho] = useState([]);
     const [semCodigo, setSemCodigo] = useState('');
     const [observacao, setObservacao] = useState('');
-
-    const { post, processing, errors } = useForm();
+    const [destinoId, setDestinoId] = useState(locais[0]?.id ?? '');
+    const [isEnviando, setIsEnviando] = useState(false);
 
     const filtrar = (novos = {}) => {
         router.get(
@@ -102,14 +110,22 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
     );
 
     const enviar = () => {
-        router.post(route('pecas.solicitar.store'), {
-            itens: carrinho.map(({ peca_id, quantidade, descricao_solicitada }) => ({
-                peca_id: peca_id ?? null,
-                descricao_solicitada: descricao_solicitada ?? null,
-                quantidade,
-            })),
-            observacao,
-        });
+        setIsEnviando(true);
+        router.post(
+            route('pecas.solicitar.store'),
+            {
+                local_destino_id: isAdmin ? (destinoId || undefined) : undefined,
+                itens: carrinho.map(({ peca_id, quantidade, descricao_solicitada }) => ({
+                    peca_id: peca_id ?? null,
+                    descricao_solicitada: descricao_solicitada ?? null,
+                    quantidade,
+                })),
+                observacao,
+            },
+            {
+                onFinish: () => setIsEnviando(false),
+            }
+        );
     };
 
     // Confirma que a peça serve no modelo filtrado — só faz sentido quando há
@@ -130,7 +146,11 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
 
             <PageHeader
                 title="Solicitar Peças"
-                description={`Pedido de ${loja.nome ?? 'sua loja'} para o Centro de Distribuição.`}
+                description={
+                    isAdmin
+                        ? 'Abertura de pedido de peças para filial (Acesso Administrador).'
+                        : `Pedido de ${loja.nome ?? 'sua loja'} para o Centro de Distribuição.`
+                }
                 breadcrumbs={[{ label: 'Peças' }, { label: 'Solicitar' }]}
             />
 
@@ -329,6 +349,41 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
 
                 {/* --- CARRINHO --- */}
                 <aside className="lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-slim space-y-4 pr-1">
+                    {/* Filial de destino para administrador */}
+                    {isAdmin && (
+                        <Card title="Filial de Destino" padding="sm">
+                            <p className="mb-2 text-xs text-content-secondary">
+                                Como administrador, selecione a filial que receberá as peças:
+                            </p>
+                            <select
+                                value={destinoId}
+                                onChange={(e) => setDestinoId(e.target.value)}
+                                className="w-full rounded-lg border-line bg-surface-card text-xs font-semibold text-content-primary focus:border-brand-500 focus:ring-brand-500"
+                            >
+                                <option value="">Selecione uma filial...</option>
+                                {locais.map((loc) => (
+                                    <option key={loc.id} value={loc.id}>
+                                        {loc.nome}
+                                    </option>
+                                ))}
+                            </select>
+                            {pageErrors.local_destino_id && (
+                                <p className="mt-1.5 text-xs font-semibold text-status-danger-fg">
+                                    {pageErrors.local_destino_id}
+                                </p>
+                            )}
+                        </Card>
+                    )}
+
+                    {!isAdmin && !loja.local && (
+                        <div className="rounded-lg border border-status-warning-border bg-status-warning-bg p-3 text-xs text-status-warning-fg flex items-start gap-2">
+                            <ExclamationTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />
+                            <span>
+                                Seu usuário não possui um local de estoque vinculado. Solicite ao administrador a vinculação da sua filial antes de criar pedidos.
+                            </span>
+                        </div>
+                    )}
+
                     {/* Passo 2 do manual: pedir sem saber o código. Antes isso
                         acontecia por mensagem, fora do sistema. */}
                     <Card title="Não achou no catálogo?" padding="sm">
@@ -360,6 +415,13 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                         subtitle={totalUnidades > 0 ? `${totalUnidades} unidade(s)` : 'Nenhum item ainda'}
                         padding="none"
                     >
+                        {pageErrors.geral && (
+                            <div className="border-b border-status-danger-border bg-status-danger-bg p-3 text-xs text-status-danger-fg flex items-start gap-2">
+                                <ExclamationTriangleIcon className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span>{pageErrors.geral}</span>
+                            </div>
+                        )}
+
                         {carrinho.length === 0 ? (
                             <div className="px-5 py-8 text-center">
                                 <ShoppingCartIcon className="mx-auto h-8 w-8 text-content-muted" />
@@ -429,20 +491,27 @@ export default function SolicitarPecas({ pecas, modelos = [], filtros = {}, loja
                                         className="w-full rounded-lg border-line bg-surface-card text-xs text-content-primary placeholder:text-content-muted focus:border-brand-500 focus:ring-brand-500"
                                     />
 
-                                    {errors.itens && (
+                                    {pageErrors.itens && (
                                         <p className="mt-2 text-xs font-semibold text-status-danger-fg">
-                                            {errors.itens}
+                                            {pageErrors.itens}
                                         </p>
                                     )}
 
                                     <Button
                                         className="mt-3 w-full"
                                         icon={ShoppingCartIcon}
-                                        loading={processing}
+                                        loading={isEnviando}
+                                        disabled={isEnviando || (isAdmin && !destinoId)}
                                         onClick={enviar}
                                     >
                                         Enviar solicitação
                                     </Button>
+
+                                    {isAdmin && !destinoId && (
+                                        <p className="mt-1.5 text-center text-[11px] font-medium text-status-warning-fg">
+                                            Selecione a filial de destino acima.
+                                        </p>
+                                    )}
                                 </div>
                             </>
                         )}

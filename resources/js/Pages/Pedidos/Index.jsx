@@ -124,7 +124,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
         : [{ label: 'Logística' }, { label: 'Todos os Pedidos' }];
 
     const renderActions = () => {
-        if (perfil !== 'loja') return null;
+        if (perfil !== 'loja' && perfil !== 'admin') return null;
 
         if (currentTipo === 'peca') {
             return (

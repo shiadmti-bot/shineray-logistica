@@ -346,6 +346,42 @@ class PecaTravasDeFluxoTest extends TestCase
         $this->assertSame($antes, Pedido::where('tipo_carga', 'peca')->count());
     }
 
+    /** Admin pode solicitar peças indicando a filial de destino. */
+    public function test_admin_pode_abrir_pedido_de_pecas_para_filial()
+    {
+        $adminSemLocal = User::factory()->create([
+            'email'            => 'admin_pecas_' . uniqid() . '@shineray.com.br',
+            'perfil'           => 'admin',
+            'estoque_local_id' => null,
+        ]);
+
+        $resposta = $this->actingAs($adminSemLocal)->post(route('pecas.solicitar.store'), [
+            'local_destino_id' => $this->localLoja->id,
+            'itens'            => [['peca_id' => $this->peca->id, 'quantidade' => 3]],
+        ]);
+
+        $resposta->assertSessionHasNoErrors();
+        $pedido = Pedido::where('tipo_carga', 'peca')->latest('id')->first();
+        $this->assertNotNull($pedido);
+        $this->assertSame($this->localLoja->id, $pedido->local_destino_id);
+    }
+
+    /** Admin sem estoque_local_id e sem selecionar filial recebe erro descritivo. */
+    public function test_admin_sem_selecionar_filial_recebe_erro()
+    {
+        $adminSemLocal = User::factory()->create([
+            'email'            => 'admin_sem_local_' . uniqid() . '@shineray.com.br',
+            'perfil'           => 'admin',
+            'estoque_local_id' => null,
+        ]);
+
+        $resposta = $this->actingAs($adminSemLocal)->post(route('pecas.solicitar.store'), [
+            'itens' => [['peca_id' => $this->peca->id, 'quantidade' => 3]],
+        ]);
+
+        $resposta->assertSessionHasErrors('geral');
+    }
+
     // ==================================================================
     // ACHADO 09 — quem escreve estoque
     // ==================================================================
