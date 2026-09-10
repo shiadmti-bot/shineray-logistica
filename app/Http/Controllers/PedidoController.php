@@ -1128,9 +1128,9 @@ class PedidoController extends Controller
 
             // Atualiza Moto
             $moto->update([
-                'status'            => $novoStatus,
-                'localizacao_atual' => "Estoque Loja: {$pedido->user->filial}",
-                'loja_atual_id'     => $pedido->user_id,
+                'status'            => $isDestinoCD ? (!empty($avarias[$moto->id]) ? 'avariado' : 'estoque_fabrica') : $novoStatus,
+                'localizacao_atual' => $isDestinoCD ? 'Pátio CD/Fábrica' : "Estoque Loja: {$pedido->user->filial}",
+                'loja_atual_id'     => $isDestinoCD ? null : $pedido->user_id,
                 'detalhes_avaria'   => $obsAvaria,
                 'foto_avaria'       => $linkFoto,
                 // 'romaneio_id'       => null // COMENTADO: Mantém o histórico do último romaneio
