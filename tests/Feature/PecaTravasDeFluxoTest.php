@@ -560,4 +560,40 @@ class PecaTravasDeFluxoTest extends TestCase
             'tipo'      => 'misto',
         ]);
     }
+
+    public function test_cancelamento_de_pedido_de_pecas_libera_reserva_e_soft_deleta()
+    {
+        $servico = app(EstoquePecaService::class);
+        $servico->darEntrada($this->peca, $this->localCd->id, 10);
+
+        $pedido = Pedido::create([
+            'user_id'          => $this->lojaUser->id,
+            'status'           => 'separado',
+            'tipo_carga'       => 'peca',
+            'local_origem_id'  => $this->localCd->id,
+            'local_destino_id' => $this->localLoja->id,
+        ]);
+
+        $item = PedidoItem::create([
+            'pedido_id'      => $pedido->id,
+            'tipo'           => 'peca',
+            'peca_id'        => $this->peca->id,
+            'quantidade'     => 4,
+            'qtd_atribuida'  => 4,
+            'preco_unitario' => 50.00,
+            'confirmado_em'  => now(),
+        ]);
+
+        $servico->reservar($this->peca, $this->localCd->id, 4, $pedido, $item);
+
+        $this->assertSame(4, $this->peca->estoqueEm($this->localCd->id)->saldo_reservado);
+
+        $resposta = $this->actingAs($this->admin)->post(route('pedidos.rejeitar', $pedido->id), [
+            'motivo' => 'Cancelamento de teste',
+        ]);
+
+        $resposta->assertRedirect(route('pedidos.index', ['tipo' => 'peca']));
+        $this->assertSoftDeleted('pedidos', ['id' => $pedido->id]);
+        $this->assertSame(0, $this->peca->fresh()->estoqueEm($this->localCd->id)->saldo_reservado);
+    }
 }

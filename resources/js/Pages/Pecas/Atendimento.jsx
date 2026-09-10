@@ -3,6 +3,7 @@ import { Head, router } from '@inertiajs/react';
 import {
     MagnifyingGlassIcon,
     CheckCircleIcon,
+    XCircleIcon,
     PaperAirplaneIcon,
     ExclamationTriangleIcon,
     LockClosedIcon,
@@ -10,6 +11,7 @@ import {
     ArrowUturnLeftIcon,
     ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
+import Swal from 'sweetalert2';
 
 import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, Button, EmptyState, StatusBadge } from '@/Components/UI';
@@ -290,6 +292,37 @@ function MesaAprovacao({ pedido, podeLiberar }) {
         );
     };
 
+    const rejeitarPedidoCompleto = async () => {
+        const { value: motivo, isConfirmed } = await Swal.fire({
+            title: 'Rejeitar Pedido Completo?',
+            text: `Deseja rejeitar e cancelar o Pedido #${pedido.id}? Esta ação não poderá ser desfeita.`,
+            input: 'textarea',
+            inputPlaceholder: 'Informe o motivo da rejeição do pedido...',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Sim, Rejeitar Pedido',
+            cancelButtonText: 'Voltar',
+            preConfirm: (texto) => {
+                if (!texto || texto.trim().length < 3) {
+                    Swal.showValidationMessage('Por favor, informe um motivo válido (mínimo 3 caracteres).');
+                    return false;
+                }
+                return texto;
+            },
+        });
+
+        if (isConfirmed && motivo) {
+            setProcessando(true);
+            router.post(
+                route('pedidos.rejeitar', pedido.id),
+                { motivo },
+                {
+                    onFinish: () => setProcessando(false),
+                }
+            );
+        }
+    };
+
     const confirmarRecusa = () => {
         if (!itemRecusando || motivoRecusa.trim().length < 3) return;
         setProcessando(true);
@@ -426,10 +459,10 @@ function MesaAprovacao({ pedido, podeLiberar }) {
                                                                 setItemRecusando(item);
                                                                 setMotivoRecusa('');
                                                             }}
-                                                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-status-danger-fg hover:bg-status-danger-bg transition"
-                                                            title="Recusar este item e devolver ao CD para nova identificação técnica"
+                                                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-status-warning-fg hover:bg-status-warning-bg transition"
+                                                            title="Devolver este item à Triagem do CD para corrigir ou trocar o código"
                                                         >
-                                                            <ArrowUturnLeftIcon className="h-3.5 w-3.5" /> Recusar
+                                                            <ArrowUturnLeftIcon className="h-3.5 w-3.5" /> Devolver ao CD
                                                         </button>
                                                     )}
                                                 </div>
@@ -443,34 +476,34 @@ function MesaAprovacao({ pedido, podeLiberar }) {
                 </div>
             </Card>
 
-            {/* Modal / Dialog de Recusa do Item */}
+            {/* Modal / Dialog de Devolução do Item à Triagem do CD */}
             {itemRecusando && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl border border-line">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-md rounded-xl bg-surface-card p-6 shadow-2xl border border-line">
                         <div className="flex items-start gap-3">
-                            <div className="rounded-full bg-status-danger-bg p-2 text-status-danger-fg">
-                                <ExclamationTriangleIcon className="h-6 w-6" />
+                            <div className="rounded-full bg-status-warning-bg p-2 text-status-warning-fg">
+                                <ArrowUturnLeftIcon className="h-6 w-6" />
                             </div>
                             <div className="flex-1">
                                 <h3 className="text-base font-bold text-content-primary">
-                                    Recusar Peça na Liberação
+                                    Devolver Peça à Triagem do CD
                                 </h3>
                                 <p className="text-xs text-content-secondary mt-1">
-                                    O item <strong>{itemRecusando.peca?.descricao || itemRecusando.descricao_solicitada}</strong> ({itemRecusando.peca?.codigo}) será devolvido à Triagem do CD para localização da peça correta.
+                                    O item <strong>{itemRecusando.peca?.descricao || itemRecusando.descricao_solicitada}</strong> ({itemRecusando.peca?.codigo || 'Sem código'}) será retornado à Triagem do CD para localização da peça correta.
                                 </p>
                             </div>
                         </div>
 
                         <div className="mt-4">
                             <label className="block text-xs font-semibold text-content-secondary mb-1">
-                                Motivo da Incompatibilidade / Recusa *
+                                Motivo da Incompatibilidade / Devolução *
                             </label>
                             <textarea
                                 rows={3}
                                 value={motivoRecusa}
                                 onChange={(e) => setMotivoRecusa(e.target.value)}
                                 placeholder="Ex.: O código informado é da Phoenix 50, mas a moto da oficina é uma Jet 125..."
-                                className="w-full rounded-lg border-line-strong bg-surface p-2.5 text-xs text-content-primary placeholder-content-muted focus:ring-brand-500 focus:border-brand-500"
+                                className="w-full rounded-lg border-line-strong bg-surface-sunken p-2.5 text-xs text-content-primary placeholder-content-muted focus:ring-brand-500 focus:border-brand-500"
                             />
                         </div>
 
@@ -483,13 +516,13 @@ function MesaAprovacao({ pedido, podeLiberar }) {
                                 Cancelar
                             </Button>
                             <Button
-                                variant="danger"
+                                variant="warning"
                                 icon={ArrowUturnLeftIcon}
                                 loading={processando}
                                 disabled={motivoRecusa.trim().length < 3}
                                 onClick={confirmarRecusa}
                             >
-                                Confirmar Recusa
+                                Confirmar Devolução
                             </Button>
                         </div>
                     </div>
@@ -513,21 +546,33 @@ function MesaAprovacao({ pedido, podeLiberar }) {
 
                     <div className="flex items-center gap-3">
                         {podeLiberar ? (
-                            <Button
-                                size="lg"
-                                icon={CheckCircleIcon}
-                                loading={processando}
-                                disabled={itensElegiveis.length === 0}
-                                onClick={aprovarPedido}
-                            >
-                                {itensElegiveis.length > 0
-                                    ? `Aprovar Pedido (${itensElegiveis.length} itens)`
-                                    : 'Pedido Liberado'}
-                            </Button>
+                            <>
+                                <Button
+                                    variant="secondary"
+                                    size="lg"
+                                    icon={XCircleIcon}
+                                    loading={processando}
+                                    onClick={rejeitarPedidoCompleto}
+                                    className="!text-status-danger-fg hover:!bg-status-danger-bg border-status-danger-border"
+                                >
+                                    Rejeitar Pedido
+                                </Button>
+                                <Button
+                                    size="lg"
+                                    icon={CheckCircleIcon}
+                                    loading={processando}
+                                    disabled={itensElegiveis.length === 0}
+                                    onClick={aprovarPedido}
+                                >
+                                    {itensElegiveis.length > 0
+                                        ? `Aprovar Pedido (${itensElegiveis.length} itens)`
+                                        : 'Pedido Liberado'}
+                                </Button>
+                            </>
                         ) : (
                             <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
                                 <LockClosedIcon className="h-4 w-4 shrink-0 text-amber-600" />
-                                <span>Apenas usuários com permissão de <strong>Validador de Peças</strong> podem assinar.</span>
+                                <span>Apenas usuários com permissão de <strong>Validador de Peças</strong> podem assinar ou rejeitar.</span>
                             </div>
                         )}
                     </div>
@@ -576,6 +621,37 @@ function MesaTriagem({ pedido, podeAtender, podeLiberar }) {
             { itens: payloadItens(), enviar },
             { preserveScroll: true, onFinish: () => setProcessando(false) }
         );
+    };
+
+    const rejeitarPedidoCompleto = async () => {
+        const { value: motivo, isConfirmed } = await Swal.fire({
+            title: 'Rejeitar Pedido Completo?',
+            text: `Deseja rejeitar e cancelar o Pedido #${pedido.id}? Esta ação não poderá ser desfeita.`,
+            input: 'textarea',
+            inputPlaceholder: 'Informe o motivo da rejeição do pedido...',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'Sim, Rejeitar Pedido',
+            cancelButtonText: 'Voltar',
+            preConfirm: (texto) => {
+                if (!texto || texto.trim().length < 3) {
+                    Swal.showValidationMessage('Por favor, informe um motivo válido (mínimo 3 caracteres).');
+                    return false;
+                }
+                return texto;
+            },
+        });
+
+        if (isConfirmed && motivo) {
+            setProcessando(true);
+            router.post(
+                route('pedidos.rejeitar', pedido.id),
+                { motivo },
+                {
+                    onFinish: () => setProcessando(false),
+                }
+            );
+        }
     };
 
     const todosIdentificados = pedido.itens.every((i) => rascunho[i.id]?.peca_id);
@@ -644,6 +720,16 @@ function MesaTriagem({ pedido, podeAtender, podeLiberar }) {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                        <Button
+                            variant="secondary"
+                            icon={XCircleIcon}
+                            loading={processando}
+                            onClick={rejeitarPedidoCompleto}
+                            className="!text-status-danger-fg hover:!bg-status-danger-bg border-status-danger-border"
+                        >
+                            Rejeitar Pedido
+                        </Button>
+
                         <Button
                             variant="secondary"
                             loading={processando}

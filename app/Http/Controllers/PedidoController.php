@@ -1405,27 +1405,89 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
 
     private function cancelarGenerico($id, $tipo, $motivo) {
         return DB::transaction(function () use ($id, $tipo, $motivo) {
-            $pedido = Pedido::with('motos', 'user')->findOrFail($id);
-            if ($tipo == 'cancelado' && !in_array($pedido->status, ['solicitado', 'em_analise'])) return back()->with('error', 'Não é possível cancelar neste estágio.');
-            
-            // Libera motos
-            foreach ($pedido->motos as $moto) {
-                // Se era transferência, volta pro dono original, senão volta pra fábrica/CD
-                $statusVolta = $pedido->origem_user_id ? 'disponivel' : 'estoque_fabrica';
-                $localVolta = $pedido->origem_user_id ? "Estoque Loja" : "Pátio CD/Fábrica";
-                
-                $moto->update(['status' => $statusVolta, 'localizacao_atual' => $localVolta]);
-            }
-            $pedido->motos()->detach();
+            $pedido = Pedido::with(['motos', 'user', 'itensPedido.peca'])->findOrFail($id);
 
-            // Libera qualquer reserva de chassi do Microwork atrelada a este pedido
-            \App\Models\ReservaMicrowork::where('pedido_id', $pedido->id)
-                ->whereIn('status', ['pendente', 'faturada'])
-                ->update(['status' => 'cancelada']);
+            $user = Auth::user();
+            $ehAdmin = in_array($user?->perfil, ['admin', 'gestor', 'cd'], true);
+            $ehDono = $user && ($pedido->user_id === $user->id || $pedido->origem_user_id === $user->id);
+
+            if (! $ehAdmin && ! $ehDono) {
+                return back()->with('error', 'Você não tem permissão para cancelar este pedido.');
+            }
+
+            if ($pedido->tipo_carga === 'peca') {
+                $statusPermitidos = ['solicitado', 'aguardando_confirmacao', 'em_atendimento', 'aprovado', 'separado'];
+                if (! in_array($pedido->status, $statusPermitidos, true)) {
+                    return back()->with('error', "Não é possível {$tipo} um pedido de peças no estágio '{$pedido->status}'.");
+                }
+
+                $servicoEstoque = app(\App\Services\Estoque\EstoquePecaService::class);
+                $origemId = $pedido->local_origem_id ?? \App\Models\EstoqueLocal::cd()?->id;
+
+                foreach ($pedido->itensPedido as $item) {
+                    if ($item->isPeca() && $item->qtd_atribuida > 0 && $item->peca && $origemId) {
+                        try {
+                            $servicoEstoque->liberarReserva(
+                                peca: $item->peca,
+                                localId: $origemId,
+                                quantidade: $item->qtd_atribuida,
+                                pedido: $pedido,
+                                pedidoItem: $item,
+                                observacao: "Cancelamento do pedido #{$pedido->id}",
+                            );
+                        } catch (\Throwable $e) {
+                            \Illuminate\Support\Facades\Log::warning("Erro ao liberar reserva de peca no cancelamento: " . $e->getMessage());
+                        }
+                    }
+
+                    if ($item->basqueta_id) {
+                        $item->update(['basqueta_id' => null]);
+                    }
+                }
+            } else {
+                if ($tipo == 'cancelado' && !in_array($pedido->status, ['solicitado', 'em_analise'])) {
+                    return back()->with('error', 'Não é possível cancelar neste estágio.');
+                }
+                
+                // Libera motos
+                foreach ($pedido->motos as $moto) {
+                    // Se era transferência, volta pro dono original, senão volta pra fábrica/CD
+                    $statusVolta = $pedido->origem_user_id ? 'disponivel' : 'estoque_fabrica';
+                    $localVolta = $pedido->origem_user_id ? "Estoque Loja" : "Pátio CD/Fábrica";
+                    
+                    $moto->update(['status' => $statusVolta, 'localizacao_atual' => $localVolta]);
+                }
+                $pedido->motos()->detach();
+
+                // Libera qualquer reserva de chassi do Microwork atrelada a este pedido
+                \App\Models\ReservaMicrowork::where('pedido_id', $pedido->id)
+                    ->whereIn('status', ['pendente', 'faturada'])
+                    ->update(['status' => 'cancelada']);
+            }
             
-            $this->enviarNotificacao($pedido->user, ucfirst($tipo), "Pedido #$id $tipo: $motivo", route('dashboard'));
+            $pedido->update([
+                'status'          => $tipo,
+                'motivo_rejeicao' => $motivo,
+            ]);
+
+            \App\Models\PedidoLog::create([
+                'pedido_id' => $pedido->id,
+                'user_id'   => $user?->id,
+                'titulo'    => ucfirst($tipo) . ' ❌',
+                'descricao' => ($user?->name ?? 'Sistema') . " {$tipo} o pedido: " . ($motivo ?: 'Sem observação'),
+            ]);
+
+            $this->enviarNotificacao($pedido->user, ucfirst($tipo), "Pedido #$id $tipo: $motivo", route('pedidos.index'));
             
             $pedido->delete(); // Soft Delete
+
+            if ($pedido->tipo_carga === 'peca') {
+                if (url()->previous() && str_contains(url()->previous(), 'atendimento')) {
+                    return redirect()->route('pecas.atendimento')->with('success', "Pedido #{$id} {$tipo} com sucesso.");
+                }
+                return redirect()->route('pedidos.index', ['tipo' => 'peca'])->with('success', "Pedido #{$id} {$tipo} com sucesso.");
+            }
+
             return redirect()->route('dashboard')->with('warning', "Pedido $tipo com sucesso.");
         });
     }
@@ -1480,7 +1542,7 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
         }
 
         $user = Auth::user();
-        $ehCd = in_array($user->perfil, ['cd', 'admin'], true);
+        $ehCd = in_array($user?->perfil, ['cd', 'admin', 'gestor'], true);
 
         // Itens já carregados na carga, para a conferência de recebimento.
         $itensCarga = \App\Models\RomaneioItem::with('itemable:id,codigo,descricao,unidade')
@@ -1497,10 +1559,27 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
                 'status'     => $i->status,
             ]);
 
+        $cd = \App\Models\EstoqueLocal::cd();
+        $origemId = $pedido->local_origem_id ?? $cd?->id;
+
+        $saldosCd = [];
+        if ($origemId) {
+            $pecaIds = $pedido->itensPedido->pluck('peca_id')->filter()->unique();
+            if ($pecaIds->isNotEmpty()) {
+                $saldosCd = \App\Models\PecaEstoque::where('local_id', $origemId)
+                    ->whereIn('peca_id', $pecaIds)
+                    ->get()
+                    ->mapWithKeys(fn ($pe) => [(int) $pe->peca_id => max(0, (int) ($pe->saldo - $pe->saldo_reservado))])
+                    ->all();
+            }
+        }
+
         return [
             'ativo'          => true,
             'saldo_pendente' => $pedido->saldoPendente(),
             'itens_carga'    => $itensCarga,
+            'saldos_cd'      => $saldosCd,
+            'pode_cancelar'  => ($ehCd || $user->id === $pedido->user_id) && in_array($pedido->status, ['solicitado', 'aguardando_confirmacao', 'em_atendimento', 'aprovado', 'separado'], true),
             /*
              * 'solicitado' saiu da lista na v3.1: um pedido recém-chegado ainda
              * não passou pelo Gate 1, e separar antes da liberação é exatamente

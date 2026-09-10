@@ -525,6 +525,17 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                     ]}
                     actions={
                         <div className="flex items-center gap-2">
+                            {ehPeca && peca?.pode_cancelar && (
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    icon={XCircleIcon}
+                                    onClick={handleRejeitar}
+                                    className="!text-status-danger-fg hover:!bg-status-danger-bg border-status-danger-border"
+                                >
+                                    Cancelar Pedido
+                                </Button>
+                            )}
                             <TipoBadge isTransferencia={isTransferencia} isPeca={ehPeca} />
                             {isEmbarqueParcial ? (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-status-warning-bg text-status-warning-fg ring-1 ring-inset ring-status-warning-solid/20 shadow-xs">
@@ -1246,6 +1257,32 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                 </div>
                             </div>
                         )}
+
+                    {/* --- 5. AÇÕES GLOBAIS (PEÇAS) --- */}
+                    {ehPeca && peca?.pode_cancelar && (
+                        <div className="mt-8 rounded-card border-l-4 border-status-danger-solid bg-surface-card p-6 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <h3 className="flex items-center gap-2 text-base font-bold text-content-primary">
+                                    <span className="rounded-lg bg-status-danger-bg p-1.5 text-status-danger-fg">
+                                        <XCircleIcon className="h-5 w-5" />
+                                    </span>
+                                    Cancelar Pedido de Peças
+                                </h3>
+                                <p className="text-xs text-content-secondary mt-1">
+                                    Caso este pedido tenha sido criado por engano, em testes, ou não seja mais necessário, você pode cancelá-lo. As reservas serão liberadas.
+                                </p>
+                            </div>
+                            <Button
+                                onClick={handleRejeitar}
+                                icon={XCircleIcon}
+                                variant="secondary"
+                                size="md"
+                                className="!text-status-danger-fg hover:!bg-status-danger-bg border-status-danger-border shrink-0"
+                            >
+                                Cancelar / Rejeitar Pedido
+                            </Button>
+                        </div>
+                    )}
 
                     {/* --- 6. HISTÓRICO --- */}
                     <div className="mt-8 pt-6 border-t border-line">

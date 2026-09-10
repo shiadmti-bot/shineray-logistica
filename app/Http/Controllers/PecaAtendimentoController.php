@@ -147,7 +147,7 @@ class PecaAtendimentoController extends Controller
                     } catch (EstoqueInsuficienteException $e) {
                         // Coleta e segue: o CD precisa saber tudo que faltou de
                         // uma vez, não item por item.
-                        $falhas[] = $e->getMessage();
+                        $falhas[] = $e->getMessage() . " Registre a entrada física em Peças > Estoque de Peças antes de separar.";
                     }
                 }
 

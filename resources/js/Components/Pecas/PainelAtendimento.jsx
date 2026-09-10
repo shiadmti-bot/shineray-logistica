@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { router, Link } from '@inertiajs/react';
+import { router, Link, usePage } from '@inertiajs/react';
+import Swal from 'sweetalert2';
 import {
     WrenchScrewdriverIcon,
     TruckIcon,
@@ -23,6 +24,7 @@ import { Card, Button, StatusBadge } from '@/Components/UI';
  *   Receber  -> transfere de verdade CD -> loja
  */
 export default function PainelAtendimento({ pedido, peca }) {
+    const { errors: pageErrors = {} } = usePage().props;
     const [quantidades, setQuantidades] = useState(() =>
         Object.fromEntries(
             (pedido.itens_pedido ?? []).map((i) => [i.id, i.qtd_pendente ?? 0])
@@ -40,15 +42,35 @@ export default function PainelAtendimento({ pedido, peca }) {
     const itens = pedido.itens_pedido ?? [];
 
     const separar = () => {
+        const itensParaSeparar = Object.entries(quantidades)
+            .map(([item_id, quantidade]) => ({ item_id: Number(item_id), quantidade: Number(quantidade) || 0 }))
+            .filter((i) => i.quantidade > 0);
+
+        if (itensParaSeparar.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Nenhum item informado',
+                text: 'Informe a quantidade de ao menos uma peça para separar.',
+            });
+            return;
+        }
+
         setProcessando(true);
         router.post(
             route('pecas.separar', pedido.id),
+            { itens: itensParaSeparar },
             {
-                itens: Object.entries(quantidades)
-                    .map(([item_id, quantidade]) => ({ item_id: Number(item_id), quantidade: Number(quantidade) || 0 }))
-                    .filter((i) => i.quantidade > 0),
-            },
-            { preserveScroll: true, onFinish: () => setProcessando(false) }
+                preserveScroll: true,
+                onError: (errs) => {
+                    const msg = errs.geral || Object.values(errs)[0] || 'Erro ao processar separação.';
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Não foi possível separar',
+                        text: msg,
+                    });
+                },
+                onFinish: () => setProcessando(false),
+            }
         );
     };
 
@@ -58,7 +80,14 @@ export default function PainelAtendimento({ pedido, peca }) {
         router.post(
             route('pecas.carga', pedido.id),
             { romaneio_id: cargaId },
-            { preserveScroll: true, onFinish: () => setProcessando(false) }
+            {
+                preserveScroll: true,
+                onError: (errs) => {
+                    const msg = errs.geral || Object.values(errs)[0] || 'Erro ao embarcar basqueta.';
+                    Swal.fire({ icon: 'error', title: 'Erro ao embarcar', text: msg });
+                },
+                onFinish: () => setProcessando(false),
+            }
         );
     };
 
@@ -73,7 +102,14 @@ export default function PainelAtendimento({ pedido, peca }) {
                 })),
                 observacao: obsRecebimento,
             },
-            { preserveScroll: true, onFinish: () => setProcessando(false) }
+            {
+                preserveScroll: true,
+                onError: (errs) => {
+                    const msg = errs.geral || Object.values(errs)[0] || 'Erro ao confirmar recebimento.';
+                    Swal.fire({ icon: 'error', title: 'Erro no recebimento', text: msg });
+                },
+                onFinish: () => setProcessando(false),
+            }
         );
     };
 
@@ -86,10 +122,29 @@ export default function PainelAtendimento({ pedido, peca }) {
                     subtitle="Informe o que foi localizado. Separar reserva o saldo — a peça só sai do CD no recebimento."
                     padding="none"
                 >
+                    {pageErrors.geral && (
+                        <div className="m-4 rounded-lg border border-status-danger-border bg-status-danger-bg p-3 text-xs text-status-danger-fg flex items-start gap-2.5">
+                            <ExclamationTriangleIcon className="h-5 w-5 shrink-0 mt-0.5 text-status-danger-fg" />
+                            <div className="flex-1 space-y-1">
+                                <strong className="block font-bold">Aviso de Separação / Saldo:</strong>
+                                <p>{pageErrors.geral}</p>
+                                {pageErrors.geral.toLowerCase().includes('saldo') && (
+                                    <Link
+                                        href={route('pecas.estoque.index')}
+                                        className="inline-flex items-center gap-1 font-bold underline text-brand-700 hover:text-brand-800 mt-1"
+                                    >
+                                        Ir para Entrada e Inventário de Peças →
+                                    </Link>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="divide-y divide-line">
                         {itens.map((item) => {
                             const pendente = item.qtd_pendente ?? 0;
                             const concluido = pendente === 0;
+                            const saldoDisponivel = peca.saldos_cd?.[item.peca_id] ?? 0;
 
                             return (
                                 <div key={item.id} className="flex items-center gap-3 p-4">
@@ -105,6 +160,23 @@ export default function PainelAtendimento({ pedido, peca }) {
                                             <strong className="text-status-success-fg">{item.qtd_atribuida}</strong>
                                             {pendente > 0 && (
                                                 <> · Falta: <strong className="text-status-warning-fg">{pendente}</strong></>
+                                            )}
+                                            {item.peca && (
+                                                <span className="ml-1.5 font-medium">
+                                                    · Saldo CD:{' '}
+                                                    <strong className={saldoDisponivel > 0 ? 'text-status-success-fg' : 'text-status-danger-fg'}>
+                                                        {saldoDisponivel} {item.peca.unidade || 'UN'}
+                                                    </strong>
+                                                    {saldoDisponivel === 0 && (
+                                                        <Link
+                                                            href={route('pecas.estoque.index')}
+                                                            className="ml-1 text-[11px] font-bold text-brand-600 underline hover:text-brand-700"
+                                                            title="Registrar entrada física desta peça no CD"
+                                                        >
+                                                            (dar entrada)
+                                                        </Link>
+                                                    )}
+                                                </span>
                                             )}
                                         </p>
                                     </div>

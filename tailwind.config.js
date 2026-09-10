@@ -49,6 +49,7 @@ export default {
                 },
 
                 surface: {
+                    DEFAULT:  'rgb(var(--surface-card) / <alpha-value>)',
                     page:     'rgb(var(--surface-page) / <alpha-value>)',
                     card:     'rgb(var(--surface-card) / <alpha-value>)',
                     raised:   'rgb(var(--surface-raised) / <alpha-value>)',
