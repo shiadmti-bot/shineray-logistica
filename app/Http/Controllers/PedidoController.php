@@ -1403,8 +1403,90 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
     public function rejeitar(Request $request, $id) { return $this->cancelarGenerico($id, 'rejeitado', $request->motivo); }
     public function cancelarSolicitacao($id) { return $this->cancelarGenerico($id, 'cancelado', 'Cancelado pela Loja'); }
 
+    /**
+     * Estágios em que um pedido de peça ainda não teve peça tirada da prateleira.
+     * Até aqui cancelar não move nada físico: não há reserva nem basqueta.
+     */
+    private const PECA_CANCELAVEL_PRE_SEPARACAO = [
+        'solicitado', 'aguardando_confirmacao', 'em_atendimento', 'aprovado',
+    ];
+
+    /**
+     * Por que este pedido de peça NÃO pode ser cancelado — ou null se pode.
+     *
+     * FONTE ÚNICA DA REGRA (v3.3).
+     *
+     * A tela (`pode_cancelar`, em contextoPeca) e o servidor
+     * (`cancelarGenerico`) consultam este mesmo método. Manter duas listas de
+     * status equivalentes em lugares diferentes é como nasceu a segunda porta
+     * da carga: uma delas envelhece e vira brecha.
+     *
+     * DUAS TRAVAS, POR MOTIVOS DIFERENTES:
+     *
+     *   1. Depois de SEPARADO, quem desfaz é quem separou. A loja cancela até
+     *      o CD tirar a peça da prateleira — mesma regra que o fluxo de motos
+     *      já aplica ao cancelamento pela loja.
+     *
+     *   2. Depois de FATURADA a basqueta, ninguém cancela por aqui. A caixa
+     *      foi lacrada sob uma NF; esvaziá-la deixaria a nota cobrindo
+     *      mercadoria que não está mais lá. O caminho certo é o ciclo de
+     *      ajuste do Passo 7, que cancela a nota e reabre a caixa antes de
+     *      qualquer coisa sair.
+     */
+    private function impedimentoCancelamentoPeca(Pedido $pedido, $user): ?string
+    {
+        if (! $user) {
+            return 'Sessão expirada. Entre novamente para cancelar o pedido.';
+        }
+
+        $ehStaff = in_array($user->perfil, ['admin', 'gestor', 'cd'], true);
+        $ehDono  = $pedido->user_id === $user->id || $pedido->origem_user_id === $user->id;
+
+        if (! $ehStaff && ! $ehDono) {
+            return 'Você não tem permissão para cancelar este pedido.';
+        }
+
+        if (in_array($pedido->status, self::PECA_CANCELAVEL_PRE_SEPARACAO, true)) {
+            return null;
+        }
+
+        if ($pedido->status !== 'separado') {
+            return "Não é possível cancelar um pedido de peças no estágio '{$pedido->status}'.";
+        }
+
+        // --- Daqui para baixo o pedido já foi separado. ---
+
+        if (! $ehStaff) {
+            return 'O Estoque Central já separou estas peças. Peça ao CD para cancelar o pedido.';
+        }
+
+        $pedido->loadMissing('itensPedido');
+
+        $basquetaIds = $pedido->itensPedido->pluck('basqueta_id')->filter()->unique();
+
+        if ($basquetaIds->isEmpty()) {
+            return null;
+        }
+
+        $fechada = \App\Models\Basqueta::whereIn('id', $basquetaIds)
+            ->whereNotIn('status', \App\Models\Basqueta::ABERTAS)
+            ->first();
+
+        if ($fechada) {
+            $nota = $fechada->notaVigente();
+
+            return "A basqueta #{$fechada->id} já foi faturada"
+                 . ($nota ? " sob a NF {$nota->rotulo}" : '')
+                 . '. Cancelar agora deixaria a nota cobrindo mercadoria fora da caixa.'
+                 . ' Use o ajuste na conferência para cancelar a nota e reabrir a caixa antes.';
+        }
+
+        return null;
+    }
+
     private function cancelarGenerico($id, $tipo, $motivo) {
-        return DB::transaction(function () use ($id, $tipo, $motivo) {
+        try {
+            return DB::transaction(function () use ($id, $tipo, $motivo) {
             $pedido = Pedido::with(['motos', 'user', 'itensPedido.peca'])->findOrFail($id);
 
             $user = Auth::user();
@@ -1416,28 +1498,35 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             }
 
             if ($pedido->tipo_carga === 'peca') {
-                $statusPermitidos = ['solicitado', 'aguardando_confirmacao', 'em_atendimento', 'aprovado', 'separado'];
-                if (! in_array($pedido->status, $statusPermitidos, true)) {
-                    return back()->with('error', "Não é possível {$tipo} um pedido de peças no estágio '{$pedido->status}'.");
+                $impedimento = $this->impedimentoCancelamentoPeca($pedido, $user);
+
+                if ($impedimento !== null) {
+                    return back()->with('error', $impedimento);
                 }
 
                 $servicoEstoque = app(\App\Services\Estoque\EstoquePecaService::class);
                 $origemId = $pedido->local_origem_id ?? \App\Models\EstoqueLocal::cd()?->id;
 
                 foreach ($pedido->itensPedido as $item) {
+                    /*
+                     * Sem try/catch aqui, de propósito.
+                     *
+                     * Engolir a falha e seguir até o soft delete cancelava o
+                     * pedido deixando a reserva presa no CD — saldo prometido a
+                     * um pedido que não existe mais, visível só num
+                     * Log::warning que ninguém lê. Deixar a exceção subir
+                     * derruba a transação inteira: o cancelamento falha, o
+                     * operador vê o motivo e nada fica pela metade.
+                     */
                     if ($item->isPeca() && $item->qtd_atribuida > 0 && $item->peca && $origemId) {
-                        try {
-                            $servicoEstoque->liberarReserva(
-                                peca: $item->peca,
-                                localId: $origemId,
-                                quantidade: $item->qtd_atribuida,
-                                pedido: $pedido,
-                                pedidoItem: $item,
-                                observacao: "Cancelamento do pedido #{$pedido->id}",
-                            );
-                        } catch (\Throwable $e) {
-                            \Illuminate\Support\Facades\Log::warning("Erro ao liberar reserva de peca no cancelamento: " . $e->getMessage());
-                        }
+                        $servicoEstoque->liberarReserva(
+                            peca: $item->peca,
+                            localId: $origemId,
+                            quantidade: $item->qtd_atribuida,
+                            pedido: $pedido,
+                            pedidoItem: $item,
+                            observacao: "Cancelamento do pedido #{$pedido->id}",
+                        );
                     }
 
                     if ($item->basqueta_id) {
@@ -1489,7 +1578,25 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             }
 
             return redirect()->route('dashboard')->with('warning', "Pedido $tipo com sucesso.");
-        });
+            });
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            // Pedido inexistente continua sendo 404, não um erro de negócio.
+            throw $e;
+        } catch (\Throwable $e) {
+            /*
+             * A transação já desfez tudo. O que resta é contar ao operador que
+             * nada mudou — em vez de uma tela em branco ou, pior, um "cancelado
+             * com sucesso" sobre um estado que não foi gravado.
+             */
+            \Illuminate\Support\Facades\Log::error("Falha ao {$tipo} pedido #{$id}: " . $e->getMessage(), [
+                'pedido_id' => $id,
+                'exception' => $e,
+            ]);
+
+            return back()->with('error',
+                "Não foi possível {$tipo} o pedido: {$e->getMessage()} Nada foi alterado — tente novamente ou chame o suporte."
+            );
+        }
     }
     
     // --- VIEWS ---
@@ -1579,7 +1686,9 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             'saldo_pendente' => $pedido->saldoPendente(),
             'itens_carga'    => $itensCarga,
             'saldos_cd'      => $saldosCd,
-            'pode_cancelar'  => ($ehCd || $user->id === $pedido->user_id) && in_array($pedido->status, ['solicitado', 'aguardando_confirmacao', 'em_atendimento', 'aprovado', 'separado'], true),
+            // Mesma regra do servidor, consultada na fonte — ver
+            // impedimentoCancelamentoPeca. A tela não guarda cópia da lista.
+            'pode_cancelar'  => $this->impedimentoCancelamentoPeca($pedido, $user) === null,
             /*
              * 'solicitado' saiu da lista na v3.1: um pedido recém-chegado ainda
              * não passou pelo Gate 1, e separar antes da liberação é exatamente

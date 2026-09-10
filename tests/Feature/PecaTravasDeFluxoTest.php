@@ -596,4 +596,92 @@ class PecaTravasDeFluxoTest extends TestCase
         $this->assertSoftDeleted('pedidos', ['id' => $pedido->id]);
         $this->assertSame(0, $this->peca->fresh()->estoqueEm($this->localCd->id)->saldo_reservado);
     }
+
+    // ==================================================================
+    // v3.3 — limites do cancelamento de pedido de peca
+    // ==================================================================
+
+    /**
+     * Caixa faturada nao se esvazia por cancelamento de pedido.
+     *
+     * Nem faturar() nem conferir() mexem no status do PEDIDO, que segue
+     * 'separado' o tempo todo. Sem esta trava, a sequencia separar -> faturar
+     * -> conferir -> cancelar era aceita: os itens saiam da caixa, a reserva
+     * voltava ao disponivel e a NF continuava vigente cobrindo mercadoria que
+     * nao estava mais la.
+     */
+    public function test_cancelamento_e_recusado_depois_da_basqueta_faturada()
+    {
+        [$pedido, $basqueta] = $this->pedidoSeparadoNaBasqueta();
+
+        $this->faturarEConferir($basqueta);
+
+        $nota = $basqueta->notaVigente();
+        $unidadesAntes = $basqueta->totalUnidades();
+
+        $this->assertNotNull($nota, 'A basqueta precisa estar faturada para este teste valer.');
+        $this->assertSame(Basqueta::STATUS_LIBERADA, $basqueta->fresh()->status);
+
+        // Ate o admin e recusado: o impedimento e fiscal, nao de permissao.
+        $resposta = $this->actingAs($this->admin)
+            ->post(route('pedidos.rejeitar', $pedido->id), ['motivo' => 'Desistencia']);
+
+        $resposta->assertSessionHas('error');
+
+        $this->assertNotSoftDeleted('pedidos', ['id' => $pedido->id]);
+        $this->assertSame(
+            $unidadesAntes,
+            $basqueta->fresh()->totalUnidades(),
+            'A caixa faturada nao pode perder itens.'
+        );
+        $this->assertNull($nota->fresh()->cancelada_em, 'A NF nao pode ter sido tocada.');
+    }
+
+    /** Com a caixa ainda aberta, o CD cancela normalmente e a reserva volta. */
+    public function test_cancelamento_e_permitido_enquanto_a_basqueta_esta_aberta()
+    {
+        [$pedido, $basqueta] = $this->pedidoSeparadoNaBasqueta();
+
+        $this->assertTrue($basqueta->estaAberta());
+        $this->assertSame(2, $this->peca->estoqueEm($this->localCd->id)->saldo_reservado);
+
+        $resposta = $this->actingAs($this->operadorCd)
+            ->post(route('pedidos.rejeitar', $pedido->id), ['motivo' => 'Separado por engano']);
+
+        $resposta->assertSessionMissing('error');
+        $this->assertSoftDeleted('pedidos', ['id' => $pedido->id]);
+        $this->assertSame(0, $this->peca->estoqueEm($this->localCd->id)->saldo_reservado);
+    }
+
+    /**
+     * Depois que o CD tira a peca da prateleira, quem desfaz e quem separou.
+     *
+     * Espelha a regra que o fluxo de motos ja aplica: a loja cancela enquanto
+     * o pedido e so uma intencao.
+     */
+    public function test_loja_nao_cancela_pedido_ja_separado()
+    {
+        [$pedido, $basqueta] = $this->pedidoSeparadoNaBasqueta();
+
+        $this->assertTrue($basqueta->estaAberta(), 'Aqui a trava tem que ser a de permissao, nao a fiscal.');
+
+        $resposta = $this->actingAs($this->lojaUser)
+            ->post(route('pedidos.rejeitar', $pedido->id), ['motivo' => 'Nao preciso mais']);
+
+        $resposta->assertSessionHas('error');
+        $this->assertNotSoftDeleted('pedidos', ['id' => $pedido->id]);
+        $this->assertSame(2, $this->peca->estoqueEm($this->localCd->id)->saldo_reservado);
+    }
+
+    /** Antes da separacao a loja cancela o proprio pedido sem atrito. */
+    public function test_loja_cancela_o_proprio_pedido_antes_da_separacao()
+    {
+        $pedido = $this->pedidoSolicitado();
+
+        $resposta = $this->actingAs($this->lojaUser)
+            ->post(route('pedidos.rejeitar', $pedido->id), ['motivo' => 'Pedido duplicado']);
+
+        $resposta->assertSessionMissing('error');
+        $this->assertSoftDeleted('pedidos', ['id' => $pedido->id]);
+    }
 }
