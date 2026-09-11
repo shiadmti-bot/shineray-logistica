@@ -164,16 +164,16 @@ class PecaPedidoController extends Controller
                 : $user->id;
 
             $pedido = Pedido::create([
-                'user_id'          => $userIdDestino,
-                'tipo_carga'       => 'peca',
-                'status'           => $statusInicial,
-                'origem_user_id'   => null, // CD atende
-                'local_origem_id'  => $cd?->id,
-                'local_destino_id' => $localDestinoId,
-                'observacao'       => $dados['observacao'] ?? null,
+                'user_id'              => $userIdDestino,
+                'tipo_carga'           => 'peca',
+                'status'               => $statusInicial,
+                'origem_user_id'       => null, // CD atende
+                'local_origem_id'      => $cd?->id,
+                'local_destino_id'     => $localDestinoId,
+                'observacao'           => $dados['observacao'] ?? null,
                 // `itens` (JSON) é mantido por compatibilidade com as telas
                 // legadas de pedido, que leem esse campo diretamente.
-                'itens'            => $this->resumoLegado($dados['itens']),
+                'itens'                => $this->resumoLegado($dados['itens']),
             ]);
 
             foreach ($dados['itens'] as $item) {
@@ -223,6 +223,43 @@ class PecaPedidoController extends Controller
             ]);
 
             return $pedido;
+        });
+
+        /*
+         * v3.3: notifica CD e validadores de peça.
+         *
+         * O pedido de moto avisava gestores no store; o de peça não avisava
+         * ninguém — o CD descobria que havia solicitação pendente só ao
+         * consultar a tela de atendimento. Agora os dois têm paridade.
+         */
+        \Illuminate\Support\defer(function () use ($pedido, $user, $todosComCodigo) {
+            $destinatarios = \App\Models\User::whereIn('perfil', ['cd', 'admin'])->get();
+            $titulo = $todosComCodigo ? 'Peças para Liberação 🔧' : 'Nova Solicitação de Peças 🔧';
+            $mensagem = ($user->filial ?: $user->name)
+                . " solicitou peças (pedido #{$pedido->id})."
+                . ($todosComCodigo ? ' Todos os itens já estão identificados.' : ' Há itens sem código aguardando triagem.');
+
+            foreach ($destinatarios as $dest) {
+                $dest->notify(new \App\Notifications\PedidoAtualizado(
+                    $titulo,
+                    $mensagem,
+                    route('pedidos.show', $pedido->id),
+                ));
+            }
+
+            $ids = $destinatarios->pluck('onesignal_id')->filter()->toArray();
+            if (! empty($ids)) {
+                try {
+                    (new \App\Services\OneSignalService())->sendToUser(
+                        $ids,
+                        $titulo,
+                        $mensagem,
+                        route('pedidos.show', $pedido->id),
+                    );
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning("OneSignal (peça): " . $e->getMessage());
+                }
+            }
         });
 
         $msgSucesso = $todosComCodigo

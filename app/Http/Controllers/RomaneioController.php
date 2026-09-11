@@ -753,6 +753,40 @@ class RomaneioController extends Controller
                 }
             }
 
+            /*
+             * v3.3: Reverter os itens de PEÇA embarcados nesta carga.
+             *
+             * Sem isto, desfazer uma carga mista deixava os RomaneioItem de peça
+             * com romaneio_id de um registro que não existe mais — e as basquetas
+             * continuavam marcadas como despachadas, invisíveis para a mesa de
+             * montagem e segurando saldo reservado que nunca mais seria liberado.
+             */
+            $itensPeca = \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
+                ->pecas()
+                ->with('pedido')
+                ->get();
+
+            $basquetasAfetadas = collect();
+
+            foreach ($itensPeca as $itemPeca) {
+                if ($itemPeca->pedido) {
+                    $pedidosParaReverter[$itemPeca->pedido->id] = [
+                        'model'  => $itemPeca->pedido,
+                        'status' => 'separado',
+                    ];
+                }
+            }
+
+            // Apaga os itens de carga de peça — a basqueta e o ledger continuam
+            // intocados, então o saldo reservado não se perde.
+            \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
+                ->pecas()
+                ->delete();
+
+            // Limpa o vínculo de romaneio das basquetas que estavam nesta carga.
+            \App\Models\Basqueta::where('romaneio_id', $romaneio->id)
+                ->update(['romaneio_id' => null]);
+
             foreach ($pedidosParaReverter as $dados) {
                 $pedido = $dados['model'];
                 $pedido->update([
@@ -771,7 +805,7 @@ class RomaneioController extends Controller
         });
 
         return redirect()->route('romaneios.index')
-            ->with('success', 'Carga desfeita com sucesso! As motos retornaram para seus estoques de origem.');
+            ->with('success', 'Carga desfeita com sucesso! Motos e peças retornaram para seus estoques de origem.');
     }
 
     // 9. CONFIRMAÇÃO DE COLETA (MILK RUN)

@@ -684,4 +684,103 @@ class PecaTravasDeFluxoTest extends TestCase
         $resposta->assertSessionMissing('error');
         $this->assertSoftDeleted('pedidos', ['id' => $pedido->id]);
     }
+
+    /** v3.3: marcarSeparado do fluxo de motos recusa pedidos de peça. */
+    public function test_marcar_separado_de_motos_recusa_pedido_de_peca()
+    {
+        $pedido = $this->pedidoSolicitado();
+
+        $resposta = $this->actingAs($this->operadorCd)
+            ->post(route('pedidos.separar', $pedido->id));
+
+        $resposta->assertSessionHasErrors('erro');
+        $pedido->refresh();
+        $this->assertSame('solicitado', $pedido->status);
+    }
+
+    /** v3.3: finalizarEntrega do fluxo de motos recusa pedidos de peça. */
+    public function test_finalizar_entrega_de_motos_recusa_pedido_de_peca()
+    {
+        $pedido = $this->pedidoSolicitado();
+
+        $arquivo = UploadedFile::fake()->create('romaneio.pdf', 100, 'application/pdf');
+
+        $resposta = $this->actingAs($this->lojaUser)
+            ->post(route('pedidos.finalizar', $pedido->id), [
+                'arquivo_romaneio' => $arquivo,
+            ]);
+
+        $resposta->assertSessionHasErrors('arquivo_romaneio');
+        $pedido->refresh();
+        $this->assertNotSame('concluido', $pedido->status);
+    }
+
+    /** v3.3: aprovar gerencial do fluxo de motos recusa pedidos de peça. */
+    public function test_aprovar_de_motos_recusa_pedido_de_peca()
+    {
+        $pedido = $this->pedidoSolicitado();
+        $pedido->update(['status' => 'em_analise']);
+
+        $resposta = $this->actingAs($this->gestor)
+            ->post(route('pedidos.aprovar', $pedido->id));
+
+        $resposta->assertSessionHas('error');
+        $pedido->refresh();
+        $this->assertSame('em_analise', $pedido->status);
+    }
+
+    /** v3.3: destroy de Romaneio reverte peças embarcadas e limpa basqueta. */
+    public function test_destroy_de_romaneio_reverte_pecas_embarcadas()
+    {
+        [$pedido, $basqueta] = $this->pedidoSeparadoNaBasqueta();
+
+        // Fatura e confere a basqueta
+        $basqueta->update(['status' => Basqueta::STATUS_LIBERADA]);
+
+        $romaneio = Romaneio::create([
+            'user_id'   => $this->operadorCd->id,
+            'status'    => 'aberto',
+            'motorista' => 'CARLOS SILVA',
+            'placa'     => 'ABC1D23',
+            'rota'      => 'ROTA TESTE',
+            'tipo'      => 'misto',
+            'saida_em'  => now(),
+        ]);
+
+        $basqueta->update(['romaneio_id' => $romaneio->id]);
+
+        $itemCarga = RomaneioItem::create([
+            'romaneio_id'      => $romaneio->id,
+            'itemable_type'    => Peca::class,
+            'itemable_id'      => $this->peca->id,
+            'pedido_id'        => $pedido->id,
+            'pedido_item_id'   => $pedido->itensPedido->first()->id,
+            'quantidade'       => 2,
+            'status'           => RomaneioItem::STATUS_CARREGADO,
+            'local_destino_id' => $this->localLoja->id,
+        ]);
+
+        $pedido->update(['status' => 'rota_confirmada', 'romaneio_id' => $romaneio->id]);
+
+        $this->assertDatabaseHas('romaneio_itens', ['id' => $itemCarga->id]);
+        $this->assertSame($romaneio->id, $basqueta->fresh()->romaneio_id);
+
+        // Desfaz a carga
+        $resposta = $this->actingAs($this->operadorCd)
+            ->delete(route('romaneios.destroy', $romaneio->id));
+
+        $resposta->assertSessionMissing('erro');
+        $this->assertDatabaseMissing('romaneios', ['id' => $romaneio->id]);
+
+        // Verifica que o RomaneioItem de peça foi excluído
+        $this->assertDatabaseMissing('romaneio_itens', ['id' => $itemCarga->id]);
+
+        // Verifica que a basqueta teve romaneio_id limpo
+        $this->assertNull($basqueta->fresh()->romaneio_id);
+
+        // Verifica que o pedido de peça voltou para 'separado'
+        $pedido->refresh();
+        $this->assertSame('separado', $pedido->status);
+        $this->assertNull($pedido->romaneio_id);
+    }
 }

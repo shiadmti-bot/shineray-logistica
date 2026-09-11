@@ -701,6 +701,12 @@ class PedidoController extends Controller
                 return back()->with('error', 'Este pedido já foi processado.');
             }
 
+            // v3.3: pedidos de peça seguem fluxo próprio (Triagem → Gate 1 → Separação).
+            // A aprovação gerencial e a atribuição de chassis são conceitos de moto.
+            if ($pedido->tipo_carga === 'peca') {
+                return back()->with('error', 'Pedidos de peça não passam por aprovação gerencial — seguem para triagem e liberação técnica.');
+            }
+
             // Aprova
             $pedido->update(['status' => 'solicitado']);
             
@@ -896,6 +902,13 @@ class PedidoController extends Controller
             $pedido = Pedido::with('origem', 'user')->findOrFail($id);
             $user = Auth::user();
 
+            // v3.3: peças têm separação própria em PecaAtendimentoController::separar,
+            // com reserva de estoque e basqueta. Chamar este método — que só muda
+            // status — faria o pedido avançar sem contabilizar saldo.
+            if ($pedido->tipo_carga === 'peca') {
+                return back()->withErrors(['erro' => 'Pedidos de peça são separados pela tela de Atendimento de Peças.']);
+            }
+
             // Validação de Status
             if ($pedido->status !== 'solicitado') {
                 return back()->withErrors(['erro' => 'Status inválido para separação.']);
@@ -991,6 +1004,16 @@ class PedidoController extends Controller
 
     return DB::transaction(function () use ($request, $id) {
         $pedido = Pedido::with('user', 'motos')->findOrFail($id);
+
+        // v3.3: peças são recebidas em PecaAtendimentoController::receber, onde o
+        // EstoquePecaService transfere o saldo e consome a reserva. Este método
+        // opera por chassi e não toca no ledger de peças — sem o guard, o pedido
+        // seria encerrado com a reserva presa no CD.
+        if ($pedido->tipo_carga === 'peca') {
+            return back()->withErrors([
+                'arquivo_romaneio' => 'Pedidos de peça são recebidos pela tela do pedido, usando o painel de conferência de peças.',
+            ]);
+        }
         
         if (Auth::user()->perfil === 'loja' && $pedido->user_id !== Auth::id()) {
             abort(403, 'Acesso não autorizado.');
