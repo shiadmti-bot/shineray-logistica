@@ -15,10 +15,54 @@ use App\Notifications\NovaMensagemChat;
 class ChatController extends Controller
 {
     /**
+     * Garante que quem chama participa da conversa deste pedido.
+     *
+     * O QUE ESTAVA ABERTO (corrigido na v3.4)
+     *
+     * Os três métodos recebiam `$pedidoId` da URL e agiam sobre ele sem
+     * verificar relação nenhuma com quem pedia. `index` era um
+     * `Message::where('pedido_id', $pedidoId)->get()` puro: trocar o número na
+     * URL devolvia a conversa inteira de outra filial — negociação, motivo de
+     * recusa, prazo combinado, nome de quem falou o quê. `store` deixava
+     * escrever no chat alheio e `markAsRead` deixava marcar como lida mensagem
+     * de terceiro, fazendo o destinatário legítimo perder o aviso de não lida
+     * sem entender por quê.
+     *
+     * A REGRA JÁ EXISTIA NESTE ARQUIVO. `store` a usa desde sempre para decidir
+     * A QUEM NOTIFICAR: loja fala com CD e gestor; CD e gestor falam com o
+     * solicitante e com a origem. Ela só nunca tinha sido usada para AUTORIZAR.
+     * É a mesma regra, agora aplicada nos dois sentidos.
+     *
+     * withTrashed de propósito: pedido cancelado é soft-deleted, e o histórico
+     * da conversa continua sendo dos participantes. Barrar aqui trocaria um
+     * furo de privacidade por uma perda de rastreabilidade.
+     */
+    private function autorizarParticipante($pedidoId): Pedido
+    {
+        $pedido = Pedido::withTrashed()->findOrFail($pedidoId);
+        $user = Auth::user();
+
+        // CD, gestor e admin acompanham qualquer pedido — é o trabalho deles.
+        if (in_array($user->perfil, ['cd', 'gestor', 'admin'], true)) {
+            return $pedido;
+        }
+
+        // A loja entra só nos próprios: o que ela pediu, ou o que sai do
+        // estoque dela numa transferência.
+        if ($pedido->user_id === $user->id || $pedido->origem_user_id === $user->id) {
+            return $pedido;
+        }
+
+        abort(403, 'Esta conversa pertence ao pedido de outra filial.');
+    }
+
+    /**
      * Lista as mensagens de um pedido.
      */
     public function index($pedidoId)
     {
+        $this->autorizarParticipante($pedidoId);
+
         return Message::where('pedido_id', $pedidoId)
             ->with('user') // Traz o nome e dados do usuário
             ->orderBy('created_at', 'asc')
@@ -36,7 +80,7 @@ class ChatController extends Controller
             'canal'   => 'required|string|in:cd,gestor'
         ]);
 
-        $pedido = Pedido::findOrFail($pedidoId);
+        $pedido = $this->autorizarParticipante($pedidoId);
 
         // 2. Criação da Mensagem
         $message = $pedido->messages()->create([
@@ -104,6 +148,8 @@ class ChatController extends Controller
      */
     public function markAsRead(Request $request, $pedidoId)
     {
+        $this->autorizarParticipante($pedidoId);
+
         Message::where('pedido_id', $pedidoId)
             ->where('user_id', '!=', Auth::id()) // Apenas mensagens dos outros
             ->whereNull('read_at')

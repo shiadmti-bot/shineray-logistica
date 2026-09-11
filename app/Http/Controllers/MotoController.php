@@ -18,6 +18,40 @@ class MotoController extends Controller
             $q->latest()->limit(1)->with('user');
         }]);
 
+        /*
+         * ESCOPO DA LOJA — no servidor, não na tela (v3.4).
+         *
+         * Até aqui o método não filtrava por loja em momento nenhum: `loja_id`
+         * existe como filtro OPCIONAL, que é o oposto de um escopo. Toda filial
+         * recebia a frota inteira da rede e a tela é que escondia — o comentário
+         * na rota dizia a intenção com todas as letras ("Loja terá view restrita
+         * no Front"). Quem abrisse o DevTools, ou a resposta JSON, via tudo.
+         *
+         * O módulo de peças já resolve isso do jeito certo em
+         * PecaController::resolverLocal; isto é o mesmo movimento para motos.
+         *
+         * TRÊS CAMINHOS LEGÍTIMOS, e a loja precisa dos três:
+         *   está comigo    -> loja_atual_id
+         *   estou pedindo  -> pedido.user_id
+         *   está saindo    -> pedido.origem_user_id (transferência)
+         *
+         * Sem o terceiro, a loja que cede a moto perderia de vista a própria
+         * moto no instante em que ela é prometida a outra filial.
+         */
+        $user = auth()->user();
+
+        if ($user->perfil === 'loja') {
+            $query->where(function ($q) use ($user) {
+                $q->where('loja_atual_id', $user->id)
+                  ->orWhereHas('pedidos', function ($p) use ($user) {
+                      $p->where(function ($sub) use ($user) {
+                          $sub->where('user_id', $user->id)
+                              ->orWhere('origem_user_id', $user->id);
+                      })->where('pedidos.status', '!=', 'cancelado');
+                  });
+            });
+        }
+
         // Filtro de Texto (Chassi ou Modelo)
         if ($request->filled('search')) {
             $term = $request->search;
@@ -43,8 +77,15 @@ class MotoController extends Controller
             });
         }
 
-        // Pega lista de lojas para o select de filtro
+        /*
+         * Lista de lojas do select de filtro.
+         *
+         * Para a loja, o select passa a trazer só ela mesma: com o escopo
+         * acima, filtrar por outra filial devolveria vazio de qualquer jeito, e
+         * um filtro que nunca retorna nada parece defeito, não permissão.
+         */
         $lojas = \App\Models\User::where('perfil', 'loja')
+            ->when($user->perfil === 'loja', fn ($q) => $q->where('id', $user->id))
             ->orderBy('filial')
             ->select('id', 'filial', 'name')
             ->get();

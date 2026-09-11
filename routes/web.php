@@ -114,8 +114,14 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             ->middleware(['auth', 'verified'])
             ->name('api.estoque.microwork');
             
+        /*
+         * Reservar tira um chassi da disponibilidade da rede e abre um Pedido
+         * em nome de quem chamou. A trava de corrida já existia — recusa chassi
+         * que outra loja acabou de pegar; faltava a de papel. Mesmo critério de
+         * `pecas.solicitar`: quem reserva é quem vende.
+         */
         Route::post('/microwork/estoque-cd/reservar', [\App\Http\Controllers\Api\EstoqueController::class, 'reservar'])
-            ->middleware(['auth', 'verified'])
+            ->middleware(['auth', 'verified', 'check_perfil:loja,admin'])
             ->name('api.estoque.reservar');
 
         Route::post('/microwork/buscar-chassis', [\App\Http\Controllers\Api\EstoqueController::class, 'buscarPorChassis'])
@@ -250,12 +256,31 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         | MÓDULO 2: LOGÍSTICA (EXPEDIÇÃO, ROTAS E CARGAS)
         |--------------------------------------------------------------------------
         */
-        // Calendário de Agendamento (V2)
+        /*
+        | Calendário de Agendamento (V2)
+        |
+        | LER É DE TODOS, ESCREVER NÃO (v3.4).
+        |
+        | O grupo não declarava perfil, e nem `store` nem `destroy` checavam.
+        | A regra existia — `$canManage`, em CalendarController::index — mas só
+        | era enviada ao front para decidir o que desenhar. Qualquer autenticado
+        | conseguia criar e apagar viagem pela rota.
+        |
+        | E `destroy` não apaga só o evento: percorre os pedidos vinculados,
+        | reverte status e grava PedidoLog. Apagar uma viagem devolvia carga
+        | inteira para trás no fluxo, em nome de quem apagou.
+        |
+        | `index` fica aberto de propósito: a loja precisa ver quando o caminhão
+        | passa na cidade dela.
+        */
         Route::prefix('calendario')->name('calendar.')->group(function () {
-            Route::get('/', [CalendarController::class, 'index'])->name('index');       
-            Route::post('/eventos', [CalendarController::class, 'store'])->name('store'); 
-            Route::delete('/eventos/{id}', [CalendarController::class, 'destroy'])->name('destroy'); 
-            Route::get('/rotas', [CalendarController::class, 'getRotas'])->name('rotas'); 
+            Route::get('/', [CalendarController::class, 'index'])->name('index');
+            Route::get('/rotas', [CalendarController::class, 'getRotas'])->name('rotas');
+
+            Route::middleware('check_perfil:admin,cd,gestor')->group(function () {
+                Route::post('/eventos', [CalendarController::class, 'store'])->name('store');
+                Route::delete('/eventos/{id}', [CalendarController::class, 'destroy'])->name('destroy');
+            });
         });
 
         // Romaneios (Cargas) - Apenas CD, Admin e Gestor
