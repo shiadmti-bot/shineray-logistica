@@ -16,6 +16,7 @@ import {
 import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, Button, StatusBadge } from '@/Components/UI';
 import ChecklistMotoForm from '@/Components/Devolucoes/ChecklistMotoForm';
+import imageCompression from 'browser-image-compression';
 
 /**
  * O dossiê da devolução.
@@ -576,8 +577,37 @@ function Anexos({
     podeEnviar = false,
     compacto = false,
 }) {
+    const [comprimindo, setComprimindo] = useState(false);
     const form = useForm({ etapa, item_id: item?.id ?? null, arquivo: null, descricao: '' });
     const remover = useForm({});
+
+    const handleArquivoChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            form.setData('arquivo', null);
+            return;
+        }
+
+        if (file.type.startsWith('image/')) {
+            try {
+                setComprimindo(true);
+                const options = {
+                    maxSizeMB: 1,
+                    maxWidthOrHeight: 1600,
+                    useWebWorker: true,
+                };
+                const compressed = await imageCompression(file, options);
+                form.setData('arquivo', compressed);
+            } catch (err) {
+                console.error('Erro ao comprimir anexo:', err);
+                form.setData('arquivo', file);
+            } finally {
+                setComprimindo(false);
+            }
+        } else {
+            form.setData('arquivo', file);
+        }
+    };
 
     const enviar = (e) => {
         e.preventDefault();
@@ -635,9 +665,20 @@ function Anexos({
                         type="file"
                         accept="image/*,application/pdf"
                         capture="environment"
-                        onChange={(e) => form.setData('arquivo', e.target.files[0])}
+                        onChange={handleArquivoChange}
+                        disabled={comprimindo}
                         className="w-full text-[11px] text-content-secondary file:mr-2 file:rounded file:border-0 file:bg-brand-700 file:px-2.5 file:py-1.5 file:text-[11px] file:font-bold file:text-white"
                     />
+                    {comprimindo && (
+                        <p className="text-[10px] font-semibold text-brand-600 animate-pulse">
+                            Otimizando imagem para envio...
+                        </p>
+                    )}
+                    {form.data.arquivo && !comprimindo && (
+                        <p className="text-[10px] font-semibold text-status-success-fg">
+                            Arquivo pronto ({Math.round(form.data.arquivo.size / 1024)} KB)
+                        </p>
+                    )}
                     {form.errors.arquivo && (
                         <span className="block text-[10px] font-bold text-status-danger-fg">
                             {form.errors.arquivo}
@@ -656,10 +697,10 @@ function Anexos({
                         size="sm"
                         variant="secondary"
                         icon={PaperClipIcon}
-                        loading={form.processing}
-                        disabled={!form.data.arquivo}
+                        loading={form.processing || comprimindo}
+                        disabled={!form.data.arquivo || comprimindo}
                     >
-                        Anexar
+                        {comprimindo ? 'Otimizando...' : 'Anexar'}
                     </Button>
                 </form>
             )}

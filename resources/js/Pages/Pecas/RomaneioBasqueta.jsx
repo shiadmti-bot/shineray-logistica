@@ -8,6 +8,7 @@ import {
 
 import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader, Button, Card } from '@/Components/UI';
+import imageCompression from 'browser-image-compression';
 
 /**
  * Romaneio de peças — o documento do Passo 6 do manual.
@@ -193,9 +194,38 @@ export default function RomaneioBasqueta({ basqueta, podeConferir = false }) {
  */
 function Conferencia({ basqueta }) {
     const [modo, setModo] = useState(null);
+    const [comprimindo, setComprimindo] = useState(false);
 
     const liberar = useForm({ foto: null, observacao: '' });
     const ajuste = useForm({ motivo: '' });
+
+    const handleFotoChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            liberar.setData('foto', null);
+            return;
+        }
+
+        if (file.type.startsWith('image/')) {
+            try {
+                setComprimindo(true);
+                const options = {
+                    maxSizeMB: 1,
+                    maxWidthOrHeight: 1600,
+                    useWebWorker: true,
+                };
+                const compressed = await imageCompression(file, options);
+                liberar.setData('foto', compressed);
+            } catch (err) {
+                console.error('Erro ao comprimir foto:', err);
+                liberar.setData('foto', file);
+            } finally {
+                setComprimindo(false);
+            }
+        } else {
+            liberar.setData('foto', file);
+        }
+    };
 
     const enviarLiberacao = (e) => {
         e.preventDefault();
@@ -248,9 +278,20 @@ function Conferencia({ basqueta }) {
                             type="file"
                             accept="image/*,application/pdf"
                             capture="environment"
-                            onChange={(e) => liberar.setData('foto', e.target.files[0])}
+                            onChange={handleFotoChange}
+                            disabled={comprimindo}
                             className="w-full text-xs text-content-secondary file:mr-3 file:rounded file:border-0 file:bg-brand-700 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white"
                         />
+                        {comprimindo && (
+                            <p className="mt-1.5 text-xs font-semibold text-brand-600 animate-pulse flex items-center gap-1.5">
+                                <span>🔄</span> Otimizando foto para envio rápido...
+                            </p>
+                        )}
+                        {liberar.data.foto && !comprimindo && (
+                            <p className="mt-1.5 text-xs font-semibold text-status-success-fg flex items-center gap-1.5">
+                                <span>✅</span> Arquivo pronto ({Math.round(liberar.data.foto.size / 1024)} KB)
+                            </p>
+                        )}
                         {liberar.errors.foto && (
                             <span className="mt-1 block text-[10px] text-status-danger-fg">
                                 {liberar.errors.foto}
@@ -277,10 +318,10 @@ function Conferencia({ basqueta }) {
                         <Button
                             type="submit"
                             icon={CheckCircleIcon}
-                            loading={liberar.processing}
-                            disabled={!liberar.data.foto}
+                            loading={liberar.processing || comprimindo}
+                            disabled={!liberar.data.foto || comprimindo}
                         >
-                            Liberar despacho
+                            {comprimindo ? 'Otimizando foto...' : 'Liberar despacho'}
                         </Button>
                         <Button type="button" variant="secondary" onClick={() => setModo(null)}>
                             Voltar
