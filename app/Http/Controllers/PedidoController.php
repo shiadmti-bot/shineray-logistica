@@ -1613,7 +1613,7 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             'itensPedido.peca:id,codigo,descricao,unidade', // v3: cotas de peça
             'itensPedido.identificadoPor:id,name',
             'itensPedido.confirmadoPor:id,name',
-            'itensPedido.basqueta:id,codigo,status',
+            'itensPedido.basqueta:id,status',
             'romaneio',
             'logs' => fn($q) => $q->latest()
         ])->findOrFail($id);

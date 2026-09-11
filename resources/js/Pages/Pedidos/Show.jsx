@@ -933,7 +933,7 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                                                         )}
                                                         {item.basqueta && (
                                                             <span className="inline-flex items-center gap-1 font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded border border-brand-200 text-[11px]">
-                                                                🧺 Basqueta #{item.basqueta.codigo || item.basqueta.id}
+                                                                🧺 Basqueta #{item.basqueta.id}
                                                             </span>
                                                         )}
                                                     </div>
