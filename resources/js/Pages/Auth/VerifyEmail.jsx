@@ -1,47 +1,56 @@
-import PrimaryButton from '@/Components/PrimaryButton';
-import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { EnvelopeIcon } from '@heroicons/react/24/outline';
+
+import GuestLayout from '@/Layouts/GuestLayout';
+import { Button } from '@/Components/UI';
 
 export default function VerifyEmail({ status }) {
     const { post, processing } = useForm({});
 
     const submit = (e) => {
         e.preventDefault();
-
         post(route('verification.send'));
     };
 
+    const linkEnviado = status === 'verification-link-sent';
+
     return (
-        <GuestLayout>
-            <Head title="Email Verification" />
+        <GuestLayout
+            titulo="Confirme seu e-mail"
+            descricao="Enviamos um link de verificação para o e-mail cadastrado. Abra o link para liberar seu acesso."
+        >
+            <Head title="Verificar e-mail — Shineray By Sabel" />
 
-            <div className="mb-4 text-sm text-content-secondary">
-                Thanks for signing up! Before getting started, could you verify
-                your email address by clicking on the link we just emailed to
-                you? If you didn't receive the email, we will gladly send you
-                another.
-            </div>
-
-            {status === 'verification-link-sent' && (
-                <div className="mb-4 text-sm font-medium text-status-success-fg">
-                    A new verification link has been sent to the email address
-                    you provided during registration.
+            {linkEnviado && (
+                <div className="mb-6 rounded-xl border border-status-success-solid/30 bg-status-success-bg px-4 py-3 text-sm font-medium text-status-success-fg">
+                    Um novo link de verificação foi enviado para o seu e-mail.
                 </div>
             )}
 
-            <form onSubmit={submit}>
-                <div className="mt-4 flex items-center justify-between">
-                    <PrimaryButton disabled={processing}>
-                        Resend Verification Email
-                    </PrimaryButton>
+            <p className="mb-6 text-sm text-content-secondary">
+                Não recebeu? Verifique a caixa de spam antes de pedir outro — e confirme
+                com a TI se o endereço cadastrado está correto.
+            </p>
 
+            <form onSubmit={submit} className="space-y-4">
+                <Button
+                    type="submit"
+                    size="lg"
+                    icon={EnvelopeIcon}
+                    loading={processing}
+                    className="w-full"
+                >
+                    {processing ? 'Enviando…' : 'Reenviar e-mail de verificação'}
+                </Button>
+
+                <div className="text-center">
                     <Link
                         href={route('logout')}
                         method="post"
                         as="button"
-                        className="rounded-md text-sm text-content-secondary underline hover:text-content-primary focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+                        className="text-xs font-semibold text-content-muted transition hover:text-brand-600"
                     >
-                        Log Out
+                        Sair da conta
                     </Link>
                 </div>
             </form>

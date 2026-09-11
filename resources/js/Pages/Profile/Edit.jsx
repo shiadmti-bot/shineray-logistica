@@ -14,6 +14,21 @@ import {
     ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
 
+/**
+ * Meu perfil.
+ *
+ * REGRA DE COR DESTA TELA — vale a mesma das telas de acesso.
+ *
+ * O CARTÃO DE IDENTIDADE lá embaixo é superfície FIXA de propósito: é um
+ * crachá, e crachá não reskina com o tema do usuário. O gradiente muda por
+ * PERFIL (loja, CD, admin, gestor), o que é informação, não enfeite — a cor
+ * diz qual crachá é aquele. Sobre ele o texto é branco fixo, porque
+ * `text-content-primary` daria preto sobre um fundo escuro no tema claro.
+ *
+ * TODO O RESTO usa tokens (`surface-card`, `content-*`, `line`) e acompanha
+ * claro e escuro. É por isso que `text-white` e `slate-900` aparecem aqui sem
+ * serem descuido: estão confinados ao crachá.
+ */
 export default function Edit({ auth, mustVerifyEmail, status }) {
     const user = auth.user;
 

@@ -40,24 +40,17 @@ class ProfileController extends Controller
         return Redirect::route('profile.edit');
     }
 
-    /**
-     * Delete the user's account.
+    /*
+     * `destroy()` REMOVIDO (v3.4) — autoexclusão de conta não existe aqui.
+     *
+     * O método do Breeze deslogava e apagava o próprio usuário. A rota que o
+     * alcançava (`DELETE /profile`) foi removida junto, mas o método também
+     * saiu de propósito: enquanto ele existisse, reativar a brecha custaria
+     * uma linha de rota, e nada no arquivo diria por que aquilo era errado.
+     *
+     * O ciclo de vida da conta pertence ao admin, em UserController
+     * (/usuarios): lá a inativação preserva a integridade referencial de
+     * pedidos, romaneios e logs, que é justamente o que a autoexclusão
+     * ignorava.
      */
-    public function destroy(Request $request): RedirectResponse
-    {
-        $request->validate([
-            'password' => ['required', 'current_password'],
-        ]);
-
-        $user = $request->user();
-
-        Auth::logout();
-
-        $user->delete();
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return Redirect::to('/');
-    }
 }

@@ -1,4 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+    FAIXA RÁPIDA — MariaDB local (padrão do dia a dia).
+
+    `php artisan test` roda aqui: sem rede, sem SSL, feedback em segundos.
+    Antes da v3.4 este arquivo definia só DB_CONNECTION e herdava o host do
+    .env, que aponta para o TiDB Cloud na Virgínia — toda a bateria atravessava
+    a AWS, levava ~20 minutos e sofria queda de conexão em um a cada dois runs.
+
+    ATENÇÃO — ESTA FAIXA NÃO SUBSTITUI A DE RELEASE.
+
+    Produção é TiDB; aqui é MariaDB. As duas divergem justamente onde mora a
+    integridade de estoque: semântica de SELECT ... FOR UPDATE, detecção de
+    deadlock e violação de chave única sob concorrência — que é o que
+    EstoquePecaService, Basqueta::abertaPara e o recebimento idempotente usam
+    para não duplicar saldo. Passar aqui não prova que passa lá.
+
+    Antes de merge ou release, rode a faixa de release:
+
+        php artisan test -c phpunit.tidb.xml
+
+    Ver phpunit.tidb.xml para o que ela cobre e por quê.
+-->
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
@@ -23,12 +45,37 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="mysql"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <!--
+            Host e porta são declarados AQUI, não herdados do .env. Herdar era
+            a causa de a suíte rodar contra a nuvem sem ninguém ter pedido.
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_DATABASE" value="shineray_test"/>
+        <env name="DB_USERNAME" value="root"/>
+        <env name="DB_PASSWORD" value=""/>
+
+        <!--
+            Anula o CA do TiDB herdado do .env. O MariaDB local não sobe com
+            SSL, e o handshake falhava com o mesmo "MySQL server has gone away"
+            do erro de rede — os dois problemas ficavam indistinguíveis.
+            config/database.php também já ignora SSL em loopback; isto é a
+            segunda camada, para o caso de alguém mudar o host aqui.
+
+            NÃO EXISTE .env.testing NESTE PROJETO, e isso é proposital. Se
+            alguém criar um, o Laravel passa a carregá-lo no lugar do .env em
+            AMBAS as faixas — e a de release (phpunit.tidb.xml), que depende de
+            herdar o TiDB do .env, é sequestrada para o banco local sem avisar.
+            O alvo de cada faixa é decidido aqui, pelo que o XML sobrescreve.
+        -->
+        <env name="MYSQL_ATTR_SSL_CA" value=""/>
     </php>
 </phpunit>

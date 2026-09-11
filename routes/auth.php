@@ -12,10 +12,22 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
-
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    /*
+     * AUTO-REGISTRO PÚBLICO REMOVIDO (v3.4).
+     *
+     * As rotas `register` do Breeze criavam usuário com `perfil` e `filial`
+     * nulos — um visitante qualquer gerava conta órfã, sem permissão e sem
+     * filial vinculada, que depois aparecia na Gestão de Acessos sem ninguém
+     * saber de onde veio.
+     *
+     * No fluxo real da Shineray todo usuário nasce pela mão do admin em
+     * /usuarios, já com perfil, filial e as atribuições valida_pecas /
+     * valida_motos definidas. Não existe caminho legítimo de auto-cadastro.
+     *
+     * O RegisteredUserController continua no projeto, mas sem rota que o
+     * alcance. Se o auto-registro voltar a fazer sentido um dia, ele terá que
+     * atribuir perfil e filial antes de salvar.
+     */
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

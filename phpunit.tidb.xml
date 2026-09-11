@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    FAIXA DE RELEASE — TiDB Cloud (o engine da produção).
+
+        php artisan test -c phpunit.tidb.xml
+
+    POR QUE ESTA FAIXA EXISTE
+
+    A faixa rápida (phpunit.xml) roda em MariaDB local. É o que se usa o dia
+    inteiro, mas ela valida a LÓGICA, não as GARANTIAS DE CONCORRÊNCIA — e as
+    duas coisas se separam exatamente onde este sistema tem mais a perder.
+
+    O módulo de peças não confia em "o código está certo"; confia em promessas
+    do banco:
+
+      EstoquePecaService::travarEstoque   SELECT ... FOR UPDATE serializa duas
+                                          reservas na mesma linha de saldo
+      EstoquePecaService::transferir      ordem determinística de lock evita
+                                          deadlock entre A->B e B->A
+      Basqueta::abertaPara                retry sobre violação de UNIQUE quando
+                                          duas separações criam a mesma caixa
+      PecaAtendimento::receber            lockForUpdate no pedido impede que
+                                          duplo clique transfira saldo em dobro
+
+    InnoDB e TiDB cumprem essas promessas de formas diferentes: TiDB usa
+    transações pessimistas com detecção de deadlock própria, e resolve conflito
+    de escrita em momento distinto do InnoDB. Um teste verde no MariaDB não
+    diz nada sobre o comportamento no engine que roda em produção.
+
+    O risco aqui não é falha ruidosa — é FALSO VERDE. Por isso a faixa rápida é
+    a conveniência, e esta é a que autoriza o merge.
+
+    LIMITE HONESTO DESTA FAIXA
+
+    Ela roda contra o TiDB Cloud, que é o engine certo, mas os testes são
+    sequenciais: nenhum dispara duas requisições ao mesmo tempo. Ou seja, ela
+    valida que o SQL e a semântica transacional funcionam no engine de
+    produção, não que o lock resolve uma corrida real. Cobrir corrida de fato
+    exigiria teste concorrente, que ainda não temos.
+
+    CUSTO E INSTABILIDADE
+
+    A bateria leva ~20 minutos e atravessa a AWS us-east-1. Queda transitória
+    de conexão acontece ("MySQL server has gone away", "No available TiDB
+    instances") e NÃO indica regressão — reexecute o teste isolado antes de
+    investigar. Se a falha se repetir isolada, aí é código.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+
+        <!--
+            Suítes que dependem de garantia do banco, não só de lógica. Quando
+            não houver tempo para a bateria inteira, é ESTE o mínimo que precisa
+            passar no TiDB antes de subir:
+
+                php artisan test -c phpunit.tidb.xml (com a flag testsuite=Concorrencia)
+
+            A flag não é escrita aqui em forma literal porque comentário XML
+            não aceita hífen duplo — é o que quebrava o arquivo inteiro.
+        -->
+        <testsuite name="Concorrencia">
+            <file>tests/Feature/PecaFluxoCompletoTest.php</file>
+            <file>tests/Feature/PecaTravasDeFluxoTest.php</file>
+            <file>tests/Feature/BasquetaAdjustmentTest.php</file>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <!--
+            APP_ENV=testing e OBRIGATORIO, e nao um detalhe.
+
+            O Laravel so desativa o middleware de CSRF em teste quando o
+            ambiente se chama exatamente "testing" (Application::runningUnitTests).
+            Uma tentativa de usar "tidb" aqui, para carregar um .env proprio,
+            fez TODO POST ser recusado com "CSRF token mismatch" — 23 testes
+            vermelhos que nada tinham a ver com banco.
+
+            COMO ESTA FAIXA ENCONTRA O TIDB, ENTAO?
+
+            Nao existe arquivo .env.testing no projeto, de proposito. Sem ele,
+            o Laravel cai no .env — que aponta para o cluster TiDB. Esta faixa
+            simplesmente NAO sobrescreve host nem credencial, e herda.
+
+            A faixa rapida faz o oposto: declara DB_HOST=127.0.0.1 no
+            phpunit.xml, e variavel de ambiente vence o .env. Ou seja, o alvo
+            de cada faixa e decidido pelo que o XML sobrescreve, nunca por qual
+            arquivo .env foi carregado.
+
+            NAO CRIE UM .env.testing. Ele sequestraria esta faixa de volta para
+            o banco local, em silencio.
+
+            COMO CONFERIR que esta faixa esta no lugar certo: olhe a duracao.
+            Dezenas de milissegundos por teste significa que ela caiu no local.
+        -->
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <!--
+            Só a conexão é declarada. Host, porta, credenciais e o CA do SSL
+            vêm do .env de propósito: credencial de nuvem não entra em arquivo
+            versionado.
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+    </php>
+</phpunit>

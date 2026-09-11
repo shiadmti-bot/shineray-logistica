@@ -58,12 +58,43 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA')
-                ? base_path(env('MYSQL_ATTR_SSL_CA'))
-            : null,
-                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false, // Importante para evitar erro de host no Windows
-            ]) : [],
+            /*
+             * SSL SÓ PARA HOST REMOTO (v3.4).
+             *
+             * O CA era aplicado sempre que MYSQL_ATTR_SSL_CA existisse no .env,
+             * sem olhar para onde a conexão ia. Como a variável fica definida
+             * para o TiDB Cloud, o MariaDB local — que não sobe com SSL —
+             * recebia o mesmo handshake e derrubava a conexão com o mesmo
+             * "MySQL server has gone away" do erro de rede, o que tornava os
+             * dois problemas indistinguíveis.
+             *
+             * A regra é o destino, não a presença da variável: loopback não
+             * atravessa rede, então não há o que cifrar.
+             *
+             * Nota sobre array_filter: ele descarta valores falsy, então
+             * VERIFY_SERVER_CERT => false nunca chegava ao PDO de qualquer
+             * forma. Mantido explícito abaixo, fora do filtro, para o caso
+             * remoto — é o que evita erro de host no Windows.
+             */
+            'options' => (function () {
+                if (! extension_loaded('pdo_mysql')) {
+                    return [];
+                }
+
+                $host = (string) env('DB_HOST', '127.0.0.1');
+                $ca   = env('MYSQL_ATTR_SSL_CA');
+
+                $ehLocal = in_array($host, ['127.0.0.1', 'localhost', '::1'], true);
+
+                if ($ehLocal || ! $ca) {
+                    return [];
+                }
+
+                return [
+                    PDO::MYSQL_ATTR_SSL_CA => base_path($ca),
+                    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
+                ];
+            })(),
         ],
 
         'mariadb' => [

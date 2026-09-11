@@ -1,43 +1,86 @@
 import { Link } from '@inertiajs/react';
 
-export default function GuestLayout({ children }) {
+/**
+ * Casca das telas de acesso (V3).
+ *
+ * DUAS SUPERFÍCIES, E CADA UMA MANDA NO PRÓPRIO TEXTO
+ *
+ *   FUNDO DE MARCA  -> `brand-*` é paleta fixa de propósito: marca não muda
+ *                      com o tema do usuário. Sobre ele o texto é branco fixo,
+ *                      porque `text-content-primary` daria preto sobre
+ *                      vermelho no tema claro.
+ *   CARTÃO          -> tokens (`surface-card`, `content-*`, `line`). É o que
+ *                      faz a tela acompanhar claro e escuro sem variante
+ *                      `dark:`, já que o tema troca as variáveis CSS.
+ *
+ * Misturar os dois é o erro clássico — e a razão de `text-white` e `bg-white`
+ * aparecerem aqui sem serem descuido.
+ *
+ * O que saiu: o cartão era `bg-white/98` com `backdrop-blur-xl`, ou seja,
+ * branco fixo. No tema escuro ele continuaria branco enquanto o resto do
+ * sistema escurecia. Agora é `surface-card`.
+ *
+ * Também saíram cinco divs decorativos com `animate-pulse` e `animate-ping`:
+ * movimento contínuo numa tela de formulário compete com o campo que a pessoa
+ * veio preencher, e nada ali respeitava `prefers-reduced-motion`.
+ */
+export default function GuestLayout({ titulo, descricao, children }) {
     return (
-        <div className="min-h-screen flex flex-col justify-center items-center px-4 py-8 bg-gradient-to-br from-brand-950 via-brand-700 to-brand-800 relative overflow-hidden selection:bg-brand-900 selection:text-white">
-            {/* Efeitos degradê em branco & Iluminação */}
-            <div className="absolute -top-32 -left-32 w-[30rem] h-[30rem] bg-gradient-to-br from-white/30 via-white/10 to-transparent rounded-full blur-3xl pointer-events-none animate-pulse duration-1000"></div>
-            <div className="absolute -bottom-32 -right-32 w-[34rem] h-[34rem] bg-gradient-to-tl from-white/25 via-white/10 to-transparent rounded-full blur-3xl pointer-events-none animate-pulse duration-700"></div>
+        <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-brand-950 via-brand-800 to-brand-700 px-4 py-12">
+            <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:28px_28px]"
+            />
+            <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -left-48 -top-48 h-[34rem] w-[34rem] rounded-full bg-white/10 blur-3xl"
+            />
 
-            {/* Partículas flutuantes brancas */}
-            <div className="absolute top-12 left-[15%] w-2 h-2 bg-white/80 rounded-full blur-[0.5px] animate-ping duration-1000 pointer-events-none"></div>
-            <div className="absolute top-1/2 right-[10%] w-3 h-3 bg-white/50 rounded-full blur-[1px] animate-pulse duration-700 pointer-events-none"></div>
-            <div className="absolute bottom-20 left-[20%] w-2 h-2 bg-white/90 rounded-full blur-[0.5px] animate-pulse duration-500 pointer-events-none"></div>
-
-            <div className="w-full max-w-md relative z-10 space-y-6">
-                {/* Logo & Marca */}
-                <div className="text-center">
-                    <Link href="/" className="inline-block transition-transform duration-300 hover:scale-105">
-                        <div className="bg-white px-7 py-3.5 rounded-2xl shadow-2xl shadow-black/30 border border-white/80 flex items-center justify-center gap-3 mx-auto w-fit">
-                            <img 
-                                src="/img/logo.png" 
-                                alt="Logo Shineray By Sabel" 
-                                className="h-10 w-auto object-contain" 
-                            />
-                        </div>
+            <div className="relative z-10 w-full max-w-md space-y-6">
+                <div className="flex justify-center">
+                    <Link href="/" className="rounded-2xl bg-white px-7 py-4 shadow-xl shadow-black/20 transition hover:shadow-2xl">
+                        <img
+                            src="/img/logo.png"
+                            alt="Shineray By Sabel"
+                            className="h-11 w-auto object-contain"
+                        />
                     </Link>
                 </div>
 
-                {/* Card de Conteúdo */}
-                <div className="w-full bg-white/98 backdrop-blur-xl px-8 py-8 shadow-2xl shadow-black/40 rounded-3xl border border-white/60 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-brand-700"></div>
-                    {children}
+                {/* Daqui para dentro é superfície de token: segue o tema. */}
+                <div className="overflow-hidden rounded-2xl border border-line bg-surface-card shadow-2xl shadow-black/30">
+                    <div className="h-1 bg-gradient-to-r from-brand-700 via-brand-500 to-brand-700" />
+
+                    <div className="px-8 py-9 sm:px-10">
+                        {(titulo || descricao) && (
+                            <div className="mb-7">
+                                {titulo && (
+                                    <h1 className="text-2xl font-bold tracking-tight text-content-primary">
+                                        {titulo}
+                                    </h1>
+                                )}
+                                {descricao && (
+                                    <p className="mt-1 text-sm text-content-secondary">
+                                        {descricao}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {children}
+                    </div>
                 </div>
 
-                {/* Rodapé */}
-                <div className="text-center text-xs text-white/90">
-                    <p className="font-medium drop-shadow-sm">&copy; {new Date().getFullYear()} Shineray By Sabel • Logística Integrada V3.0</p>
+                {/* De volta à superfície de marca: branco fixo, não token. */}
+                <div className="space-y-1.5 text-center text-white/80">
+                    <p className="text-xs">
+                        © {new Date().getFullYear()} Shineray By Sabel · Logística &amp; Distribuição
+                    </p>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">
+                        Sistema V3 · Hub &amp; Spoke · Milk Run
+                    </p>
                 </div>
             </div>
         </div>
     );
 }
-

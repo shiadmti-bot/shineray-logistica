@@ -555,10 +555,22 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::patch('/{filial}/toggle', [FilialController::class, 'toggle'])->name('toggle');
         });
 
-        // Perfil do Usuário
+        /*
+         * Perfil do Usuário — leitura e edição dos próprios dados.
+         *
+         * AUTOEXCLUSÃO REMOVIDA (v3.4). Havia um `DELETE /profile` vivo, e a
+         * tela nunca mostrou o botão: o DeleteUserForm do Breeze não era
+         * importado por Profile/Edit. Rota sem UI é pior que rota visível —
+         * ninguém a revisa, e ela funciona igual.
+         *
+         * Num sistema logístico o ciclo de vida da conta pertence ao admin, em
+         * /usuarios: é lá que perfil, filial e atribuições são definidos, e é
+         * lá que a inativação preserva a integridade de pedidos e logs. Um
+         * colaborador apagando o próprio usuário deixaria histórico de
+         * romaneio e pedido sem dono ativo.
+         */
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-        Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
         // Mural de Avisos (Admin/Gestor)
         Route::resource('notices', \App\Http\Controllers\NoticeController::class)->only(['store', 'destroy']);

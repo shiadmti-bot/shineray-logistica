@@ -2,7 +2,10 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.2",
@@ -64,6 +67,22 @@
             "@php artisan migrate --force",
             "npm install",
             "npm run build"
+        ],
+        "db:local": [
+            "@php -r \"echo 'Migrando o banco de TESTE local (127.0.0.1/shineray_test)...', PHP_EOL;\"",
+            "@putenv DB_HOST=127.0.0.1",
+            "@putenv DB_PORT=3306",
+            "@putenv DB_DATABASE=shineray_test",
+            "@putenv DB_USERNAME=root",
+            "@putenv DB_PASSWORD=",
+            "@putenv MYSQL_ATTR_SSL_CA=",
+            "@php artisan migrate:fresh --force"
+        ],
+        "test:tidb": [
+            "@php artisan test -c phpunit.tidb.xml"
+        ],
+        "test:release": [
+            "@php artisan test -c phpunit.tidb.xml --testsuite=Concorrencia"
         ]
     },
     "extra": {
@@ -84,5 +103,10 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "scripts-descriptions": {
+        "db:local": "Recria o schema do banco de teste LOCAL (nunca toca em host remoto).",
+        "test:tidb": "Bateria completa na faixa de release, contra o TiDB.",
+        "test:release": "So as suites de concorrencia no TiDB: o minimo antes de subir."
+    }
 }
