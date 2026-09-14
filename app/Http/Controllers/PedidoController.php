@@ -1718,10 +1718,14 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
              * o que o manual proíbe. A trava de verdade é por item, em
              * PecaAtendimentoController::separar — isto aqui só evita oferecer
              * um botão que vai recusar tudo.
+             *
+             * v3.3: exige que haja itens com pendência (qtd_pendente > 0).
+             * Oferecer o botão quando 100% dos itens já estão separados não faz
+             * sentido e só gera erro de "nenhum item informado".
              */
             'pode_separar'   => $ehCd
                                 && in_array($pedido->status, ['aprovado', 'separado'], true)
-                                && $pedido->itensPedido->contains(fn ($i) => $i->isPeca() && $i->isLiberada()),
+                                && $pedido->itensPedido->contains(fn ($i) => $i->isPeca() && $i->isLiberada() && $i->qtd_pendente > 0),
             /*
              * v3.2: embarcar exige uma basqueta LIBERADA, porque a caixa é a
              * unidade de embarque e o Gate 2 mora nela. Oferecer o botão antes
@@ -1748,6 +1752,31 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
                                 && $itensCarga->contains(
                                     fn ($i) => $i['status'] === \App\Models\RomaneioItem::STATUS_EM_TRANSITO
                                 ),
+            'basquetas'      => \App\Models\Basqueta::whereIn(
+                                    'id',
+                                    $pedido->itensPedido->pluck('basqueta_id')->filter()->unique()
+                                )
+                                ->with(['viagem:id,date', 'notas' => fn ($q) => $q->vigentes(), 'local:id,nome'])
+                                ->get()
+                                ->map(fn ($b) => [
+                                    'id'            => $b->id,
+                                    'status'        => $b->status,
+                                    'local'         => $b->local?->nome,
+                                    'volumes'       => $b->volumes,
+                                    'romaneio_id'   => $b->romaneio_id,
+                                    'viagem_data'   => $b->viagem?->date,
+                                    'nota_fiscal'   => $b->notaVigente()?->numero_nota,
+                                    'chave_acesso'  => $b->notaVigente()?->chave_acesso,
+                                    'url_romaneio'  => route('pecas.basquetas.romaneio', $b->id),
+                                    'pode_faturar'  => $ehCd && in_array($b->status, \App\Models\Basqueta::ABERTAS, true),
+                                    'pode_conferir' => in_array($b->status, [
+                                        \App\Models\Basqueta::STATUS_FATURADA,
+                                        \App\Models\Basqueta::STATUS_EM_CONFERENCIA,
+                                        \App\Models\Basqueta::STATUS_LIBERADA,
+                                    ], true),
+                                ])
+                                ->values()
+                                ->all(),
             'pode_atender'   => $ehCd && in_array($pedido->status, ['solicitado', 'em_atendimento', 'aguardando_confirmacao'], true),
             'pode_liberar'   => $user->podeValidarPecas() && in_array($pedido->status, ['solicitado', 'em_atendimento', 'aguardando_confirmacao'], true),
             // Cargas abertas, para escolher em qual embarcar.

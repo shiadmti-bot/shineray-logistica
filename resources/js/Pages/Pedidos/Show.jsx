@@ -32,6 +32,9 @@ import {
     StopIcon,
     CubeIcon,
     WrenchScrewdriverIcon,
+    ShieldCheckIcon,
+    ClipboardDocumentCheckIcon,
+    ArchiveBoxIcon,
 } from "@heroicons/react/24/outline";
 
 export default function PedidoShow({ auth, pedido, atribuicao = null, peca = null }) {
@@ -768,6 +771,8 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                         isTransferencia={isTransferencia}
                         isEmbarqueParcial={isEmbarqueParcial}
                         isPeca={ehPeca}
+                        peca={peca}
+                        pedido={pedido}
                     />
 
                     {/* --- 3.5 V2.6: COTAS AGUARDANDO CHASSI --- */}
@@ -1408,47 +1413,161 @@ function TipoBadge({ isTransferencia, isPeca = false }) {
     );
 }
 
-function Timeline({ status, isTransferencia, isEmbarqueParcial = false, isPeca = false }) {
+function Timeline({ status, isTransferencia, isEmbarqueParcial = false, isPeca = false, peca = null, pedido = null }) {
     let steps = [];
     let statusWeight = {};
-    
+    let infoEtapa = null;
+
     if (isPeca) {
-        // Fluxo de Peças (v3): Solicitado -> Liberação Pós-Venda -> Aprovado -> Separado -> Em Trânsito -> Concluído
+        // Fluxo de Peças (v3.3): Didático em 6 etapas claras
         steps = [
-            { id: "solicitado", label: "Solicitado" },
-            { id: "aguardando_confirmacao", label: "Liberação" },
-            { id: "aprovado", label: "Aprovado" },
-            { id: "separado", label: "Separado" },
-            { id: "em_transito", label: "Em Trânsito" },
-            { id: "concluido", label: "Entregue" },
+            { id: "solicitado", label: "1. Solicitação", sub: "Catálogo", ator: "Loja", icon: DocumentTextIcon },
+            { id: "aguardando_confirmacao", label: "2. Liberação", sub: "Gate 1", ator: "Pós-Venda", icon: ShieldCheckIcon },
+            { id: "separado", label: "3. Separação", sub: "Basqueta CD", ator: "Estoque CD", icon: WrenchScrewdriverIcon },
+            { id: "faturamento_gate2", label: "4. Faturamento", sub: "Gate 2 (NF)", ator: "CD & Loja", icon: ClipboardDocumentCheckIcon },
+            { id: "em_transito", label: "5. Em Trânsito", sub: "Carga", ator: "Transporte", icon: TruckIcon },
+            { id: "concluido", label: "6. Recebimento", sub: "Baixa Estoque", ator: "Filial Destino", icon: CheckCircleIcon },
         ];
 
         statusWeight = {
             solicitado: 1,
-            em_atendimento: 1.5,
+            em_atendimento: 1.2,
             aguardando_confirmacao: 2,
-            aprovado: 3,
-            separado: 4,
-            aguardando_rota: 4.2,
-            rota_confirmada: 4.5,
-            expedido: 4.8,
+            aprovado: 2.5,
+            separado: 3,
+            aguardando_rota: 3.5,
+            rota_confirmada: 4,
+            expedido: 4.2,
             em_transito: 5,
             em_transito_cd: 5,
             concluido: 6,
             cancelado: -1,
         };
+
+        const basqueta = peca?.basquetas?.[0];
+        const basquetaStatus = basqueta?.status;
+        const todasSeparadas = (pedido?.itens_pedido ?? []).length > 0 && (pedido?.itens_pedido ?? []).every((i) => (i.qtd_pendente ?? 0) === 0);
+
+        if (status === 'cancelado') {
+            infoEtapa = {
+                badge: 'Cancelado',
+                titulo: 'Pedido Cancelado',
+                ator: 'Sistema / Usuário',
+                tom: 'danger',
+                descricao: 'A solicitação foi cancelada e os saldos reservados foram liberados no estoque do CD.',
+                proximo: 'Nenhuma ação pendente.',
+            };
+        } else if (status === 'solicitado') {
+            infoEtapa = {
+                badge: 'Etapa 1 de 6',
+                titulo: 'Aguardando Atendimento do CD / Call Center',
+                ator: 'Equipe de Peças do CD',
+                tom: 'info',
+                descricao: 'A loja enviou a solicitação de peças. O CD está conferindo os itens no catálogo oficial, definindo os SKUs e valores de reposição.',
+                proximo: 'Assim que todos os itens tiverem códigos SKU atribuídos, o pedido segue automaticamente para liberação técnica do Pós-Venda.',
+            };
+        } else if (status === 'em_atendimento') {
+            infoEtapa = {
+                badge: 'Etapa 1 de 6',
+                titulo: 'Em Triagem Técnica no CD',
+                ator: 'Operador de Peças (CD)',
+                tom: 'info',
+                descricao: 'O operador do Call Center está identificando as peças de balcão e vinculando ao catálogo oficial da montadora.',
+                proximo: 'Conclusão da triagem e encaminhamento ao Gate 1.',
+            };
+        } else if (status === 'aguardando_confirmacao') {
+            infoEtapa = {
+                badge: 'Etapa 2 de 6',
+                titulo: 'Gate 1: Aguardando Assinatura do Pós-Venda',
+                ator: 'Validador Técnico (Pós-Venda)',
+                tom: 'warning',
+                descricao: 'Todos os itens foram identificados. O validador do Pós-Venda precisa aprovar os itens e preços para autorizar a separação física.',
+                proximo: 'O validador assina a liberação no painel de Atendimento de Peças. Sem essa assinatura, o galpão não pode separar.',
+            };
+        } else if (status === 'aprovado') {
+            infoEtapa = {
+                badge: 'Etapa 3 de 6',
+                titulo: 'Aprovado no Gate 1 — Aguardando Separação no CD',
+                ator: 'Operador de Estoque (Galpão CD)',
+                tom: 'info',
+                descricao: 'Solicitação liberada tecnicamente pelo Pós-Venda. O operador do galpão deve localizar as peças nas prateleiras e colocá-las na basqueta.',
+                proximo: 'O CD confirma a separação física dos itens.',
+            };
+        } else if (status === 'separado') {
+            if (basquetaStatus === 'faturada' || basquetaStatus === 'em_conferencia') {
+                infoEtapa = {
+                    badge: 'Etapa 4 de 6',
+                    titulo: 'Gate 2: Basqueta Faturada — Aguardando Conferência da Filial',
+                    ator: 'Filial de Destino (Loja)',
+                    tom: 'warning',
+                    descricao: `A basqueta #${basqueta?.id} foi faturada pelo CD sob a NF ${basqueta?.nota_fiscal || 'emitida'}. O romaneio de peças está pronto para conferência.`,
+                    proximo: 'A filial deve abrir o romaneio digital da basqueta e anexar a foto do canhoto assinado para liberar o embarque.',
+                };
+            } else if (basquetaStatus === 'liberada') {
+                infoEtapa = {
+                    badge: 'Etapa 4 de 6',
+                    titulo: 'Gate 2 Concluído — Basqueta Liberada para Carga',
+                    ator: 'Expedição CD',
+                    tom: 'success',
+                    descricao: `A basqueta #${basqueta?.id} foi conferida e liberada pela filial. Está pronta no CD para ser embarcada no caminhão.`,
+                    proximo: 'A expedição do CD vincula a basqueta à carga no caminhão.',
+                };
+            } else if (todasSeparadas) {
+                infoEtapa = {
+                    badge: 'Etapa 3 de 6 (Concluída)',
+                    titulo: 'Peças 100% Separadas na Basqueta — Próximo: Faturamento',
+                    ator: 'Equipe de Faturamento (CD)',
+                    tom: 'info',
+                    descricao: `Todos os itens foram reservados e acondicionados na Basqueta #${basqueta?.id || ''} da filial.`,
+                    proximo: 'O CD deve emitir a Nota Fiscal em Peças > Basquetas para liberar o romaneio e conferência da filial.',
+                };
+            } else {
+                infoEtapa = {
+                    badge: 'Etapa 3 de 6',
+                    titulo: 'Separação Parcial em Andamento no CD',
+                    ator: 'Operador de Estoque (CD)',
+                    tom: 'info',
+                    descricao: 'Parte dos itens já foi colocada na basqueta. Restam peças pendentes a localizar no estoque.',
+                    proximo: 'Concluir a separação dos itens restantes.',
+                };
+            }
+        } else if (['rota_confirmada', 'expedido'].includes(status)) {
+            infoEtapa = {
+                badge: 'Etapa 4 de 6',
+                titulo: 'Carga Agendada — Aguardando Saída da Frota',
+                ator: 'Logística & Frota CD',
+                tom: 'info',
+                descricao: 'A basqueta de peças foi embarcada na carga e a rota está agendada no Calendário.',
+                proximo: 'O status mudará para Em Trânsito assim que o caminhão for liberado na portaria do CD.',
+            };
+        } else if (['em_transito', 'em_transito_cd'].includes(status)) {
+            infoEtapa = {
+                badge: 'Etapa 5 de 6',
+                titulo: 'Em Trânsito Rodoviário para a Filial',
+                ator: 'Transporte / Motorista',
+                tom: 'info',
+                descricao: 'O caminhão está na estrada realizando a rota de entrega das peças até a loja.',
+                proximo: 'Ao descarregar na filial, o responsável deve conferir fisicamente os volumes e confirmar o recebimento na tela.',
+            };
+        } else if (status === 'concluido') {
+            infoEtapa = {
+                badge: 'Etapa 6 de 6 (Concluído)',
+                titulo: 'Pedido Entregue e Saldo Integrado ao Estoque',
+                ator: 'Filial Destino',
+                tom: 'success',
+                descricao: 'Conferência física finalizada com sucesso. O saldo das peças foi transferido definitivamente do CD para o estoque local da filial.',
+                proximo: 'Ciclo encerrado. Peças disponíveis no inventário da loja.',
+            };
+        }
     } else if (isTransferencia) {
-        // Transferência: Fluxo padronizado
+        // Transferência entre lojas
         steps = [
-            { id: "em_analise", label: "Em Análise" },
-            { id: "solicitado", label: "Aprovado" },
-            { id: "separado", label: "Separado" },
-            { id: "aguardando_rota", label: "Aguard. Rota" },
-            { id: "rota_confirmada", label: "Rota Confirm." },
-            { id: "aguardando_coleta", label: "Aguard. Coleta" },
-            { id: "coletado", label: "Coletado" },
-            { id: "em_transito", label: "Em Trânsito" },
-            { id: "concluido", label: "Entregue" },
+            { id: "em_analise", label: "1. Análise", sub: "Diretoria", ator: "Gestor", icon: ShieldCheckIcon },
+            { id: "solicitado", label: "2. Confirmação", sub: "Pátio Origem", ator: "Loja Origem", icon: BuildingOffice2Icon },
+            { id: "separado", label: "3. Separação", sub: "Pronta p/ Coleta", ator: "Loja Origem", icon: CubeIcon },
+            { id: "rota_confirmada", label: "4. Agendamento", sub: "Calendário", ator: "Logística", icon: CalendarIcon },
+            { id: "em_transito", label: "5. Em Trânsito", sub: "Transporte", ator: "Motorista", icon: TruckIcon },
+            { id: "concluido", label: "6. Recebimento", sub: "Entrada Estoque", ator: "Loja Destino", icon: CheckCircleIcon },
         ];
 
         statusWeight = {
@@ -1456,24 +1575,79 @@ function Timeline({ status, isTransferencia, isEmbarqueParcial = false, isPeca =
             solicitado: 1,
             separado: 2,
             aguardando_rota: 2.5,
-            rota_confirmada: 2.8,
-            aguardando_coleta: 3,
+            rota_confirmada: 3,
+            aguardando_coleta: 3.2,
             coletado: 3.5,
             expedido: 3.5,
             em_transito: 4,
             concluido: 5,
             cancelado: -1,
         };
+
+        if (status === 'em_analise') {
+            infoEtapa = {
+                badge: 'Etapa 1 de 6',
+                titulo: 'Aguardando Análise Comercial da Diretoria',
+                ator: 'Diretoria Comercial / Gestor',
+                tom: 'warning',
+                descricao: 'A transferência de moto entre filiais foi solicitada e aguarda autorização da diretoria comercial.',
+                proximo: 'O gestor autoriza a movimentação para liberar a confirmação da filial de origem.',
+            };
+        } else if (status === 'solicitado') {
+            infoEtapa = {
+                badge: 'Etapa 2 de 6',
+                titulo: 'Aguardando Confirmação da Loja de Origem',
+                ator: 'Loja Cedente (Origem)',
+                tom: 'warning',
+                descricao: 'A loja que cede a moto precisa verificar a unidade no pátio e confirmar a separação.',
+                proximo: 'A loja de origem clica em Confirmar Separação.',
+            };
+        } else if (status === 'separado') {
+            infoEtapa = {
+                badge: 'Etapa 3 de 6',
+                titulo: 'Moto Separada no Pátio — Aguardando Rota',
+                ator: 'Loja Origem & Logística CD',
+                tom: 'info',
+                descricao: 'A moto está reservada no pátio da filial cedente pronta para embarque.',
+                proximo: 'A equipe de logística agenda a coleta no Calendário de viagens.',
+            };
+        } else if (['rota_confirmada', 'aguardando_coleta', 'coletado', 'expedido'].includes(status)) {
+            infoEtapa = {
+                badge: 'Etapa 4 de 6',
+                titulo: 'Coleta Agendada no Calendário da Frota',
+                ator: 'Logística & Frota',
+                tom: 'info',
+                descricao: 'A viagem para recolhimento da unidade foi programada no roteiro do caminhão.',
+                proximo: 'O caminhão fará a parada na filial de origem para coletar a moto.',
+            };
+        } else if (status === 'em_transito') {
+            infoEtapa = {
+                badge: 'Etapa 5 de 6',
+                titulo: 'Moto em Transporte para o Destino',
+                ator: 'Transporte / Motorista',
+                tom: 'info',
+                descricao: 'A unidade está embarcada no caminhão e a caminho da filial solicitante.',
+                proximo: 'Conferência do chassi no descarregamento e upload do canhoto.',
+            };
+        } else if (status === 'concluido') {
+            infoEtapa = {
+                badge: 'Etapa 6 de 6 (Concluído)',
+                titulo: 'Transferência Concluída e Chassi Integrado',
+                ator: 'Filial Destino',
+                tom: 'success',
+                descricao: 'Moto descarregada, conferida e recebida com comprovante anexado. Chassi agora pertence ao estoque da loja destino.',
+                proximo: 'Unidade pronta para exposição e venda.',
+            };
+        }
     } else {
-        // Reposição (CD → Loja): Fluxo padronizado
+        // Reposição Regular de Motos (CD -> Loja)
         steps = [
-            { id: "em_analise", label: "Em Análise" },
-            { id: "solicitado", label: "Solicitado" },
-            { id: "separado", label: "Separado" },
-            { id: "rota_confirmada", label: "Rota Confirm." },
-            { id: "expedido", label: "Expedido" },
-            { id: "em_transito", label: "Em Trânsito" },
-            { id: "concluido", label: "Entregue" },
+            { id: "em_analise", label: "1. Análise", sub: "Diretoria", ator: "Gestor", icon: ShieldCheckIcon },
+            { id: "solicitado", label: "2. Chassi", sub: "Pátio CD", ator: "Operação CD", icon: CubeIcon },
+            { id: "separado", label: "3. Separação", sub: "Expedição CD", ator: "Expedição", icon: WrenchScrewdriverIcon },
+            { id: "rota_confirmada", label: "4. Agendamento", sub: "Calendário", ator: "Logística", icon: CalendarIcon },
+            { id: "em_transito", label: "5. Em Trânsito", sub: isEmbarqueParcial ? "Parcial" : "Transporte", ator: "Motorista", icon: TruckIcon },
+            { id: "concluido", label: "6. Recebimento", sub: "Canhoto", ator: "Filial Destino", icon: CheckCircleIcon },
         ];
 
         statusWeight = {
@@ -1489,71 +1663,209 @@ function Timeline({ status, isTransferencia, isEmbarqueParcial = false, isPeca =
             concluido: 5,
             cancelado: -1,
         };
+
+        if (status === 'em_analise') {
+            infoEtapa = {
+                badge: 'Etapa 1 de 6',
+                titulo: 'Aguardando Análise Comercial do Gestor',
+                ator: 'Diretoria Comercial / Gestor',
+                tom: 'warning',
+                descricao: 'O pedido de motos está na fila da diretoria para validação de crédito e cota comercial.',
+                proximo: 'O gestor avalia e aprova a solicitação.',
+            };
+        } else if (status === 'solicitado') {
+            infoEtapa = {
+                badge: 'Etapa 2 de 6',
+                titulo: 'Aprovado — Vinculação de Chassi no CD',
+                ator: 'Equipe de Pátio (CD)',
+                tom: 'info',
+                descricao: 'O pedido foi aprovado comercialmente. O CD está atribuindo os números de chassi das motos reservadas.',
+                proximo: 'O CD vincula os chassis físicos para encaminhar à separação.',
+            };
+        } else if (status === 'separado') {
+            infoEtapa = {
+                badge: 'Etapa 3 de 6',
+                titulo: 'Motos Separadas na Baia de Expedição',
+                ator: 'Expedição CD',
+                tom: 'info',
+                descricao: 'Motos inspecionadas e separadas fisicamente no galpão de expedição.',
+                proximo: 'A logística inclui o pedido em um romaneio e agenda a rota no Calendário.',
+            };
+        } else if (['rota_confirmada', 'expedido', 'aguardando_coleta', 'coletado'].includes(status)) {
+            infoEtapa = {
+                badge: 'Etapa 4 de 6',
+                titulo: 'Viagem Agendada no Calendário da Frota',
+                ator: 'Logística & Expedição',
+                tom: 'info',
+                descricao: 'O romaneio de carga foi gerado e a viagem está confirmada no Calendário semanal.',
+                proximo: 'Carregamento do caminhão cegonha e emissão do manifesto.',
+            };
+        } else if (status === 'em_transito') {
+            infoEtapa = {
+                badge: 'Etapa 5 de 6',
+                titulo: isEmbarqueParcial ? 'Carga em Trânsito Parcial' : 'Caminhão em Trânsito Rodoviário',
+                ator: 'Transporte / Motorista',
+                tom: 'info',
+                descricao: 'As motos estão em viagem rodoviária a caminho da loja.',
+                proximo: 'Descarregamento na filial, conferência dos chassis e upload do canhoto.',
+            };
+        } else if (status === 'concluido') {
+            infoEtapa = {
+                badge: 'Etapa 6 de 6 (Concluído)',
+                titulo: 'Entrega Realizada e Concluída',
+                ator: 'Filial Destino',
+                tom: 'success',
+                descricao: 'Conferência física finalizada na loja, canhoto assinado arquivado e motos integradas ao estoque.',
+                proximo: 'Unidades prontas no pátio para faturamento ao cliente.',
+            };
+        }
     }
 
-    const currentWeight = statusWeight[status] || 0;
-    const maxWeight = Math.max(...steps.map(s => statusWeight[s.id] || 0));
+    const currentWeight = statusWeight[status] ?? 0;
+    const maxWeight = Math.max(...steps.map((s) => statusWeight[s.id] || 0));
+    const percentConcluido = status === 'cancelado' ? 0 : Math.min(((currentWeight) / maxWeight) * 100, 100);
 
     return (
-        <div className="w-full py-8">
-            <div className="flex items-center justify-between relative w-full px-2">
-                <div className="absolute left-0 top-[15px] w-full h-1 bg-line -z-10 rounded-full"></div>
-                {status !== "cancelado" && (
+        <div className="bg-surface-card rounded-2xl border border-line p-5 md:p-6 shadow-sm space-y-6">
+            {/* CABEÇALHO DO PROGRESSO */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-line pb-4">
+                <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-brand-50 text-brand-700">
+                        <ClockIcon className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-black text-content-primary tracking-tight">
+                            Progresso do Pedido {isPeca ? 'de Peças' : (isTransferencia ? 'de Transferência' : 'de Motos')}
+                        </h3>
+                        <p className="text-xs text-content-muted">
+                            Acompanhe cada fase desde a solicitação inicial até a entrada no estoque da filial
+                        </p>
+                    </div>
+                </div>
+
+                {infoEtapa && (
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider self-start sm:self-auto ${
+                        infoEtapa.tom === 'warning'
+                            ? 'bg-status-warning-bg text-status-warning-fg border border-status-warning-solid/30'
+                            : infoEtapa.tom === 'success'
+                            ? 'bg-status-success-bg text-status-success-fg border border-status-success-solid/30'
+                            : infoEtapa.tom === 'danger'
+                            ? 'bg-status-danger-bg text-status-danger-fg border border-status-danger-solid/30'
+                            : 'bg-brand-50 text-brand-700 border border-brand-200'
+                    }`}>
+                        <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+                        {infoEtapa.badge}
+                    </span>
+                )}
+            </div>
+
+            {/* BARRA DE ETAPAS VISUAL */}
+            <div className="relative pt-2 pb-3">
+                {/* Linha conectora de fundo */}
+                <div className="hidden md:block absolute left-8 right-8 top-[28px] h-1.5 bg-line rounded-full -z-0"></div>
+                {/* Linha conectora de progresso preenchido */}
+                {status !== 'cancelado' && (
                     <div
-                        className="absolute left-0 top-[15px] h-1 bg-status-success-solid -z-10 rounded-full transition-all duration-1000 ease-out"
-                        style={{
-                            width: `${Math.min((currentWeight / maxWeight) * 100, 100)}%`,
-                        }}
+                        className="hidden md:block absolute left-8 top-[28px] h-1.5 bg-status-success-solid rounded-full transition-all duration-700 ease-out z-0"
+                        style={{ width: `calc(${Math.min(percentConcluido, 100)}% - 20px)` }}
                     ></div>
                 )}
-                {steps.map((step, index) => {
-                    const stepWeight = statusWeight[step.id];
-                    const isParcialStep = isEmbarqueParcial && step.id === "em_transito";
-                    const isActive =
-                        status !== "cancelado" && (currentWeight >= stepWeight || isParcialStep);
-                    const isCurrent = isPeca
-                        ? (step.id === status || (step.id === "aguardando_confirmacao" && status === "em_atendimento") || (isParcialStep && status !== "concluido"))
-                        : (step.id === status || (isParcialStep && status !== "concluido"));
 
-                    let circleClasses = "border-line bg-surface-sunken text-content-muted";
-                    if (isParcialStep) {
-                        circleClasses = "border-status-warning-solid bg-status-warning-solid text-white scale-110 shadow-lg ring-4 ring-status-warning-solid/20";
-                    } else if (isCurrent) {
-                        circleClasses = "border-status-info-solid bg-status-info-solid text-white scale-110 shadow-lg ring-4 ring-status-info-solid/20";
-                    } else if (isActive) {
-                        circleClasses = "border-status-success-solid bg-surface-card text-status-success-fg scale-110 shadow-lg";
-                    }
+                {/* Grid dos Passos */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 md:gap-2 relative z-10">
+                    {steps.map((step, index) => {
+                        const stepWeight = statusWeight[step.id];
+                        const isParcialStep = isEmbarqueParcial && step.id === "em_transito";
+                        const isConcluido = status !== "cancelado" && currentWeight > stepWeight;
+                        const isAtual = status !== "cancelado" && (
+                            currentWeight === stepWeight ||
+                            (isPeca && step.id === "aguardando_confirmacao" && status === "em_atendimento") ||
+                            (isPeca && step.id === "separado" && status === "aprovado") ||
+                            (isPeca && step.id === "faturamento_gate2" && status === "separado" && (peca?.basquetas?.[0]?.status === 'faturada' || (pedido?.itens_pedido ?? []).every((i) => (i.qtd_pendente ?? 0) === 0)))
+                        );
+                        const StepIcon = step.icon;
 
-                    let labelClasses = "text-content-muted translate-y-1 opacity-80";
-                    if (isParcialStep) {
-                        labelClasses = "text-status-warning-fg translate-y-0 opacity-100 font-black";
-                    } else if (isCurrent) {
-                        labelClasses = "text-status-info-fg translate-y-0 opacity-100 font-black";
-                    } else if (isActive) {
-                        labelClasses = "text-status-success-fg translate-y-0 opacity-100";
-                    }
-
-                    const labelText = isParcialStep ? "Trânsito (Parcial)" : step.label;
-
-                    return (
-                        <div
-                            key={step.id}
-                            className="flex flex-col items-center relative group cursor-default"
-                        >
+                        return (
                             <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-4 transition-all duration-500 z-20 ${circleClasses}`}
+                                key={step.id}
+                                className={`flex flex-col items-center text-center p-2 rounded-xl transition-all ${
+                                    isAtual ? 'bg-brand-50/60 ring-2 ring-brand-600/20' : ''
+                                }`}
                             >
-                                {isParcialStep ? "⏳" : (isActive && !isCurrent ? "✓" : index + 1)}
+                                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xs shadow-sm transition-all duration-300 ${
+                                    isConcluido
+                                        ? 'bg-status-success-solid text-white'
+                                        : isAtual
+                                        ? 'bg-brand-600 text-white shadow-md ring-4 ring-brand-600/20 scale-105'
+                                        : 'bg-surface-card border-2 border-line text-content-muted'
+                                }`}>
+                                    {isConcluido ? (
+                                        <CheckCircleIcon className="w-6 h-6" />
+                                    ) : (
+                                        <StepIcon className="w-5 h-5" />
+                                    )}
+                                </div>
+
+                                <div className="mt-2 space-y-0.5 w-full">
+                                    <p className={`text-xs font-black tracking-tight leading-tight truncate ${
+                                        isAtual ? 'text-brand-700' : isConcluido ? 'text-content-primary' : 'text-content-muted'
+                                    }`}>
+                                        {step.label}
+                                    </p>
+                                    {step.sub && (
+                                        <p className="text-[10px] font-bold text-content-muted uppercase tracking-wider truncate">
+                                            {step.sub}
+                                        </p>
+                                    )}
+                                    <span className={`inline-block text-[9px] font-bold px-1.5 py-0.2 rounded truncate max-w-full ${
+                                        isAtual ? 'bg-brand-100 text-brand-800' : 'bg-surface-sunken text-content-secondary'
+                                    }`}>
+                                        {step.ator}
+                                    </span>
+                                </div>
                             </div>
-                            <span
-                                className={`absolute top-10 w-24 text-center text-[10px] font-bold uppercase transition-all duration-300 ${labelClasses}`}
-                            >
-                                {labelText}
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* CARD DIDÁTICO AUTOEXPLICATIVO DA ETAPA ATUAL */}
+            {infoEtapa && (
+                <div className={`p-4 md:p-5 rounded-xl border flex flex-col sm:flex-row items-start gap-4 transition-all ${
+                    infoEtapa.tom === 'warning'
+                        ? 'bg-status-warning-bg/60 border-status-warning-solid/40 text-status-warning-fg'
+                        : infoEtapa.tom === 'success'
+                        ? 'bg-status-success-bg/60 border-status-success-solid/40 text-status-success-fg'
+                        : infoEtapa.tom === 'danger'
+                        ? 'bg-status-danger-bg/60 border-status-danger-solid/40 text-status-danger-fg'
+                        : 'bg-status-info-bg/60 border-status-info-solid/40 text-status-info-fg'
+                }`}>
+                    <div className="p-2.5 rounded-xl bg-surface-card shrink-0 shadow-sm border border-line">
+                        <ClockIcon className="w-6 h-6 text-content-primary" />
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="text-sm md:text-base font-black text-content-primary flex items-center gap-2">
+                                <span>📍</span>
+                                <span>Etapa Atual: {infoEtapa.titulo}</span>
+                            </h4>
+                            <span className="text-xs font-bold text-content-secondary bg-surface-card px-2.5 py-1 rounded-lg border border-line shadow-2xs">
+                                Responsável: <strong className="text-content-primary">{infoEtapa.ator}</strong>
                             </span>
                         </div>
-                    );
-                })}
-            </div>
+
+                        <p className="text-xs md:text-sm text-content-secondary leading-relaxed">
+                            {infoEtapa.descricao}
+                        </p>
+
+                        <div className="flex items-start gap-2 pt-1 text-xs font-medium text-content-primary">
+                            <span className="font-bold shrink-0">⚡ Próximo passo:</span>
+                            <span className="text-content-secondary">{infoEtapa.proximo}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -41,7 +41,7 @@ export default function Manual({ auth }) {
 
     const tabs = [
         { id: 'loja',   label: 'Lojas / Revenda',   color: 'brand',  icon: <BuildingStorefrontIcon className="w-5 h-5" />, desc: 'Motos, Pedidos e Recebimento' },
-        { id: 'pecas',  label: 'Módulo de Peças',   color: 'amber',  icon: <WrenchScrewdriverIcon className="w-5 h-5" />, desc: 'Catálogo, Onde Encontrar e Estoque' },
+        { id: 'pecas',  label: 'Módulo de Peças',   color: 'amber',  icon: <WrenchScrewdriverIcon className="w-5 h-5" />, desc: 'Ciclo Completo, Gates 1 e 2 e Basquetas' },
         { id: 'gestor', label: 'Gestão Comercial',  color: 'purple', icon: <ClipboardDocumentCheckIcon className="w-5 h-5" />, desc: 'Aprovações e BI Executivo' },
         { id: 'cd',     label: 'Logística / CD',    color: 'blue',   icon: <TruckIcon className="w-5 h-5" />, desc: 'Expedição, Romaneios e Rotas' },
         { id: 'faq',    label: 'Suporte TI & FAQ',  color: 'emerald',icon: <QuestionMarkCircleIcon className="w-5 h-5" />, desc: 'Regras, Dúvidas e Contatos' },
@@ -221,50 +221,229 @@ export default function Manual({ auth }) {
                 {activeTab === 'pecas' && (
                     <div className="space-y-10 animate-fade-in">
                         <HeaderSection 
-                            title="Módulo de Peças e Acessórios (V3.0)" 
-                            subtitle="Catálogo com mais de 2.380 SKUs, consulta multiloja no ERP Microwork e fluxo de reposição."
-                            tag="Novo Módulo v3"
+                            title="Módulo de Peças & Acessórios (V3.3)" 
+                            subtitle="Ciclo completo de ponta a ponta: do catálogo à loja, passando por Triagem, Gate 1, Basquetas, Faturamento, Gate 2 e Ledger contábil."
+                            tag="Novo Fluxo Integrado v3.3"
                         />
 
+                        {/* VISÃO GERAL DIDÁTICA DO CICLO DE PEÇAS */}
+                        <div className="bg-surface-card p-6 md:p-8 rounded-2xl border border-line shadow-sm space-y-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-4">
+                                <div>
+                                    <h3 className="text-xl font-black text-content-primary flex items-center gap-2">
+                                        <span>⚙️</span> Mapa do Fluxo de Peças (Ciclo em 6 Etapas)
+                                    </h3>
+                                    <p className="text-xs text-content-muted mt-0.5">
+                                        Entenda cada etapa do ciclo de reposição de peças e os atores responsáveis por cada ação
+                                    </p>
+                                </div>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200">
+                                    <SparklesIcon className="w-3.5 h-3.5" /> Arquitetura V3.3
+                                </span>
+                            </div>
+
+                            {/* GRID RESUMO DOS PASSOS */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div className="p-4 rounded-xl bg-surface-sunken border border-line space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-brand-600 bg-brand-50 px-2 py-0.5 rounded">Etapa 1</span>
+                                        <span className="text-[10px] font-bold text-content-muted">Ator: Loja</span>
+                                    </div>
+                                    <h4 className="font-bold text-sm text-content-primary">Solicitação no Catálogo</h4>
+                                    <p className="text-xs text-content-secondary leading-relaxed">
+                                        A loja pesquisa SKUs por família de moto, verifica saldos no botão "Onde Encontrar" e envia o carrinho.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-surface-sunken border border-line space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-status-warning-fg bg-status-warning-bg px-2 py-0.5 rounded">Etapa 2</span>
+                                        <span className="text-[10px] font-bold text-content-muted">Ator: Pós-Venda</span>
+                                    </div>
+                                    <h4 className="font-bold text-sm text-content-primary">Gate 1: Liberação Técnica</h4>
+                                    <p className="text-xs text-content-secondary leading-relaxed">
+                                        Após triagem de itens sem código, o Pós-Venda analisa a garantia e aprova tecnicamente os itens para o CD.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-surface-sunken border border-line space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-status-info-fg bg-status-info-bg px-2 py-0.5 rounded">Etapa 3</span>
+                                        <span className="text-[10px] font-bold text-content-muted">Ator: Estoque CD</span>
+                                    </div>
+                                    <h4 className="font-bold text-sm text-content-primary">Separação na Basqueta</h4>
+                                    <p className="text-xs text-content-secondary leading-relaxed">
+                                        O galpão localiza as peças físicas e insere na basqueta da filial, gerando reserva contábil no sistema.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-surface-sunken border border-line space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded">Etapa 4</span>
+                                        <span className="text-[10px] font-bold text-content-muted">Ator: CD / Faturamento</span>
+                                    </div>
+                                    <h4 className="font-bold text-sm text-content-primary">Faturamento da Basqueta</h4>
+                                    <p className="text-xs text-content-secondary leading-relaxed">
+                                        O CD emite a NF-e oficial no ERP Microwork, vincula a chave de acesso e total de volumes na basqueta.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-surface-sunken border border-line space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Etapa 5</span>
+                                        <span className="text-[10px] font-bold text-content-muted">Ator: Loja Destino</span>
+                                    </div>
+                                    <h4 className="font-bold text-sm text-content-primary">Gate 2: Conferência Romaneio</h4>
+                                    <p className="text-xs text-content-secondary leading-relaxed">
+                                        A loja confere os itens faturados no romaneio digital e anexa a foto do canhoto assinado para liberar embarque.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-surface-sunken border border-line space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-status-success-fg bg-status-success-bg px-2 py-0.5 rounded">Etapa 6</span>
+                                        <span className="text-[10px] font-bold text-content-muted">Ator: Logística & Loja</span>
+                                    </div>
+                                    <h4 className="font-bold text-sm text-content-primary">Carga Mista & Ledger</h4>
+                                    <p className="text-xs text-content-secondary leading-relaxed">
+                                        A basqueta embarca no caminhão com as motos e, no destino, o recebimento alimenta o livro-razão contábil.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* CALLOUTS: CONCEITOS-CHAVE */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <ArchiveBoxIcon className="w-5 h-5 text-brand-600" />
+                                        <p className="text-xs font-black uppercase tracking-wider text-brand-900">📦 O que é a Basqueta de Peças?</p>
+                                    </div>
+                                    <p className="text-xs text-brand-800 leading-relaxed">
+                                        Diferente de motos (onde cada veículo é rastreado unitariamente por chassi), peças são fungíveis e acondicionadas em caixas de transporte chamadas <strong>Basquetas</strong>. Cada filial possui sua basqueta aberta no CD. Múltiplos pedidos da mesma filial são agrupados na mesma basqueta até o faturamento unificado.
+                                    </p>
+                                </div>
+
+                                <div className="bg-status-info-bg border border-status-info-solid/30 rounded-xl p-4 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheckIcon className="w-5 h-5 text-status-info-fg" />
+                                        <p className="text-xs font-black uppercase tracking-wider text-status-info-fg">🛡️ Por que Peças não passam pelo Gestor?</p>
+                                    </div>
+                                    <p className="text-xs text-status-info-fg leading-relaxed">
+                                        Motos exigem aprovação comercial do Gestor para controle de cotas de faturamento e limites de crédito. Peças são insumos de oficina e reposição técnica: seu controle reside na validação técnica de garantia (<strong>Gate 1</strong>) e na conferência fiscal e documental (<strong>Gate 2</strong>).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* PASSO A PASSO OPERACIONAL COMPLETO */}
                         <div className="bg-surface-card p-6 md:p-8 rounded-2xl border border-line shadow-sm space-y-8">
                             <h3 className="text-xl font-black text-content-primary border-b border-line pb-4 flex items-center gap-2">
-                                <span>⚙️</span> Como Operar o Estoque e Pedidos de Peças
+                                <span>📋</span> Guia Operacional Passo a Passo
                             </h3>
 
-                            <Step number="1" title="Catálogo Inteligente & Compatibilidade por Modelo">
-                                <p>Acesse <strong>Peças ➔ Estoque de Peças</strong> para consultar todos os SKUs disponíveis. O sistema possui inteligência de compatibilidade:</p>
+                            <Step number="1" title="Catálogo Inteligente, 'Onde Encontrar' & Montagem do Carrinho (Loja)">
+                                <p>Acesse <strong>Peças ➔ Estoque de Peças</strong> para consultar os mais de 2.380 SKUs homologados da rede:</p>
                                 <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
-                                    <li>Filtre por família de modelo (Ex: JET 50, JEF 150, SHI 175, STORM 200, FLASH 120).</li>
-                                    <li>Busque por código SKU ou descrição da peça.</li>
-                                    <li>Visualize se a peça é original, paralela ou universal com badges coloridos.</li>
+                                    <li><strong>Filtro por Família:</strong> Localize peças compatíveis com JET 50, JEF 150, SHI 175, STORM 200, FLASH 120 e outros modelos.</li>
+                                    <li><strong>Botão 'Onde Encontrar':</strong> Consulta em tempo real o saldo físico e disponível no ERP Microwork em todas as filiais (CD Matriz, Ananindeua, Capanema, Castanhal, etc.).</li>
+                                    <li><strong>Itens sem Código:</strong> Se precisar de uma peça de balcão ainda não cadastrada, use a opção "Solicitar sem código" com foto e descrição da peça avulsa.</li>
+                                    <li><strong>Carrinho & Urgência:</strong> Acesse <em>Peças ➔ Solicitar Peças</em>, preencha as quantidades e marque se o pedido é emergencial (cliente em box ou garantia expressa).</li>
                                 </ul>
                             </Step>
 
-                            <Step number="2" title="Consulta 'Onde Encontrar' (Saldos Microwork)">
-                                <p>Na tabela de peças, clique no botão <strong>Onde Encontrar</strong> de qualquer SKU para abrir a consulta em tempo real no ERP:</p>
+                            <Step number="2" title="Triagem Técnica de Itens de Balcão (Call Center / CD)">
+                                <p>Quando a loja solicita peças sem código de catálogo, o pedido entra na fila de <strong>Triagem</strong> (<em>Peças ➔ Atendimento</em>):</p>
                                 <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
-                                    <li>Veja o saldo físico e disponível de cada empresa da rede (CD Matriz, Ananindeua, Capanema, Castanhal, etc.).</li>
-                                    <li>Facilita o remanejamento imediato de peças críticas entre filiais parceiras.</li>
+                                    <li>O operador do CD consulta o catálogo e-Part da montadora a partir da descrição e foto informada pela loja.</li>
+                                    <li>Vincula o SKU oficial do sistema e o custo de reposição da peça.</li>
+                                    <li>Ao concluir a identificação de todos os itens, o pedido é despachado automaticamente para a fila do Gate 1.</li>
                                 </ul>
                             </Step>
 
-                            <Step number="3" title="Fazendo Pedidos de Peças (Carrinho & Urgência)">
-                                <p>Acesse <strong>Peças ➔ Solicitar Peças</strong>:</p>
-                                <ol className="list-decimal ml-6 mt-2 space-y-2 text-sm text-content-secondary">
-                                    <li>Adicione as peças desejadas ao carrinho informando a quantidade necessária.</li>
-                                    <li>Marque o nível de urgência caso seja um atendimento de cliente em box ou garantia expressa.</li>
-                                    <li>Envie o pedido para validação e separação logística pelo CD.</li>
-                                </ol>
-                            </Step>
-
-                            <Step number="4" title="Entrada, Inventário & Livro-Razão (Visão CD/Admin)">
-                                <p>A equipe do CD gerencia o saldo controlado pelo menu <strong>Entrada / Inventário</strong>:</p>
+                            <Step number="3" title="Gate 1: Liberação Técnica pelo Pós-Venda">
+                                <p>Na aba <strong>Aprovações</strong> de <em>Peças ➔ Atendimento</em>, o responsável técnico analisa a solicitação:</p>
                                 <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
-                                    <li>Registro de entradas por nota fiscal com data, lote e quantidade.</li>
-                                    <li>Histórico auditável (ledger) de todas as saídas, transferências e acertos de inventário.</li>
-                                    <li>Acompanhamento de pendências e divergências de recebimento.</li>
+                                    <li>Valida os itens solicitados, quantidades e custos previstos.</li>
+                                    <li>Possui autonomia para aprovar o pedido integralmente ou realizar cortes/recusas parciais de itens com justificativa.</li>
+                                    <li><strong>Trava de Segurança:</strong> O armazém do CD fica completamente impedido de separar peças de um pedido que ainda não foi liberado no Gate 1.</li>
                                 </ul>
                             </Step>
+
+                            <Step number="4" title="Separação Física e Alocação na Basqueta (Estoque CD)">
+                                <p>Após a liberação no Gate 1, o pedido fica disponível para separação pelo armazém do CD:</p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
+                                    <li>O operador acessa a tela do pedido e digita as quantidades físicas localizadas nas prateleiras.</li>
+                                    <li>O sistema desconta do saldo disponível e aloca as peças na <strong>Basqueta aberta</strong> da filial destino.</li>
+                                    <li>Quando 100% dos itens forem separados, o formulário de separação é automaticamente desabilitado, evitando erros de "nenhum item informado".</li>
+                                    <li>O pedido permanece em status <code>separado</code> aguardando o faturamento da basqueta.</li>
+                                </ul>
+                            </Step>
+
+                            <Step number="5" title="Faturamento da Basqueta no ERP Microwork (CD)">
+                                <p>Na tela <strong>Peças ➔ Basquetas</strong>, o CD realiza o fechamento dos volumes da filial:</p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
+                                    <li>Gera a Nota Fiscal oficial de remessa no ERP Microwork.</li>
+                                    <li>Clica em <strong>Faturar Basqueta</strong> e preenche: <em>Número da Nota Fiscal</em>, <em>Chave de Acesso (44 dígitos)</em> e <em>Total de Volumes/Caixas</em>.</li>
+                                    <li>A basqueta ganha o status <code>faturada</code> e libera o link do Romaneio de Peças para conferência.</li>
+                                </ul>
+                            </Step>
+
+                            <Step number="6" title="Gate 2: Conferência de Romaneio e Canhoto Digital (Loja Destino)">
+                                <p>Antes que a basqueta possa ser embarcada no caminhão, a loja destino deve validar o romaneio:</p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
+                                    <li>A filial clica no botão <strong>Conferir Romaneio (Gate 2)</strong> presente no pedido ou no card da basqueta.</li>
+                                    <li>Verifica a listagem de peças faturadas e anexa a foto do canhoto assinado ou comprovante de romaneio.</li>
+                                    <li><strong>Compressão Inteligente:</strong> O sistema realiza compressão automática da foto no próprio navegador antes do envio, funcionando com fotos de alta resolução mesmo em 4G/redes instáveis.</li>
+                                    <li>Após a validação, a basqueta adquire status <code>liberada</code>, ficando apta para embarque físico.</li>
+                                </ul>
+                            </Step>
+
+                            <Step number="7" title="Embarque em Cargas Mistas e Início de Trânsito (Logística CD)">
+                                <p>No menu <strong>Logística ➔ Expedição</strong>, o CD monta o romaneio de transporte:</p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
+                                    <li>O sistema suporta <strong>cargas mistas</strong>: selecione as motos a transportar e marque as basquetas de peças liberadas no mesmo manifesto.</li>
+                                    <li>Atribui motorista, placa do caminhão e rota programada.</li>
+                                    <li>Ao clicar em <strong>Aprovar Saída</strong>, tanto as motos quanto as basquetas entram simultaneamente em status <code>em_transito</code>.</li>
+                                </ul>
+                            </Step>
+
+                            <Step number="8" title="Recebimento Físico e Livro-Razão Contábil / Ledger (Loja)">
+                                <p>Ao descarregar a carga na filial, o responsável realiza o recebimento no sistema:</p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
+                                    <li>Clica em <strong>Receber Basqueta</strong> após conferência física dos volumes e lacres.</li>
+                                    <li>O sistema executa a liquidação contábil atômica: baixa o saldo do CD e credita o inventário da filial.</li>
+                                    <li>Cada unidade recebida é registrada no <strong>Livro-Razão (Ledger de Peças)</strong>, com rastreabilidade completa para inventários e auditorias.</li>
+                                </ul>
+                            </Step>
+                        </div>
+
+                        {/* FAQ DEDICADO DE PEÇAS */}
+                        <div className="bg-surface-card p-6 md:p-8 rounded-2xl border border-line shadow-sm space-y-4">
+                            <h3 className="text-xl font-black text-content-primary border-b border-line pb-4 flex items-center gap-2">
+                                <span>❓</span> Perguntas Frequentes do Módulo de Peças
+                            </h3>
+
+                            <div className="grid gap-3 pt-2">
+                                <FaqItem question="Separei 100% das peças do pedido, mas o status continua 'separado'. O que fazer?">
+                                    Isso é o comportamento correto do sistema! No fluxo de peças, o pedido permanece como <strong>separado</strong> enquanto as peças aguardam na basqueta da filial. O próximo passo é o CD emitir a NF no ERP Microwork e faturar a basqueta em <em>Peças ➔ Basquetas</em>. Logo em seguida, a loja confere o romaneio e anexa o canhoto (Gate 2).
+                                </FaqItem>
+
+                                <FaqItem question="Por que o Gestor Comercial não tem botão de aprovação para peças?">
+                                    Motos exigem validação comercial para controle de limites financeiros e cotas de faturamento. Peças são materiais de oficina e garantia: a aprovação técnica é feita exclusivamente pelo responsável do <strong>Pós-Venda (Gate 1)</strong> no painel de Atendimento de Peças.
+                                </FaqItem>
+
+                                <FaqItem question="Como funciona a separação parcial se o CD não tiver todas as peças?">
+                                    O operador de estoque do CD separa as quantidades disponíveis no momento e confirma. As peças separadas vão para a basqueta e podem seguir viagem normalmente. O saldo não atendido continua registrado como pendente no pedido até a chegada de novo lote ou encerramento formal.
+                                </FaqItem>
+
+                                <FaqItem question="A foto do romaneio de peças falhou no upload. O que fazer?">
+                                    O sistema inclui compressão automática via Javascript antes do upload, aceitando fotos de câmeras modernas em JPG, PNG e WEBP. Se o upload falhar, verifique se a conexão com a internet está estável ou tire um print da foto na galeria do aparelho para reduzir ainda mais o tamanho do arquivo.
+                                </FaqItem>
+
+                                <FaqItem question="O que acontece se uma carga com basquetas de peças for desfeita pelo CD?">
+                                    O sistema possui proteção de integridade: caso um romaneio de carga mista seja desfeito antes da saída, as basquetas de peças retornam automaticamente ao status liberado no galpão, preservando as notas fiscais e permitindo reagendamento em outra viagem sem perda de dados.
+                                </FaqItem>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -378,6 +557,14 @@ export default function Manual({ auth }) {
 
                             <FaqItem question="O que fazer se a foto do comprovante der erro no envio?">
                                 Câmeras de celulares modernos geram imagens pesadas. O sistema realiza compressão automática. Caso sua conexão esteja instável ou o aparelho trave, tire um print da foto na galeria do celular e envie o print, que possui tamanho reduzido.
+                            </FaqItem>
+
+                            <FaqItem question="Qual a diferença entre a aprovação de pedidos de Motos e de Peças?">
+                                Pedidos de <strong>Motos</strong> nascem em análise e exigem autorização comercial do <strong>Gestor</strong> (limite financeiro e cota da loja) antes da vinculação de chassis. Pedidos de <strong>Peças</strong> são insumos técnicos de oficina/garantia: a validação é exclusivamente técnica pelo <strong>Pós-Venda (Gate 1)</strong> e fiscal/documental pela loja no romaneio (<strong>Gate 2</strong>), não passando pela mesa comercial do gestor.
+                            </FaqItem>
+
+                            <FaqItem question="Separei todas as peças de um pedido, por que o status continua 'separado'?">
+                                No fluxo de peças, o pedido permanece com status <strong>separado</strong> enquanto os itens aguardam na Basqueta da filial. O próximo passo é o CD emitir a Nota Fiscal no ERP e faturar a basqueta em <em>Peças ➔ Basquetas</em>. Logo em seguida, a loja valida o romaneio e anexa o canhoto assinado (Gate 2) para liberar o embarque no caminhão.
                             </FaqItem>
 
                             <FaqItem question="Qual a diferença entre Capital e Interior no roteamento?">

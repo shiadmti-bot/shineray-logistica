@@ -8,6 +8,8 @@ import {
     ExclamationTriangleIcon,
     CheckCircleIcon,
     ClockIcon,
+    ArchiveBoxIcon,
+    DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 
 import { Card, Button, StatusBadge } from '@/Components/UI';
@@ -40,6 +42,7 @@ export default function PainelAtendimento({ pedido, peca }) {
     if (!peca.ativo) return null;
 
     const itens = pedido.itens_pedido ?? [];
+    const temItensPendentes = itens.some((i) => (i.qtd_pendente ?? 0) > 0);
 
     const separar = () => {
         const itensParaSeparar = Object.entries(quantidades)
@@ -116,7 +119,7 @@ export default function PainelAtendimento({ pedido, peca }) {
     return (
         <div className="space-y-4">
             {/* --- SEPARAÇÃO (CD) --- */}
-            {peca.pode_separar && (
+            {peca.pode_separar && temItensPendentes && (
                 <Card
                     title="Separar peças"
                     subtitle="Informe o que foi localizado. Separar reserva o saldo — a peça só sai do CD no recebimento."
@@ -206,11 +209,80 @@ export default function PainelAtendimento({ pedido, peca }) {
                         <Button
                             icon={WrenchScrewdriverIcon}
                             loading={processando}
+                            disabled={!Object.values(quantidades).some((q) => Number(q) > 0)}
                             onClick={separar}
                             className="w-full sm:w-auto"
                         >
                             Confirmar separação
                         </Button>
+                    </div>
+                </Card>
+            )}
+
+            {/* --- CAIXAS DE SEPARAÇÃO (BASQUETAS DA FILIAL) --- */}
+            {(peca.basquetas ?? []).length > 0 && (
+                <Card
+                    title="Caixa de Expedição (Basqueta da Filial)"
+                    subtitle="Peças separadas e alocadas na caixa da filial. Acompanhe a rota, faturamento e conferência."
+                    padding="none"
+                >
+                    <div className="divide-y divide-line">
+                        {peca.basquetas.map((b) => (
+                            <div key={b.id} className="p-4 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="p-2 rounded-lg bg-brand-50 text-brand-700">
+                                            <ArchiveBoxIcon className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-content-primary">
+                                                Basqueta #{b.id} {b.local ? `· ${b.local}` : ''}
+                                            </p>
+                                            <p className="text-xs text-content-muted">
+                                                {b.volumes ? `${b.volumes} volume(s)` : 'Volumes a definir no faturamento'}
+                                                {b.viagem_data && ` · Viagem: ${b.viagem_data}`}
+                                                {b.nota_fiscal && ` · NF: ${b.nota_fiscal}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <StatusBadge status={b.status} size="sm" />
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-line/60">
+                                    <p className="text-xs text-content-secondary">
+                                        {b.status === 'aberta' && 'A basqueta está aberta no CD acumulando peças desta filial. O próximo passo é o faturamento da nota fiscal.'}
+                                        {b.status === 'rota_confirmada' && 'A basqueta possui viagem agendada. Aguardando emissão da nota fiscal pelo CD.'}
+                                        {b.status === 'faturada' && 'Nota fiscal emitida. A filial de destino deve conferir o romaneio e anexar a foto do canhoto.'}
+                                        {b.status === 'em_conferencia' && 'A filial iniciou a conferência do romaneio de peças.'}
+                                        {b.status === 'ajuste_solicitado' && 'A filial solicitou ajuste por divergência no romaneio. A basqueta foi reaberta para correção.'}
+                                        {b.status === 'liberada' && 'Conferência aprovada e romaneio assinado. A basqueta está pronta para embarque na carga.'}
+                                        {b.status === 'despachada' && `Basqueta despachada no caminhão (Carga #${b.romaneio_id ?? '---'}).`}
+                                    </p>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {b.pode_faturar && (
+                                            <Link
+                                                href={route('pecas.basquetas')}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 transition"
+                                            >
+                                                <DocumentTextIcon className="w-4 h-4" />
+                                                Gerenciar Basquetas / Faturar
+                                            </Link>
+                                        )}
+
+                                        {b.pode_conferir && (
+                                            <Link
+                                                href={b.url_romaneio}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-status-success-solid text-white text-xs font-bold hover:brightness-95 transition"
+                                            >
+                                                <ClipboardDocumentCheckIcon className="w-4 h-4" />
+                                                {b.status === 'faturada' ? 'Conferir Romaneio (Gate 2)' : 'Ver Romaneio'}
+                                            </Link>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </Card>
             )}
@@ -325,7 +397,7 @@ export default function PainelAtendimento({ pedido, peca }) {
             )}
 
             {/* --- ESTADO INFORMATIVO QUANDO NÃO HÁ AÇÃO DIRETA NESTA TELA --- */}
-            {!peca.pode_separar && !peca.pode_carregar && !peca.pode_receber && (
+            {!peca.pode_separar && !peca.pode_carregar && !peca.pode_receber && (peca.basquetas ?? []).length === 0 && (
                 <Card>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-3 text-sm text-content-secondary">
