@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Models\Filial;
 use App\Models\User;
 use App\Models\Route;
@@ -113,7 +114,7 @@ class UserController extends Controller implements HasMiddleware
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'perfil' => 'required|in:loja,cd,admin,gestor',
+            'perfil' => ['required', Rule::enum(Perfil::class)],
             'filial' => 'nullable|string',
             'default_route_id' => 'nullable|exists:routes,id',
             'is_interior' => 'boolean',
@@ -185,7 +186,7 @@ class UserController extends Controller implements HasMiddleware
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
-            'perfil' => 'required|in:loja,cd,admin,gestor',
+            'perfil' => ['required', Rule::enum(Perfil::class)],
             'filial' => 'nullable|string',
             'default_route_id' => 'nullable|exists:routes,id',
             'is_interior' => 'boolean',

@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import { Head } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
@@ -48,7 +47,7 @@ export default function Manual({ auth }) {
     ];
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Manual do Sistema - V3.0" />
             
             <PageHeader
@@ -602,7 +601,7 @@ export default function Manual({ auth }) {
                 )}
 
             </div>
-        </AppLayout>
+        </>
     );
 }
 

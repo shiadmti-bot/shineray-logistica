@@ -4,23 +4,30 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use App\Models\User;
-use Carbon\Carbon;
 
+/**
+ * Registra a última atividade do usuário (`last_seen_at`, o "online" da
+ * gestão de usuários).
+ */
 class UserActivity
 {
+    /** Intervalo mínimo entre gravações, por sessão. O "online" considera 5 minutos. */
+    private const INTERVALO_SEGUNDOS = 60;
+
     public function handle(Request $request, Closure $next)
     {
-        if (Auth::check()) {
-            // Para não pesar o banco, só atualiza se passou 1 minuto desde a última vez
-            $expiresAt = Carbon::now()->addMinutes(1);
-            
-            // Usamos o Cache para evitar Update no banco a cada milissegundo (Performance)
-            if (!Cache::has('user-is-online-' . Auth::id())) {
-                User::where('id', Auth::id())->update(['last_seen_at' => now()]);
-                Cache::put('user-is-online-' . Auth::id(), true, $expiresAt);
+        $user = $request->user();
+
+        if ($user && $request->hasSession()) {
+            $ultimaGravacao = (int) $request->session()->get('atividade_registrada_em', 0);
+
+            // A trava mora na sessão, que já é lida em todo request. A versão
+            // anterior perguntava ao cache (driver database) a cada clique —
+            // uma consulta extra por navegação só para decidir se gravava.
+            if (now()->timestamp - $ultimaGravacao >= self::INTERVALO_SEGUNDOS) {
+                User::whereKey($user->id)->update(['last_seen_at' => now()]);
+                $request->session()->put('atividade_registrada_em', now()->timestamp);
             }
         }
 

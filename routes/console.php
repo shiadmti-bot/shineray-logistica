@@ -12,6 +12,10 @@ Artisan::command('inspire', function () {
 // A Vercel ativará essa URL via API ou comando background.
 Schedule::command('microwork:sync-estoque')->everyTenMinutes();
 
+// Rota confirmada que venceu sem o caminhão sair devolve o pedido para a fila.
+// Na Vercel, onde o scheduler não roda, quem dispara é o webhook /webhook/microwork.
+Schedule::command('pedidos:regredir-rotas')->everyTenMinutes();
+
 /*
  * Cobrança das travas humanas do fluxo de peças.
  *

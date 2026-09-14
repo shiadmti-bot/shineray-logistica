@@ -56,6 +56,14 @@ class Pedido extends Model
         'rota_confirmada',
     ];
 
+    /**
+     * A partir de quando a transferência saindo de loja do INTERIOR passou a
+     * esperar a rota do CD ('aguardando_rota') em vez da coleta direta.
+     * Pedidos anteriores seguem no fluxo antigo — ver SepararPedido e
+     * RegredirRotasVencidas, que precisam concordar nesta data.
+     */
+    public const INTERIOR_AGUARDA_ROTA_DESDE = '2026-03-12 00:00:00';
+
     // --- RELACIONAMENTOS ---
 
     // Quem pediu (Destino)

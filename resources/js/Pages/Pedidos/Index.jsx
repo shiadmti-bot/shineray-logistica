@@ -1,7 +1,5 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import { useEffect } from 'react';
-import Swal from 'sweetalert2';
+import useNotificacoesTempoReal from '@/Hooks/useNotificacoesTempoReal';
 import {
     BuildingOffice2Icon,
     BuildingStorefrontIcon,
@@ -19,7 +17,7 @@ import {
     CubeIcon,
 } from '@heroicons/react/24/outline';
 
-import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs } from '@/Components/UI';
+import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs, Pagination } from '@/Components/UI';
 
 /**
  * Gerenciamento de Pedidos — com separação limpa entre Motos e Peças.
@@ -47,34 +45,8 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
 
     const temFiltro = data.search || data.data_inicio || data.data_fim || data.status || data.loja_id || data.tipo;
 
-    // --- Notificações em tempo real ---
-    useEffect(() => {
-        if (!auth.user?.id || !window.Echo) return;
-        const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
-
-        channel.notification((notification) => {
-            try {
-                const audio = new Audio('/plim.mp3');
-                audio.play().catch(() => {});
-            } catch (e) {}
-
-            Swal.mixin({
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 4000,
-                timerProgressBar: true,
-            }).fire({
-                icon: 'info',
-                title: 'Atualização Logística',
-                text: notification.mensagem || 'Status atualizado.',
-            });
-
-            router.reload({ only: ['pedidos'] });
-        });
-
-        return () => channel.stopListening('Notification');
-    }, [auth.user?.id]);
+    // --- Tempo real: o sininho toca e avisa; aqui só atualizamos a lista ---
+    useNotificacoesTempoReal(() => router.reload({ only: ['pedidos'] }));
 
     const tabsTipo = [
         { key: 'all', label: 'Todos os Pedidos', count: tipoCounts?.all ?? safePedidos.total, icon: InboxIcon },
@@ -158,7 +130,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
         'w-full rounded-lg border-line bg-surface-card text-xs py-2 text-content-primary focus:border-brand-500 focus:ring-brand-500';
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title={tituloPagina} />
 
             <PageHeader
@@ -428,26 +400,8 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
             </div>
 
             {/* ---------- PAGINAÇÃO ---------- */}
-            {safePedidos.links && safePedidos.links.length > 3 && (
-                <div className="mt-6 flex flex-wrap justify-center gap-1">
-                    {safePedidos.links.map((link, k) => (
-                        <Link
-                            key={k}
-                            href={link.url || '#'}
-                            dangerouslySetInnerHTML={{ __html: link.label }}
-                            className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
-                                ${
-                                    link.active
-                                        ? 'bg-brand-600 text-white'
-                                        : link.url
-                                          ? 'text-content-secondary hover:bg-surface-sunken'
-                                          : 'pointer-events-none text-content-muted opacity-50'
-                                }`}
-                        />
-                    ))}
-                </div>
-            )}
-        </AppLayout>
+            <Pagination links={safePedidos.links} className="mt-6" />
+        </>
     );
 }
 

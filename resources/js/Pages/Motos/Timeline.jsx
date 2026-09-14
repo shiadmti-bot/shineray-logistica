@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import { Head, useForm } from '@inertiajs/react';
 
@@ -13,7 +12,7 @@ export default function MotoTimeline({ auth, moto, timeline, filtro }) {
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Rastreio de Moto" />
 
             <PageHeader
@@ -122,6 +121,6 @@ export default function MotoTimeline({ auth, moto, timeline, filtro }) {
                         )
                     )}
                 </div>
-        </AppLayout>
+        </>
     );
 }

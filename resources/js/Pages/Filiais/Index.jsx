@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Swal from 'sweetalert2';
@@ -17,7 +16,7 @@ import {
     XMarkIcon,
 } from '@heroicons/react/24/outline';
 
-import { Card, PageHeader, Button, StatCard, EmptyState } from '@/Components/UI';
+import { Card, PageHeader, Button, StatCard, EmptyState, Pagination } from '@/Components/UI';
 
 export default function FiliaisIndex({ auth, filiais, stats, filters, todasUfs = [] }) {
     const [searchTerm, setSearchTerm] = useState(filters?.search || '');
@@ -218,7 +217,7 @@ export default function FiliaisIndex({ auth, filiais, stats, filters, todasUfs =
         .join(' · ');
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Gerenciamento de Filiais" />
 
             <PageHeader
@@ -566,23 +565,9 @@ export default function FiliaisIndex({ auth, filiais, stats, filters, todasUfs =
                 </div>
 
                 {/* ---------- PAGINAÇÃO ---------- */}
-                {safeFiliais.links && safeFiliais.links.length > 3 && (
-                    <div className="p-4 border-t border-line flex flex-wrap justify-center gap-1 bg-surface-sunken">
-                        {safeFiliais.links.map((link, k) => (
-                            <button
-                                key={k}
-                                disabled={!link.url || link.active}
-                                onClick={() => link.url && router.get(link.url, {}, { preserveState: true })}
-                                dangerouslySetInnerHTML={{ __html: link.label }}
-                                className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${
-                                    link.active
-                                        ? 'bg-brand-600 text-white'
-                                        : link.url
-                                          ? 'text-content-secondary hover:bg-surface-card bg-surface-canvas border border-line'
-                                          : 'pointer-events-none text-content-muted opacity-50'
-                                }`}
-                            />
-                        ))}
+                {safeFiliais.links?.length > 3 && (
+                    <div className="border-t border-line bg-surface-sunken p-4">
+                        <Pagination links={safeFiliais.links} preserveState />
                     </div>
                 )}
             </Card>
@@ -742,6 +727,6 @@ export default function FiliaisIndex({ auth, filiais, stats, filters, todasUfs =
                     </div>
                 </div>
             )}
-        </AppLayout>
+        </>
     );
 }

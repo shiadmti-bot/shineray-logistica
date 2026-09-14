@@ -5,8 +5,7 @@ import {
     ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
-import { Card, PageHeader, DataTable, StatusBadge, Button, Tabs } from '@/Components/UI';
+import { Card, PageHeader, DataTable, StatusBadge, Button, Tabs, Pagination } from '@/Components/UI';
 
 /**
  * A fila da logística reversa.
@@ -119,7 +118,7 @@ export default function Index({ devolucoes, filtros = {}, podeCriar = false }) {
     ];
 
     return (
-        <AppLayout>
+        <>
             <Head title="Devoluções" />
 
             <PageHeader
@@ -154,26 +153,8 @@ export default function Index({ devolucoes, filtros = {}, podeCriar = false }) {
                 />
             </Card>
 
-            {devolucoes.links.length > 3 && (
-                <div className="mt-4 flex flex-wrap justify-center gap-1">
-                    {devolucoes.links.map((link, i) => (
-                        <Link
-                            key={i}
-                            href={link.url || '#'}
-                            dangerouslySetInnerHTML={{ __html: link.label }}
-                            className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
-                                ${
-                                    link.active
-                                        ? 'bg-brand-600 text-white'
-                                        : link.url
-                                          ? 'text-content-secondary hover:bg-surface-sunken'
-                                          : 'pointer-events-none text-content-muted opacity-50'
-                                }`}
-                        />
-                    ))}
-                </div>
-            )}
-        </AppLayout>
+            <Pagination links={devolucoes.links} className="mt-4" />
+        </>
     );
 }
 

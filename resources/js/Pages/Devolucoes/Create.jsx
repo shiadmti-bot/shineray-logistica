@@ -6,7 +6,6 @@ import {
     TruckIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, Button, EmptyState, StatusBadge } from '@/Components/UI';
 
 /**
@@ -82,7 +81,7 @@ export default function Create({ motos = [], lojas = [], lojaId = null, motivos 
     };
 
     return (
-        <AppLayout>
+        <>
             <Head title="Nova devolução" />
 
             <PageHeader
@@ -280,7 +279,7 @@ export default function Create({ motos = [], lojas = [], lojaId = null, motivos 
                     </Button>
                 </div>
             </form>
-        </AppLayout>
+        </>
     );
 }
 

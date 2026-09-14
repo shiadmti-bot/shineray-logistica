@@ -1,10 +1,9 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link } from '@inertiajs/react';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function PedidoSucesso({ auth }) {
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Solicitação Enviada" />
 
             <div className="flex flex-col items-center py-12">
@@ -64,6 +63,6 @@ export default function PedidoSucesso({ auth }) {
                 
                 <p className="mt-8 text-content-muted text-sm">Shineray By Sabel Logística</p>
             </div>
-        </AppLayout>
+        </>
     );
 }

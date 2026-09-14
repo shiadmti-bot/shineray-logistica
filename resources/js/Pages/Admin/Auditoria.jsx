@@ -1,10 +1,9 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import { Head } from '@inertiajs/react';
 
 export default function Auditoria({ auth, logs }) {
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Logs do Sistema" />
             <PageHeader
                 title="Auditoria de Alterações"
@@ -78,6 +77,6 @@ export default function Auditoria({ auth, logs }) {
                             {logs.next_page_url && <a href={logs.next_page_url} className="px-3 py-1 bg-surface-sunken rounded">Próxima</a>}
                         </div>
                         </div>
-        </AppLayout>
+        </>
     );
 }

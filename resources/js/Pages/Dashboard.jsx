@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import NoticeBoard from '@/Components/NoticeBoard';
@@ -113,7 +112,7 @@ export default function Dashboard({ auth, stats, perfil, notices }) {
     const valorErp = (v) => (estoqueCD ? v : null);
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Painel de Controle" />
 
             {/* ============ MODAL: SEPARAÇÃO PENDENTE (LOJA) ============ */}
@@ -415,7 +414,7 @@ export default function Dashboard({ auth, stats, perfil, notices }) {
                     </div>
                 </>
             )}
-        </AppLayout>
+        </>
     );
 }
 

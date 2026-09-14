@@ -25,6 +25,9 @@ export default {
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
         './resources/js/**/*.jsx',
+        // Classes também vivem em .js (statusMap, navigation, Lib/alertas).
+        // Sem esta linha, classe usada só ali não era gerada no CSS.
+        './resources/js/**/*.js',
     ],
 
     theme: {

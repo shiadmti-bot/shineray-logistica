@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 // 1. Importações do Spatie Activitylog
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Enums\Perfil;
 // 2. Importar o Model Route para o relacionamento
 use App\Models\Route; 
 
@@ -64,6 +65,17 @@ class User extends Authenticatable
             'valida_pecas' => 'boolean',
             'valida_motos' => 'boolean',
         ];
+    }
+
+    /**
+     * Se o perfil do usuário é um dos informados.
+     *
+     * Compara pelo enum, não por texto: um perfil desconhecido no banco nunca
+     * passa, e um erro de digitação no código não compila como string válida.
+     */
+    public function temPerfil(Perfil ...$perfis): bool
+    {
+        return in_array(Perfil::tryFrom((string) $this->perfil), $perfis, true);
     }
 
     /**

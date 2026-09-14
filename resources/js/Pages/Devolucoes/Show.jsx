@@ -13,7 +13,6 @@ import {
     TruckIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, Button, StatusBadge } from '@/Components/UI';
 import ChecklistMotoForm from '@/Components/Devolucoes/ChecklistMotoForm';
 import imageCompression from 'browser-image-compression';
@@ -51,7 +50,7 @@ export default function Show({ devolucao, checklist = [], permissoes = {} }) {
     const pendenciasAbertas = etapaEditavel ? pendenciasDaEtapa(etapaEditavel) : [];
 
     return (
-        <AppLayout>
+        <>
             <Head title={`Devolução #${devolucao.id}`} />
 
             <div className="print:hidden">
@@ -199,7 +198,7 @@ export default function Show({ devolucao, checklist = [], permissoes = {} }) {
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
 

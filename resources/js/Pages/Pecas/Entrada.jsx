@@ -9,7 +9,6 @@ import {
     WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, StatCard, Button, DataTable, StatusBadge, EmptyState } from '@/Components/UI';
 
 /**
@@ -147,7 +146,7 @@ export default function EntradaPecas({ local, locais = [], movimentos = [], resu
 
     if (!local) {
         return (
-            <AppLayout>
+            <>
                 <Head title="Entrada de Peças" />
                 <Card>
                     <EmptyState
@@ -155,12 +154,12 @@ export default function EntradaPecas({ local, locais = [], movimentos = [], resu
                         description="Seu usuário não está vinculado a um local. Peça ao administrador para configurar."
                     />
                 </Card>
-            </AppLayout>
+            </>
         );
     }
 
     return (
-        <AppLayout>
+        <>
             <Head title="Entrada de Peças" />
 
             <PageHeader
@@ -380,6 +379,6 @@ export default function EntradaPecas({ local, locais = [], movimentos = [], resu
                     />
                 </Card>
             </div>
-        </AppLayout>
+        </>
     );
 }

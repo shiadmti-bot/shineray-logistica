@@ -1,5 +1,4 @@
-import AppLayout from '@/Layouts/AppLayout';
-import { PageHeader, Card, StatCard, Button, StatusBadge, Tabs, EmptyState } from '@/Components/UI';
+import { PageHeader, Card, StatCard, Button, StatusBadge, Tabs, EmptyState, Pagination } from '@/Components/UI';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Swal from 'sweetalert2';
@@ -174,7 +173,7 @@ export default function UsersIndex({ auth, users, stats, filters }) {
     ];
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Gestão de Usuários" />
 
             <PageHeader
@@ -597,32 +596,11 @@ export default function UsersIndex({ auth, users, stats, filters }) {
                             <span className="font-bold text-content-primary">{users.to || 0}</span> de{' '}
                             <span className="font-bold text-content-primary">{users.total}</span> usuários
                         </div>
-                        <div className="flex gap-1 mt-2 sm:mt-0">
-                            {users.links.map((link, idx) =>
-                                link.url ? (
-                                    <Link
-                                        key={idx}
-                                        href={link.url}
-                                        className={`rounded-md px-3 py-1 font-semibold transition ${
-                                            link.active
-                                                ? 'bg-brand-600 text-white shadow-sm'
-                                                : 'bg-surface-card text-content-secondary ring-1 ring-inset ring-line-strong hover:bg-surface-sunken'
-                                        }`}
-                                        dangerouslySetInnerHTML={{ __html: link.label }}
-                                    />
-                                ) : (
-                                    <span
-                                        key={idx}
-                                        className="rounded-md px-3 py-1 text-content-muted opacity-50"
-                                        dangerouslySetInnerHTML={{ __html: link.label }}
-                                    />
-                                )
-                            )}
-                        </div>
+                        <Pagination links={users.links} className="mt-2 sm:mt-0" />
                     </div>
                 )}
             </Card>
-        </AppLayout>
+        </>
     );
 }
 

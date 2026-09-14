@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import { Head, router } from '@inertiajs/react';
 import KpiCard from '@/Components/Bi/KpiCard';
@@ -81,7 +80,7 @@ export default function BiIndex({ auth, kpis, status_chart, ranking_lojas, slas,
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="BI - Dashboard Executivo" />
             <PageHeader
                 title="BI Logística Integrada"
@@ -188,6 +187,6 @@ export default function BiIndex({ auth, kpis, status_chart, ranking_lojas, slas,
                             <Chart options={rankingOptions} series={rankingSeries} type="bar" height="100%" />
                         </div>
                     </div>
-        </AppLayout>
+        </>
     );
 }

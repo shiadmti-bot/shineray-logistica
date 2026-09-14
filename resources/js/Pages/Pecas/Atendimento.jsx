@@ -13,7 +13,6 @@ import {
 } from '@heroicons/react/24/outline';
 import Swal from 'sweetalert2';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, Button, EmptyState, StatusBadge } from '@/Components/UI';
 
 function formatMoeda(valor) {
@@ -92,7 +91,7 @@ export default function PecasAtendimento({
     const qtdTriagem = totalTriagem || listaTriagem.length;
 
     return (
-        <AppLayout>
+        <>
             <Head title={aba === 'aprovacoes' ? 'Aprovações de Peças' : 'Triagem de Peças'} />
 
             <PageHeader
@@ -190,7 +189,7 @@ export default function PecasAtendimento({
                     )}
                 </div>
             )}
-        </AppLayout>
+        </>
     );
 }
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -219,7 +220,10 @@ class Basqueta extends Model
     {
         $maisAntiga = $this->itens()->min('pedido_itens.updated_at');
 
-        return $maisAntiga ? (int) now()->diffInDays($maisAntiga) : 0;
+        // Do passado para agora. No Carbon 3 `diffIn*` tem sinal:
+        // `now()->diffInDays($passado)` dá negativo, e o alerta de caixa parada
+        // (dias >= 7) nunca acendia.
+        return $maisAntiga ? (int) Carbon::parse($maisAntiga)->diffInDays(now()) : 0;
     }
 
     public function scopeAbertas($query)

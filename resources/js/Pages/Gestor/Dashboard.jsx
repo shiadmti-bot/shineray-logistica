@@ -1,8 +1,8 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, Button, Tabs, EmptyState } from '@/Components/UI';
 import { Head, Link, router } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Swal from 'sweetalert2';
+import useNotificacoesTempoReal from '@/Hooks/useNotificacoesTempoReal';
 import { 
     HandRaisedIcon, 
     ClipboardDocumentListIcon, 
@@ -24,30 +24,8 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
 
     const [activeTab, setActiveTab] = useState('pedidos'); // 'pedidos' ou 'estornos'
 
-    // --- REALTIME ---
-    useEffect(() => {
-        if (!auth.user?.id) return;
-        
-        const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
-
-        channel.notification((notification) => {
-            const audio = new Audio('/plim.mp3');
-            audio.play().catch(()=>{});
-
-            const isEstorno = notification.type?.includes('Estorno');
-            
-            Swal.fire({
-                toast: true, position: 'top-end', showConfirmButton: false, timer: 5000, timerProgressBar: true,
-                icon: isEstorno ? 'warning' : 'info', 
-                title: isEstorno ? 'Estorno Solicitado!' : 'Nova Solicitação!', 
-                text: notification.mensagem 
-            });
-
-            router.reload({ only: ['pedidos', 'estornos'] });
-        });
-
-        return () => channel.stopListening('Notification');
-    }, [auth.user?.id]);
+    // --- REALTIME: o sininho toca e avisa; aqui só atualizamos as filas ---
+    useNotificacoesTempoReal(() => router.reload({ only: ['pedidos', 'estornos'] }));
 
     const handleAprovarEstorno = (motoId) => {
         Swal.fire({
@@ -69,7 +47,7 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
     const getLojaNome = (user) => user ? (user.filial || user.name) : 'Usuário Removido';
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Gestão Comercial" />
 
             <PageHeader
@@ -243,6 +221,6 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
                     )}
 
             </div>
-        </AppLayout>
+        </>
     );
 }

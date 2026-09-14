@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
@@ -253,7 +252,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title={`Análise #${pedido.id}`} />
 
             {/* pb-40: a barra de decisao e fixa no rodape e cobriria o fim da pagina. */}
@@ -525,6 +524,6 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
             {/* CHAT */}
             <ChatBox pedidoId={pedido.id} />
 
-        </AppLayout>
+        </>
     );
 }

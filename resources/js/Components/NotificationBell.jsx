@@ -1,78 +1,78 @@
 import { useState, useEffect } from 'react';
-import { usePage, Link, router } from '@inertiajs/react';
+import { Link } from '@inertiajs/react';
+import axios from 'axios';
 import Swal from 'sweetalert2';
+import useNotificacoesTempoReal from '@/Hooks/useNotificacoesTempoReal';
 
+const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 4000,
+    timerProgressBar: true,
+    didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer);
+        toast.addEventListener('mouseleave', Swal.resumeTimer);
+    },
+});
+
+/**
+ * Sininho da topbar.
+ *
+ * Vive no layout persistente e monta uma vez só. Por isso busca a lista sob
+ * demanda (NotificacaoController) em vez de recebê-la nas props de toda
+ * navegação — eram duas consultas a mais por clique — e dali em diante é
+ * alimentado pelo tempo real.
+ *
+ * É o único lugar que toca som e mostra o toast de uma notificação. As telas
+ * que ouvem o mesmo canal só recarregam os próprios dados.
+ */
 export default function NotificationBell() {
-    const { auth } = usePage().props;
-    // Carrega as notificações iniciais vindas do backend (compartilhadas via Inertia Middleware ou API)
-    // Para simplificar, vamos assumir que você injetou 'notifications' via HandleInertiaRequests ou vamos buscar via API simples.
-    // **DICA:** A forma mais simples é iniciar vazio e deixar o realtime preencher, ou passar via props.
-    // Vamos usar um estado local para gerenciar.
-    
-    const [notifications, setNotifications] = useState(auth.user.notifications || []); // Requer ajuste no HandleInertiaRequests
-    const [unreadCount, setUnreadCount] = useState(auth.user.unread_count || 0);
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
 
-    // Configuração do Toast do SweetAlert2
-    const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 4000,
-        timerProgressBar: true,
-        didOpen: (toast) => {
-            toast.addEventListener('mouseenter', Swal.stopTimer)
-            toast.addEventListener('mouseleave', Swal.resumeTimer)
-        }
-    });
-
     useEffect(() => {
-        // CONEXÃO WEBSOCKET (Pusher / Laravel Echo)
-        if (typeof window !== 'undefined' && window.Echo && auth?.user?.id) {
-            const channel = window.Echo.private(`App.Models.User.${auth.user.id}`);
-            
-            channel.notification((notification) => {
-                // 1. Toca o som
-                const audio = new Audio('/plim.mp3');
-                audio.play().catch(() => {});
+        axios
+            .get(route('notificacoes.index'))
+            .then(({ data }) => {
+                setNotifications(data.itens ?? []);
+                setUnreadCount(data.nao_lidas ?? 0);
+            })
+            .catch(() => {});
+    }, []);
 
-                // 2. Mostra o Toast na tela
-                Toast.fire({
-                    icon: 'info',
-                    title: notification.titulo,
-                    text: notification.mensagem
-                });
+    useNotificacoesTempoReal((notificacao) => {
+        try {
+            new Audio('/plim.mp3').play().catch(() => {});
+        } catch {}
 
-                // 3. Adiciona na lista do sininho
-                setNotifications(prev => [
-                    {
-                        id: Date.now(),
-                        data: {
-                            titulo: notification.titulo,
-                            mensagem: notification.mensagem,
-                            link: notification.link
-                        },
-                        created_at: 'Agora mesmo',
-                        read_at: null
-                    },
-                    ...prev
-                ]);
+        Toast.fire({
+            icon: 'info',
+            title: notificacao.titulo || 'Nova notificação',
+            text: notificacao.mensagem,
+        });
 
-                // 4. Incrementa contador
-                setUnreadCount(prev => prev + 1);
-            });
+        setNotifications((anteriores) => [
+            {
+                id: notificacao.id ?? `tempo-real-${Date.now()}`,
+                data: {
+                    titulo: notificacao.titulo,
+                    mensagem: notificacao.mensagem,
+                    link: notificacao.link,
+                },
+                quando: 'Agora mesmo',
+                read_at: null,
+            },
+            ...anteriores,
+        ]);
 
-            return () => {
-                try {
-                    window.Echo.leave(`App.Models.User.${auth.user.id}`);
-                } catch {}
-            };
-        }
-    }, [auth?.user?.id]);
+        setUnreadCount((total) => total + 1);
+    });
 
     const markAsRead = () => {
         if (unreadCount > 0) {
-            router.post(route('notificacoes.ler'), {}, { preserveScroll: true });
+            axios.post(route('notificacoes.ler')).catch(() => {});
             setUnreadCount(0);
         }
         setIsOpen(!isOpen);
@@ -81,8 +81,9 @@ export default function NotificationBell() {
     return (
         <div className="relative">
             {/* ÍCONE DO SINO */}
-            <button 
-                onClick={markAsRead} 
+            <button
+                onClick={markAsRead}
+                aria-label="Notificações"
                 className="relative rounded-lg p-2 text-white/80 transition hover:bg-white/10 hover:text-white focus:outline-none"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
@@ -103,7 +104,7 @@ export default function NotificationBell() {
                         <h3 className="text-sm font-bold text-content-secondary">Notificações</h3>
                         <span className="text-xs text-content-muted">Últimas atualizações</span>
                     </div>
-                    
+
                     <div className="max-h-80 overflow-y-auto">
                         {notifications.length === 0 ? (
                             <div className="p-6 text-center text-content-muted text-sm">
@@ -111,17 +112,17 @@ export default function NotificationBell() {
                             </div>
                         ) : (
                             <ul>
-                                {notifications.map((notif, index) => (
-                                    <li key={index} className={`border-b hover:bg-surface-sunken transition ${!notif.read_at ? 'bg-status-info-bg' : ''}`}>
-                                        <Link 
-                                            href={notif.data.link} 
+                                {notifications.map((notif) => (
+                                    <li key={notif.id} className={`border-b hover:bg-surface-sunken transition ${!notif.read_at ? 'bg-status-info-bg' : ''}`}>
+                                        <Link
+                                            href={notif.data.link}
                                             className="block px-4 py-3"
                                             onClick={() => setIsOpen(false)}
                                         >
-                                            <p className="text-sm font-bold text-content-primary">{notif.data.titulo}</p>
+                                            <p className="text-sm font-bold text-content-primary">{notif.data.titulo || 'Notificação'}</p>
                                             <p className="text-xs text-content-secondary mt-1 line-clamp-2">{notif.data.mensagem}</p>
                                             <p className="text-[10px] text-content-muted mt-2 flex items-center gap-1">
-                                                <span>🕒</span> {notif.created_at || 'Recentemente'}
+                                                <span>🕒</span> {notif.quando || 'Recentemente'}
                                             </p>
                                         </Link>
                                     </li>
@@ -129,7 +130,7 @@ export default function NotificationBell() {
                             </ul>
                         )}
                     </div>
-                    
+
                     {notifications.length > 0 && (
                         <div className="bg-surface-sunken p-2 text-center border-t">
                             <button onClick={() => setNotifications([])} className="text-xs text-status-info-fg hover:underline">
@@ -139,11 +140,11 @@ export default function NotificationBell() {
                     )}
                 </div>
             )}
-            
+
             {/* OVERLAY PARA FECHAR AO CLICAR FORA */}
             {isOpen && (
-                <div 
-                    className="fixed inset-0 z-40" 
+                <div
+                    className="fixed inset-0 z-40"
                     onClick={() => setIsOpen(false)}
                 ></div>
             )}

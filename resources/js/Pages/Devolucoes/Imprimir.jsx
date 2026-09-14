@@ -1,7 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { PrinterIcon } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader, Button } from '@/Components/UI';
 
 /**
@@ -21,7 +20,7 @@ import { PageHeader, Button } from '@/Components/UI';
  */
 export default function Imprimir({ devolucao, checklist = [] }) {
     return (
-        <AppLayout>
+        <>
             <Head title={`Checklist — Devolução #${devolucao.id}`} />
 
             <div className="print:hidden">
@@ -52,7 +51,7 @@ export default function Imprimir({ devolucao, checklist = [] }) {
                     />
                 ))}
             </div>
-        </AppLayout>
+        </>
     );
 }
 

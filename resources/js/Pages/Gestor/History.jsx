@@ -2,8 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { MagnifyingGlassIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
-import { Card, PageHeader, Button, StatusBadge, EmptyState } from '@/Components/UI';
+import { Card, PageHeader, Button, StatusBadge, EmptyState, Pagination } from '@/Components/UI';
 
 export default function GestorHistory({ auth, logs, filters }) {
     
@@ -43,7 +42,7 @@ export default function GestorHistory({ auth, logs, filters }) {
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Histórico de Aprovações" />
 
             <PageHeader
@@ -142,38 +141,9 @@ export default function GestorHistory({ auth, logs, filters }) {
                         )}
                     </div>
 
-                    {/* 2. BLINDAGEM DA PAGINAÇÃO (CORREÇÃO CRÍTICA) */}
-                    {logs.links && logs.links.length > 3 && (
-                        <div className="mt-10 flex justify-center flex-wrap gap-2">
-                            {logs.links.map((link, k) => {
-                                // Se a URL for null (botão desativado), renderizamos SPAN, não LINK
-                                if (!link.url) {
-                                    return (
-                                        <span
-                                            key={k}
-                                            className="px-4 py-2 text-sm font-bold rounded-lg border border-line bg-surface-sunken text-content-muted cursor-not-allowed"
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
-                                    );
-                                }
-                                // Se tiver URL, renderizamos o Link normal
-                                return (
-                                    <Link
-                                        key={k}
-                                        href={link.url}
-                                        className={`px-4 py-2 text-sm font-bold rounded-lg border transition-all ${
-                                            link.active 
-                                                ? 'bg-brand-600 text-white border-brand-600' 
-                                                : 'bg-surface-card text-content-secondary border-line hover:bg-surface-sunken'
-                                        }`}
-                                        dangerouslySetInnerHTML={{ __html: link.label }}
-                                    />
-                                );
-                            })}
-                        </div>
-                    )}
+                    <Pagination links={logs.links} className="mt-10" />
 
             </div>
-        </AppLayout>
+        </>
     );
 }

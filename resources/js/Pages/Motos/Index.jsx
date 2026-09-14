@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import StockTable from '@/Components/Microwork/StockTable';
@@ -12,7 +11,7 @@ import {
     ClockIcon,
 } from '@heroicons/react/24/outline';
 
-import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs, DataTable } from '@/Components/UI';
+import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs, DataTable, Pagination } from '@/Components/UI';
 
 /**
  * Estoque de motos — repaginado para o design system v3.
@@ -174,7 +173,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
     ];
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Motos" />
 
             <PageHeader
@@ -378,27 +377,9 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                     </div>
 
                     {/* ---------- PAGINAÇÃO ---------- */}
-                    {motos.links.length > 3 && (
-                        <div className="flex flex-wrap justify-center gap-1">
-                            {motos.links.map((link, i) => (
-                                <Link
-                                    key={i}
-                                    href={link.url || '#'}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                    className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
-                                        ${
-                                            link.active
-                                                ? 'bg-brand-600 text-white'
-                                                : link.url
-                                                  ? 'text-content-secondary hover:bg-surface-sunken'
-                                                  : 'pointer-events-none text-content-muted opacity-50'
-                                        }`}
-                                />
-                            ))}
-                        </div>
-                    )}
+                    <Pagination links={motos.links} />
                 </div>
             )}
-        </AppLayout>
+        </>
     );
 }

@@ -103,6 +103,11 @@
     margin-bottom: 0.25rem !important;
 }
 
+/* Quill 2 grava as duas listas como <ol> e marca o item com data-list. */
+.notice-content li[data-list='bullet'] {
+    list-style-type: disc !important;
+}
+
 .notice-content p {
     margin-bottom: 0.5rem !important;
 }

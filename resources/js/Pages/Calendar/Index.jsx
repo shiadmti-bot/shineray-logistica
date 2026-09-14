@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import { Head, router } from '@inertiajs/react';
 import FullCalendar from '@fullcalendar/react';
@@ -212,7 +211,7 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
     }
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Calendário de Rotas - Shineray By Sabel" />
             <PageHeader
                 title="Calendário de Rotas"
@@ -394,6 +393,6 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
                     </div>
                 </div>
             )}
-        </AppLayout>
+        </>
     );
 }

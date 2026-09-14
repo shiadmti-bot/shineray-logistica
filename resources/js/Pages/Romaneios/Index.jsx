@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import {
     TruckIcon,
@@ -8,7 +7,7 @@ import {
     WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline';
 
-import { Card, PageHeader, Button, StatusBadge, EmptyState } from '@/Components/UI';
+import { Card, PageHeader, Button, StatusBadge, EmptyState, Pagination } from '@/Components/UI';
 
 /**
  * Histórico de cargas — repaginado para o design system v3.
@@ -43,7 +42,7 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
         'w-full rounded-lg border-line bg-surface-card py-2 text-sm text-content-primary focus:border-brand-500 focus:ring-brand-500';
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Cargas e Romaneios" />
 
             <PageHeader
@@ -264,26 +263,8 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
             </Card>
 
             {/* ---------- PAGINAÇÃO ---------- */}
-            {safeRomaneios.links && safeRomaneios.links.length > 3 && (
-                <div className="mt-6 flex flex-wrap justify-center gap-1">
-                    {safeRomaneios.links.map((link, k) => (
-                        <Link
-                            key={k}
-                            href={link.url || '#'}
-                            dangerouslySetInnerHTML={{ __html: link.label }}
-                            className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
-                                ${
-                                    link.active
-                                        ? 'bg-brand-600 text-white'
-                                        : link.url
-                                          ? 'text-content-secondary hover:bg-surface-sunken'
-                                          : 'pointer-events-none text-content-muted opacity-50'
-                                }`}
-                        />
-                    ))}
-                </div>
-            )}
-        </AppLayout>
+            <Pagination links={safeRomaneios.links} className="mt-6" />
+        </>
     );
 }
 

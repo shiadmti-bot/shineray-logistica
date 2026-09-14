@@ -13,7 +13,6 @@ import {
     CheckIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, StatCard, Button, StatusBadge, EmptyState } from '@/Components/UI';
 
 /**
@@ -200,7 +199,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
     const podeDesfazer = !['concluido', 'em_transito', 'em_transito_cd'].includes(romaneio.status);
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title={`Romaneio #${numero}`} />
 
             {/* ================= TELA ================= */}
@@ -787,7 +786,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
 

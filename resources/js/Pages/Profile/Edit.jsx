@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
@@ -70,7 +69,7 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Meu Perfil - Shineray By Sabel" />
             <PageHeader
                 title="Configurações da Conta"
@@ -223,6 +222,6 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                 </div>
 
             </div>
-        </AppLayout>
+        </>
     );
 }

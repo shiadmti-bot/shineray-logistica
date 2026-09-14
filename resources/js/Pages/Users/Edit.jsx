@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader, Card, Button } from '@/Components/UI';
 import { Head, useForm, Link } from '@inertiajs/react';
 import { useState } from 'react';
@@ -100,7 +99,7 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title={`Editar ${usuario.name}`} />
 
             <PageHeader
@@ -612,6 +611,6 @@ export default function UserEdit({ auth, usuario, filiais, rotas }) {
                     </div>
                 </div>
             </form>
-        </AppLayout>
+        </>
     );
 }

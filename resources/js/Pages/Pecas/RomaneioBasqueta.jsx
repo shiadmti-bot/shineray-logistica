@@ -7,7 +7,6 @@ import {
     ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader, Button, Card } from '@/Components/UI';
 import imageCompression from 'browser-image-compression';
 
@@ -28,7 +27,7 @@ export default function RomaneioBasqueta({ basqueta, podeConferir = false }) {
     );
 
     return (
-        <AppLayout>
+        <>
             <Head title={`Romaneio de Peças — ${basqueta.local}`} />
 
             <div className="print:hidden">
@@ -180,7 +179,7 @@ export default function RomaneioBasqueta({ basqueta, podeConferir = false }) {
                     Nenhuma embalagem é despachada sem a conferência do Pós-Venda
                 </p>
             </div>
-        </AppLayout>
+        </>
     );
 }
 

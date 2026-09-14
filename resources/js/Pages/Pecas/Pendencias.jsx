@@ -8,7 +8,6 @@ import {
     ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, DataTable, Button, Tabs, StatCard, EmptyState } from '@/Components/UI';
 
 /**
@@ -187,7 +186,7 @@ export default function Pendencias({
     const totalSelecionado = Object.keys(selecionadas).length;
 
     return (
-        <AppLayout>
+        <>
             <Head title="Pendências" />
 
             <PageHeader
@@ -347,6 +346,6 @@ export default function Pendencias({
                     </div>
                 </div>
             )}
-        </AppLayout>
+        </>
     );
 }

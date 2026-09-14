@@ -12,8 +12,7 @@ import {
     QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
-import { Card, PageHeader, Button, EmptyState } from '@/Components/UI';
+import { Card, PageHeader, Button, EmptyState, Pagination } from '@/Components/UI';
 
 /**
  * Solicitação de peças da loja ao CD.
@@ -141,7 +140,7 @@ export default function SolicitarPecas({
     const modeloLabel = modelos.find((m) => m.valor === filtros.modelo)?.label;
 
     return (
-        <AppLayout>
+        <>
             <Head title="Solicitar Peças" />
 
             <PageHeader
@@ -325,26 +324,7 @@ export default function SolicitarPecas({
                     )}
 
                     {/* Paginação */}
-                    {pecas?.links?.length > 3 && (
-                        <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
-                            {pecas.links.map((link, i) => (
-                                <button
-                                    key={i}
-                                    type="button"
-                                    disabled={!link.url}
-                                    onClick={() => link.url && router.get(link.url, {}, { preserveState: true })}
-                                    dangerouslySetInnerHTML={{ __html: link.label }}
-                                    className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition ${
-                                        link.active
-                                            ? 'bg-brand-600 text-white'
-                                            : link.url
-                                              ? 'text-content-secondary hover:bg-surface-sunken'
-                                              : 'cursor-not-allowed text-content-muted opacity-50'
-                                    }`}
-                                />
-                            ))}
-                        </div>
-                    )}
+                    <Pagination links={pecas?.links} preserveState className="mt-4" />
                 </div>
 
                 {/* --- CARRINHO --- */}
@@ -518,6 +498,6 @@ export default function SolicitarPecas({
                     </Card>
                 </aside>
             </div>
-        </AppLayout>
+        </>
     );
 }

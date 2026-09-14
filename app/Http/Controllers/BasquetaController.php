@@ -15,6 +15,7 @@ use App\Services\OneSignalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
@@ -37,7 +38,7 @@ class BasquetaController extends Controller
 
     public function index()
     {
-        $this->autorizarCd();
+        Gate::authorize('acompanhar', Basqueta::class);
 
         /*
          * Não só as abertas: faturada e liberada também precisam aparecer, ou
@@ -94,7 +95,7 @@ class BasquetaController extends Controller
      */
     public function faturar(Request $request, Basqueta $basqueta)
     {
-        $this->autorizarCd();
+        Gate::authorize('acompanhar', Basqueta::class);
 
         $dados = $request->validate([
             'numero'      => ['required', 'string', 'max:30'],
@@ -169,7 +170,7 @@ class BasquetaController extends Controller
      */
     public function conferir(Request $request, Basqueta $basqueta)
     {
-        $this->autorizarConferente($basqueta);
+        Gate::authorize('conferir', $basqueta);
 
         $dados = $request->validate([
             'foto'       => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
@@ -234,7 +235,7 @@ class BasquetaController extends Controller
      */
     public function ajustar(Request $request, Basqueta $basqueta)
     {
-        $this->autorizarConferente($basqueta);
+        Gate::authorize('conferir', $basqueta);
 
         $dados = $request->validate([
             'motivo' => ['required', 'string', 'max:500'],
@@ -292,7 +293,7 @@ class BasquetaController extends Controller
      */
     public function romaneio(Basqueta $basqueta)
     {
-        $this->autorizarVer($basqueta);
+        Gate::authorize('view', $basqueta);
 
         $basqueta->load([
             'local:id,nome',
@@ -435,55 +436,5 @@ class BasquetaController extends Controller
                 'desde'      => $i->updated_at,
             ])->values(),
         ];
-    }
-
-    private function autorizarCd(): void
-    {
-        if (! in_array(Auth::user()->perfil, ['cd', 'admin', 'gestor'], true)) {
-            abort(403, 'Apenas o Estoque Central vê as basquetas.');
-        }
-    }
-
-    /**
-     * O romaneio de peças é o único documento da basqueta que a FILIAL precisa
-     * ver — é ela quem confere antes do despacho (Passo 7). Por isso a regra
-     * aqui é mais larga que a do resto do controller.
-     */
-    private function autorizarVer(Basqueta $basqueta): void
-    {
-        $user = Auth::user();
-
-        if (in_array($user->perfil, ['cd', 'admin', 'gestor'], true)) {
-            return;
-        }
-
-        if ($user->estoque_local_id !== $basqueta->estoque_local_id) {
-            abort(403, 'Esta basqueta não é da sua loja.');
-        }
-    }
-
-    /**
-     * Quem assina o Gate 2 é a LOJA QUE RECEBE — não os validadores do Gate 1.
-     *
-     * São confirmações diferentes por desenho: a primeira é do lado que envia,
-     * sobre o código estar certo; esta é do lado que recebe, sobre a caixa
-     * estar completa. Por isso aqui vale o escopo de destino, e não a
-     * atribuição `valida_pecas`.
-     *
-     * O CD entra junto porque em filial pequena o mesmo caminhão que leva traz
-     * a conferência por telefone — e alguém precisa poder registrar. Admin
-     * entra por herança, como em todo o resto.
-     */
-    private function autorizarConferente(Basqueta $basqueta): void
-    {
-        $user = Auth::user();
-
-        if (in_array($user->perfil, ['cd', 'admin'], true)) {
-            return;
-        }
-
-        if ($user->estoque_local_id !== $basqueta->estoque_local_id) {
-            abort(403, 'Só a filial de destino confere este romaneio.');
-        }
     }
 }

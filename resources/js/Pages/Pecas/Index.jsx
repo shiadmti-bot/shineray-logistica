@@ -11,8 +11,7 @@ import {
     InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
-import { Card, DataTable, PageHeader, StatCard, Button, StatusBadge } from '@/Components/UI';
+import { Card, DataTable, PageHeader, StatCard, Button, StatusBadge, Pagination } from '@/Components/UI';
 
 /**
  * Estoque de Peças — primeira tela do módulo (v3).
@@ -198,7 +197,7 @@ export default function PecasIndex({
     ];
 
     return (
-        <AppLayout>
+        <>
             <Head title="Estoque de Peças" />
 
             <PageHeader
@@ -307,27 +306,11 @@ export default function PecasIndex({
 
                 {/* Paginação */}
                 {estoques?.links?.length > 3 && (
-                    <div className="flex flex-wrap items-center justify-center gap-1 border-t border-line p-4">
-                        {estoques.links.map((link, i) => (
-                            <button
-                                key={i}
-                                type="button"
-                                disabled={!link.url}
-                                onClick={() => link.url && router.get(link.url, {}, { preserveState: true })}
-                                dangerouslySetInnerHTML={{ __html: link.label }}
-                                className={`min-w-[2rem] rounded-md px-2.5 py-1.5 text-sm font-semibold transition
-                                    ${
-                                        link.active
-                                            ? 'bg-brand-600 text-white'
-                                            : link.url
-                                              ? 'text-content-secondary hover:bg-surface-sunken'
-                                              : 'cursor-not-allowed text-content-muted opacity-50'
-                                    }`}
-                            />
-                        ))}
+                    <div className="border-t border-line p-4">
+                        <Pagination links={estoques.links} preserveState />
                     </div>
                 )}
             </Card>
-        </AppLayout>
+        </>
     );
 }

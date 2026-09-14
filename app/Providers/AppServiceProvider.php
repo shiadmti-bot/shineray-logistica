@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Gate;
 use RuntimeException;
+use App\Enums\Perfil;
 use App\Models\User;
 use App\Services\Estoque\MotoMicroworkProvider;
 use App\Services\Estoque\PecaLocalProvider;
@@ -80,24 +81,10 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        // 2. DEFINIÇÃO DE PERMISSÕES (GATES)
-        // Isso ensina ao Laravel o que verificar quando usamos middleware('can:admin')
-        
-        Gate::define('admin', function (User $user) {
-            return $user->perfil === 'admin';
-        });
-
-        Gate::define('cd', function (User $user) {
-            return $user->perfil === 'cd';
-        });
-
-        Gate::define('gestor', function (User $user) {
-            return $user->perfil === 'gestor';
-        });
-        
-        Gate::define('loja', function (User $user) {
-            return $user->perfil === 'loja';
-        });
+        // 2. GATES POR PERFIL — um por case do enum (`can:admin` nas rotas).
+        foreach (Perfil::cases() as $perfil) {
+            Gate::define($perfil->value, fn (User $user) => $user->temPerfil($perfil));
+        }
     }
 
     /**

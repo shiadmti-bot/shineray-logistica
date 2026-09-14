@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader, Button } from '@/Components/UI';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect, useMemo } from 'react';
@@ -475,7 +474,7 @@ export default function PedidoCreate({
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Nova Solicitação" />
 
             {/* pb-32: o rodape de total e envio e fixo e cobriria o fim do formulario. */}
@@ -798,6 +797,6 @@ export default function PedidoCreate({
 
                     </form>
             </div>
-        </AppLayout>
+        </>
     );
 }

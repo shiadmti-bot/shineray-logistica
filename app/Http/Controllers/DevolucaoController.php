@@ -18,6 +18,7 @@ use App\Services\OneSignalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -117,7 +118,7 @@ class DevolucaoController extends Controller
 
     public function show(Devolucao $devolucao)
     {
-        $this->autorizarVer($devolucao);
+        Gate::authorize('view', $devolucao);
 
         $devolucao->load([
             'loja:id,name,filial',
@@ -165,7 +166,7 @@ class DevolucaoController extends Controller
      */
     public function imprimir(Devolucao $devolucao)
     {
-        $this->autorizarVer($devolucao);
+        Gate::authorize('view', $devolucao);
 
         // Mesmo conjunto de show(): detalhar() percorre anexos e conferências de
         // cada moto, e sem o eager load isso vira uma consulta por item.
@@ -270,7 +271,7 @@ class DevolucaoController extends Controller
     /** Dados da movimentação: NF, transportadora, placa, lacre, saída. */
     public function update(Request $request, Devolucao $devolucao)
     {
-        $this->autorizarLoja($devolucao);
+        Gate::authorize('editar', $devolucao);
 
         if (! $devolucao->podeEditar()) {
             return back()->withErrors(['geral' => 'Esta devolução já foi enviada e não aceita mais alterações.']);
@@ -467,7 +468,7 @@ class DevolucaoController extends Controller
 
     public function enviar(Devolucao $devolucao)
     {
-        $this->autorizarLoja($devolucao);
+        Gate::authorize('editar', $devolucao);
 
         if (! $devolucao->podeEditar()) {
             return back()->withErrors(['geral' => 'Esta devolução já foi enviada.']);
@@ -669,7 +670,7 @@ class DevolucaoController extends Controller
 
     public function cancelar(Devolucao $devolucao)
     {
-        $this->autorizarLoja($devolucao);
+        Gate::authorize('editar', $devolucao);
 
         if (! in_array($devolucao->status, [Devolucao::STATUS_RASCUNHO, Devolucao::STATUS_AGUARDANDO], true)) {
             return back()->withErrors([
@@ -856,61 +857,23 @@ class DevolucaoController extends Controller
             ?: User::where('perfil', 'admin')->orderBy('id')->first();
     }
 
-    private function autorizarVer(Devolucao $devolucao): void
-    {
-        $user = Auth::user();
-
-        if (in_array($user->perfil, ['cd', 'admin', 'gestor'], true)) {
-            return;
-        }
-
-        if ($devolucao->user_id !== $user->id) {
-            abort(403, 'Esta devolução não é da sua loja.');
-        }
-    }
-
-    private function autorizarLoja(Devolucao $devolucao): void
-    {
-        $user = Auth::user();
-
-        if ($user->perfil === 'admin') {
-            return;
-        }
-
-        if ($devolucao->user_id !== $user->id) {
-            abort(403, 'Só a loja que abriu a devolução pode alterá-la.');
-        }
-    }
-
     /**
      * Quem pode escrever em cada ponta — e quando.
      *
-     * A separação é o ponto do desenho: o valor do documento vem de as duas
-     * conferências serem feitas por lados opostos da entrega. Deixar o CD
-     * preencher o checklist de origem, ou a loja o de destino, transformaria o
-     * dossiê numa formalidade.
+     * O QUEM é a DevolucaoPolicy (conferirEtapa). O QUANDO fica aqui porque é
+     * estado do documento, não permissão: responde 422 com a explicação.
      */
     private function autorizarEtapa(Devolucao $devolucao, string $etapa): void
     {
-        $user = Auth::user();
+        Gate::authorize('conferirEtapa', [$devolucao, $etapa]);
 
-        if ($etapa === ChecklistMoto::ETAPA_DESTINO) {
-            if (! in_array($user->perfil, ['cd', 'admin'], true)) {
-                abort(403, 'A conferência de destino é do CD, que é quem recebe a moto.');
-            }
-
-            if (! $devolucao->emTransporte()) {
-                throw ValidationException::withMessages([
-                    'geral' => 'A conferência de destino só é possível depois da aprovação, quando a moto está a caminho.',
-                ]);
-            }
-
-            return;
+        if ($etapa === ChecklistMoto::ETAPA_DESTINO && ! $devolucao->emTransporte()) {
+            throw ValidationException::withMessages([
+                'geral' => 'A conferência de destino só é possível depois da aprovação, quando a moto está a caminho.',
+            ]);
         }
 
-        $this->autorizarLoja($devolucao);
-
-        if (! $devolucao->podeEditar()) {
+        if ($etapa !== ChecklistMoto::ETAPA_DESTINO && ! $devolucao->podeEditar()) {
             throw ValidationException::withMessages([
                 'geral' => 'A conferência de origem já foi encerrada: esta devolução saiu do rascunho.',
             ]);

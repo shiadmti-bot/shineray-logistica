@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useForm, router } from '@inertiajs/react';
-import ReactQuill from 'react-quill';
 import DOMPurify from 'dompurify';
-import 'react-quill/dist/quill.snow.css';
+
+// O editor só é baixado quando admin/gestor abre "Novo Aviso". Para quem só lê
+// o mural, o Quill era peso morto no Dashboard.
+const EditorAviso = lazy(() => import('@/Components/EditorAviso'));
 import { 
     MegaphoneIcon, 
     ChevronDownIcon, 
@@ -144,21 +146,9 @@ export default function NoticeBoard({ notices = [], auth }) {
                             </select>
                             
                             <div className="w-full bg-surface-card rounded-md mb-8">
-                                <ReactQuill
-                                    theme="snow"
-                                    value={data.content}
-                                    onChange={content => setData('content', content)}
-                                    placeholder="Conteúdo da mensagem..."
-                                    className="h-32"
-                                    modules={{
-                                        toolbar: [
-                                            ['bold', 'italic', 'underline', 'strike'],
-                                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                                            ['link'],
-                                            ['clean']
-                                        ]
-                                    }}
-                                />
+                                <Suspense fallback={<div className="h-32 animate-pulse rounded-md bg-surface-sunken" />}>
+                                    <EditorAviso value={data.content} onChange={(content) => setData('content', content)} />
+                                </Suspense>
                             </div>
                         </div>
                         

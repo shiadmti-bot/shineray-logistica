@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader } from '@/Components/UI';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
@@ -64,7 +63,7 @@ export default function CalendarManager({ auth, rotas, eventos, mesAtual }) {
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Gestão de Rotas CD - Shineray By Sabel" />
             <PageHeader
                 title="Gestão Logística CD"
@@ -223,6 +222,6 @@ export default function CalendarManager({ auth, rotas, eventos, mesAtual }) {
                 </div>
             </dialog>
 
-        </AppLayout>
+        </>
     );
 }

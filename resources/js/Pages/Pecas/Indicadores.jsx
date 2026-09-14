@@ -6,7 +6,6 @@ import {
     ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, StatCard, EmptyState } from '@/Components/UI';
 
 /**
@@ -27,7 +26,7 @@ export default function Indicadores({ periodo, atendimento, basquetas, qualidade
         router.get(route('pecas.indicadores'), { dias }, { preserveState: true, replace: true });
 
     return (
-        <AppLayout>
+        <>
             <Head title="Indicadores de Peças" />
 
             <PageHeader
@@ -232,7 +231,7 @@ export default function Indicadores({ periodo, atendimento, basquetas, qualidade
                 {qualidade.notas_canceladas} nota(s) cancelada(s) e {qualidade.recusas_gate1} item(ns)
                 recusado(s) na liberação no período.
             </p>
-        </AppLayout>
+        </>
     );
 }
 

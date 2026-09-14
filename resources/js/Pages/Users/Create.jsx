@@ -1,4 +1,3 @@
-import AppLayout from '@/Layouts/AppLayout';
 import { PageHeader, Card, Button } from '@/Components/UI';
 import { Head, useForm, Link } from '@inertiajs/react';
 import { useState } from 'react';
@@ -81,7 +80,7 @@ export default function UserCreate({ auth, filiais, rotas }) {
     };
 
     return (
-        <AppLayout user={auth.user}>
+        <>
             <Head title="Novo Usuário" />
 
             <PageHeader
@@ -589,6 +588,6 @@ export default function UserCreate({ auth, filiais, rotas }) {
                     </div>
                 </div>
             </form>
-        </AppLayout>
+        </>
     );
 }

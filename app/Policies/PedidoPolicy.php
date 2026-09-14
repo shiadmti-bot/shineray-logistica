@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\Perfil;
 use App\Models\Pedido;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -23,7 +24,7 @@ class PedidoPolicy
     public function view(User $user, Pedido $pedido): Response
     {
         // CD, gestor e admin acompanham qualquer pedido — é o trabalho deles.
-        if (in_array($user->perfil, ['admin', 'gestor', 'cd'], true)) {
+        if ($user->temPerfil(...Perfil::operacaoCentral())) {
             return Response::allow();
         }
 
@@ -47,5 +48,13 @@ class PedidoPolicy
         return $validador
             ? Response::allow()
             : Response::deny('Este pedido pertence a outra filial.');
+    }
+
+    /** Aprovar movimentação de moto: diretoria. */
+    public function aprovar(User $user, Pedido $pedido): Response
+    {
+        return $user->temPerfil(Perfil::Admin, Perfil::Gestor)
+            ? Response::allow()
+            : Response::deny('Apenas a diretoria pode aprovar movimentações.');
     }
 }

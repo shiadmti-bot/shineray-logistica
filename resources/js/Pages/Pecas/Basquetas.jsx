@@ -9,7 +9,6 @@ import {
     DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 
-import AppLayout from '@/Layouts/AppLayout';
 import { Card, PageHeader, EmptyState, StatCard, Button } from '@/Components/UI';
 
 /**
@@ -28,7 +27,7 @@ export default function Basquetas({ basquetas = [], vazias = [], diasAlerta = 7 
     const comViagem = basquetas.filter((b) => b.viagem).length;
 
     return (
-        <AppLayout>
+        <>
             <Head title="Basquetas" />
 
             <PageHeader
@@ -104,7 +103,7 @@ export default function Basquetas({ basquetas = [], vazias = [], diasAlerta = 7 
                     </div>
                 </Card>
             )}
-        </AppLayout>
+        </>
     );
 }
 

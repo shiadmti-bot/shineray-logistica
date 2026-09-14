@@ -1,4 +1,3 @@
-// ATUALIZACAO DE CACHE FORCADA - DATA DE HOJE
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import react from '@vitejs/plugin-react';
@@ -11,13 +10,15 @@ export default defineConfig({
         }),
         react(),
     ],
-    // Adicione esta parte para forçar nomes de arquivos novos no build
     build: {
         rollupOptions: {
             output: {
-                entryFileNames: 'assets/[name]-[hash].js',
-                chunkFileNames: 'assets/[name]-[hash].js',
-                assetFileNames: 'assets/[name]-[hash].[ext]',
+                // React e Inertia mudam pouco entre deploys. Num chunk próprio, o
+                // navegador reaproveita o cache deles mesmo quando as telas mudam.
+                // (Os nomes com hash já são o padrão do Vite.)
+                manualChunks: {
+                    vendor: ['react', 'react-dom', '@inertiajs/react'],
+                },
             },
         },
     },

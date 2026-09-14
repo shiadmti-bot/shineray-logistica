@@ -1,0 +1,6 @@
+import{j as t}from"./app-B0P--eb3.js";import{e as l}from"./vendor-BFrumm85.js";const p=l.forwardRef(function({id:s,label:r,icone:o,erro:e,acaoDireita:n,className:i="",...d},c){const a=!!o;return t.jsxs("div",{className:i,children:[r&&t.jsx("label",{htmlFor:s,className:"mb-1.5 block text-xs font-semibold uppercase tracking-wide text-content-secondary",children:r}),t.jsxs("div",{className:"group relative",children:[a&&t.jsx(o,{"aria-hidden":"true",className:"pointer-events-none absolute inset-y-0 left-3.5 my-auto h-5 w-5 text-content-muted transition group-focus-within:text-brand-600"}),t.jsx("input",{ref:c,id:s,className:`block h-12 w-full rounded-xl border bg-surface-sunken text-sm text-content-primary
+                        placeholder:text-content-muted transition
+                        focus:bg-surface-card focus:ring-2 focus:ring-brand-500/20
+                        ${a?"pl-11":"pl-4"}
+                        ${n?"pr-12":"pr-4"}
+                        ${e?"border-status-danger-solid/60 focus:border-status-danger-solid":"border-line-strong focus:border-brand-500"}`,"aria-invalid":e?"true":void 0,"aria-describedby":e?`${s}-erro`:void 0,...d}),n]}),e&&t.jsx("p",{id:`${s}-erro`,className:"mt-1.5 text-xs font-medium text-status-danger-fg",children:e})]})});export{p as C};

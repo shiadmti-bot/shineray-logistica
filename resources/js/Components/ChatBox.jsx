@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { usePage } from '@inertiajs/react';
+import { obterEcho } from '@/Lib/echo';
 
 export default function ChatBox({ pedidoId }) {
     const { auth } = usePage().props;
@@ -40,21 +41,35 @@ export default function ChatBox({ pedidoId }) {
     }, [isOpen]);
 
     // --- REALTIME (WEBSOCKET) ---
+    // O Echo é carregado sob demanda (Lib/echo.js): assina quando chegar, e só
+    // se o chat ainda estiver montado.
     useEffect(() => {
-        const channel = window.Echo.private(`chat.pedido.${pedidoId}`);
-        channel.listen('NewMessage', (e) => {
+        let canal = null;
+        let ativo = true;
+
+        const aoReceber = (e) => {
             setMessages(prev => [...prev, e.message]);
-            if (!isOpen) { 
-                if(e.message.user_id !== auth.user.id) {
-                    setHasUnread(true); 
-                    new Audio('/plim.mp3').play().catch(()=>{});
+            if (!isOpen) {
+                if (e.message.user_id !== auth.user.id) {
+                    setHasUnread(true);
+                    new Audio('/plim.mp3').play().catch(() => {});
                 }
             } else {
-                if(e.message.user_id !== auth.user.id) axios.post(route('chat.markRead', pedidoId));
+                if (e.message.user_id !== auth.user.id) axios.post(route('chat.markRead', pedidoId));
                 scrollToBottom();
             }
+        };
+
+        obterEcho().then((echo) => {
+            if (!echo || !ativo) return;
+            canal = echo.private(`chat.pedido.${pedidoId}`);
+            canal.listen('NewMessage', aoReceber);
         });
-        return () => channel.stopListening('NewMessage');
+
+        return () => {
+            ativo = false;
+            canal?.stopListening('NewMessage', aoReceber);
+        };
     }, [pedidoId, isOpen]);
 
     // --- HELPERS ---

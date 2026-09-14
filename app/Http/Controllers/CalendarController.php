@@ -302,40 +302,4 @@ class CalendarController extends Controller
         return back()->with('success', 'Viagem removida e pedidos reajustados para a fila.');
     }
 
-    // --- SWEEPER: Auto-regressão de rotas vencidas ---
-    public static function limparRotasVencidas()
-    {
-        $pedidosVencidos = \App\Models\Pedido::with('origem')->where('status', 'rota_confirmada')
-            ->whereDate('previsao_entrega', '<', now()->startOfDay())
-            ->get();
-            
-        foreach ($pedidosVencidos as $pedido) {
-            $pedido->update(['previsao_entrega' => null]);
-            
-            $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
-            
-            if ($isTransferencia) {
-                if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
-                    $novoStatus = 'aguardando_rota';
-                    $msg = 'A rota agendada expirou (passou da data sem despacho oficial). O pedido retornou automaticamente para fila aguardando nova rota.';
-                } else {
-                    $novoStatus = 'aguardando_coleta';
-                    $msg = 'A rota agendada expirou. O item segue pendente de coleta presencial pela frota.';
-                }
-            } else {
-                $novoStatus = 'separado';
-                $msg = 'A rota do CD expirou sem ser embarcada. O pedido retornou automaticamente para o patamar de Separado aguardando nova carga.';
-            }
-            
-            $pedido->update(['status' => $novoStatus]);
-            $pedido->motos()->update(['status' => $novoStatus]);
-            
-            \App\Models\PedidoLog::create([
-                'pedido_id' => $pedido->id,
-                'user_id' => 1, // System
-                'titulo' => 'Rota Vencida 🕰️',
-                'descricao' => $msg
-            ]);
-        }
-    }
 }

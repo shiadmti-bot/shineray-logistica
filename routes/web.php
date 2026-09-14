@@ -8,6 +8,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\FilialController;
 use App\Http\Controllers\GestorController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificacaoController;
 use App\Http\Controllers\CalendarController; 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
@@ -15,9 +17,6 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\Pedido;
-use App\Models\Moto;
-use App\Models\Romaneio;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,7 +57,7 @@ Route::middleware(['cron', 'throttle:30,1'])->group(function () {
     // Sync do estoque Microwork e limpeza de rotas vencidas (a cada 10 minutos).
     Route::get('/webhook/microwork', function () {
         \Illuminate\Support\Facades\Artisan::call('microwork:sync-estoque');
-        \App\Http\Controllers\CalendarController::limparRotasVencidas();
+        app(\App\Actions\Pedidos\RegredirRotasVencidas::class)->executar();
 
         return response()->json(['message' => 'Estoque e rotas expiradas sincronizados via webhook com sucesso!']);
     });
@@ -124,60 +123,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             ->middleware(['auth', 'verified'])
             ->name('api.estoque.buscarChassis');
 
-        Route::get('/dashboard', function () {
-
-
-            $user = Auth::user();
-
-            // Gestor tem dashboard próprio
-            if ($user->perfil === 'gestor') return redirect()->route('gestor.index');
-
-            $stats = [];
-            
-            // ADMIN
-            if ($user->perfil === 'admin') {
-                $stats = [
-                    'total_pedidos'   => Pedido::count(),
-                    'em_andamento'    => Pedido::whereNotIn('status', ['concluido', 'cancelado'])->count(),
-                    'cargas_transito' => Romaneio::whereIn('status', ['em_transito', 'em_transito_cd'])->count(),
-                    'cancelados'      => Pedido::where('status', 'cancelado')->count(),
-                ];
-            } 
-            // CD
-            elseif ($user->perfil === 'cd') {
-                $stats = [
-                    'pendentes'       => Pedido::whereIn('status', ['solicitado', 'aprovado', 'no_cd', 'aguardando_coleta'])->count(),
-                    'no_patio'        => Moto::whereIn('status', ['separado', 'no_cd'])->count(),
-                    'cargas_transito' => Romaneio::whereIn('status', ['em_transito', 'em_transito_cd'])->count(),
-                    'cargas_total'    => Romaneio::count(),
-                    'hoje'            => Pedido::where('status', 'concluido')->whereDate('updated_at', now())->count(),
-                ];
-            } 
-            // LOJA
-            else { 
-                $stats = [
-                    'meus_pedidos' => Pedido::where('user_id', $user->id)->count(),
-                    
-                    // Entradas (O que comprei e está chegando)
-                    'receber' => Pedido::where('user_id', $user->id)
-                                       ->whereIn('status', ['em_transito', 'expedido', 'em_transito_cd'])
-                                       ->count(),
-                    
-                    // Saídas (O que pediram do meu estoque - Transferência)
-                    'transferencias_saida' => Pedido::where('origem_user_id', $user->id)
-                                                    ->whereIn('status', ['solicitado', 'aprovado']) 
-                                                    ->count()
-                ];
-            }
-
-            $notices = \App\Models\Notice::where('is_active', true)->orderBy('created_at', 'desc')->get(); // Mural de Avisos
-
-            return Inertia::render('Dashboard', [
-                'stats' => $stats, 
-                'perfil' => $user->perfil,
-                'notices' => $notices
-            ]);
-        })->name('dashboard');
+        Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
         Route::get('/manual', function () { return Inertia::render('Manual'); })->name('manual');
 
@@ -186,15 +132,9 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         | INTEGRAÇÕES (ONESIGNAL & NOTIFICAÇÕES)
         |--------------------------------------------------------------------------
         */
-        Route::post('/notificacoes/ler', function () {
-            auth()->user()->unreadNotifications->markAsRead();
-            return back();
-        })->name('notificacoes.ler');
-
-        Route::post('/user/onesignal', function (Request $request) {
-            Auth::user()->update(['onesignal_id' => $request->onesignal_id]);
-            return response()->json(['status' => 'success']);
-        })->name('user.onesignal');
+        Route::get('/notificacoes', [NotificacaoController::class, 'index'])->name('notificacoes.index');
+        Route::post('/notificacoes/ler', [NotificacaoController::class, 'marcarComoLidas'])->name('notificacoes.ler');
+        Route::post('/user/onesignal', [NotificacaoController::class, 'registrarOneSignal'])->name('user.onesignal');
 
 
         /*
@@ -215,7 +155,6 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             Route::get('/', [PedidoController::class, 'index'])->name('index');
             Route::get('/novo', [PedidoController::class, 'create'])->name('create');
             Route::post('/', [PedidoController::class, 'store'])->name('store');
-            Route::get('/exportar', [PedidoController::class, 'exportar'])->name('exportar');
             
             // Calculadora Logística (V2)
             Route::post('/calcular-logistica', [PedidoController::class, 'calcularLogistica'])->name('logistica');
