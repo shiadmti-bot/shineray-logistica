@@ -4,7 +4,8 @@
     "functions": {
         "api/index.php": {
             "runtime": "vercel-php@0.7.2",
-            "maxDuration": 10
+            "maxDuration": 10,
+            "excludeFiles": "{resources/js/**,resources/css/**,storage/logs/**,tests/**}"
         }
     },
     "crons": [
