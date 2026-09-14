@@ -448,11 +448,14 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                             "success",
                         );
                     },
-                    onError: (err) => {
+                    onError: (errs) => {
                         setCompressing(false);
+                        // Mostra o motivo do servidor (trava de recebimento,
+                        // falha no Drive) em vez de um genérico que esconde
+                        // o que a loja precisa fazer.
                         Swal.fire(
                             "Erro",
-                            "Falha ao enviar. Tente novamente.",
+                            Object.values(errs)[0] || "Falha ao enviar. Tente novamente.",
                             "error",
                         );
                     },

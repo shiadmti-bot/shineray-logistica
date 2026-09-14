@@ -15,16 +15,14 @@ use App\Notifications\EstornoSolicitado;
 use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Exceptions\ComprovanteNaoArmazenadoException;
+use App\Services\ArquivoComprovante;
+use App\Services\GoogleDriveComprovantes;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
-use Google\Client;
-use Google\Service\Drive;
-use Google\Service\Drive\DriveFile;
-use Google\Service\Drive\Permission;
 use Carbon\Carbon;
 
 class PedidoController extends Controller
@@ -1058,62 +1056,25 @@ class PedidoController extends Controller
             ]);
         }
 
-        // --- PREPARAÇÃO DOS SERVIÇOS DE UPLOAD ---
-        $service = null;
-        $folders = ['comprovantes' => null, 'avarias' => null];
-        $usouBackupLocal = false;
+        // --- 2. UPLOAD DO ROMANEIO ---
+        // ArquivoComprovante é o ponto único de upload: comprime, grava na árvore
+        // de backup da filial no Drive (Filial / Ano / Mês / Comprovantes) e só usa
+        // o disco local onde ele persiste. Sem onde gravar, lança — e a transação
+        // desfaz o recebimento inteiro em vez de concluí-lo sem comprovante.
+        $comprovantes = app(ArquivoComprovante::class);
+        $filialDrive  = $pedido->user?->filial;
 
         try {
-            $refreshToken = config('services.google.refresh_token');
-            if ($refreshToken) {
-                $client = new \Google\Client();
-                $client->setClientId(config('services.google.client_id'));
-                $client->setClientSecret(config('services.google.client_secret'));
-                $client->refreshToken($refreshToken);
-                $service = new \Google\Service\Drive($client);
-
-                $filialNome = "Filial - " . ($pedido->user->filial ?? 'Matriz');
-                
-                // Cache estruturado por filial/ano/mês para evitar chamadas repetitivas
-                $folders = Cache::remember("drive_folders_{$filialNome}_" . date('Ym'), 3600, function () use ($service, $filialNome) {
-                    $root = config('services.google.folder_id') ?: 'root';
-                    
-                    // 1. Pasta da Filial
-                    $filialId = $this->findOrCreateFolder($service, $filialNome, $root);
-                    
-                    // 2. Pasta do Ano
-                    $anoId = $this->findOrCreateFolder($service, date('Y'), $filialId);
-                    
-                    // 3. Pasta do Mês (Nome: Janeiro, Fevereiro...)
-                    $meses = [
-                        '01' => 'Janeiro', '02' => 'Fevereiro', '03' => 'Março', 
-                        '04' => 'Abril',   '05' => 'Maio',      '06' => 'Junho',
-                        '07' => 'Julho',   '08' => 'Agosto',    '09' => 'Setembro',
-                        '10' => 'Outubro', '11' => 'Novembro',  '12' => 'Dezembro'
-                    ];
-                    $nomeMes = $meses[date('m')];
-                    $mesId = $this->findOrCreateFolder($service, $nomeMes, $anoId);
-
-                    // 4. Subpastas de Organização
-                    return [
-                        'comprovantes' => $this->findOrCreateFolder($service, 'Comprovantes', $mesId),
-                        'avarias'      => $this->findOrCreateFolder($service, 'Avarias', $mesId)
-                    ];
-                });
-            }
-        } catch (\Exception $e) {
-            $usouBackupLocal = true; // Falha na conexão com Google
-            Log::error("Erro Drive: " . $e->getMessage());
+            $pedido->comprovante_url = $comprovantes->guardar(
+                $request->file('arquivo_romaneio'),
+                'comprovantes',
+                "PEDIDO_{$id}_RECEBIMENTO",
+                $filialDrive,
+                GoogleDriveComprovantes::PASTA_COMPROVANTES,
+            );
+        } catch (ComprovanteNaoArmazenadoException $e) {
+            throw $e->paraCampo('arquivo_romaneio');
         }
-
-        // --- 2. UPLOAD DO ROMANEIO (COM COMPRESSÃO SE FOR IMAGEM) ---
-        $pedido->comprovante_url = $this->tratarUpload(
-            $request->file('arquivo_romaneio'), 
-            "PEDIDO_{$id}_RECEBIMENTO", 
-            $service, 
-            $folders['comprovantes'], // Usa a pasta de comprovantes
-            'comprovantes'
-        );
 
         // --- 3. PROCESSAMENTO DAS MOTOS ---
         $avarias = $request->input('avarias', []);
@@ -1139,13 +1100,17 @@ class PedidoController extends Controller
                 
                 // Upload da Foto da Avaria (Otimizado)
                 if (isset($fotos[$moto->id])) {
-                    $linkFoto = $this->tratarUpload(
-                        $fotos[$moto->id], 
-                        "AVARIA_{$moto->chassi}", 
-                        $service, 
-                        $folders['avarias'], // Usa a pasta de avarias
-                        'avarias'
-                    );
+                    try {
+                        $linkFoto = $comprovantes->guardar(
+                            $fotos[$moto->id],
+                            'avarias',
+                            "AVARIA_{$moto->chassi}",
+                            $filialDrive,
+                            GoogleDriveComprovantes::PASTA_AVARIAS,
+                        );
+                    } catch (ComprovanteNaoArmazenadoException $e) {
+                        throw $e->paraCampo('fotos_avarias');
+                    }
                 }
             }
 
@@ -1208,75 +1173,8 @@ class PedidoController extends Controller
 
         } catch (\Exception $e) {}
 
-        $msg = ($service === null) 
-            ? 'Salvo localmente (Backup Ativo).' 
-            : 'Recebimento confirmado!';
-
-        return back()->with('message', $msg);
+        return back()->with('message', 'Recebimento confirmado!');
     });
-}
-
-/**
- * Helper Privado para Comprimir e Uploadar (Drive ou Local)
- */
-private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pastaLocal)
-{
-    // 1. Definição do Nome
-    $extensao = $arquivo->getClientOriginalExtension();
-    $nomeArquivo = "{$nomeBase}_" . time() . ".{$extensao}";
-    $caminhoFinal = $arquivo; // Por padrão é o arquivo original
-
-    // 2. Compressão (Apenas se for imagem)
-    if (in_array(strtolower($extensao), ['jpg', 'jpeg', 'png'])) {
-        try {
-            // SINTAXE INTERVENTION IMAGE V3 (SEM FACADE)
-            // Instancia o gerenciador com driver GD (padrão XAMPP/PHP)
-            $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
-            
-            $nomeArquivo = "{$nomeBase}_" . time() . ".jpg"; // Força JPG
-            $caminhoFinal = sys_get_temp_dir() . '/' . $nomeArquivo;
-
-            // Lê, Redimensiona e Salva
-            $image = $manager->read($arquivo);
-            $image->scaleDown(width: 1280);
-            $image->toJpeg(80)->save($caminhoFinal);
-            
-        } catch (\Exception $e) {
-            // Se falhar a compressão, usa o original
-            Log::warning("Falha na compressão de imagem: " . $e->getMessage());
-            // Verifica se o arquivo foi criado, se não, usa o original
-            if (!file_exists($caminhoFinal)) {
-                $caminhoFinal = $arquivo;
-            }
-        }
-    }
-
-    // 3. Tentativa de Upload no Drive
-    if ($driveService && $folderId) {
-        try {
-            // Nota: seu método uploadFileToDrive precisa aceitar um CAMINHO (string) ou Objeto UploadedFile
-            // Se você usa o original, passe o objeto. Se for comprimido, passe o caminho.
-            $arquivoParaEnviar = is_string($caminhoFinal) ? $caminhoFinal : $caminhoFinal->getPathname();
-            
-            // Aqui assumo que você adaptará seu uploadFileToDrive para ler o conteúdo
-            // Se não quiser mexer no helper, instancie um UploadedFile fake ou leia o stream
-            return $this->uploadFileToDrive($driveService, $caminhoFinal, $folderId, $nomeBase);
-        } catch (\Exception $e) {
-            // Falhou Drive, cai para o local abaixo
-        }
-    }
-
-    // 4. Fallback Local (Storage)
-    // Se foi comprimido, temos que mover o arquivo temporário
-    if (is_string($caminhoFinal) && file_exists($caminhoFinal)) {
-        $path = "{$pastaLocal}/{$nomeArquivo}";
-        Storage::disk('public')->put($path, file_get_contents($caminhoFinal));
-        return asset("storage/{$path}");
-    } else {
-        // Se não foi comprimido (PDF ou erro), usa o store padrão
-        $path = $arquivo->storeAs($pastaLocal, $nomeArquivo, 'public');
-        return asset("storage/{$path}");
-    }
 }
 
     // --- PREVISÃO DE ROTA (CALENDÁRIO V2) ---
@@ -1305,33 +1203,6 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             // Não bloqueia a aprovação se houver erro na busca de previsão
             Log::warning("Erro ao buscar previsão de rota para pedido #{$pedido->id}: " . $e->getMessage());
         }
-    }
-
-    // --- GOOGLE DRIVE HELPERS ---
-    private function uploadFileToDrive($service, $file, $folderId, $name) {
-        // Correção para permitir caminho de arquivo string (pós compressão) ou UploadedFile
-        $realPath = is_string($file) ? $file : $file->getRealPath();
-        $mimeType = is_string($file) ? mime_content_type($file) : $file->getClientMimeType();
-        $extension = is_string($file) ? 'jpg' : $file->getClientOriginalExtension();
-
-        $meta = new DriveFile(['name' => $name . "." . $extension, 'parents' => [$folderId]]);
-        $uploaded = $service->files->create($meta, [
-            'data' => file_get_contents($realPath),
-            'mimeType' => $mimeType,
-            'uploadType' => 'multipart',
-            'fields' => 'id, webViewLink'
-        ]);
-        try {
-            $service->permissions->create($uploaded->id, new Permission(['role' => 'reader', 'type' => 'anyone']));
-        } catch (\Exception $e) {}
-        return $uploaded->webViewLink;
-    }
-
-    private function findOrCreateFolder($service, $name, $parentId) {
-        $q = "mimeType='application/vnd.google-apps.folder' and name='$name' and '$parentId' in parents and trashed=false";
-        $files = $service->files->listFiles(['q' => $q]);
-        if (count($files->getFiles()) > 0) return $files->getFiles()[0]->id;
-        return $service->files->create(new DriveFile(['name' => $name, 'mimeType' => 'application/vnd.google-apps.folder', 'parents' => [$parentId]]), ['fields' => 'id'])->id;
     }
 
     // --- V2.6: ATRIBUIÇÃO DE CHASSIS PELO CD ---
@@ -1641,6 +1512,9 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
             'logs' => fn($q) => $q->latest()
         ])->findOrFail($id);
 
+        // Sem isto, trocar o número na URL abria o pedido de outra filial — ver PedidoPolicy.
+        Gate::authorize('view', $pedido);
+
         $ehPeca = $pedido->tipo_carga === 'peca';
 
         return Inertia::render('Pedidos/Show', [
@@ -1788,5 +1662,4 @@ private function tratarUpload($arquivo, $nomeBase, $driveService, $folderId, $pa
         ];
     }
 
-    public function imprimir($id) { return Inertia::render('Pedidos/Romaneio', ['pedido' => Pedido::with(['user', 'motos', 'romaneio'])->findOrFail($id)]); }
 }

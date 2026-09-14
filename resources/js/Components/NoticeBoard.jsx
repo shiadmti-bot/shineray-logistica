@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useForm, router } from '@inertiajs/react';
 import ReactQuill from 'react-quill';
+import DOMPurify from 'dompurify';
 import 'react-quill/dist/quill.snow.css';
 import { 
     MegaphoneIcon, 
@@ -204,7 +205,9 @@ export default function NoticeBoard({ notices = [], auth }) {
                                             </h4>
                                             <div 
                                                 className="text-content-secondary text-sm mt-2 leading-relaxed max-w-none notice-content list-disc"
-                                                dangerouslySetInnerHTML={{ __html: notice.content }} 
+                                                // O conteúdo é HTML do Quill salvo por admin/gestor: sanitizado
+                                                // na renderização, cobre também os avisos já gravados.
+                                                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notice.content) }} 
                                             />
                                             
                                             {/* Rodapé do Card */}

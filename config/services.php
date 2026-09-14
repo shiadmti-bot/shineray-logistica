@@ -39,6 +39,11 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    // Segredo dos webhooks de cron — ver App\Http\Middleware\AutenticarCron.
+    'cron' => [
+        'secret' => env('CRON_SECRET'),
+    ],
+
     'google' => [
             'client_id' => env('GOOGLE_DRIVE_CLIENT_ID'),
             'client_secret' => env('GOOGLE_DRIVE_CLIENT_SECRET'),

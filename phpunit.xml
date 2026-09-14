@@ -77,5 +77,13 @@
             O alvo de cada faixa é decidido aqui, pelo que o XML sobrescreve.
         -->
         <env name="MYSQL_ATTR_SSL_CA" value=""/>
+
+        <!--
+            Anula o refresh token do Google Drive herdado do .env. Com ele, cada
+            conferência de basqueta e anexo de devolução da suíte subia uma foto
+            falsa para o Drive real. Teste que precisa do Drive injeta um fake —
+            ver ComprovanteGoogleDriveTest.
+        -->
+        <env name="GOOGLE_DRIVE_REFRESH_TOKEN" value=""/>
     </php>
 </phpunit>

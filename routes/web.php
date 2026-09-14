@@ -24,7 +24,16 @@ use App\Models\Romaneio;
 | SISTEMA DE MANUTENÇÃO (ACESSO TÉCNICO)
 |--------------------------------------------------------------------------
 */
-Route::get('/liberar-acesso-ti', function () {
+/*
+ * Entrada da TI durante a manutenção. A chave vem de config('app.manutencao.chave'):
+ * antes a URL era pública e sem segredo, e quem a conhecesse furava a
+ * manutenção. Sem chave configurada, a porta fica fechada.
+ */
+Route::get('/liberar-acesso-ti', function (Request $request) {
+    $chave = (string) config('app.manutencao.chave');
+
+    abort_if($chave === '' || ! hash_equals($chave, (string) $request->query('chave')), 403);
+
     Session::put('manutencao_bypass', true);
     return redirect('/dashboard')->with('message', 'Acesso de TI Liberado!');
 });
@@ -41,44 +50,36 @@ Route::get('/manutencao', function () {
 
 
 
-// Webhook para o Vercel Cron rodar o agendador do Laravel
-Route::any('/webhook/microwork', function (\Illuminate\Http\Request $request) {
-    $authHeader = $request->header('Authorization');
-    $cronSecret = env('CRON_SECRET');
-    
-    if ($cronSecret && $authHeader !== "Bearer $cronSecret") {
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
-
-    \Illuminate\Support\Facades\Artisan::call('microwork:sync-estoque');
-    \App\Http\Controllers\CalendarController::limparRotasVencidas();
-
-    return response()->json(['message' => 'Estoque e rotas expiradas sincronizados via webhook com sucesso!']);
-});
-
 /*
- * Cobrança diária das travas humanas do fluxo de peças.
- *
- * Separado do webhook acima de propósito: aquele roda a cada 10 minutos, e a
- * cadência anti-spam de `pecas:cobrar` só é estável com UMA execução por dia.
- * Misturar os dois transformaria a cobrança em spam de 10 em 10 minutos.
- *
- * Configure no vercel.json para bater uma vez ao dia — ver a chave `crons`.
+ * Webhooks de cron. Quem autentica é o middleware `cron` (AutenticarCron):
+ * Bearer igual a CRON_SECRET, com a porta fechada se o segredo não existir.
  */
-Route::any('/webhook/pecas-cobranca', function (\Illuminate\Http\Request $request) {
-    $authHeader = $request->header('Authorization');
-    $cronSecret = env('CRON_SECRET');
+Route::middleware(['cron', 'throttle:30,1'])->group(function () {
+    // Sync do estoque Microwork e limpeza de rotas vencidas (a cada 10 minutos).
+    Route::get('/webhook/microwork', function () {
+        \Illuminate\Support\Facades\Artisan::call('microwork:sync-estoque');
+        \App\Http\Controllers\CalendarController::limparRotasVencidas();
 
-    if ($cronSecret && $authHeader !== "Bearer $cronSecret") {
-        return response()->json(['error' => 'Unauthorized'], 401);
-    }
+        return response()->json(['message' => 'Estoque e rotas expiradas sincronizados via webhook com sucesso!']);
+    });
 
-    \Illuminate\Support\Facades\Artisan::call('pecas:cobrar');
+    /*
+     * Cobrança diária das travas humanas do fluxo de peças.
+     *
+     * Separado do webhook acima de propósito: aquele roda a cada 10 minutos, e a
+     * cadência anti-spam de `pecas:cobrar` só é estável com UMA execução por dia.
+     * Misturar os dois transformaria a cobrança em spam de 10 em 10 minutos.
+     *
+     * Configure no vercel.json para bater uma vez ao dia — ver a chave `crons`.
+     */
+    Route::get('/webhook/pecas-cobranca', function () {
+        \Illuminate\Support\Facades\Artisan::call('pecas:cobrar');
 
-    return response()->json([
-        'message' => 'Cobrança de pendências de peças executada.',
-        'saida'   => \Illuminate\Support\Facades\Artisan::output(),
-    ]);
+        return response()->json([
+            'message' => 'Cobrança de pendências de peças executada.',
+            'saida'   => \Illuminate\Support\Facades\Artisan::output(),
+        ]);
+    });
 });
 
 /*
@@ -103,11 +104,6 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::get('/bi', [\App\Http\Controllers\BiController::class, 'index'])
             ->middleware('check_perfil:admin,gestor') // Apenas Admin e Gestor
             ->name('bi.index');
-
-        Route::get('/bi-debug', function() {
-            $p = \App\Models\Pedido::where('status', 'concluido')->latest()->with('logs')->first();
-            return $p ? $p->logs : 'Nenhum pedido concluído encontrado.';
-        });
 
         // Integração Microwork (Estoque CD)
         Route::get('/microwork/estoque-cd', [\App\Http\Controllers\Api\EstoqueController::class, 'index'])
@@ -226,7 +222,6 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             
             // Detalhes e Ações
             Route::get('/{id}', [PedidoController::class, 'show'])->name('show');
-            Route::get('/{id}/imprimir', [PedidoController::class, 'imprimir'])->name('imprimir');
             Route::post('/{id}/finalizar', [PedidoController::class, 'finalizarEntrega'])->name('finalizar');
             
             // Remoção direta de item do pedido (EXCLUSIVO ADMIN - bypassa o fluxo de estorno/aprovação)
@@ -576,45 +571,8 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::resource('notices', \App\Http\Controllers\NoticeController::class)->only(['store', 'destroy']);
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | MANUTENÇÃO AUTOMÁTICA (SELF-HEALING)
-        |--------------------------------------------------------------------------
-        */
-        Route::get('/corrigir-status-romaneios', function() {
-            // Script para garantir consistência dos status de carga
-            // Fecha cargas vazias ou 100% entregues automaticamente
-            $romaneiosAbertos = \App\Models\Romaneio::whereNotIn('status', ['concluido', 'cancelado'])->get();
-            $corrigidos = 0;
-            $detalhes = [];
-
-            foreach ($romaneiosAbertos as $carga) {
-                $pedidosAtivos = $carga->pedidos()->where('status', '!=', 'cancelado');
-                
-                // Fecha se vazio
-                if ($pedidosAtivos->count() === 0) {
-                    $carga->update(['status' => 'concluido']);
-                    $corrigidos++;
-                    $detalhes[] = "Carga #{$carga->id} fechada (Vazia).";
-                    continue;
-                }
-
-                // Fecha se tudo entregue (Ignora 'no_cd' pois é status intermediário de transbordo)
-                $pendencias = $carga->pedidos()
-                    ->whereNotIn('status', ['concluido', 'cancelado', 'no_cd'])
-                    ->count();
-
-                if ($pendencias === 0) {
-                    // Verifica se o último status não foi um transbordo
-                    $statusAtual = $carga->pedidos->first()->status ?? 'concluido';
-                    if ($statusAtual !== 'no_cd') {
-                        $carga->update(['status' => 'concluido']);
-                        $corrigidos++;
-                    }
-                }
-            }
-            return ['status' => 'Processamento Finalizado', 'cargas_corrigidas' => $corrigidos, 'log' => $detalhes];
-        });
+        // A antiga rota GET /corrigir-status-romaneios é hoje o comando
+        // `php artisan romaneios:corrigir-status` (use --dry para simular).
 
     }); // Fim Middleware Auth
     

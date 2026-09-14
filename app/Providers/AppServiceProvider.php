@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Estoque\MotoMicroworkProvider;
 use App\Services\Estoque\PecaLocalProvider;
 use App\Services\Estoque\PecaMicroworkProvider;
+use App\Services\GoogleDriveComprovantes;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -44,6 +45,14 @@ class AppServiceProvider extends ServiceProvider
                 ? $app->make(PecaMicroworkProvider::class)
                 : $app->make(PecaLocalProvider::class);
         });
+
+        /*
+         * Um cliente do Google Drive por request: recebimento com avarias faz
+         * vários uploads, e renovar o token a cada um é latência à toa.
+         * Registrado explicitamente porque, por autowiring, o container montaria
+         * um Google\Service\Drive sem credencial e o daria como "configurado".
+         */
+        $this->app->scoped(GoogleDriveComprovantes::class, fn () => new GoogleDriveComprovantes());
     }
 
     /**

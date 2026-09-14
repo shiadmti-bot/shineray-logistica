@@ -15,6 +15,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
          $middleware->alias([
             'check_perfil' => \App\Http\Middleware\CheckPerfil::class,
+            'cron'         => \App\Http\Middleware\AutenticarCron::class,
         ]);
         
         $middleware->trustProxies(at: '*');

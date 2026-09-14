@@ -124,5 +124,8 @@
             versionado.
         -->
         <env name="DB_CONNECTION" value="mysql"/>
+
+        <!-- Mesma razão do phpunit.xml: a suíte nunca sobe arquivo no Drive real. -->
+        <env name="GOOGLE_DRIVE_REFRESH_TOKEN" value=""/>
     </php>
 </phpunit>

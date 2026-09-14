@@ -49,6 +49,21 @@ class EstoqueLocal extends Model
         return $this->hasMany(PecaMovimento::class, 'local_id');
     }
 
+    /**
+     * O `users.filial` da loja deste local — o texto que nomeia a pasta dela no
+     * backup do Google Drive.
+     *
+     * Não é `nome`: o local nasce como "Loja Castanhal/PA" (FilialController),
+     * enquanto a pasta que o fluxo de motos alimenta há meses usa o filial dos
+     * usuários. Usar o nome do local abriria uma segunda pasta para a mesma loja.
+     */
+    public function nomeDaFilial(): ?string
+    {
+        return $this->user?->filial
+            ?? User::where('estoque_local_id', $this->id)->whereNotNull('filial')->orderBy('id')->value('filial')
+            ?? $this->nome;
+    }
+
     public function isCd(): bool
     {
         return $this->tipo === self::TIPO_CD;

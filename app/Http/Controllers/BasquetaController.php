@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ComprovanteNaoArmazenadoException;
 use App\Models\Basqueta;
 use App\Models\BasquetaNota;
 use App\Models\EstoqueLocal;
@@ -9,6 +10,7 @@ use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\User;
 use App\Services\ArquivoComprovante;
+use App\Services\GoogleDriveComprovantes;
 use App\Services\OneSignalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -185,12 +187,19 @@ class BasquetaController extends Controller
 
         // Fora da transação: o upload é I/O externo e lento, e segurá-lo dentro
         // de uma transação prende linha de banco à espera de rede.
-        $url = app(ArquivoComprovante::class)->guardar(
-            $dados['foto'],
-            'romaneios-peca',
-            "ROMANEIO_PECA_BASQUETA_{$basqueta->id}_V{$basqueta->romaneio_versao}",
-            $basqueta->local?->nome
-        );
+        // No Drive, entra na mesma árvore da filial que o fluxo de motos usa, na
+        // subpasta Peças do mês.
+        try {
+            $url = app(ArquivoComprovante::class)->guardar(
+                $dados['foto'],
+                'romaneios-peca',
+                "ROMANEIO_PECA_BASQUETA_{$basqueta->id}_V{$basqueta->romaneio_versao}",
+                $basqueta->local?->nomeDaFilial(),
+                GoogleDriveComprovantes::PASTA_PECAS,
+            );
+        } catch (ComprovanteNaoArmazenadoException $e) {
+            throw $e->paraCampo('foto');
+        }
 
         DB::transaction(function () use ($basqueta, $dados, $url) {
             $basqueta->update([

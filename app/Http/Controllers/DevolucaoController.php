@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ComprovanteNaoArmazenadoException;
 use App\Models\Devolucao;
 use App\Models\DevolucaoAnexo;
 use App\Models\DevolucaoItem;
@@ -419,13 +420,20 @@ class DevolucaoController extends Controller
 
         // Fora de transação: upload é I/O de rede e não deve segurar linha de
         // banco esperando — mesma decisão de BasquetaController::conferir.
-        $filialOrigem = $devolucao->filialOrigem?->nome ?? $devolucao->lojaOrigem?->filial;
-        $url = app(ArquivoComprovante::class)->guardar(
-            $dados['arquivo'],
-            'devolucoes',
-            "devolucao_{$devolucao->id}_{$dados['etapa']}" . ($item ? "_{$item->chassi}" : ''),
-            $filialOrigem
-        );
+        //
+        // A pasta no Drive é a da loja que devolve (`users.filial`). O código
+        // anterior lia `filialOrigem`/`lojaOrigem`, que não existem no model:
+        // os dois davam null e todo anexo ia para "Filial - Matriz".
+        try {
+            $url = app(ArquivoComprovante::class)->guardar(
+                $dados['arquivo'],
+                'devolucoes',
+                "devolucao_{$devolucao->id}_{$dados['etapa']}" . ($item ? "_{$item->chassi}" : ''),
+                $devolucao->loja?->filial,
+            );
+        } catch (ComprovanteNaoArmazenadoException $e) {
+            throw $e->paraCampo('arquivo');
+        }
 
         DevolucaoAnexo::create([
             'devolucao_id'      => $devolucao->id,

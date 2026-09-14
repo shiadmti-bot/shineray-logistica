@@ -1,6 +1,0 @@
-import{a as l,j as t}from"./app-BVyepcxf.js";const m=l.forwardRef(function({id:s,label:r,icone:n,erro:e,acaoDireita:o,className:d="",...i},c){const a=!!n;return t.jsxs("div",{className:d,children:[r&&t.jsx("label",{htmlFor:s,className:"mb-1.5 block text-xs font-semibold uppercase tracking-wide text-content-secondary",children:r}),t.jsxs("div",{className:"group relative",children:[a&&t.jsx(n,{"aria-hidden":"true",className:"pointer-events-none absolute inset-y-0 left-3.5 my-auto h-5 w-5 text-content-muted transition group-focus-within:text-brand-600"}),t.jsx("input",{ref:c,id:s,className:`block h-12 w-full rounded-xl border bg-surface-sunken text-sm text-content-primary
-                        placeholder:text-content-muted transition
-                        focus:bg-surface-card focus:ring-2 focus:ring-brand-500/20
-                        ${a?"pl-11":"pl-4"}
-                        ${o?"pr-12":"pr-4"}
-                        ${e?"border-status-danger-solid/60 focus:border-status-danger-solid":"border-line-strong focus:border-brand-500"}`,"aria-invalid":e?"true":void 0,"aria-describedby":e?`${s}-erro`:void 0,...i}),o]}),e&&t.jsx("p",{id:`${s}-erro`,className:"mt-1.5 text-xs font-medium text-status-danger-fg",children:e})]})});export{m as C};
