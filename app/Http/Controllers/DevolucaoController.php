@@ -419,10 +419,12 @@ class DevolucaoController extends Controller
 
         // Fora de transação: upload é I/O de rede e não deve segurar linha de
         // banco esperando — mesma decisão de BasquetaController::conferir.
+        $filialOrigem = $devolucao->filialOrigem?->nome ?? $devolucao->lojaOrigem?->filial;
         $url = app(ArquivoComprovante::class)->guardar(
             $dados['arquivo'],
             'devolucoes',
-            "devolucao_{$devolucao->id}_{$dados['etapa']}" . ($item ? "_{$item->chassi}" : '')
+            "devolucao_{$devolucao->id}_{$dados['etapa']}" . ($item ? "_{$item->chassi}" : ''),
+            $filialOrigem
         );
 
         DevolucaoAnexo::create([

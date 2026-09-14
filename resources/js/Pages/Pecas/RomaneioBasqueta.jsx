@@ -4,6 +4,7 @@ import {
     PrinterIcon,
     CheckCircleIcon,
     ExclamationTriangleIcon,
+    ArrowTopRightOnSquareIcon,
 } from '@heroicons/react/24/outline';
 
 import AppLayout from '@/Layouts/AppLayout';
@@ -70,9 +71,10 @@ export default function RomaneioBasqueta({ basqueta, podeConferir = false }) {
                                     href={basqueta.foto}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-xs font-bold text-status-success-fg underline"
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-status-success-fg underline hover:text-status-success-fg/80 mt-1"
                                 >
-                                    Ver foto do romaneio assinado
+                                    <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+                                    Ver foto do romaneio assinado {basqueta.foto.includes('drive.google.com') ? '(Google Drive)' : ''}
                                 </a>
                             )}
                         </div>

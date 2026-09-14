@@ -188,7 +188,8 @@ class BasquetaController extends Controller
         $url = app(ArquivoComprovante::class)->guardar(
             $dados['foto'],
             'romaneios-peca',
-            "basqueta_{$basqueta->id}_v{$basqueta->romaneio_versao}"
+            "ROMANEIO_PECA_BASQUETA_{$basqueta->id}_V{$basqueta->romaneio_versao}",
+            $basqueta->local?->nome
         );
 
         DB::transaction(function () use ($basqueta, $dados, $url) {
