@@ -41,9 +41,19 @@ if (isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL'])) {
 
     // 2. Cria as pastas necessárias no /tmp
     $tmpCachePath = '/tmp/storage/bootstrap/cache';
-    if (!is_dir($tmpCachePath)) {
-        mkdir($tmpCachePath, 0777, true);
-        mkdir('/tmp/storage/framework/views', 0777, true);
+    $pastas = [
+        $tmpCachePath,
+        '/tmp/storage/framework/views',
+        '/tmp/storage/framework/cache',
+        '/tmp/storage/framework/cache/data',
+        '/tmp/storage/framework/sessions',
+        '/tmp/storage/logs',
+        '/tmp/storage/app/public',
+    ];
+    foreach ($pastas as $pasta) {
+        if (!is_dir($pasta)) {
+            mkdir($pasta, 0777, true);
+        }
     }
 
     // 3. Força os arquivos de cache do bootstrap a ficarem no /tmp
