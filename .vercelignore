@@ -4,10 +4,12 @@ vendor
 
 # Ignorar Git
 .git
+.github
 
 # Ignorar Testes e Documentação
 tests
 phpunit.xml
+phpunit.tidb.xml
 README.md
 .editorconfig
 .styleci.yml
