@@ -52,6 +52,9 @@ final class CancelarPedido
             throw new OperacaoPedidoRecusada('Você não tem permissão para cancelar este pedido.');
         }
 
+        // Moto: a loja só cancela até a análise. A REJEIÇÃO não tem trava de
+        // estágio, e é intencional (confirmado com a operação em 14/09/2026):
+        // a gestão pode desfazer um pedido de moto em qualquer ponto do fluxo.
         if ($pedido->tipo_carga === 'peca') {
             $impedimento = $this->impedimentoPeca($pedido, $user);
 

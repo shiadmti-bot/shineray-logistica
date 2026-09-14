@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Models\EstoqueLocal;
 use App\Models\Peca;
 use App\Models\PecaEstoque;
@@ -26,7 +27,7 @@ class PecaPendenciaController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $ehCd = in_array($user->perfil, ['cd', 'admin', 'gestor'], true);
+        $ehCd = $user->isOperacaoCentral();
 
         $local = $ehCd
             ? ($request->integer('local') ? EstoqueLocal::find($request->integer('local')) : EstoqueLocal::cd())
@@ -39,7 +40,7 @@ class PecaPendenciaController extends Controller
             'locais'       => $ehCd
                 ? EstoqueLocal::ativos()->orderByRaw("tipo = 'loja'")->orderBy('nome')->get(['id', 'nome'])
                 : [],
-            'podeResolver' => in_array($user->perfil, ['cd', 'admin'], true),
+            'podeResolver' => $user->temPerfil(Perfil::Cd, Perfil::Admin),
         ]);
     }
 
@@ -133,7 +134,7 @@ class PecaPendenciaController extends Controller
             'observacao' => ['nullable', 'string', 'max:500'],
         ]);
 
-        if (! in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
+        if (! Auth::user()->temPerfil(Perfil::Cd, Perfil::Admin)) {
             abort(403, 'Apenas o CD resolve divergências.');
         }
 
@@ -194,7 +195,7 @@ class PecaPendenciaController extends Controller
 
         $user = Auth::user();
 
-        if ($user->perfil === 'loja' && $user->estoque_local_id !== $dados['local_id']) {
+        if ($user->isLoja() && $user->estoque_local_id !== $dados['local_id']) {
             abort(403, 'Você só define o mínimo da sua própria loja.');
         }
 

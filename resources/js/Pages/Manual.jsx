@@ -10,17 +10,7 @@ import {
     PhoneIcon,
     EnvelopeIcon,
     WrenchScrewdriverIcon,
-    TrashIcon,
-    ExclamationTriangleIcon,
-    CheckCircleIcon,
-    XCircleIcon,
-    ArrowUturnLeftIcon,
-    ArrowPathIcon,
-    InformationCircleIcon,
-    CubeIcon,
-    ArrowsRightLeftIcon,
     ShieldCheckIcon,
-    DocumentTextIcon,
     SparklesIcon
 } from '@heroicons/react/24/outline';
 

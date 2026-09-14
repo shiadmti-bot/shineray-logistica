@@ -1,5 +1,5 @@
 import { PageHeader, Card, Button } from '@/Components/UI';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import {
     BuildingStorefrontIcon,
@@ -13,11 +13,9 @@ import {
     EyeSlashIcon,
     BoltIcon,
     TruckIcon,
-    WrenchScrewdriverIcon,
     CheckCircleIcon,
     ArrowLeftIcon,
     CheckIcon,
-    CubeIcon,
 } from '@heroicons/react/24/outline';
 
 export default function UserCreate({ auth, filiais, rotas }) {

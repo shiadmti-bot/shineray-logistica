@@ -21,7 +21,7 @@ class DashboardController extends Controller
         $user = $request->user();
 
         // Gestor tem painel próprio.
-        if ($user->perfil === 'gestor') {
+        if ($user->isGestor()) {
             return redirect()->route('gestor.index');
         }
 
@@ -34,7 +34,7 @@ class DashboardController extends Controller
 
     private function numerosDo($user): array
     {
-        if ($user->perfil === 'admin') {
+        if ($user->isAdmin()) {
             return [
                 'total_pedidos'   => Pedido::count(),
                 'em_andamento'    => Pedido::whereNotIn('status', ['concluido', 'cancelado'])->count(),
@@ -43,7 +43,7 @@ class DashboardController extends Controller
             ];
         }
 
-        if ($user->perfil === 'cd') {
+        if ($user->isCd()) {
             return [
                 'pendentes'       => Pedido::whereIn('status', ['solicitado', 'aprovado', 'no_cd', 'aguardando_coleta'])->count(),
                 'no_patio'        => Moto::whereIn('status', ['separado', 'no_cd'])->count(),

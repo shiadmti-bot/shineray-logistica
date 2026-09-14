@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from '@/Components/Modal';
 import axios from 'axios';
-import { ArrowPathIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 export default function StockModal({ show, onClose, onSelect }) {
     const [loading, setLoading] = useState(false);

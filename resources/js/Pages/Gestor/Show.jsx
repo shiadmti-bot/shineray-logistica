@@ -38,6 +38,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
         if (!isTransferencia && pedido.motos?.length > 0) {
             fetchPatioData();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchPatioData = async () => {
@@ -101,7 +102,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                 color: '#713f12'
             });
         }
-    }, [mensagemChat, pedido.observacao]); 
+    }, [mensagemChat, pedido.observacao, pedido.user?.name]); 
 
     const toggleAprovacao = (id) => {
         setAprovacoes(prev => ({ ...prev, [id]: !prev[id] }));

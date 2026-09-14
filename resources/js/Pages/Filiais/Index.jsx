@@ -12,7 +12,6 @@ import {
     XCircleIcon,
     UsersIcon,
     WrenchScrewdriverIcon,
-    ArrowPathIcon,
     XMarkIcon,
 } from '@heroicons/react/24/outline';
 

@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (PHP)
+    runs-on: ubuntu-latest
+
+    # O phpunit.xml aponta para MySQL em 127.0.0.1:3306/shineray_test, root sem
+    # senha — o mesmo MariaDB do desenvolvimento local. Os testes usam
+    # DatabaseTransactions: o schema precisa existir antes (migrate).
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+          MARIADB_DATABASE: shineray_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    # Não há .env no repositório (nem deve haver). O que o artisan precisa fora
+    # do phpunit.xml vem daqui.
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: shineray_test
+      DB_USERNAME: root
+      DB_PASSWORD: ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql, bcmath, intl, zip, gd, fileinfo, exif
+          coverage: none
+
+      - name: Localizar cache do Composer
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache do Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Instalar dependências
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Gerar APP_KEY
+        run: echo "APP_KEY=base64:$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
+      - name: Migrar banco de testes
+        run: php artisan migrate --force --no-interaction
+
+      - name: Testes
+        run: php artisan test
+
+  frontend:
+    name: Frontend (Node)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # --max-warnings=0: aviso novo quebra o CI, senão o "zero avisos" dura um commit.
+      - name: Lint
+        run: npx eslint resources/js --max-warnings=0
+
+      - name: Build
+        run: npm run build

@@ -27,7 +27,7 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
                 .then(res => setDestinos(res.data))
                 .catch(err => console.error("Erro rotas:", err));
         }
-    }, [canEdit, isModalOpen]);
+    }, [canEdit, isModalOpen, destinos.length]);
 
     const addStop = () => setForm(prev => ({ ...prev, stops: [...prev.stops, ''] }));
     
@@ -113,11 +113,6 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
 
     // --- FUNÇÕES DE AÇÃO RÁPIDA (DENTRO DO MODAL OU SWAL) ---
     // Você pode chamar essas funções se quiser adicionar botões de ação direta no modal
-    const quickStatusToggle = () => {
-        const newStatus = form.status === 'planned' ? 'confirmed' : 'planned';
-        setForm(prev => ({ ...prev, status: newStatus }));
-        // Se quiser salvar direto sem clicar em "Salvar Rota", chame handleSubmit aqui
-    };
 
     const handleDelete = () => {
         if (!editingId) return;

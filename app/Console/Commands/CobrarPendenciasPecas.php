@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\Perfil;
 use App\Models\Basqueta;
 use App\Models\PedidoItem;
 use App\Models\User;
@@ -102,7 +103,7 @@ class CobrarPendenciasPecas extends Command
             // Sem validador marcado, a fila trava inteira e ninguém é avisado.
             // Cobrar o admin é o único caminho de saída.
             Log::warning('Nenhum usuário com valida_pecas — cobrança de liberação foi para o admin.');
-            $validadores = User::where('perfil', 'admin')->get();
+            $validadores = User::comPerfil(Perfil::Admin)->get();
         }
 
         return $this->notificar(
@@ -206,7 +207,7 @@ class CobrarPendenciasPecas extends Command
 
     private function equipeCd()
     {
-        return User::whereIn('perfil', ['cd', 'admin'])->get();
+        return User::comPerfil(Perfil::Cd, Perfil::Admin)->get();
     }
 
     private function notificar($destinatarios, string $titulo, string $mensagem, string $link): int

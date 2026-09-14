@@ -8,6 +8,7 @@ use App\Actions\Pedidos\Concerns\RegistraHistorico;
 use App\Actions\Pedidos\CriarPedido;
 use App\Actions\Pedidos\FinalizarEntregaPedido;
 use App\Actions\Pedidos\SepararPedido;
+use App\Enums\Perfil;
 use App\Enums\StatusPedido;
 use App\Exceptions\OperacaoPedidoRecusada;
 use App\Http\Requests\FinalizarEntregaRequest;
@@ -123,7 +124,7 @@ class PedidoController extends Controller
                 $query->whereIn('status', ['em_analise', 'solicitado', 'separado', 'aguardando_rota', 'estoque_fabrica']);
             }])
             // Visibilidade (Loja vê seus pedidos e pedidos DELE)
-            ->when($user->perfil === 'loja', function($q) use ($user) {
+            ->when($user->isLoja(), function($q) use ($user) {
                 $q->where(function($sub) use ($user) {
                     $sub->where('user_id', $user->id)
                         ->orWhere('origem_user_id', $user->id);
@@ -148,7 +149,7 @@ class PedidoController extends Controller
             ->when($dataInicio, fn($q) => $q->whereDate('created_at', '>=', $dataInicio))
             ->when($dataFim, fn($q) => $q->whereDate('created_at', '<=', $dataFim))
             // Filtro por LOJA (Apenas para Admin/Gestor/CD)
-            ->when($lojaFiltro && in_array($user->perfil, ['admin', 'gestor', 'cd']), fn($q) => $q->where('user_id', $lojaFiltro))
+            ->when($lojaFiltro && $user->isOperacaoCentral(), fn($q) => $q->where('user_id', $lojaFiltro))
             
             // ORDENAÇÃO POR PRIORIDADE: ativos primeiro, na ordem do fluxo (a
             // ordem dos cases de StatusPedido), depois os mais recentes.
@@ -168,7 +169,7 @@ class PedidoController extends Controller
 
         // Contadores por Tipo para as Abas
         $baseCounts = Pedido::query()
-            ->when($user->perfil === 'loja', function($q) use ($user) {
+            ->when($user->isLoja(), function($q) use ($user) {
                 $q->where(function($sub) use ($user) {
                     $sub->where('user_id', $user->id)
                         ->orWhere('origem_user_id', $user->id);
@@ -188,7 +189,7 @@ class PedidoController extends Controller
             'tipoCounts' => $tipoCounts,
             'currentTipo' => $tipoCarga ?: 'all',
             // Enviar lista de lojas para o filtro (apenas se tiver permissão)
-            'lojas' => in_array($user->perfil, ['admin', 'gestor', 'cd']) ? User::where('perfil', 'loja')->orderBy('filial')->get(['id', 'filial']) : []
+            'lojas' => $user->isOperacaoCentral() ? User::lojas()->orderBy('filial')->get(['id', 'filial']) : []
         ]);
     }
 
@@ -218,14 +219,14 @@ class PedidoController extends Controller
     public function create()
     {
         // Lista lojas para transferência (inclui a própria, conforme solicitado)
-        $lojas = User::where('perfil', 'loja')
+        $lojas = User::lojas()
             ->select('id', 'name', 'filial')
             ->orderBy('filial')
             ->get();
 
         // Busca ID do CD (ou Admin Admin se não houver CD explícito)
         // Isso permite que devolvamsos motos para "alguém"
-        $cdUser = User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->first();
+        $cdUser = User::comPerfil(Perfil::Cd, Perfil::Admin)->orderBy('id')->first();
 
         // [CORREÇÃO] Lista de locais de entrega para o dropdown (Injeção Backend)
         // Carrega exclusivamente filiais ATIVAS cadastradas
@@ -238,7 +239,7 @@ class PedidoController extends Controller
 
         $locaisEntrega = !empty($filiaisAtivas)
             ? $filiaisAtivas
-            : User::where('perfil', 'loja')
+            : User::lojas()
                 ->whereNotNull('filial')
                 ->where('filial', '!=', '')
                 ->orderBy('filial')
@@ -325,7 +326,7 @@ class PedidoController extends Controller
         $user = Auth::user();
         
         // Validações básicas de permissão e status
-        if ($user->perfil === 'cd' && !in_array($moto->status, ['solicitado', 'separado', 'estoque_fabrica'])) 
+        if ($user->isCd() && !in_array($moto->status, ['solicitado', 'separado', 'estoque_fabrica'])) 
             return back()->withErrors('CD só cancela item em separação.');
         
         $moto->update([
@@ -335,7 +336,7 @@ class PedidoController extends Controller
         ]);
         
         // Notifica Gestores
-        User::whereIn('perfil', ['gestor', 'admin'])->each(fn($u) => $u->notify(new EstornoSolicitado($moto, $user)));
+        User::comPerfil(Perfil::Gestor, Perfil::Admin)->each(fn($u) => $u->notify(new EstornoSolicitado($moto, $user)));
         
         return back()->with('success', 'Solicitação de estorno enviada.');
     }
@@ -346,7 +347,7 @@ class PedidoController extends Controller
     {
         $request->validate(['motivo' => 'required|string|max:500']);
 
-        if (Auth::user()->perfil !== 'admin') {
+        if (! Auth::user()->isAdmin()) {
             abort(403, 'Apenas o Administrador pode remover itens diretamente.');
         }
 
@@ -485,7 +486,7 @@ class PedidoController extends Controller
 
     private function autorizarCD(): void
     {
-        if (!in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
+        if (! Auth::user()->temPerfil(Perfil::Cd, Perfil::Admin)) {
             abort(403, 'Apenas a equipe do CD pode atribuir chassis aos pedidos.');
         }
     }
@@ -650,7 +651,7 @@ class PedidoController extends Controller
                 'legado'         => $ehPeca || $pedido->itensPedido->isEmpty(),
                 'saldo_pendente' => $ehPeca ? 0 : (int) $pedido->itensPedido->sum(fn($i) => $i->qtd_pendente),
                 'permitido'      => ! $ehPeca
-                                    && in_array(Auth::user()->perfil, ['cd', 'admin'], true)
+                                    && Auth::user()->temPerfil(Perfil::Cd, Perfil::Admin)
                                     && in_array($pedido->status, \App\Services\AtribuicaoChassiService::STATUS_ATRIBUIVEIS, true),
             ],
         ]);
@@ -668,7 +669,7 @@ class PedidoController extends Controller
         }
 
         $user = Auth::user();
-        $ehCd = in_array($user?->perfil, ['cd', 'admin', 'gestor'], true);
+        $ehCd = $user?->isOperacaoCentral() ?? false;
 
         // Itens já carregados na carga, para a conferência de recebimento.
         $itensCarga = \App\Models\RomaneioItem::with('itemable:id,codigo,descricao,unidade')

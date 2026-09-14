@@ -21,7 +21,7 @@ class CalendarController extends Controller
         $schedules = Schedule::with(['stops.loja:id,filial,name'])->get();
         
         $events = [];
-        $canManage = in_array($user->perfil, ['admin', 'cd', 'gestor']);
+        $canManage = $user->isOperacaoCentral();
         $myId = (int) $user->id;
 
         foreach ($schedules as $sched) {
@@ -70,7 +70,7 @@ class CalendarController extends Controller
     public function getRotas()
     {
         return response()->json(
-            User::where('perfil', 'loja')
+            User::lojas()
                 // Remova o where is_interior se quiser que todas apareçam
                 // .where('is_interior', true) 
                 ->select('id', 'filial as name')
@@ -186,7 +186,7 @@ class CalendarController extends Controller
                     // É apenas Amarelo (Scheduled)
                     if ($pedido->status === 'rota_confirmada') {
                         // Rebaixamento do status do calendário. O pedido deve regredir da Rota Confirmada.
-                        $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+                        $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja();
                         
                         if ($isTransferencia) {
                             $novoStatus = ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') ? 'aguardando_rota' : 'aguardando_coleta';
@@ -271,7 +271,7 @@ class CalendarController extends Controller
                 } else {
                     $pedido->update(['previsao_entrega' => null]);
                     
-                    $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+                    $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja();
                     
                     if ($isTransferencia) {
                         if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Exceptions\ComprovanteNaoArmazenadoException;
 use App\Models\Basqueta;
 use App\Models\BasquetaNota;
@@ -313,7 +314,7 @@ class BasquetaController extends Controller
             // O Gate 2 só existe enquanto a caixa está faturada e ainda não
             // conferida. Depois de liberada ou despachada não há o que assinar.
             'podeConferir' => $basqueta->status === Basqueta::STATUS_FATURADA
-                && (in_array($user->perfil, ['cd', 'admin'], true)
+                && ($user->temPerfil(Perfil::Cd, Perfil::Admin)
                     || $user->estoque_local_id === $basqueta->estoque_local_id),
             'basqueta' => [
                 'id'       => $basqueta->id,

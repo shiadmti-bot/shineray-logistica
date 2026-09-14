@@ -3,6 +3,7 @@
 namespace App\Actions\Pedidos;
 
 use App\Actions\Pedidos\Concerns\RegistraHistorico;
+use App\Enums\Perfil;
 use App\Exceptions\ComprovanteNaoArmazenadoException;
 use App\Models\Devolucao;
 use App\Models\Pedido;
@@ -58,13 +59,13 @@ final class FinalizarEntregaPedido
                 ]);
             }
 
-            if ($user->perfil === 'loja' && $pedido->user_id !== $user->id) {
+            if ($user->isLoja() && $pedido->user_id !== $user->id) {
                 throw new AuthorizationException('Acesso não autorizado.');
             }
 
-            $isDestinoCD = User::whereKey($pedido->user_id)->whereIn('perfil', ['cd', 'admin'])->exists();
+            $isDestinoCD = User::whereKey($pedido->user_id)->comPerfil(Perfil::Cd, Perfil::Admin)->exists();
 
-            if ($user->perfil === 'cd' && ! $isDestinoCD) {
+            if ($user->isCd() && ! $isDestinoCD) {
                 throw new AuthorizationException('O CD não tem permissão para finalizar pedidos. O recebimento oficial deve ser feito pela loja de destino.');
             }
 
@@ -187,7 +188,7 @@ final class FinalizarEntregaPedido
             $link = route('pedidos.show', $pedido->id);
 
             $this->enviarNotificacao(
-                User::whereIn('perfil', ['gestor', 'admin', 'cd'])->get(),
+                User::operacaoCentral()->get(),
                 'Entrega Confirmada ✅',
                 "Loja {$pedido->user->filial} finalizou pedido #{$pedido->id}.",
                 $link

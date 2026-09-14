@@ -1,6 +1,5 @@
 import { PageHeader } from '@/Components/UI';
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
 import Swal from 'sweetalert2';
 
 export default function CalendarManager({ auth, rotas, eventos, mesAtual }) {

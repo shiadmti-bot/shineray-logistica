@@ -1,0 +1,1 @@
+import{j as t}from"./vendor-DFiCZbm7.js";import{i as l}from"./vendor-editor-Dv7xMpSM.js";const s={toolbar:[["bold","italic","underline","strike"],[{list:"ordered"},{list:"bullet"}],["link"],["clean"]]};function a({value:e,onChange:o}){return t.jsx(l,{theme:"snow",value:e,onChange:o,placeholder:"Conteúdo da mensagem...",className:"h-32",modules:s})}export{a as default};

@@ -65,7 +65,14 @@ export default function Button({
     }
 
     return (
-        <button type="button" disabled={inativo} className={classes} {...props}>
+        <button
+            type="button"
+            disabled={inativo}
+            aria-busy={loading || undefined}
+            aria-disabled={inativo || undefined}
+            className={classes}
+            {...props}
+        >
             {conteudo}
         </button>
     );

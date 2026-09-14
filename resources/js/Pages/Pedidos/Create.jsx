@@ -1,4 +1,4 @@
-import { PageHeader, Button } from '@/Components/UI';
+import { PageHeader } from '@/Components/UI';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';

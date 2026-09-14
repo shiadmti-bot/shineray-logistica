@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Moto;
 use App\Models\PedidoLog;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -40,7 +41,7 @@ class MotoController extends Controller
          */
         $user = auth()->user();
 
-        if ($user->perfil === 'loja') {
+        if ($user->isLoja()) {
             $query->where(function ($q) use ($user) {
                 $q->where('loja_atual_id', $user->id)
                   ->orWhereHas('pedidos', function ($p) use ($user) {
@@ -84,8 +85,8 @@ class MotoController extends Controller
          * acima, filtrar por outra filial devolveria vazio de qualquer jeito, e
          * um filtro que nunca retorna nada parece defeito, não permissão.
          */
-        $lojas = \App\Models\User::where('perfil', 'loja')
-            ->when($user->perfil === 'loja', fn ($q) => $q->where('id', $user->id))
+        $lojas = User::lojas()
+            ->when($user->isLoja(), fn ($q) => $q->where('id', $user->id))
             ->orderBy('filial')
             ->select('id', 'filial', 'name')
             ->get();

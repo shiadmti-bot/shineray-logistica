@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Models\EstoqueLocal;
 use App\Models\Peca;
 use App\Models\PecaAplicacao;
 use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\PedidoLog;
+use App\Models\User;
 use App\Services\Pecas\CatalogoModelos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -52,7 +54,7 @@ class PecaPedidoController extends Controller
             )
             : null;
 
-        $locais = $user->perfil === 'admin'
+        $locais = $user->isAdmin()
             ? EstoqueLocal::filiaisDePeca()
                 ->orderBy('nome')
                 ->get(['id', 'nome'])
@@ -70,7 +72,7 @@ class PecaPedidoController extends Controller
                 'local' => $user->estoque_local_id,
             ],
             'locais'  => $locais,
-            'isAdmin' => $user->perfil === 'admin',
+            'isAdmin' => $user->isAdmin(),
         ]);
     }
 
@@ -118,13 +120,13 @@ class PecaPedidoController extends Controller
          * Para administradores, permite escolher a filial de destino do pedido,
          * ou utiliza o estoque_local_id do admin se possuir um.
          */
-        $localDestinoId = ($user->perfil === 'admin' && !empty($dados['local_destino_id']))
+        $localDestinoId = ($user->isAdmin() && !empty($dados['local_destino_id']))
             ? (int) $dados['local_destino_id']
             : $user->estoque_local_id;
 
         if (! $localDestinoId) {
             return back()->withErrors([
-                'geral' => $user->perfil === 'admin'
+                'geral' => $user->isAdmin()
                     ? 'Escolha a filial de destino da peça antes de enviar a solicitação.'
                     : 'Seu usuário não tem um local de estoque vinculado, então não há para onde enviar a peça. Peça ao administrador para vincular sua filial antes de solicitar.',
             ])->withInput();
@@ -159,7 +161,7 @@ class PecaPedidoController extends Controller
         $statusInicial = $todosComCodigo ? 'aguardando_confirmacao' : 'solicitado';
 
         $pedido = DB::transaction(function () use ($dados, $user, $cd, $localDestino, $localDestinoId, $todosComCodigo, $statusInicial) {
-            $userIdDestino = ($user->perfil === 'admin' && $localDestino->user_id)
+            $userIdDestino = ($user->isAdmin() && $localDestino->user_id)
                 ? $localDestino->user_id
                 : $user->id;
 
@@ -233,7 +235,7 @@ class PecaPedidoController extends Controller
          * consultar a tela de atendimento. Agora os dois têm paridade.
          */
         \Illuminate\Support\defer(function () use ($pedido, $user, $todosComCodigo) {
-            $destinatarios = \App\Models\User::whereIn('perfil', ['cd', 'admin'])->get();
+            $destinatarios = User::comPerfil(Perfil::Cd, Perfil::Admin)->get();
             $titulo = $todosComCodigo ? 'Peças para Liberação 🔧' : 'Nova Solicitação de Peças 🔧';
             $mensagem = ($user->filial ?: $user->name)
                 . " solicitou peças (pedido #{$pedido->id})."
@@ -302,7 +304,7 @@ class PecaPedidoController extends Controller
              * porque vínculo manual tem confiança alta. Um engano de uma filial
              * viraria buraco permanente no catálogo de todas.
              */
-            if (! in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
+            if (! Auth::user()->temPerfil(Perfil::Cd, Perfil::Admin)) {
                 return back()->withErrors([
                     'familia' => 'Só o Estoque Central remove uma aplicação do catálogo, porque o vínculo vale para toda a rede. Avise o CD se este modelo estiver errado.',
                 ]);

@@ -101,7 +101,7 @@ class RomaneioController extends Controller
             ->where(function ($query) {
                 $query->whereNull('origem_user_id')
                       ->orWhereHas('origem', function ($q) {
-                          $q->where('perfil', '!=', 'loja'); // CD ou Admin
+                          $q->where('perfil', '!=', \App\Enums\Perfil::Loja->value); // CD ou Admin
                       });
             })
             ->with(['user', 'motos' => function ($q) {
@@ -116,7 +116,7 @@ class RomaneioController extends Controller
             ->whereDoesntHave('itensPedido', fn ($q) => $q->pendentes())
             ->whereNotNull('origem_user_id')
             ->whereHas('origem', function ($q) {
-                $q->where('perfil', 'loja');
+                $q->where('perfil', \App\Enums\Perfil::Loja->value);
             })
             ->whereHas('motos', function ($q) {
                 $q->whereIn('status', ['separado', 'aguardando_rota', 'aguardando_coleta', 'rota_confirmada']);
@@ -363,7 +363,7 @@ class RomaneioController extends Controller
                 // --- LÓGICA INTELIGENTE (MILK RUN) ---
                 
                 // CORREÇÃO: Só é coleta de loja se a origem for uma loja. Origem nula ou CD é Expedição direta do CD.
-                $isColeta = ($pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja');
+                $isColeta = ($pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja());
                 
                 if ($isColeta) {
                     // Cenário 1: Coleta (Milk Run) - Motorista vai buscar na loja
@@ -620,7 +620,7 @@ class RomaneioController extends Controller
             $user = Auth::user();
 
             // --- CASO 1: CHEGADA NO CD (TRANSBORDO) ---
-            if ($user->perfil === 'cd' || $user->perfil === 'admin') {
+            if ($user->isCd() || $user->isAdmin()) {
                 $itensRecebidos = 0;
                 $pedidosAfetados = [];
 
@@ -705,7 +705,7 @@ class RomaneioController extends Controller
             }
 
             // --- CASO 2: CHEGADA NA LOJA (RECEBIMENTO FINAL) ---
-            if ($user->perfil === 'loja') {
+            if ($user->isLoja()) {
                 return back()->withErrors(['erro' => 'Por favor, realize o recebimento pelo menu "Meus Pedidos".']);
             }
 

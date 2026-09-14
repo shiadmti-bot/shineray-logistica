@@ -124,7 +124,7 @@ class PecaController extends Controller
             'estoques'   => $estoques,
             'locais'     => $locais->map(fn ($l) => ['id' => $l->id, 'nome' => $l->nome, 'tipo' => $l->tipo]),
             'localAtual' => $localSelecionado,
-            'podeEscolherLocal' => in_array($user->perfil, ['admin', 'cd', 'gestor'], true),
+            'podeEscolherLocal' => $user->isOperacaoCentral(),
             'filtros'    => [
                 'busca'           => $request->input('busca', ''),
                 'modelo'          => $request->input('modelo', ''),
@@ -143,7 +143,7 @@ class PecaController extends Controller
      */
     private function resolverLocal(Request $request, $user, $locais): ?int
     {
-        if ($user->perfil === 'loja') {
+        if ($user->isLoja()) {
             return $user->estoque_local_id;
         }
 

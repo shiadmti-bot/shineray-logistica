@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Models\EstoqueLocal;
 use App\Models\Peca;
 use App\Models\Pedido;
@@ -471,7 +472,7 @@ class PecaAtendimentoController extends Controller
 
     private function autorizarCd(): void
     {
-        if (! in_array(Auth::user()->perfil, ['cd', 'admin'], true)) {
+        if (! Auth::user()->temPerfil(Perfil::Cd, Perfil::Admin)) {
             abort(403, 'Apenas o CD pode separar peças.');
         }
     }
@@ -480,7 +481,7 @@ class PecaAtendimentoController extends Controller
     {
         $user = Auth::user();
 
-        if (in_array($user->perfil, ['admin', 'cd'], true)) {
+        if ($user->temPerfil(Perfil::Admin, Perfil::Cd)) {
             return;
         }
 

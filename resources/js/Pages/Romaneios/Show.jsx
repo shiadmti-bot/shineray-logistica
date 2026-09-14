@@ -124,7 +124,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                 onSuccess: () => {
                     try {
                         new Audio('/plim.mp3').play().catch(() => {});
-                    } catch (e) {
+                    } catch {
                         /* som é opcional */
                     }
                     Swal.fire({

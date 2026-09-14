@@ -228,7 +228,7 @@ class PecaIndicadorController extends Controller
 
     private function autorizar(): void
     {
-        if (! in_array(Auth::user()->perfil, ['admin', 'gestor', 'cd'], true)) {
+        if (! Auth::user()->isOperacaoCentral()) {
             abort(403, 'Indicadores de peça são restritos à gestão e ao Estoque Central.');
         }
     }

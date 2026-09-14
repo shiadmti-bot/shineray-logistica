@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Models\EstoqueLocal;
 use App\Models\Peca;
 use App\Models\PecaEstoque;
@@ -173,7 +174,7 @@ class PecaEstoqueController extends Controller
     private function localDoUsuario(Request $request, $user): ?EstoqueLocal
     {
         // Loja opera apenas no próprio estoque.
-        if ($user->perfil === 'loja') {
+        if ($user->isLoja()) {
             return EstoqueLocal::find($user->estoque_local_id);
         }
 
@@ -187,7 +188,7 @@ class PecaEstoqueController extends Controller
     /** @return array<int, array{id:int, nome:string}> */
     private function locaisPermitidos($user): array
     {
-        if ($user->perfil === 'loja') {
+        if ($user->isLoja()) {
             $local = EstoqueLocal::find($user->estoque_local_id);
 
             return $local ? [['id' => $local->id, 'nome' => $local->nome]] : [];
@@ -219,11 +220,11 @@ class PecaEstoqueController extends Controller
     {
         $user = Auth::user();
 
-        if (in_array($user->perfil, ['cd', 'admin'], true)) {
+        if ($user->temPerfil(Perfil::Cd, Perfil::Admin)) {
             return;
         }
 
-        if ($user->perfil !== 'loja') {
+        if (! $user->isLoja()) {
             abort(403, 'Seu perfil não movimenta estoque de peças.');
         }
 

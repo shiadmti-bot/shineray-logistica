@@ -29,7 +29,7 @@ export default function Login({ status, canResetPassword }) {
 
     const [mostrarSenha, setMostrarSenha] = useState(false);
 
-    useEffect(() => () => reset('password'), []);
+    useEffect(() => () => reset('password'), [reset]);
 
     const submit = (e) => {
         e.preventDefault();

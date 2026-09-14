@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
+use App\Models\Devolucao;
 use App\Models\EstoqueLocal;
 use App\Models\Filial;
 use App\Models\Pedido;
+use App\Models\Romaneio;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +19,7 @@ class FilialController extends Controller
 {
     private function autorizar(): void
     {
-        if (!in_array(Auth::user()?->perfil, ['admin', 'gestor'], true)) {
+        if (! Auth::user()?->temPerfil(Perfil::Admin, Perfil::Gestor)) {
             abort(403, 'Apenas administradores e gestores podem gerenciar filiais.');
         }
     }

@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Pedidos\AprovarPedido;
+use App\Actions\Pedidos\CancelarPedido;
+use App\Exceptions\OperacaoPedidoRecusada;
 use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\Moto;
-use App\Models\User;
-use App\Notifications\PedidoAtualizado;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class GestorController extends Controller
@@ -124,151 +126,78 @@ class GestorController extends Controller
 
     /**
      * Lógica de Aprovação Comercial
-     * Processa cortes (rejeições) e aprova o restante.
+     * Processa cortes (rejeições) e aprova o restante via AprovarPedido.
      */
-    public function aprovar(Request $request, $id)
+    public function aprovar(Request $request, $id, AprovarPedido $aprovarPedido)
     {
         $this->autorizarGestorMotos();
 
-        $pedido = Pedido::with('motos')->findOrFail($id);
-        
-        $motosRejeitadasIds = $request->input('rejeitadas', []);
-        $itensRejeitadosIds = $request->input('itens_rejeitados', []); // V2.6: IDs de pedido_itens cortados
-        $motivosMap = $request->input('motivos', []); // Mapa [id => motivo]
-        $justificativaGeral = $request->input('justificativa');
-        
-        $userGestor = Auth::user();
-        $detalhesCortes = []; 
+        $dados = $request->validate([
+            'rejeitadas'         => ['nullable', 'array'],
+            'rejeitadas.*'       => ['integer'],
+            'itens_rejeitados'   => ['nullable', 'array'],
+            'itens_rejeitados.*' => ['integer'],
+            'motivos'            => ['nullable', 'array'],
+            'motivos.*'          => ['nullable', 'string'],
+            'justificativa'      => ['nullable', 'string'],
+        ]);
 
-        // 1. Processa os cortes de motos (Legado)
-        if (!empty($motosRejeitadasIds)) {
-            $motosParaRemover = Moto::whereIn('id', $motosRejeitadasIds)->get();
+        $pedido = Pedido::with(['user', 'motos', 'origem', 'itensPedido'])->findOrFail($id);
 
-            foreach ($motosParaRemover as $moto) {
-                $motivo = $motivosMap[$moto->id] ?? 'Motivo não informado';
-                $detalhesCortes[] = "🚫 {$moto->modelo} ({$moto->chassi})\n   ↳ Motivo: {$motivo}";
-                $pedido->motos()->detach($moto->id);
-                
-                if ($pedido->origem_user_id) {
-                    $moto->update([
-                        'status' => 'disponivel',
-                        'localizacao_atual' => "Estoque Loja"
-                    ]);
-                } else {
-                    if ($moto->pedidos()->count() > 0) {
-                        $moto->update([
-                            'status' => 'disponivel',
-                            'localizacao_atual' => 'Fábrica/CD'
-                        ]);
-                    } else {
-                        $moto->delete(); 
-                    }
-                }
-            }
-        }
-
-        // 1b. Processa os cortes de itens genéricos (V2.6)
-        if (!empty($itensRejeitadosIds)) {
-            $itensParaRemover = \App\Models\PedidoItem::whereIn('id', $itensRejeitadosIds)
-                ->where('pedido_id', $pedido->id)
-                ->get();
-
-            foreach ($itensParaRemover as $item) {
-                $motivo = $motivosMap['item_' . $item->id] ?? $motivosMap[$item->id] ?? 'Motivo não informado';
-                $detalhesCortes[] = "🚫 {$item->modelo} ({$item->cor}) - {$item->quantidade} un.\n   ↳ Motivo: {$motivo}";
-                $item->delete();
-            }
-        }
-
-        $pedido->refresh();
-        
-        // 2. Se sobrou alguma moto/item, aprova o pedido
-        $temItens = $pedido->isLegado()
-            ? $pedido->motos->count() > 0
-            : ($pedido->motos->count() > 0 || $pedido->saldoPendente() > 0 || $pedido->itensPedido()->where('quantidade', '>', 0)->exists());
-
-        if ($temItens) {
-            $pedido->update(['status' => 'solicitado']); // Libera para o CD
-
-            // Monta o Log
-            $textoLog = "✅ Autorizado por {$userGestor->name}.";
-            
-            if ($justificativaGeral) {
-                $textoLog .= "\n💬 Obs Geral: \"{$justificativaGeral}\"";
-            }
-            
-            if (!empty($detalhesCortes)) {
-                $textoLog .= "\n\n❌ ITENS REJEITADOS:\n" . implode("\n", $detalhesCortes);
-            }
-
-            // Grava Log
-            PedidoLog::create([
-                'pedido_id' => $pedido->id,
-                'titulo' => 'Auditoria Comercial (Gestor)',
-                'descricao' => $textoLog
+        try {
+            $aprovado = $aprovarPedido->executar($pedido, [
+                'rejeitadas'       => $dados['rejeitadas'] ?? [],
+                'itens_rejeitados' => $dados['itens_rejeitados'] ?? [],
+                'motivos'          => $dados['motivos'] ?? [],
+                'justificativa'    => $dados['justificativa'] ?? null,
             ]);
+        } catch (OperacaoPedidoRecusada $e) {
+            return redirect()->route('gestor.index')->with('error', $e->getMessage());
+        }
 
-            // Notificações Direcionadas: Quem deve separar as motos?
-            $tituloNotific = 'Pedido #' . $pedido->id . ' Aprovado';
-            $msgNotific = 'Solicitação aprovada comercialmente e liberada para separação.';
-
-            if ($pedido->origem_user_id && $pedido->origem) {
-                // Se for Transferência, notifica a loja de origem para separar as motos
-                $pedido->origem->notify(new PedidoAtualizado($tituloNotific, $msgNotific, route('pedidos.show', $pedido->id)));
-            } else {
-                // Se for Reposição (sem origem de loja), notifica a equipe do CD
-                $cds = User::where('perfil', 'cd')->get();
-                foreach ($cds as $cd) {
-                    $cd->notify(new PedidoAtualizado($tituloNotific, $msgNotific, route('pedidos.show', $pedido->id)));
-                }
-            }
-
-            return redirect()->route('gestor.index')->with('success', 'Análise concluída! Pedido liberado para separação física.');
-        } else {
-            // Se tudo foi rejeitado, apaga o pedido
-            $pedido->delete();
+        if (! $aprovado) {
             return redirect()->route('gestor.index')->with('warning', 'Pedido cancelado (todos os itens foram rejeitados).');
         }
+
+        return redirect()->route('gestor.index')->with('success', 'Análise concluída! Pedido liberado para separação física.');
     }
 
     /**
-     * Cancelamento/Rejeição Total do Pedido pelo Gestor Comercial
+     * Rejeição total do pedido pelo Gestor Comercial.
+     *
+     * Mesmo caminho do cancelamento comum (CancelarPedido): moto volta ao
+     * estoque de onde saiu, reservas são canceladas, status e motivo ficam
+     * gravados e a loja é avisada. A trava de status é a da aprovação — antes
+     * dava para "rejeitar" pedido já separado ou em trânsito, e as motos
+     * voltavam ao estoque com a carga na estrada.
      */
-    public function rejeitar(Request $request, $id)
+    public function rejeitar(Request $request, $id, CancelarPedido $cancelarPedido)
     {
         $this->autorizarGestorMotos();
 
-        $pedido = Pedido::with('motos', 'user')->findOrFail($id);
+        $pedido = Pedido::with(['motos', 'user', 'itensPedido.peca'])->findOrFail($id);
         $motivo = $request->input('justificativa') ?: $request->input('motivo', 'Rejeitado pelo Gestor Comercial');
-        $userGestor = Auth::user();
 
-        // Libera motos (se houver motos atreladas)
-        foreach ($pedido->motos as $moto) {
-            $statusVolta = $pedido->origem_user_id ? 'disponivel' : 'estoque_fabrica';
-            $localVolta = $pedido->origem_user_id ? "Estoque Loja" : "Pátio CD/Fábrica";
-            $moto->update(['status' => $statusVolta, 'localizacao_atual' => $localVolta]);
-        }
-        $pedido->motos()->detach();
+        try {
+            DB::transaction(function () use ($pedido, $motivo, $cancelarPedido) {
+                // Relido com trava: não rejeita o que outro gestor acabou de aprovar.
+                $statusAtual = Pedido::whereKey($pedido->id)->lockForUpdate()->value('status');
 
-        // Grava log do cancelamento
-        PedidoLog::create([
-            'pedido_id' => $pedido->id,
-            'titulo' => 'Cancelado pelo Gestor Comercial',
-            'descricao' => "❌ Pedido totalmente rejeitado por {$userGestor->name}.\n💬 Motivo: {$motivo}"
-        ]);
+                if ($statusAtual !== 'em_analise') {
+                    throw new OperacaoPedidoRecusada('Este pedido já foi processado.');
+                }
 
-        // Notifica a loja solicitante
-        if ($pedido->user) {
-            $pedido->user->notify(new \App\Notifications\PedidoAtualizado(
-                "Pedido #{$pedido->id} Rejeitado",
-                "O Gestor Comercial rejeitou seu pedido. Motivo: {$motivo}",
-                route('pedidos.index')
-            ));
+                if ($pedido->tipo_carga === 'peca') {
+                    throw new OperacaoPedidoRecusada('Pedidos de peça não passam pela análise comercial.');
+                }
+
+                $cancelarPedido->executar($pedido, Auth::user(), 'rejeitado', $motivo);
+            });
+        } catch (OperacaoPedidoRecusada $e) {
+            return redirect()->route('gestor.index')->with('error', $e->getMessage());
         }
 
-        $pedido->delete();
-
-        return redirect()->route('gestor.index')->with('warning', "Pedido #{$id} foi rejeitado e cancelado.");
+        return redirect()->route('gestor.index')->with('warning', "Pedido #{$pedido->id} foi rejeitado e cancelado.");
     }
 
     /**

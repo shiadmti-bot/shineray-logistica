@@ -54,7 +54,7 @@ class BiController extends Controller
             });
 
         // REFAZENDO RANKING (Mais Seguro)
-        $rankingLojas = User::where('perfil', 'loja')
+        $rankingLojas = User::lojas()
             ->whereNotNull('filial')
             ->withCount(['pedidos' => function($q) use ($startDate, $endDate) {
                 $q->whereBetween('created_at', ["$startDate 00:00:00", "$endDate 23:59:59"]);

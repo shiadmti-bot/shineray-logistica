@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Exceptions\ComprovanteNaoArmazenadoException;
 use App\Models\Devolucao;
 use App\Models\DevolucaoAnexo;
@@ -78,7 +79,7 @@ class DevolucaoController extends Controller
                 'pedido:id,status,romaneio_id',
             ])
             // A loja enxerga o que ela devolveu; CD, gestor e admin veem tudo.
-            ->when($user->perfil === 'loja', fn ($q) => $q->where('user_id', $user->id))
+            ->when($user->isLoja(), fn ($q) => $q->where('user_id', $user->id))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
             ->latest()
             ->paginate(20)
@@ -89,14 +90,14 @@ class DevolucaoController extends Controller
             'devolucoes' => $devolucoes,
             'filtros'    => $request->only(['status']),
             'motivos'    => Devolucao::MOTIVOS,
-            'podeCriar'  => in_array($user->perfil, ['loja', 'admin'], true),
+            'podeCriar'  => $user->temPerfil(Perfil::Loja, Perfil::Admin),
         ]);
     }
 
     public function create(Request $request)
     {
         $user = Auth::user();
-        $ehLoja = $user->perfil === 'loja';
+        $ehLoja = $user->isLoja();
 
         /*
          * O admin escolhe a loja ANTES de ver o pátio, e a lista volta do
@@ -111,7 +112,7 @@ class DevolucaoController extends Controller
             'lojaId'  => $lojaId,
             'lojas'   => $ehLoja
                 ? []
-                : User::where('perfil', 'loja')->orderBy('filial')->get(['id', 'name', 'filial']),
+                : User::lojas()->orderBy('filial')->get(['id', 'name', 'filial']),
             'motivos' => Devolucao::MOTIVOS,
         ]);
     }
@@ -132,8 +133,8 @@ class DevolucaoController extends Controller
         ]);
 
         $user = Auth::user();
-        $ehCd = in_array($user->perfil, ['cd', 'admin'], true);
-        $ehDono = $devolucao->user_id === $user->id || $user->perfil === 'admin';
+        $ehCd = $user->temPerfil(Perfil::Cd, Perfil::Admin);
+        $ehDono = $devolucao->user_id === $user->id || $user->isAdmin();
 
         return Inertia::render('Devolucoes/Show', [
             'devolucao' => $this->detalhar($devolucao),
@@ -145,7 +146,7 @@ class DevolucaoController extends Controller
                 'conferir_destino' => $ehCd && $devolucao->emTransporte(),
                 'editar'           => $ehDono && $devolucao->podeEditar(),
                 'enviar'           => $ehDono && $devolucao->podeEditar(),
-                'decidir'          => in_array($user->perfil, ['gestor', 'admin'], true)
+                'decidir'          => $user->temPerfil(Perfil::Gestor, Perfil::Admin)
                                       && $devolucao->status === Devolucao::STATUS_AGUARDANDO,
                 'receber'          => $ehCd && $devolucao->emTransporte(),
                 'cancelar'         => $ehDono && in_array($devolucao->status, [
@@ -210,7 +211,7 @@ class DevolucaoController extends Controller
             'motivo.required' => 'Informe por que estas motos estão voltando ao CD.',
         ]);
 
-        $lojaId = $user->perfil === 'loja' ? $user->id : (int) ($dados['loja_id'] ?? 0);
+        $lojaId = $user->isLoja() ? $user->id : (int) ($dados['loja_id'] ?? 0);
 
         if (! $lojaId) {
             throw ValidationException::withMessages([
@@ -488,7 +489,7 @@ class DevolucaoController extends Controller
         $devolucao->update(['status' => Devolucao::STATUS_AGUARDANDO]);
 
         $this->notificar(
-            User::whereIn('perfil', ['gestor', 'admin'])->get(),
+            User::comPerfil(Perfil::Gestor, Perfil::Admin)->get(),
             'Devolução para aprovar 🔁',
             "Loja {$devolucao->loja->filial} quer devolver {$devolucao->totalMotos()} moto(s) ao CD.",
             route('devolucoes.show', $devolucao->id)
@@ -623,7 +624,7 @@ class DevolucaoController extends Controller
         $devolucao->refresh();
 
         $this->notificar(
-            User::where('perfil', 'cd')->get(),
+            User::comPerfil(Perfil::Cd)->get(),
             'Coleta de devolução 🚚',
             "Loja {$devolucao->loja->filial} teve a devolução #{$devolucao->id} aprovada. Agende a coleta.",
             route('romaneios.create')
@@ -853,8 +854,8 @@ class DevolucaoController extends Controller
     /** O usuário que representa o CD. Preferimos o perfil dedicado ao admin. */
     private function usuarioDoCd(): ?User
     {
-        return User::where('perfil', 'cd')->orderBy('id')->first()
-            ?: User::where('perfil', 'admin')->orderBy('id')->first();
+        return User::comPerfil(Perfil::Cd)->orderBy('id')->first()
+            ?: User::comPerfil(Perfil::Admin)->orderBy('id')->first();
     }
 
     /**

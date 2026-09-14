@@ -24,7 +24,7 @@ class UserController extends Controller implements HasMiddleware
         return [
             new Middleware(function ($request, $next) {
                 // Permite apenas Admin gerenciar usuários
-                if (Auth::user()->perfil !== 'admin') {
+                if (!Auth::user()->isAdmin()) {
                     abort(403, 'ACESSO NEGADO: Você não tem permissão para gerenciar usuários.');
                 }
                 return $next($request);
@@ -37,9 +37,9 @@ class UserController extends Controller implements HasMiddleware
     {
         $stats = [
             'total'      => User::count(),
-            'lojas'      => User::where('perfil', 'loja')->count(),
-            'cd'         => User::where('perfil', 'cd')->count(),
-            'gestores'   => User::whereIn('perfil', ['gestor', 'admin'])->count(),
+            'lojas'      => User::lojas()->count(),
+            'cd'         => User::cd()->count(),
+            'gestores'   => User::comPerfil(Perfil::Gestor, Perfil::Admin)->count(),
             'online'     => User::where('last_seen_at', '>=', now()->subMinutes(5))->count(),
             'arquivados' => User::onlyTrashed()->count(),
         ];
@@ -60,7 +60,7 @@ class UserController extends Controller implements HasMiddleware
                 if ($request->perfil === 'online') {
                     $query->where('last_seen_at', '>=', now()->subMinutes(5));
                 } elseif ($request->perfil === 'gestao') {
-                    $query->whereIn('perfil', ['gestor', 'admin']);
+                    $query->comPerfil(Perfil::Gestor, Perfil::Admin);
                 } else {
                     $query->where('perfil', $request->perfil);
                 }
@@ -124,7 +124,7 @@ class UserController extends Controller implements HasMiddleware
 
         $filial = $request->filial;
         if (empty($filial)) {
-            $filial = ($request->perfil === 'cd') ? 'CD Ananindeua' : 'Matriz';
+            $filial = ($request->perfil === Perfil::Cd->value) ? 'CD Ananindeua' : 'Matriz';
         } elseif (!in_array($filial, ['Matriz', 'CD Ananindeua'])) {
             $partes = explode('/', $filial);
             $cidade = trim($partes[0]);
@@ -138,9 +138,9 @@ class UserController extends Controller implements HasMiddleware
 
         // Auto-vincula estoque_local_id quando aplicável
         $estoqueLocalId = null;
-        if ($request->perfil === 'cd') {
+        if ($request->perfil === Perfil::Cd->value) {
             $estoqueLocalId = \App\Models\EstoqueLocal::where('tipo', \App\Models\EstoqueLocal::TIPO_CD)->value('id');
-        } elseif ($request->perfil === 'loja' && $filial) {
+        } elseif ($request->perfil === Perfil::Loja->value && $filial) {
             $partes = explode('/', $filial);
             $cidade = trim($partes[0]);
             $estoqueLocalId = \App\Models\EstoqueLocal::where('nome', 'LIKE', "%{$cidade}%")->value('id');
@@ -218,9 +218,9 @@ class UserController extends Controller implements HasMiddleware
 
         // Se estoque_local_id ainda estiver nulo, sincroniza agora
         if (!$user->estoque_local_id) {
-            if ($validated['perfil'] === 'cd') {
+            if ($validated['perfil'] === Perfil::Cd->value) {
                 $validated['estoque_local_id'] = \App\Models\EstoqueLocal::where('tipo', \App\Models\EstoqueLocal::TIPO_CD)->value('id');
-            } elseif ($validated['perfil'] === 'loja' && !empty($validated['filial'])) {
+            } elseif ($validated['perfil'] === Perfil::Loja->value && !empty($validated['filial'])) {
                 $partes = explode('/', $validated['filial']);
                 $cidade = trim($partes[0]);
                 $validated['estoque_local_id'] = \App\Models\EstoqueLocal::where('nome', 'LIKE', "%{$cidade}%")->value('id');

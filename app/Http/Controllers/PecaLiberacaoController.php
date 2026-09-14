@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Models\Peca;
 use App\Models\Pedido;
 use App\Models\PedidoItem;
@@ -48,7 +49,7 @@ class PecaLiberacaoController extends Controller
 
         $user = Auth::user();
         $podeLiberar = $user->podeValidarPecas();
-        $podeAtender = in_array($user->perfil, ['cd', 'admin'], true);
+        $podeAtender = $user->temPerfil(Perfil::Cd, Perfil::Admin);
 
         $queryBase = Pedido::where('tipo_carga', 'peca')
             ->with([
@@ -292,7 +293,7 @@ class PecaLiberacaoController extends Controller
          * dois papéis, o log diz isso com todas as letras — a exceção fica
          * visível na trilha, em vez de implícita na autorização.
          */
-        $ehAdmin = Auth::user()->perfil === 'admin';
+        $ehAdmin = Auth::user()->isAdmin();
 
         DB::transaction(function () use ($itensAlvo, $pedido, $ehAdmin, &$liberados, &$autoAssinados) {
             foreach ($itensAlvo as $itemId) {
@@ -487,7 +488,7 @@ class PecaLiberacaoController extends Controller
 
     private function autorizarCd(): void
     {
-        if (! in_array(Auth::user()->perfil, ['cd', 'admin'], true) && ! Auth::user()->podeValidarPecas()) {
+        if (! Auth::user()->temPerfil(Perfil::Cd, Perfil::Admin) && ! Auth::user()->podeValidarPecas()) {
             abort(403, 'Apenas o Estoque Central ou Validadores de Peças têm acesso a esta fila.');
         }
     }

@@ -1,5 +1,5 @@
 import { PageHeader, Card, Button } from '@/Components/UI';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import Swal from 'sweetalert2';
 import {
@@ -14,12 +14,9 @@ import {
     EyeSlashIcon,
     BoltIcon,
     TruckIcon,
-    WrenchScrewdriverIcon,
     CheckCircleIcon,
     ArrowLeftIcon,
     CheckIcon,
-    LockClosedIcon,
-    CubeIcon,
 } from '@heroicons/react/24/outline';
 
 export default function UserEdit({ auth, usuario, filiais, rotas }) {

@@ -3,7 +3,6 @@ import UpdatePasswordForm from './Partials/UpdatePasswordForm';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
 import { Head, Link } from '@inertiajs/react';
 import { 
-    UserCircleIcon, 
     BuildingStorefrontIcon, 
     ShieldCheckIcon, 
     CalendarDaysIcon,

@@ -12,7 +12,6 @@ export default function useOneSignal(appIdFromProps, currentUser) {
     useEffect(() => {
         const syncSubscription = async () => {
             try {
-                const isOptedIn = OneSignal.User?.PushSubscription?.optedIn;
                 const subscriptionId = OneSignal.User?.PushSubscription?.id;
                 const userId = await OneSignal.User?.getOnesignalId?.();
                 const idToSave = subscriptionId || userId;
@@ -20,7 +19,7 @@ export default function useOneSignal(appIdFromProps, currentUser) {
                 if (idToSave) {
                     axios.post('/user/onesignal', { onesignal_id: idToSave }).catch(() => {});
                 }
-            } catch (err) {
+            } catch {
                 // Silencioso se o usuário ainda não permitiu notificações
             }
         };

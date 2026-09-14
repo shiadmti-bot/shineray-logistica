@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Swal from 'sweetalert2';
 import useNotificacoesTempoReal from '@/Hooks/useNotificacoesTempoReal';
 import { 
-    HandRaisedIcon, 
     ClipboardDocumentListIcon, 
     ShoppingBagIcon, 
     ArrowUturnLeftIcon, 
@@ -43,8 +42,6 @@ export default function GestorDashboard({ auth, pedidos, estornos }) {
         });
     };
 
-    // Helper seguro para nome da loja
-    const getLojaNome = (user) => user ? (user.filial || user.name) : 'Usuário Removido';
 
     return (
         <>

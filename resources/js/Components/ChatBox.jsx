@@ -26,7 +26,7 @@ export default function ChatBox({ pedidoId }) {
             const unreadCount = msgs.filter(m => m.user_id !== auth.user.id && !m.read_at).length;
             if (unreadCount > 0) setHasUnread(true);
         });
-    }, [pedidoId]);
+    }, [pedidoId, auth.user.id]);
 
     // --- MARCAR COMO LIDO AO ABRIR ---
     useEffect(() => {
@@ -38,7 +38,7 @@ export default function ChatBox({ pedidoId }) {
             ));
         }
         if (isOpen) scrollToBottom();
-    }, [isOpen]);
+    }, [isOpen, auth.user.id, hasUnread, pedidoId]);
 
     // --- REALTIME (WEBSOCKET) ---
     // O Echo é carregado sob demanda (Lib/echo.js): assina quando chegar, e só
@@ -70,7 +70,7 @@ export default function ChatBox({ pedidoId }) {
             ativo = false;
             canal?.stopListening('NewMessage', aoReceber);
         };
-    }, [pedidoId, isOpen]);
+    }, [pedidoId, isOpen, auth.user.id]);
 
     // --- HELPERS ---
     const scrollToBottom = () => {

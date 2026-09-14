@@ -92,7 +92,7 @@ class Filial extends Model
                 continue;
             }
             // Não arquiva admin geral que não tenha filial vinculada
-            if ($usuario->perfil === 'admin' && empty($usuario->filial)) {
+            if ($usuario->isAdmin() && empty($usuario->filial)) {
                 continue;
             }
 

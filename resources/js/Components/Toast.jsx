@@ -5,11 +5,10 @@ import Swal from 'sweetalert2';
 export default function Toast() {
     const { props } = usePage();
     
-    // --- SEGURANÇA CONTRA TELA BRANCA ---
-    // Usamos '|| {}' para garantir que se 'flash' não existir, o código não quebre.
-    const flash = props.flash || {};
-
     useEffect(() => {
+        // --- SEGURANÇA CONTRA TELA BRANCA ---
+        const flash = props.flash || {};
+
         // Configuração Visual do Toast (Igual ao do Sininho)
         const ToastMixin = Swal.mixin({
             toast: true,
@@ -37,7 +36,7 @@ export default function Toast() {
             ToastMixin.fire({ icon: 'info', title: flash.message });
         }
 
-    }, [flash]); // O 'useEffect' roda toda vez que a mensagem flash mudar
+    }, [props.flash]); // O 'useEffect' roda toda vez que a mensagem flash mudar
 
     // Retorna null porque o SweetAlert cria o HTML sozinho flutuando na tela
     return null; 

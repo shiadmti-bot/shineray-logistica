@@ -3,6 +3,7 @@
 namespace App\Actions\Pedidos;
 
 use App\Actions\Pedidos\Concerns\RegistraHistorico;
+use App\Enums\Perfil;
 use App\Models\Moto;
 use App\Models\Pedido;
 use App\Models\PedidoItem;
@@ -129,7 +130,7 @@ final class CriarPedido
 
             try {
                 $this->enviarNotificacao(
-                    User::where('perfil', 'gestor')->get(),
+                    User::comPerfil(Perfil::Gestor)->get(),
                     'Nova Solicitação 🆕',
                     "Loja {$user->filial} criou pedido #{$pedido->id}.",
                     route('pedidos.show', $pedido->id)
@@ -149,7 +150,7 @@ final class CriarPedido
      */
     private function barrarCargaNaoFinalizada(User $user): void
     {
-        if ($user->perfil !== 'loja') {
+        if (! $user->isLoja()) {
             return;
         }
 
@@ -183,7 +184,7 @@ final class CriarPedido
         if ($modo === 'devolucao') {
             $modo = 'transferencia';
             $destinoUserId = ($dados['cd_user_id'] ?? null)
-                ?: User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->value('id');
+                ?: User::comPerfil(Perfil::Cd, Perfil::Admin)->orderBy('id')->value('id');
             $origemUserId = $user->id;
 
             if (! $destinoUserId) {

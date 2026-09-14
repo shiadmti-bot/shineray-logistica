@@ -36,7 +36,7 @@ final class RegredirRotasVencidas
 
     private function regredir(Pedido $pedido): void
     {
-        $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+        $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja();
 
         if ($isTransferencia && $pedido->origem->is_interior && $pedido->created_at >= Pedido::INTERIOR_AGUARDA_ROTA_DESDE) {
             $novoStatus = 'aguardando_rota';

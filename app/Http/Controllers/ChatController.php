@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Pedido;
 use App\Models\Message;
+use App\Enums\Perfil;
 use App\Events\NewMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -43,7 +44,7 @@ class ChatController extends Controller
         $user = Auth::user();
 
         // CD, gestor e admin acompanham qualquer pedido — é o trabalho deles.
-        if (in_array($user->perfil, ['cd', 'gestor', 'admin'], true)) {
+        if ($user->isOperacaoCentral()) {
             return $pedido;
         }
 
@@ -100,9 +101,9 @@ class ChatController extends Controller
         $user = Auth::user();
         $destinatarios = collect([]);
 
-        if ($user->perfil === 'loja') {
+        if ($user->isLoja()) {
             // Se Loja fala -> Avisa Gestores e CD
-            $destinatarios = User::whereIn('perfil', ['gestor', 'cd'])->get();
+            $destinatarios = User::comPerfil(Perfil::Gestor, Perfil::Cd)->get();
         } else {
             // Se CD/Gestor fala -> Avisa Loja Solicitante e Origem
             if ($pedido->user_id !== $user->id) {

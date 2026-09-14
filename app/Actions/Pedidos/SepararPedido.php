@@ -3,6 +3,7 @@
 namespace App\Actions\Pedidos;
 
 use App\Actions\Pedidos\Concerns\RegistraHistorico;
+use App\Enums\Perfil;
 use App\Exceptions\OperacaoPedidoRecusada;
 use App\Models\Pedido;
 use App\Models\User;
@@ -53,7 +54,7 @@ final class SepararPedido
 
             // Só é transferência de verdade se a origem é uma loja: reposição do
             // CD não pode cair na coleta.
-            $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->perfil === 'loja';
+            $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja();
 
             [$novoStatus, $msgLog] = $isTransferencia
                 ? $this->destinoDaTransferencia($pedido, $user)
@@ -67,7 +68,7 @@ final class SepararPedido
             // Avisa o CD que existe carga pronta numa loja aguardando frete.
             if ($isTransferencia) {
                 $this->enviarNotificacao(
-                    User::where('perfil', 'cd')->get(),
+                    User::comPerfil(Perfil::Cd)->get(),
                     $novoStatus === 'aguardando_rota' ? 'Aguardando Rota 🚚' : 'Coleta Pronta 🚚',
                     "Loja {$pedido->origem->filial} separou as motos do pedido #{$pedido->id}. Pode agendar coleta.",
                     route('romaneios.create')
@@ -79,7 +80,7 @@ final class SepararPedido
     /** @return array{0: string, 1: string} novo status e texto da linha do tempo */
     private function destinoDaTransferencia(Pedido $pedido, User $user): array
     {
-        if ($user->id !== $pedido->origem_user_id && $user->perfil !== 'admin') {
+        if ($user->id !== $pedido->origem_user_id && ! $user->isAdmin()) {
             throw new OperacaoPedidoRecusada("Apenas a loja de origem ({$pedido->origem->filial}) pode confirmar a separação desta moto.");
         }
 
@@ -103,7 +104,7 @@ final class SepararPedido
             // Para o CD, continua separado até virar romaneio.
             : ['separado', 'Separado no estoque do CD. Pronto para embarque.'];
 
-        if ($user->perfil !== 'cd' && $user->perfil !== 'admin') {
+        if (! $user->temPerfil(Perfil::Cd, Perfil::Admin)) {
             throw new OperacaoPedidoRecusada('Apenas o CD pode separar pedidos de reposição.');
         }
 

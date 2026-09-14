@@ -8,7 +8,7 @@ import {
     ArrowTrendingDownIcon,
 } from '@heroicons/react/24/outline';
 
-import { Card, PageHeader, DataTable, Button, Tabs, StatCard, EmptyState } from '@/Components/UI';
+import { Card, PageHeader, DataTable, Button, Tabs, StatCard } from '@/Components/UI';
 
 /**
  * Central de pendências: o que deu errado e o que está para faltar.

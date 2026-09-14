@@ -78,12 +78,65 @@ class User extends Authenticatable
         return in_array(Perfil::tryFrom((string) $this->perfil), $perfis, true);
     }
 
+    public function isAdmin(): bool
+    {
+        return $this->temPerfil(Perfil::Admin);
+    }
+
+    public function isLoja(): bool
+    {
+        return $this->temPerfil(Perfil::Loja);
+    }
+
+    public function isCd(): bool
+    {
+        return $this->temPerfil(Perfil::Cd);
+    }
+
+    public function isGestor(): bool
+    {
+        return $this->temPerfil(Perfil::Gestor);
+    }
+
+    public function isOperacaoCentral(): bool
+    {
+        return $this->temPerfil(...Perfil::operacaoCentral());
+    }
+
+    /**
+     * Scope para filtrar usuários por um ou mais perfis tipados.
+     */
+    public function scopeComPerfil(\Illuminate\Database\Eloquent\Builder $query, Perfil ...$perfis): \Illuminate\Database\Eloquent\Builder
+    {
+        $valores = array_map(fn (Perfil $p) => $p->value, $perfis);
+
+        return count($valores) === 1
+            ? $query->where('perfil', $valores[0])
+            : $query->whereIn('perfil', $valores);
+    }
+
+    public function scopeLojas(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('perfil', Perfil::Loja->value);
+    }
+
+    public function scopeCd(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('perfil', Perfil::Cd->value);
+    }
+
+    /** Admin, gestor e CD: quem enxerga a operação inteira. */
+    public function scopeOperacaoCentral(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $this->scopeComPerfil($query, ...Perfil::operacaoCentral());
+    }
+
     /**
      * Pode aprovar ou rejeitar pedidos de motos e estornos (Gestão Comercial).
      */
     public function podeValidarMotos(): bool
     {
-        if ($this->perfil === 'admin') {
+        if ($this->isAdmin()) {
             return true;
         }
 
@@ -103,7 +156,7 @@ class User extends Authenticatable
      */
     public function podeValidarPecas(): bool
     {
-        return (bool) $this->valida_pecas || $this->perfil === 'admin';
+        return (bool) $this->valida_pecas || $this->isAdmin();
     }
 
     // 4. Configuração da Auditoria (Spatie)
