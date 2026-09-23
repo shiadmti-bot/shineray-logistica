@@ -99,14 +99,43 @@ final class CancelarPedido
             ]);
 
             $this->enviarNotificacao(
-                $pedido->user,
-                ucfirst($tipo),
-                "Pedido #{$pedido->id} $tipo: $motivo",
+                $this->quemPrecisaSaber($pedido, $user),
+                $tipo === 'rejeitado' ? 'Pedido rejeitado ❌' : 'Pedido cancelado ❌',
+                "Pedido #{$pedido->id} foi {$tipo}. Motivo: "
+                    . ($motivo ?: 'não informado pelo responsável.'),
                 route('pedidos.show', $pedido->id),
             );
 
             $pedido->delete(); // soft delete
         });
+    }
+
+    /**
+     * Quem tem de ser avisado da recusa.
+     *
+     * A loja que PEDIU, sempre — ela planejou a reposição em cima deste pedido.
+     * E, numa transferência, também a loja de ORIGEM: as motos dela estavam
+     * presas ao pedido e acabaram de voltar ao estoque; sem o aviso, ela
+     * descobre pela contagem física.
+     *
+     * Quem executou a recusa fica FORA. A pessoa acabou de ver a mensagem de
+     * confirmação na tela; um sininho dizendo "seu pedido foi cancelado" logo
+     * depois de ela mesma cancelar só treina o usuário a ignorar o sininho.
+     *
+     * @return list<User>
+     */
+    private function quemPrecisaSaber(Pedido $pedido, ?User $autor): array
+    {
+        $pedido->loadMissing(['user', 'origem']);
+
+        $destinatarios = [$pedido->user, $pedido->origem];
+
+        return collect($destinatarios)
+            ->filter()
+            ->unique('id')
+            ->reject(fn (User $u) => $autor && $u->id === $autor->id)
+            ->values()
+            ->all();
     }
 
     /**

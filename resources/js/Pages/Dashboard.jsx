@@ -18,6 +18,8 @@ import {
     WrenchIcon,
     PauseCircleIcon,
     CheckCircleIcon,
+    ArchiveBoxXMarkIcon,
+    UserCircleIcon,
 } from '@heroicons/react/24/outline';
 
 /**
@@ -31,7 +33,7 @@ import {
  * Três painéis distintos no mesmo arquivo, por perfil: admin vê auditoria,
  * CD vê a mesa de operações, loja vê reposição.
  */
-export default function Dashboard({ auth, stats, perfil, notices }) {
+export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }) {
     const hora = new Date().getHours();
     const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
 
@@ -337,6 +339,8 @@ export default function Dashboard({ auth, stats, perfil, notices }) {
             {/* ============ LOJA ============ */}
             {perfil === 'loja' && (
                 <>
+                    <RecusasRecentes recusas={recusas} />
+
                     {stats.transferencias_saida > 0 && (
                         <Alerta
                             titulo="Separação necessária na sua loja"
@@ -443,6 +447,100 @@ function SecaoTitulo({ icon: Icon, children, loading = false }) {
  * Aviso de ação pendente. Substitui os três blocos de alerta que existiam
  * antes com marcações diferentes (amarelo no CD, laranja na loja).
  */
+/**
+ * "Seu pedido foi recusado, e foi por isto."
+ *
+ * O que a loja tinha antes: uma notificação no sininho no instante da recusa e
+ * nada mais. Quem estava fora do sistema naquele momento voltava e encontrava
+ * o aviso no meio de outros — ou já lido. O pedido em si tinha sido
+ * soft-deleted e não aparecia em lugar nenhum, e `motivo_rejeicao` era gravado
+ * em coluna que NENHUMA tela lia. O motivo escrito pelo gestor simplesmente
+ * não chegava a quem precisava dele.
+ *
+ * Aqui ele fica na primeira tela, ao lado dos números que a loja usa para
+ * decidir a próxima reposição — que é justamente a decisão que o motivo
+ * deveria informar ("crédito suspenso" e "modelo descontinuado" pedem reações
+ * opostas).
+ *
+ * Some sozinho depois de 15 dias (janela em DashboardController). Não
+ * renderiza nada quando não há recusa recente.
+ */
+function RecusasRecentes({ recusas }) {
+    if (!recusas?.length) return null;
+
+    return (
+        <section
+            aria-labelledby="titulo-recusas-recentes"
+            className="mb-6 overflow-hidden rounded-card border-l-4 border-status-danger-solid bg-surface-card shadow-card"
+        >
+            <div className="flex items-start gap-3 border-b border-line bg-status-danger-bg/50 px-5 py-4">
+                <ArchiveBoxXMarkIcon className="h-6 w-6 shrink-0 text-status-danger-fg" />
+                <div>
+                    <h3 id="titulo-recusas-recentes" className="font-bold text-content-primary">
+                        {recusas.length === 1
+                            ? 'Um pedido seu foi recusado'
+                            : `${recusas.length} pedidos seus foram recusados`}
+                    </h3>
+                    <p className="mt-0.5 text-sm text-content-secondary">
+                        Leia o motivo antes de pedir de novo — evita a mesma recusa.
+                    </p>
+                </div>
+            </div>
+
+            <ul className="divide-y divide-line">
+                {recusas.map((recusa) => (
+                    <li key={recusa.id}>
+                        <Link
+                            href={route('pedidos.show', recusa.id)}
+                            className="flex flex-col gap-2 px-5 py-4 transition hover:bg-surface-sunken/60 md:flex-row md:items-center md:justify-between"
+                        >
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-black text-content-primary">
+                                        Pedido #{recusa.id}
+                                    </span>
+                                    <span className="rounded-md bg-status-danger-bg px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-status-danger-fg ring-1 ring-inset ring-status-danger-solid/20">
+                                        {recusa.tipo === 'rejeitado' ? 'Rejeitado' : 'Cancelado'}
+                                    </span>
+                                    <span className="text-[11px] font-bold uppercase tracking-wide text-content-muted">
+                                        {recusa.tipo_carga === 'peca' ? 'Peças' : 'Motos'}
+                                    </span>
+                                </div>
+
+                                <p className="mt-1 text-sm font-semibold leading-snug text-content-primary">
+                                    <span className="font-black uppercase tracking-wide text-content-muted">
+                                        Motivo:{' '}
+                                    </span>
+                                    {recusa.motivo || 'não informado pelo responsável.'}
+                                </p>
+
+                                <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-content-muted">
+                                    {/*
+                                        Recusa anterior à v3.6 não tem autor em
+                                        coluna: só existia no texto do log, e a
+                                        migration não inventa responsável.
+                                    */}
+                                    <span className="flex items-center gap-1">
+                                        <UserCircleIcon className="h-3.5 w-3.5 shrink-0" />
+                                        {recusa.autor || 'responsável não registrado'}
+                                    </span>
+                                    {recusa.em && (
+                                        <span>{new Date(recusa.em).toLocaleString('pt-BR')}</span>
+                                    )}
+                                </p>
+                            </div>
+
+                            <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-bold text-brand-600">
+                                Ver detalhes <ArrowRightIcon className="h-4 w-4" />
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </section>
+    );
+}
+
 function Alerta({ titulo, descricao, href, acao }) {
     return (
         <Link

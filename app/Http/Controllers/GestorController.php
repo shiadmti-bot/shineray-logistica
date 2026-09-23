@@ -180,8 +180,30 @@ class GestorController extends Controller
     {
         $this->autorizarGestorMotos();
 
+        /*
+         * O MOTIVO PASSA A SER OBRIGATÓRIO NO SERVIDOR.
+         *
+         * O diálogo em Gestor/Show.jsx já dizia "(Obrigatório)" e tinha
+         * `inputValidator` — mas o servidor não repetia a regra: sem
+         * justificativa ele caía num texto padrão, 'Rejeitado pelo Gestor
+         * Comercial', que é a repetição do que aconteceu e não um motivo. A
+         * loja recebia "Motivo: Rejeitado pelo Gestor Comercial" e continuava
+         * sem saber por quê.
+         *
+         * `min:3` acompanha o validador mais frouxo que já existe na interface
+         * (Pecas/Atendimento.jsx exige 3 caracteres): a trava do servidor não
+         * pode recusar um texto que a tela aceitou.
+         */
+        $dados = $request->validate([
+            'justificativa' => ['required_without:motivo', 'nullable', 'string', 'min:3', 'max:500'],
+            'motivo'        => ['required_without:justificativa', 'nullable', 'string', 'min:3', 'max:500'],
+        ], [
+            'justificativa.required_without' => 'Informe o motivo da rejeição — a loja precisa saber por quê.',
+            'motivo.required_without'        => 'Informe o motivo da rejeição — a loja precisa saber por quê.',
+        ]);
+
         $pedido = Pedido::with(['motos', 'user', 'itensPedido.peca'])->findOrFail($id);
-        $motivo = $request->input('justificativa') ?: $request->input('motivo', 'Rejeitado pelo Gestor Comercial');
+        $motivo = trim($dados['justificativa'] ?? '') ?: trim($dados['motivo'] ?? '');
 
         try {
             DB::transaction(function () use ($pedido, $motivo, $cancelarPedido) {

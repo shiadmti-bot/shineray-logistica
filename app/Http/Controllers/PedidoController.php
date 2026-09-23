@@ -583,9 +583,24 @@ class PedidoController extends Controller
     }
 
     // --- CANCELAMENTOS ---
+
+    /**
+     * Rejeição/cancelamento com motivo — obrigatório também aqui.
+     *
+     * Os três lugares que chamam esta rota (Components/Pedidos/acoes.js e as
+     * duas recusas em Pecas/Atendimento.jsx) já exigem o texto na tela. O
+     * servidor aceitava `motivo` nulo e gravava a recusa sem explicação
+     * nenhuma, e era a própria coluna que o histórico agora mostra à loja.
+     */
     public function rejeitar(Request $request, $id)
     {
-        return $this->cancelar($id, 'rejeitado', $request->motivo);
+        $dados = $request->validate([
+            'motivo' => ['required', 'string', 'min:3', 'max:500'],
+        ], [
+            'motivo.required' => 'Informe o motivo — ele é o que a loja vê no lugar do pedido.',
+        ]);
+
+        return $this->cancelar($id, 'rejeitado', trim($dados['motivo']));
     }
 
     public function cancelarSolicitacao($id)

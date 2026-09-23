@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Pedidos\CancelarPedido;
 use App\Enums\EventoPedido;
 use App\Models\Moto;
 use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\PedidoLog;
 use App\Models\User;
+use App\Notifications\PedidoAtualizado;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
@@ -372,6 +374,248 @@ class HistoricoRejeicaoTest extends TestCase
                 ->where('recusa.tipo', 'cancelado')
                 ->where('recusa.cortes.0.motivo', 'Linha encerrada')
                 ->where('recusa.cortes.0.quantidade', 2)
+            );
+    }
+
+    // ------------------------------------------------------------------
+    // O AVISO A QUEM PEDIU
+    // ------------------------------------------------------------------
+
+    /**
+     * O motivo escrito pelo gestor chega à loja.
+     *
+     * Antes chegava um aviso que apontava para `pedidos.index`, uma lista onde
+     * o pedido recusado não aparecia — então nem o motivo nem o pedido eram
+     * alcançáveis pela loja.
+     */
+    public function test_loja_que_pediu_recebe_aviso_com_o_motivo_e_link_que_abre()
+    {
+        $this->withoutDefer();
+
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Crédito da filial suspenso']);
+
+        Notification::assertSentTo(
+            $this->loja,
+            PedidoAtualizado::class,
+            function (PedidoAtualizado $aviso) use ($pedido) {
+                $this->assertStringContainsString('Crédito da filial suspenso', $aviso->mensagem);
+                $this->assertStringContainsString("#{$pedido->id}", $aviso->mensagem);
+                $this->assertSame(route('pedidos.show', $pedido->id), $aviso->link);
+
+                return true;
+            }
+        );
+    }
+
+    /**
+     * Sem motivo, o aviso diz isso — em vez de terminar em dois-pontos.
+     *
+     * Exercita a Action direto, e não a rota: as duas rotas de recusa agora
+     * EXIGEM motivo (ver os dois testes abaixo), então por HTTP o caso nulo não
+     * acontece mais. Quem ainda pode passar null é um chamador interno —
+     * `pedido:cancelar` no console monta a chamada na mão —, e a mensagem
+     * precisa continuar legível nesse caminho.
+     */
+    public function test_aviso_sem_motivo_informa_a_ausencia()
+    {
+        $this->withoutDefer();
+        $this->actingAs($this->gestor);
+
+        $pedido = $this->pedidoEmAnalise();
+
+        app(CancelarPedido::class)->executar($pedido, $this->gestor, 'rejeitado', null);
+
+        Notification::assertSentTo($this->loja, PedidoAtualizado::class, function ($aviso) {
+            $this->assertStringContainsString('Motivo: não informado pelo responsável.', $aviso->mensagem);
+
+            return true;
+        });
+    }
+
+    /**
+     * Numa transferência, a loja de ORIGEM também é avisada: as motos dela
+     * estavam presas ao pedido e acabaram de voltar ao estoque. Sem o aviso ela
+     * descobre pela contagem física.
+     */
+    public function test_loja_de_origem_da_transferencia_tambem_e_avisada()
+    {
+        $this->withoutDefer();
+
+        $pedido = $this->pedidoEmAnalise();
+        $pedido->update(['origem_user_id' => $this->outraLoja->id]);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Origem sem saldo']);
+
+        Notification::assertSentTo($this->loja, PedidoAtualizado::class);
+        Notification::assertSentTo($this->outraLoja, PedidoAtualizado::class);
+    }
+
+    /**
+     * Quem executou a recusa não recebe aviso da própria ação.
+     *
+     * A pessoa acabou de ver a confirmação na tela; um sininho dizendo "seu
+     * pedido foi cancelado" logo depois só treina o usuário a ignorar o sininho.
+     */
+    public function test_quem_recusou_nao_recebe_aviso_da_propria_recusa()
+    {
+        $this->withoutDefer();
+
+        $pedido = $this->pedidoEmAnalise();
+        $pedido->update(['origem_user_id' => $this->gestor->id]);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Decisão própria']);
+
+        Notification::assertSentTo($this->loja, PedidoAtualizado::class);
+        Notification::assertNotSentTo($this->gestor, PedidoAtualizado::class);
+    }
+
+    // ------------------------------------------------------------------
+    // O MOTIVO É OBRIGATÓRIO NO SERVIDOR, NÃO SÓ NA TELA
+    // ------------------------------------------------------------------
+
+    /**
+     * Rejeição sem justificativa é recusada pelo servidor.
+     *
+     * O diálogo do gestor já dizia "(Obrigatório)" e validava. O servidor não
+     * repetia a regra: caía no texto padrão 'Rejeitado pelo Gestor Comercial',
+     * que descreve o que houve e não o motivo — e era isso que a loja lia.
+     */
+    public function test_rejeicao_do_gestor_sem_justificativa_e_recusada()
+    {
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), [])
+            ->assertSessionHasErrors('justificativa');
+
+        // Nada aconteceu com o pedido.
+        $intacto = Pedido::withTrashed()->findOrFail($pedido->id);
+        $this->assertSame('em_analise', $intacto->status);
+        $this->assertNull($intacto->deleted_at);
+        $this->assertNull($intacto->motivo_rejeicao);
+    }
+
+    /** Justificativa de um caractere também não passa. */
+    public function test_rejeicao_com_justificativa_vazia_de_conteudo_e_recusada()
+    {
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => '.'])
+            ->assertSessionHasErrors('justificativa');
+
+        $this->assertSame('em_analise', Pedido::withTrashed()->findOrFail($pedido->id)->status);
+    }
+
+    /** A recusa pela tela do pedido segue a mesma régua. */
+    public function test_recusa_pela_tela_do_pedido_exige_motivo()
+    {
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('pedidos.rejeitar', $pedido->id), [])
+            ->assertSessionHasErrors('motivo');
+
+        $this->assertSame('em_analise', Pedido::withTrashed()->findOrFail($pedido->id)->status);
+    }
+
+    /** Com motivo, a mesma rota funciona como antes. */
+    public function test_recusa_pela_tela_do_pedido_funciona_com_motivo()
+    {
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('pedidos.rejeitar', $pedido->id), ['motivo' => 'Pedido em duplicidade'])
+            ->assertSessionHasNoErrors();
+
+        $recusado = Pedido::withTrashed()->findOrFail($pedido->id);
+
+        $this->assertSame('rejeitado', $recusado->status);
+        $this->assertSame('Pedido em duplicidade', $recusado->motivo_rejeicao);
+    }
+
+    // ------------------------------------------------------------------
+    // O PAINEL DA LOJA
+    // ------------------------------------------------------------------
+
+    /** A recusa fica na primeira tela, com motivo e responsável. */
+    public function test_painel_da_loja_mostra_a_recusa_com_motivo_e_responsavel()
+    {
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Modelo descontinuado']);
+
+        $this->actingAs($this->loja)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('recusas.0.id', $pedido->id)
+                ->where('recusas.0.tipo', 'rejeitado')
+                ->where('recusas.0.motivo', 'Modelo descontinuado')
+                ->where('recusas.0.autor', $this->gestor->name)
+            );
+    }
+
+    /** Recusa de outra filial não aparece no painel de ninguém. */
+    public function test_painel_nao_mostra_recusa_de_outra_filial()
+    {
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Interno']);
+
+        $this->actingAs($this->outraLoja)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->count('recusas', 0));
+    }
+
+    /** Recusa antiga sai do painel sozinha: a janela é de 15 dias. */
+    public function test_painel_esquece_recusa_antiga()
+    {
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Antiga']);
+
+        Pedido::withTrashed()->whereKey($pedido->id)->update([
+            'rejeitado_em' => now()->subDays(40),
+            'deleted_at'   => now()->subDays(40),
+        ]);
+
+        $this->actingAs($this->loja)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->count('recusas', 0));
+    }
+
+    /**
+     * O contador "Cancelados" do painel do admin marcava ZERO desde sempre: a
+     * recusa é soft delete e a consulta não usava withTrashed.
+     */
+    public function test_contador_de_cancelados_do_admin_conta_as_recusas()
+    {
+        $admin = $this->usuario('admin');
+        $pedido = $this->pedidoEmAnalise();
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Contagem']);
+
+        $esperado = Pedido::withTrashed()->whereIn('status', ['cancelado', 'rejeitado'])->count();
+
+        $this->assertGreaterThan(0, $esperado, 'a recusa acima tem de contar');
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('stats.cancelados', $esperado)
             );
     }
 
