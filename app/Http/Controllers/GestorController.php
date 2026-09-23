@@ -108,7 +108,12 @@ class GestorController extends Controller
     {
         $this->autorizarGestorMotos();
 
-        $pedido = Pedido::with(['user', 'motos', 'logs', 'itensPedido', 'origem'])->findOrFail($id);
+        // withTrashed: o histórico de auditoria lista recusas, e o pedido
+        // recusado está soft-deleted. Sem isto o próprio link do histórico do
+        // gestor caía em 404.
+        $pedido = Pedido::withTrashed()
+            ->with(['user', 'motos', 'itensPedido', 'origem', 'logs' => fn ($q) => $q->with('autor:id,name')])
+            ->findOrFail($id);
 
         // Busca a última mensagem do chat 'Gestor' enviada pela Loja
         // Filtra msg onde o 'canal' é gestor e o autor NÃO é o usuário atual
@@ -256,12 +261,33 @@ class GestorController extends Controller
     {
         $this->autorizarGestorMotos();
 
-        // Inicia Query no PedidoLog filtrando apenas auditorias
-        $query = PedidoLog::where('titulo', 'LIKE', 'Auditoria Comercial%')
-            ->with(['pedido' => function($q) {
-                // Traz o pedido e o usuário, mesmo que o pedido tenha sido excluído (withTrashed)
-                $q->withTrashed()->with('user'); 
-            }]);
+        /*
+         * O QUE MUDOU NA V3.6 E POR QUÊ.
+         *
+         * Este filtro era `titulo LIKE 'Auditoria Comercial%'`. Título é texto
+         * de interface, e o de uma rejeição TOTAL é "Rejeitado ❌" — ou seja, a
+         * tela chamada "histórico de auditoria" nunca mostrou uma rejeição
+         * total. Só corte parcial. Um gestor podia rejeitar o pedido inteiro e
+         * isso não aparecia em relatório nenhum.
+         *
+         * Agora o filtro é o escopo `recusas()`, que casa pela coluna `evento`
+         * e, para os registros anteriores à v3.6 (evento NULL), ainda aceita os
+         * títulos antigos — de outro modo ligar a coluna nova esvaziaria o
+         * histórico de tudo que já aconteceu.
+         */
+        $query = PedidoLog::recusas()
+            ->with([
+                'autor:id,name,perfil',
+                'pedido' => function ($q) {
+                    // Traz o pedido e o usuário mesmo depois do soft delete.
+                    $q->withTrashed()->with('user');
+                },
+            ]);
+
+        // --- FILTRO 0: TIPO DE RECUSA (rejeitado / cancelado / corte_parcial) ---
+        if ($request->filled('evento')) {
+            $query->where('evento', $request->input('evento'));
+        }
 
         // --- FILTRO 1: BUSCA (Nome da Loja, ID do Pedido ou Texto do Log) ---
         if ($request->filled('search')) {
@@ -269,6 +295,10 @@ class GestorController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('descricao', 'LIKE', "%{$search}%")
                   ->orWhere('pedido_id', 'LIKE', "%{$search}%")
+                  // v3.6: quem recusou passa a ser pesquisável de verdade. Antes
+                  // o nome só existia dentro da frase da descrição, então buscar
+                  // por gestor dependia de a redação do log não ter mudado.
+                  ->orWhereHas('autor', fn ($a) => $a->where('name', 'LIKE', "%{$search}%"))
                   ->orWhereHas('pedido.user', function($subQ) use ($search) {
                       $subQ->where('name', 'LIKE', "%{$search}%")
                            ->orWhere('filial', 'LIKE', "%{$search}%");
@@ -295,7 +325,8 @@ class GestorController extends Controller
             'logs' => $logs,
             // AQUI ESTÁ A CORREÇÃO: Usamos o operador ?? '' para garantir que nunca vá NULL
             'filters' => [
-                'search'      => $request->input('search') ?? '', 
+                'search'      => $request->input('search') ?? '',
+                'evento'      => $request->input('evento') ?? '',
                 'data_inicio' => $request->input('data_inicio') ?? '',
                 'data_fim'    => $request->input('data_fim') ?? '',
             ]

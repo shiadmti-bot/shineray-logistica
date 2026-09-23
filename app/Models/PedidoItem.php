@@ -4,16 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Cota de um pedido: "5x NEW JEF VERMELHA para a Loja Ananindeua".
  *
  * Existe apenas para pedidos criados a partir da v2.6. Pedidos legados não
  * possuem linhas aqui e são tratados como 100% atribuídos.
+ *
+ * SOFT DELETE (v3.6): a cota recusada na análise comercial é excluída, não
+ * apagada. O escopo global mantém o comportamento antigo — ela sai de
+ * `itensPedido`, de `saldoPendente()` e dos contadores — mas continua
+ * recuperável com `withTrashed()`, que é como a tela de rejeição mostra o que
+ * a loja pediu e não recebeu. Ver a migration de 23/09/2026.
  */
 class PedidoItem extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'pedido_itens';
 

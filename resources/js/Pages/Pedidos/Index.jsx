@@ -195,7 +195,14 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                             <option value="aguardando_coleta">Aguard. Coleta</option>
                             <option value="em_transito">Em Trânsito</option>
                             <option value="concluido">Concluído</option>
+                            {/*
+                                "Cancelado" existia aqui desde sempre e SEMPRE
+                                devolvia lista vazia: o pedido recusado é
+                                soft-deleted e a query do índice não o trazia.
+                                Ver o withTrashed em PedidoController::index.
+                            */}
                             <option value="cancelado">Cancelado</option>
+                            <option value="rejeitado">Rejeitado</option>
                         </select>
                     </div>
 
@@ -321,6 +328,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                                         <td className="px-4 py-3 align-middle">
                                             <StatusBadge status={pedido.status} size="sm" />
                                             <EmbarqueParcial pedido={pedido} />
+                                            <MotivoRecusa pedido={pedido} />
                                             <BarraProgresso status={pedido.status} />
                                         </td>
 
@@ -388,6 +396,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                                     <VolumeIndicator pedido={pedido} />
                                 </div>
                                 <EmbarqueParcial pedido={pedido} />
+                                <MotivoRecusa pedido={pedido} />
                                 <BarraProgresso status={pedido.status} />
                             </div>
                         </Link>
@@ -590,6 +599,29 @@ function EmbarqueParcial({ pedido }) {
                 Embarque parcial · {pendentes} no CD
             </span>
         </div>
+    );
+}
+
+/**
+ * Motivo da recusa, direto na lista.
+ *
+ * `motivo_rejeicao` era uma coluna fantasma: gravada em toda recusa desde
+ * 26/12/2025 e lida por nenhuma tela. Quem precisava saber por que um pedido
+ * caiu tinha de perguntar no chat.
+ */
+function MotivoRecusa({ pedido }) {
+    const encerradoPorRecusa = ['rejeitado', 'cancelado'].includes(paraTexto(pedido.status));
+
+    if (!encerradoPorRecusa || !pedido.motivo_rejeicao) return null;
+
+    return (
+        <p
+            className="line-clamp-2 text-[11px] font-medium leading-snug text-status-danger-fg"
+            title={pedido.motivo_rejeicao}
+        >
+            <span className="font-black uppercase tracking-wide">Motivo: </span>
+            {pedido.motivo_rejeicao}
+        </p>
     );
 }
 

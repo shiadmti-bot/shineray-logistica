@@ -96,7 +96,19 @@ class PedidoController extends Controller
         $statusAtivos = StatusPedido::emAndamento();
         $marcadoresAtivos = implode(', ', array_fill(0, count($statusAtivos), '?'));
 
-        $pedidos = Pedido::select('pedidos.*')
+        /*
+         * withTrashed: um pedido recusado é soft-deleted por CancelarPedido, e
+         * sem isto ele desaparecia da listagem por completo. O filtro de status
+         * da tela já oferecia "Cancelado" desde sempre e SEMPRE devolvia zero
+         * linhas — a loja recebia a notificação "Pedido #X rejeitado: <motivo>"
+         * e não achava o pedido em lugar nenhum para ler o motivo.
+         *
+         * A ordenação abaixo (encerrados depois dos ativos) é o que impede a
+         * recusa de poluir o topo da lista, do mesmo modo que já acontece com
+         * 'concluido' — que nunca foi escondido.
+         */
+        $pedidos = Pedido::withTrashed()
+            ->select('pedidos.*')
             ->with([
                 'user:id,name,filial',    
                 'origem:id,name,filial,perfil',  
@@ -167,8 +179,8 @@ class PedidoController extends Controller
             return $pedido;
         });
 
-        // Contadores por Tipo para as Abas
-        $baseCounts = Pedido::query()
+        // Contadores por Tipo para as Abas (mesmo universo da listagem)
+        $baseCounts = Pedido::withTrashed()
             ->when($user->isLoja(), function($q) use ($user) {
                 $q->where(function($sub) use ($user) {
                     $sub->where('user_id', $user->id)
@@ -618,11 +630,21 @@ class PedidoController extends Controller
     
     // --- VIEWS ---
     public function sucesso() { return Inertia::render('Pedidos/Sucesso'); }
+    /**
+     * withTrashed: pedido recusado continua abrindo, em modo de consulta.
+     *
+     * Era o outro lado do buraco da listagem — `findOrFail` num pedido
+     * soft-deleted devolvia 404, então o link da notificação de rejeição levava
+     * a uma tela de erro. As ações continuam travadas pelo status ('rejeitado'
+     * e 'cancelado' estão em toda lista de encerrados do fluxo) e o
+     * cancelamento não reabre porque `cancelar()` segue sem withTrashed.
+     */
     public function show($id)
     {
-        $pedido = Pedido::with([
+        $pedido = Pedido::withTrashed()->with([
             'user',
             'origem', // <--- ADICIONADO: Traz os dados da loja de origem
+            'rejeitadoPor:id,name',
             'motos' => function($q) {
                 $q->withPivot(['id', 'detalhes_avaria', 'foto_avaria', 'motivo', 'pedido_item_id']);
             },
@@ -632,7 +654,7 @@ class PedidoController extends Controller
             'itensPedido.confirmadoPor:id,name',
             'itensPedido.basqueta:id,status',
             'romaneio',
-            'logs' => fn($q) => $q->latest()
+            'logs' => fn($q) => $q->with('autor:id,name')->latest()
         ])->findOrFail($id);
 
         // Sem isto, trocar o número na URL abria o pedido de outra filial — ver PedidoPolicy.
@@ -642,6 +664,8 @@ class PedidoController extends Controller
 
         return Inertia::render('Pedidos/Show', [
             'pedido' => $pedido,
+            // Preenchido só quando o pedido foi recusado. Ver contextoRecusa().
+            'recusa' => $this->contextoRecusa($pedido),
             // v3: dados do fluxo de peça. Para pedido de moto vem tudo vazio e
             // a tela se comporta exatamente como antes.
             'peca' => $this->contextoPeca($pedido),
@@ -656,6 +680,49 @@ class PedidoController extends Controller
             ],
         ]);
     }
+    /**
+     * O dossiê da recusa: por quê, por quem, quando e o que foi cortado.
+     *
+     * NULL em pedido que não foi recusado — a tela não muda em nada nesse caso.
+     *
+     * As cotas cortadas vêm com `onlyTrashed`, e é a razão de `pedido_itens`
+     * ter ganhado soft delete na v3.6: até então o corte apagava a linha, e o
+     * que a loja pediu e não recebeu só existia como frase dentro do log.
+     * `itensPedido` continua sem os cortados, porque o resto da tela (saldo,
+     * separação, atribuição de chassi) depende de não vê-los.
+     *
+     * `autor` pode ser null em recusa anterior à v3.6: naquela época o
+     * responsável só era gravado no texto do log, e a migration não inventa
+     * responsável por heurística em registro de auditoria.
+     */
+    private function contextoRecusa(Pedido $pedido): ?array
+    {
+        if (! in_array($pedido->status, ['rejeitado', 'cancelado'], true)) {
+            return null;
+        }
+
+        $cortes = $pedido->itensPedido()
+            ->onlyTrashed()
+            ->with('canceladoPor:id,name')
+            ->get()
+            ->map(fn ($item) => [
+                'descricao'  => $item->descricao,
+                'quantidade' => (int) $item->quantidade,
+                'motivo'     => $item->motivo_cancelamento,
+                'por'        => $item->canceladoPor?->name,
+                'em'         => $item->cancelado_em,
+            ])
+            ->values();
+
+        return [
+            'tipo'   => $pedido->status,
+            'motivo' => $pedido->motivo_rejeicao,
+            'autor'  => $pedido->rejeitadoPor?->name,
+            'em'     => $pedido->rejeitado_em ?? $pedido->deleted_at,
+            'cortes' => $cortes,
+        ];
+    }
+
     /**
      * Contexto do fluxo de peça (v3).
      *

@@ -23,6 +23,8 @@ class Pedido extends Model
         'itens',          // <--- OBRIGATÓRIO: Salva o JSON da solicitação
         'romaneio_id',
         'motivo_rejeicao',
+        'rejeitado_por',   // v3.6: quem recusou
+        'rejeitado_em',    // v3.6: quando
         'comprovante_url',
         'previsao_coleta',  // Logística V2
         'previsao_entrega'  // Logística V2
@@ -33,6 +35,7 @@ class Pedido extends Model
         'updated_at' => 'datetime',
         'previsao_coleta' => 'date',
         'previsao_entrega' => 'date',
+        'rejeitado_em' => 'datetime',
         'itens' => 'array', // <--- Converte JSON <-> Array automaticamente
     ];
 
@@ -76,6 +79,16 @@ class Pedido extends Model
     public function origem()
     {
         return $this->belongsTo(User::class, 'origem_user_id');
+    }
+
+    /**
+     * Quem recusou o pedido (v3.6). NULL em pedido ativo e nos encerrados
+     * antes da v3.6 — o autor daquela época só existe como texto no log, e a
+     * migration não o adivinha a partir de frase.
+     */
+    public function rejeitadoPor()
+    {
+        return $this->belongsTo(User::class, 'rejeitado_por');
     }
 
     // --- LOCAIS DE ESTOQUE (v3) ---

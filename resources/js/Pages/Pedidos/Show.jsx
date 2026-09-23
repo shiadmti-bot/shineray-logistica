@@ -10,6 +10,7 @@ import useNotificacoesTempoReal from '@/Hooks/useNotificacoesTempoReal';
 
 import AcoesPedido from '@/Components/Pedidos/AcoesPedido';
 import AlertasPedido, { AvisoEmbarqueParcial } from '@/Components/Pedidos/AlertasPedido';
+import AvisoRecusa from '@/Components/Pedidos/AvisoRecusa';
 import CardRotaPedido from '@/Components/Pedidos/CardRotaPedido';
 import ConferenciaEntrega from '@/Components/Pedidos/ConferenciaEntrega';
 import HistoricoPedido from '@/Components/Pedidos/HistoricoPedido';
@@ -28,7 +29,7 @@ import { derivarPedido } from '@/Components/Pedidos/derivarPedido';
  * exibição e 24 diálogos. Agora a página só compõe: quem vê o quê sai de
  * `derivarPedido`, e cada bloco da tela é um painel em Components/Pedidos.
  */
-export default function PedidoShow({ auth, pedido, atribuicao = null, peca = null }) {
+export default function PedidoShow({ auth, pedido, atribuicao = null, peca = null, recusa = null }) {
     const papel = useMemo(
         () => derivarPedido({ pedido, user: auth.user, atribuicao, peca }),
         [pedido, auth.user, atribuicao, peca]
@@ -84,6 +85,14 @@ export default function PedidoShow({ auth, pedido, atribuicao = null, peca = nul
                     }
                     className="mb-0"
                 />
+
+                {/*
+                    Primeiro bloco de propósito: num pedido recusado, "por quê"
+                    é a única pergunta que importa, e ela ficava enterrada na
+                    linha do tempo, no fim da página. Em pedido ativo `recusa`
+                    é null e nada disto renderiza.
+                */}
+                <AvisoRecusa recusa={recusa} />
 
                 {isEmbarqueParcial && <AvisoEmbarqueParcial pedido={pedido} papel={papel} />}
 

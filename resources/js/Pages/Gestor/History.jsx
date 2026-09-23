@@ -1,18 +1,39 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
-import { MagnifyingGlassIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, ArrowLeftIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 
 import { Card, PageHeader, Button, StatusBadge, EmptyState, Pagination } from '@/Components/UI';
 
+/**
+ * Auditoria comercial: tudo que foi recusado, por quem e por quê.
+ *
+ * O QUE ESTA TELA NÃO MOSTRAVA. O filtro do servidor era
+ * `titulo LIKE 'Auditoria Comercial%'`, e o título de uma rejeição TOTAL é
+ * "Rejeitado ❌" — então a tela de auditoria nunca exibiu uma rejeição total,
+ * só corte parcial. Agora o servidor filtra pela coluna `evento`
+ * (GestorController::historico + PedidoLog::scopeRecusas), e o seletor abaixo
+ * permite separar os três tipos de recusa.
+ */
+
+/** Rótulo e ícone por tipo de recusa. */
+const TIPOS_RECUSA = {
+    rejeitado: { rotulo: 'Rejeição total', icone: '⛔' },
+    cancelado: { rotulo: 'Cancelamento', icone: '🚷' },
+    corte_parcial: { rotulo: 'Corte parcial', icone: '✂️' },
+};
+
 export default function GestorHistory({ auth, logs, filters }) {
-    
+
     // 1. BLINDAGEM DE FILTROS (Evita o erro no input)
     // Se filters vier null/undefined, usamos um objeto vazio
     const safeFilters = filters || {};
 
+    const FILTROS_VAZIOS = { search: '', evento: '', data_inicio: '', data_fim: '' };
+
     const [filterForm, setFilterForm] = useState({
         // Forçamos string vazia '' se o valor for null/undefined
-        search: safeFilters.search || '', 
+        search: safeFilters.search || '',
+        evento: safeFilters.evento || '',
         data_inicio: safeFilters.data_inicio || '',
         data_fim: safeFilters.data_fim || '',
     });
@@ -27,12 +48,22 @@ export default function GestorHistory({ auth, logs, filters }) {
     };
 
     const limparFiltros = () => {
-        setFilterForm({ search: '', data_inicio: '', data_fim: '' });
+        setFilterForm(FILTROS_VAZIOS);
         router.get(route(route().current()));
     };
 
     const renderDescricao = (texto) => {
-        if (!texto) return null;
+        // `pedido_logs.descricao` é nullable, e há pontos do sistema que gravam
+        // log sem descrição. Antes esta tela fazia `.includes()` direto e
+        // quebrava a página inteira com um NULL no meio da lista.
+        if (!texto) {
+            return (
+                <p className="text-sm italic text-content-muted">
+                    Registro sem descrição.
+                </p>
+            );
+        }
+
         return texto.split('\n').map((linha, index) => {
             if (linha.includes('✅')) return <p key={index} className="mb-1 rounded bg-status-success-bg p-1 font-bold text-status-success-fg">{linha}</p>;
             if (linha.includes('🚫') || linha.includes('REJEITADOS')) return <p key={index} className="mt-1 rounded border-l-4 border-status-danger-solid bg-status-danger-bg p-1 pl-2 font-medium text-status-danger-fg">{linha}</p>;
@@ -40,6 +71,12 @@ export default function GestorHistory({ auth, logs, filters }) {
             return <p key={index} className="text-content-secondary text-sm py-0.5">{linha}</p>;
         });
     };
+
+    /**
+     * Log anterior à v3.6 tem `evento` NULL: naquela época o tipo da recusa só
+     * dava para adivinhar pelo texto. Cai no genérico em vez de mentir.
+     */
+    const tipoDoLog = (log) => TIPOS_RECUSA[log.evento] ?? { rotulo: 'Decisão comercial', icone: '🛡️' };
 
     return (
         <>
@@ -60,21 +97,34 @@ export default function GestorHistory({ auth, logs, filters }) {
 
                     {/* FILTROS */}
                     <div className="bg-surface-card p-5 rounded-xl shadow-sm border border-line mb-8">
-                        <form onSubmit={handleFiltrar} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <form onSubmit={handleFiltrar} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                             <div className="md:col-span-1">
                                 <label className="block text-xs font-bold text-content-muted uppercase mb-1">Buscar</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Nome, Filial ou Pedido..." 
+                                <input
+                                    type="text"
+                                    placeholder="Gestor, Filial ou Pedido..."
                                     className="w-full rounded-lg border-line-strong focus:ring-brand-500 focus:border-brand-500 text-sm"
                                     value={filterForm.search} // Blindado pelo useState inicial
                                     onChange={e => setFilterForm({...filterForm, search: e.target.value})}
                                 />
                             </div>
                             <div>
+                                <label className="block text-xs font-bold text-content-muted uppercase mb-1">Tipo</label>
+                                <select
+                                    className="w-full rounded-lg border-line-strong focus:ring-brand-500 focus:border-brand-500 text-sm"
+                                    value={filterForm.evento}
+                                    onChange={e => setFilterForm({...filterForm, evento: e.target.value})}
+                                >
+                                    <option value="">Todas as recusas</option>
+                                    {Object.entries(TIPOS_RECUSA).map(([valor, { rotulo }]) => (
+                                        <option key={valor} value={valor}>{rotulo}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-xs font-bold text-content-muted uppercase mb-1">Data Início</label>
-                                <input 
-                                    type="date" 
+                                <input
+                                    type="date"
                                     className="w-full rounded-lg border-line-strong focus:ring-brand-500 focus:border-brand-500 text-sm"
                                     value={filterForm.data_inicio}
                                     onChange={e => setFilterForm({...filterForm, data_inicio: e.target.value})}
@@ -82,8 +132,8 @@ export default function GestorHistory({ auth, logs, filters }) {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-content-muted uppercase mb-1">Data Fim</label>
-                                <input 
-                                    type="date" 
+                                <input
+                                    type="date"
                                     className="w-full rounded-lg border-line-strong focus:ring-brand-500 focus:border-brand-500 text-sm"
                                     value={filterForm.data_fim}
                                     onChange={e => setFilterForm({...filterForm, data_fim: e.target.value})}
@@ -98,25 +148,43 @@ export default function GestorHistory({ auth, logs, filters }) {
 
                     {/* LISTA DE LOGS */}
                     <div className="space-y-6">
-                        {logs.data.map((log) => (
+                        {logs.data.map((log) => {
+                            const tipo = tipoDoLog(log);
+
+                            return (
                             <div key={log.id} className="bg-surface-card rounded-xl shadow-sm border border-line overflow-hidden hover:shadow-md transition-all">
-                                <div className="bg-surface-sunken px-6 py-4 border-b border-line flex justify-between items-center">
+                                <div className="bg-surface-sunken px-6 py-4 border-b border-line flex flex-wrap justify-between items-center gap-3">
                                     <div className="flex items-center gap-4">
-                                        <div className="text-2xl">{log.descricao.includes('REJEITADOS') ? '✂️' : '🛡️'}</div>
+                                        <div className="text-2xl" title={tipo.rotulo}>{tipo.icone}</div>
                                         <div>
                                             <h4 className="font-bold text-content-primary">
-                                                Pedido #{log.pedido_id} 
+                                                Pedido #{log.pedido_id}
                                                 <StatusBadge status={log.pedido?.status} size="sm" className="ml-2 align-middle" />
                                             </h4>
                                             <p className="text-sm text-content-muted">
-                                                📅 {new Date(log.created_at).toLocaleDateString('pt-BR')} • {log.pedido?.user?.filial || 'Usuario Removido'}
+                                                📅 {new Date(log.created_at).toLocaleString('pt-BR')} • {log.pedido?.user?.filial || 'Usuario Removido'}
                                             </p>
                                         </div>
+                                    </div>
+
+                                    {/*
+                                        Quem decidiu, vindo da relação e não de uma
+                                        substring da frase. NULL em log anterior à
+                                        v3.6 — ali o nome só existe no texto abaixo.
+                                    */}
+                                    <div className="flex items-center gap-1.5 rounded-full border border-line bg-surface-card px-3 py-1.5">
+                                        <UserCircleIcon className="h-4 w-4 shrink-0 text-content-muted" />
+                                        <span className="text-[10px] font-black uppercase tracking-wide text-content-muted">
+                                            {tipo.rotulo} por
+                                        </span>
+                                        <span className="text-xs font-black text-content-primary">
+                                            {log.autor?.name || 'não registrado'}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="p-6">
                                     <div className="text-sm leading-relaxed space-y-1">{renderDescricao(log.descricao)}</div>
-                                    
+
                                     {/* Link Condicional: Só exibe se log.pedido_id existir */}
                                     {log.pedido_id && log.pedido && (
                                         <div className="mt-4 flex justify-end">
@@ -127,8 +195,9 @@ export default function GestorHistory({ auth, logs, filters }) {
                                     )}
                                 </div>
                             </div>
-                        ))}
-                        
+                            );
+                        })}
+
                         {logs.data.length === 0 && (
                             <Card>
                                 <EmptyState

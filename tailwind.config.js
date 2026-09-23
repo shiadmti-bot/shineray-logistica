@@ -73,23 +73,37 @@ export default {
                 },
 
                 // Semântica de estado. Cada uma tem fg (texto/ícone),
-                // bg (fundo suave do badge) e solid (preenchimento forte).
+                // bg (fundo suave do badge), solid (preenchimento forte) e
+                // border (contorno do bloco de aviso).
+                //
+                // OS TOKENS `-border` FALTAVAM. Dez lugares já escreviam
+                // `border-status-danger-border` e `border-status-warning-border`
+                // — classes que o Tailwind não gerava, porque a chave não
+                // existia aqui. O resultado não era erro visível: a borda caía
+                // no cinza padrão do preflight, e o aviso vermelho saía
+                // contornado de cinza. Definir a chave conserta os dez de uma
+                // vez, sem tocar em nenhuma view.
                 status: {
-                    'success-fg':    '#15803d',
-                    'success-bg':    '#dcfce7',
-                    'success-solid': '#16a34a',
-                    'warning-fg':    '#a16207',
-                    'warning-bg':    '#fef9c3',
-                    'warning-solid': '#ca8a04',
-                    'danger-fg':     '#b91c1c',
-                    'danger-bg':     '#fee2e2',
-                    'danger-solid':  '#dc2626',
-                    'info-fg':       '#1d4ed8',
-                    'info-bg':       '#dbeafe',
-                    'info-solid':    '#2563eb',
-                    'neutral-fg':    '#374151',
-                    'neutral-bg':    '#f3f4f6',
-                    'neutral-solid': '#6b7280',
+                    'success-fg':     '#15803d',
+                    'success-bg':     '#dcfce7',
+                    'success-solid':  '#16a34a',
+                    'success-border': '#86efac',
+                    'warning-fg':     '#a16207',
+                    'warning-bg':     '#fef9c3',
+                    'warning-solid':  '#ca8a04',
+                    'warning-border': '#fde047',
+                    'danger-fg':      '#b91c1c',
+                    'danger-bg':      '#fee2e2',
+                    'danger-solid':   '#dc2626',
+                    'danger-border':  '#fca5a5',
+                    'info-fg':        '#1d4ed8',
+                    'info-bg':        '#dbeafe',
+                    'info-solid':     '#2563eb',
+                    'info-border':    '#93c5fd',
+                    'neutral-fg':     '#374151',
+                    'neutral-bg':     '#f3f4f6',
+                    'neutral-solid':  '#6b7280',
+                    'neutral-border': '#d1d5db',
                 },
             },
 

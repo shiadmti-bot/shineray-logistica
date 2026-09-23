@@ -2,6 +2,7 @@
 
 namespace App\Actions\Pedidos\Concerns;
 
+use App\Enums\EventoPedido;
 use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Notifications\PedidoAtualizado;
@@ -14,16 +15,43 @@ use Illuminate\Support\Facades\Log;
  */
 trait RegistraHistorico
 {
-    protected function registrarLog(Pedido $pedido, string $titulo, string $descricao = ''): void
-    {
+    /**
+     * Grava uma entrada na linha do tempo do pedido.
+     *
+     * `$evento` e `$dados` (v3.6) são a metade CONSULTÁVEL do registro: o
+     * evento é a chave que o histórico de auditoria filtra, e `dados` guarda o
+     * que aconteceu em forma de estrutura em vez de parágrafo. São opcionais
+     * porque o sistema tem dezenas de pontos que gravam log, e converter todos
+     * de uma vez não era necessário para o histórico de recusa funcionar — o
+     * que não classifica fica NULL, e NULL significa "não classificado".
+     *
+     * O sufixo "(Por: Fulano)" continua sendo escrito na descrição, mesmo com
+     * `user_id` gravado ao lado. É deliberado: a descrição é lida crua em
+     * lugares que não carregam a relação (BI, timeline da moto), e tirá-la
+     * faria o autor desaparecer dessas telas.
+     *
+     * @param  array<string, mixed>|null  $dados
+     */
+    protected function registrarLog(
+        Pedido $pedido,
+        string $titulo,
+        string $descricao = '',
+        ?EventoPedido $evento = null,
+        ?array $dados = null,
+    ): void {
         if (! $pedido->exists) {
             return;
         }
 
+        $autor = Auth::user();
+
         PedidoLog::create([
             'pedido_id' => $pedido->id,
+            'user_id'   => $autor?->id,
             'titulo'    => $titulo,
-            'descricao' => "{$descricao} (Por: " . (Auth::user()?->name ?? 'Sistema') . ')',
+            'evento'    => $evento?->value,
+            'descricao' => "{$descricao} (Por: " . ($autor?->name ?? 'Sistema') . ')',
+            'dados'     => $dados,
         ]);
     }
 

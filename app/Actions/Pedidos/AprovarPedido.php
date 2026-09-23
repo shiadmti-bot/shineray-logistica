@@ -3,6 +3,7 @@
 namespace App\Actions\Pedidos;
 
 use App\Actions\Pedidos\Concerns\RegistraHistorico;
+use App\Enums\EventoPedido;
 use App\Exceptions\OperacaoPedidoRecusada;
 use App\Models\Pedido;
 use App\Models\Schedule;
@@ -71,7 +72,9 @@ final class AprovarPedido
                     $this->registrarLog(
                         $pedido,
                         'Auditoria Comercial (Gestor)',
-                        $this->textoAuditoria("❌ Pedido totalmente cancelado por {$this->nomeGestor()} (todos os itens cortados).", $justificativa, $cortes)
+                        $this->textoAuditoria("❌ Pedido totalmente cancelado por {$this->nomeGestor()} (todos os itens cortados).", $justificativa, $cortes),
+                        EventoPedido::Cancelado,
+                        ['justificativa' => $justificativa, 'cortes' => $cortes, 'integral' => true],
                     );
 
                     $this->cancelarPedido->executar(
@@ -93,10 +96,12 @@ final class AprovarPedido
                 $this->registrarLog(
                     $pedido,
                     'Auditoria Comercial (Gestor)',
-                    $this->textoAuditoria("✅ Autorizado por {$this->nomeGestor()}.", $justificativa, $cortes)
+                    $this->textoAuditoria("✅ Autorizado por {$this->nomeGestor()}.", $justificativa, $cortes),
+                    $cortes !== [] ? EventoPedido::CortouItens : EventoPedido::Aprovado,
+                    ['justificativa' => $justificativa, 'cortes' => $cortes, 'integral' => false],
                 );
             } else {
-                $this->registrarLog($pedido, 'Aprovado', 'Movimentação autorizada pelo Gestor.');
+                $this->registrarLog($pedido, 'Aprovado', 'Movimentação autorizada pelo Gestor.', EventoPedido::Aprovado);
             }
 
             $previsaoMsg = $pedido->previsao_entrega
@@ -161,7 +166,7 @@ final class AprovarPedido
      * Só as motos DESTE pedido: o id vem da requisição, e sem o filtro um id
      * de outro pedido mudava o status daquela moto — ou apagava o cadastro.
      *
-     * @return list<string>  linhas do log de auditoria
+     * @return list<array<string, mixed>>  um registro por moto cortada
      */
     private function cortarMotos(Pedido $pedido, array $ids, array $motivos): array
     {
@@ -169,11 +174,18 @@ final class AprovarPedido
             return [];
         }
 
-        $linhas = [];
+        $cortes = [];
 
         foreach ($pedido->motos()->whereKey(array_map('intval', $ids))->get() as $moto) {
             $motivo = $motivos[$moto->id] ?? 'Motivo não informado';
-            $linhas[] = "🚫 {$moto->modelo} ({$moto->chassi})\n   ↳ Motivo: {$motivo}";
+
+            $cortes[] = [
+                'tipo'   => 'moto',
+                'modelo' => $moto->modelo,
+                'cor'    => $moto->cor,
+                'chassi' => $moto->chassi,
+                'motivo' => $motivo,
+            ];
 
             $pedido->motos()->detach($moto->id);
 
@@ -186,17 +198,24 @@ final class AprovarPedido
                 // Regra de negócio confirmada com a operação (14/09/2026): sem
                 // nenhum outro pedido, o cadastro da moto é apagado — não volta
                 // ao estoque. Moto não tem soft delete: a exclusão é definitiva.
+                // É por isso que o corte vai para `dados` do log: o chassi
+                // cortado deixa de existir como linha consultável no banco.
                 $moto->delete();
             }
         }
 
-        return $linhas;
+        return $cortes;
     }
 
     /**
      * Tira do pedido as cotas genéricas (modelo/cor/quantidade) recusadas.
      *
-     * @return list<string>  linhas do log de auditoria
+     * O motivo é gravado NA COTA (`motivo_cancelamento`, `cancelado_por`,
+     * `cancelado_em`) e só depois ela é excluída. Desde a v3.6 `pedido_itens`
+     * tem soft delete, então a linha continua lá com o motivo ao lado — antes
+     * o `delete()` era definitivo e o motivo só existia como texto no log.
+     *
+     * @return list<array<string, mixed>>  um registro por cota cortada
      */
     private function cortarItens(Pedido $pedido, array $ids, array $motivos): array
     {
@@ -204,16 +223,29 @@ final class AprovarPedido
             return [];
         }
 
-        $linhas = [];
+        $cortes = [];
 
         foreach ($pedido->itensPedido()->whereKey(array_map('intval', $ids))->get() as $item) {
             $motivo = $motivos['item_'.$item->id] ?? $motivos[$item->id] ?? 'Motivo não informado';
-            $linhas[] = "🚫 {$item->modelo} ({$item->cor}) - {$item->quantidade} un.\n   ↳ Motivo: {$motivo}";
+
+            $cortes[] = [
+                'tipo'       => 'cota',
+                'modelo'     => $item->modelo,
+                'cor'        => $item->cor,
+                'quantidade' => (int) $item->quantidade,
+                'motivo'     => $motivo,
+            ];
+
+            $item->update([
+                'motivo_cancelamento' => $motivo,
+                'cancelado_por'       => Auth::id(),
+                'cancelado_em'        => now(),
+            ]);
 
             $item->delete();
         }
 
-        return $linhas;
+        return $cortes;
     }
 
     private function sobrouAlgo(Pedido $pedido): bool
@@ -230,7 +262,13 @@ final class AprovarPedido
             || $pedido->itensPedido()->where('quantidade', '>', 0)->exists();
     }
 
-    /** @param  list<string>  $cortes */
+    /**
+     * O parágrafo que a linha do tempo mostra, montado a partir dos MESMOS
+     * registros que vão para `pedido_logs.dados`. Texto e dado saem da mesma
+     * fonte de propósito: duas montagens separadas é como eles divergem.
+     *
+     * @param  list<array<string, mixed>>  $cortes
+     */
     private function textoAuditoria(string $abertura, ?string $justificativa, array $cortes): string
     {
         $texto = $abertura;
@@ -240,7 +278,14 @@ final class AprovarPedido
         }
 
         if ($cortes !== []) {
-            $texto .= "\n\n❌ ITENS REJEITADOS:\n".implode("\n", $cortes);
+            $linhas = array_map(
+                fn (array $corte) => $corte['tipo'] === 'moto'
+                    ? "🚫 {$corte['modelo']} ({$corte['chassi']})\n   ↳ Motivo: {$corte['motivo']}"
+                    : "🚫 {$corte['modelo']} ({$corte['cor']}) - {$corte['quantidade']} un.\n   ↳ Motivo: {$corte['motivo']}",
+                $cortes,
+            );
+
+            $texto .= "\n\n❌ ITENS REJEITADOS:\n".implode("\n", $linhas);
         }
 
         return $texto;

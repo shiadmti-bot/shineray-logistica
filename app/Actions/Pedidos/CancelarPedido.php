@@ -3,6 +3,7 @@
 namespace App\Actions\Pedidos;
 
 use App\Actions\Pedidos\Concerns\RegistraHistorico;
+use App\Enums\EventoPedido;
 use App\Enums\Perfil;
 use App\Exceptions\OperacaoPedidoRecusada;
 use App\Models\Basqueta;
@@ -66,6 +67,11 @@ final class CancelarPedido
         }
 
         DB::transaction(function () use ($pedido, $user, $tipo, $motivo) {
+            // O inventário do que estava no pedido tem de ser lido ANTES de
+            // liberar: liberarMotos desanexa o pivô e liberarPecas mexe nas
+            // reservas. Depois disso não há mais o que fotografar.
+            $conteudo = $this->inventario($pedido);
+
             $pedido->tipo_carga === 'peca'
                 ? $this->liberarPecas($pedido)
                 : $this->liberarMotos($pedido);
@@ -73,18 +79,86 @@ final class CancelarPedido
             $pedido->update([
                 'status'          => $tipo,
                 'motivo_rejeicao' => $motivo,
+                'rejeitado_por'   => $user?->id,
+                'rejeitado_em'    => now(),
             ]);
 
             PedidoLog::create([
                 'pedido_id' => $pedido->id,
+                'user_id'   => $user?->id,
                 'titulo'    => ucfirst($tipo) . ' ❌',
+                'evento'    => $tipo === 'rejeitado'
+                    ? EventoPedido::Rejeitado->value
+                    : EventoPedido::Cancelado->value,
                 'descricao' => ($user?->name ?? 'Sistema') . " {$tipo} o pedido: " . ($motivo ?: 'Sem observação'),
+                'dados'     => [
+                    'motivo'     => $motivo,
+                    'tipo_carga' => $pedido->tipo_carga,
+                    'conteudo'   => $conteudo,
+                ],
             ]);
 
-            $this->enviarNotificacao($pedido->user, ucfirst($tipo), "Pedido #{$pedido->id} $tipo: $motivo", route('pedidos.index'));
+            $this->enviarNotificacao(
+                $pedido->user,
+                ucfirst($tipo),
+                "Pedido #{$pedido->id} $tipo: $motivo",
+                route('pedidos.show', $pedido->id),
+            );
 
             $pedido->delete(); // soft delete
         });
+    }
+
+    /**
+     * O que havia dentro do pedido no instante da recusa.
+     *
+     * Vai para `pedido_logs.dados` e existe para a pergunta que a loja faz
+     * depois: "o que eu tinha pedido?". A resposta não sobrevive nas tabelas —
+     * a moto pode ter o cadastro apagado no corte, e a reserva de peça é
+     * desfeita — então o histórico guarda a própria fotografia em vez de
+     * depender de um JOIN que não vai mais encontrar as linhas.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function inventario(Pedido $pedido): array
+    {
+        // Quem chama normalmente já trouxe as relações, mas o inventário não
+        // pode depender disso: um caller esquecido produziria histórico vazio,
+        // que é pior do que uma consulta extra.
+        $pedido->loadMissing(['motos', 'itensPedido.peca']);
+
+        if ($pedido->tipo_carga === 'peca') {
+            return $pedido->itensPedido
+                ->map(fn ($item) => [
+                    'descricao'  => $item->descricao,
+                    'quantidade' => (int) $item->quantidade,
+                ])
+                ->values()
+                ->all();
+        }
+
+        $chassis = $pedido->motos
+            ->map(fn ($moto) => [
+                'modelo' => $moto->modelo,
+                'cor'    => $moto->cor,
+                'chassi' => $moto->chassi,
+            ])
+            ->values()
+            ->all();
+
+        // Cotas genéricas ainda sem chassi atribuído (V2.6): a loja pediu
+        // "5x NEW JEF VERMELHA" e o CD não chegou a vincular unidade nenhuma.
+        $cotas = $pedido->itensPedido
+            ->filter(fn ($item) => $item->qtd_pendente > 0)
+            ->map(fn ($item) => [
+                'modelo'     => $item->modelo,
+                'cor'        => $item->cor,
+                'quantidade' => $item->qtd_pendente,
+            ])
+            ->values()
+            ->all();
+
+        return [...$chassis, ...$cotas];
     }
 
     /**
