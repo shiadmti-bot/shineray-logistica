@@ -172,6 +172,25 @@ class MicroworkService
             Log::warning('MicroworkService: A API retornou vazio ou erro, abortando atualização do cache para não sobrescrever dados válidos.');
             return false;
         }
+        /*
+         * CATALOGO ANTES DO FILTRO, DE PROPOSITO (v3.7).
+         *
+         * `filterPatios` abaixo reduz os dados aos cinco patios do CD, porque e
+         * disso que o SALDO trata. O CATALOGO e outra pergunta: quais modelos e
+         * cores existem. Alimenta-lo com a resposta crua faz com que um modelo
+         * que hoje so tem unidade no patio de uma loja continue sendo pedivel ao
+         * CD -- e e justamente o modelo esgotado que a loja precisa pedir.
+         *
+         * Falhar aqui nao pode derrubar a sincronia de estoque: o saldo e o que
+         * a operacao usa para trabalhar hoje, o catalogo so fica um ciclo velho.
+         */
+        try {
+            $resumo = app(\App\Services\Estoque\CatalogoMotosMicrowork::class)->registrar($data);
+
+            Log::info('MicroworkService: catalogo atualizado.', $resumo);
+        } catch (\Throwable $e) {
+            Log::warning('MicroworkService: falha ao atualizar o catalogo de modelos: ' . $e->getMessage());
+        }
 
         $filteredData = $this->filterPatios($data);
         

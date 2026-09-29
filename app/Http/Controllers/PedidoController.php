@@ -278,32 +278,38 @@ class PedidoController extends Controller
 
         $microwork = app(\App\Services\MicroworkService::class);
 
-        // Busca modelos únicos registrados exatamente como vêm do Microwork
-        $estoque = $microwork->getEstoqueCD();
-        $modelosMicrowork = [];
-        foreach ($estoque as $item) {
-            $modelo = mb_strtoupper(trim($item['Modelo'] ?? $item['modelo'] ?? ''), 'UTF-8');
-            if ($modelo && !in_array($modelo, $modelosMicrowork)) {
-                $modelosMicrowork[] = $modelo;
-            }
-        }
-        sort($modelosMicrowork);
+        /*
+         * O CATALOGO COMPLETO, COM O SALDO ANOTADO (v3.7).
+         *
+         * Aqui ficava o bug que tornava a tela inutil para reposicao. A lista de
+         * modelos era montada com os modelos DISTINTOS VISTOS NOS CHASSIS em
+         * patio, e caia na tabela `modelos` apenas com `?:` -- ou seja, assim que
+         * o Microwork respondia qualquer coisa, o catalogo de 48 nomes exatos era
+         * descartado. Resultado: a loja so conseguia pedir o que o CD ja tinha, e
+         * o modelo esgotado -- o unico que de fato precisa de reposicao -- nao
+         * existia no dropdown.
+         *
+         * `paraTelaDePedido()` inverte a relacao: o CATALOGO e a lista, e o saldo
+         * e uma ANOTACAO em cada cor. Modelo sem estoque aparece marcado com
+         * zero, nao desaparece. As cores tambem saem do catalogo, o que aposenta
+         * as sete cores inventadas no Create.jsx.
+         */
+        $catalogo = app(\App\Services\Estoque\CatalogoMotosMicrowork::class)->paraTelaDePedido();
 
-        // Se houver modelos do Microwork, utiliza a lista exata do Microwork; caso contrário usa o DB como fallback
-        $listaModelos = !empty($modelosMicrowork) 
-            ? array_values(array_unique($modelosMicrowork)) 
-            : \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
-
-        // V2.6: Estoque real do CD agregado por Modelo + Cor, para o pedido genérico.
-        // Se o cron de sincronia falhar, este array vem vazio e o frontend cai
-        // automaticamente no modo digitação livre (não trava a loja).
+        // V2.6: saldo real do CD agregado por Modelo + Cor. Se o cron de
+        // sincronia falhar, vem vazio -- a tela avisa que o saldo esta
+        // indisponivel e segue aceitando o pedido, porque pedir nao depende de
+        // saber o saldo.
         $estoqueCD = $microwork->getEstoqueDisponivelAgregado();
 
         return Inertia::render('Pedidos/Create', [
-            'listaModelos' => $listaModelos,
+            'catalogoModelos' => $catalogo,
+            // Mantido para o datalist do modo digitacao livre, que continua
+            // sendo o caminho de fuga da tela.
+            'listaModelos' => array_column($catalogo, 'nome'),
             'lojasDisponiveis' => $lojas,
             'cdUserId' => $cdUser ? $cdUser->id : null,
-            'locaisEntrega' => $locaisEntrega, // Variável recuperada
+            'locaisEntrega' => $locaisEntrega,
             'estoqueCD' => $estoqueCD,
             'motivosChassiObrigatorio' => CriarPedido::MOTIVOS_EXIGEM_CHASSI,
         ]);
