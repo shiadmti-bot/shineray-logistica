@@ -28,6 +28,8 @@ class ModeloSeeder extends Seeder
             'XY125-6A - MOTO JET SS EFI',
             'XY125-6A - MOTO RIO',
             'XY125-6A - MOTO RIO EFI',
+            'RIO 125 EFI',
+            'SHI 125 S - MOTO RIO',
             'XY150-8 - MOTO JEF S',
             'XY150-8 - MOTO JEF S EFI',
             'XY150-8 - MOTO URBAN 150 EFI',
@@ -59,7 +61,26 @@ class ModeloSeeder extends Seeder
 
         foreach ($modelos as $nome) {
             // O 'trim' remove espaços acidentais no início/fim
-            Modelo::firstOrCreate(['nome' => trim($nome)]);
+            Modelo::firstOrCreate(['nome' => trim($nome)], ['origem' => 'seed']);
+        }
+
+        $coresPadraoPorModelo = [
+            'XY125-6A - MOTO RIO'     => ['BRANCA', 'CINZA', 'VERMELHA', 'PRETA'],
+            'XY125-6A - MOTO RIO EFI' => ['BRANCA', 'CINZA', 'VERMELHA', 'PRETA'],
+            'RIO 125 EFI'             => ['BRANCA', 'CINZA', 'VERMELHA', 'PRETA'],
+            'SHI 125 S - MOTO RIO'    => ['BRANCA', 'CINZA', 'VERMELHA', 'PRETA'],
+        ];
+
+        foreach ($coresPadraoPorModelo as $nomeModelo => $cores) {
+            $mod = Modelo::where('nome', $nomeModelo)->first();
+            if ($mod) {
+                foreach ($cores as $cor) {
+                    \App\Models\ModeloCor::firstOrCreate(
+                        ['modelo_id' => $mod->id, 'cor' => $cor],
+                        ['origem' => 'seed', 'ativo' => true]
+                    );
+                }
+            }
         }
     }
 }
