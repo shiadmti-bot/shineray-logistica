@@ -1,5 +1,6 @@
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import useNotificacoesTempoReal from '@/Hooks/useNotificacoesTempoReal';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import {
     BuildingOffice2Icon,
     BuildingStorefrontIcon,
@@ -95,33 +96,45 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
         ? [{ label: 'Peças', href: route('pecas.index') }, { label: 'Pedidos de Peças' }]
         : [{ label: 'Logística' }, { label: 'Todos os Pedidos' }];
 
+    /*
+     * O botao "?" acompanha as acoes e aparece para TODO perfil — inclusive os
+     * que nao criam pedido, porque ler a lista tambem se aprende. O data-tour
+     * fica no wrapper do botao de criacao: e ele que o passo do tour aponta, e
+     * o passo se apaga sozinho (exigeAlvo) para quem nao tem o botao.
+     */
     const renderActions = () => {
-        if (perfil !== 'loja' && perfil !== 'admin') return null;
-
-        if (currentTipo === 'peca') {
-            return (
-                <Button href={route('pecas.solicitar')} icon={PlusIcon}>
-                    Solicitar Peças
-                </Button>
-            );
-        }
-
-        if (currentTipo === 'moto') {
-            return (
-                <Button href={route('solicitar')} icon={PlusIcon}>
-                    Nova Solicitação (Motos)
-                </Button>
-            );
-        }
+        const podeCriar = perfil === 'loja' || perfil === 'admin';
 
         return (
-            <div className="flex items-center gap-2">
-                <Button href={route('solicitar')} variant="secondary" icon={PlusIcon} size="sm">
-                    Nova Moto
-                </Button>
-                <Button href={route('pecas.solicitar')} icon={PlusIcon} size="sm">
-                    Nova Peça
-                </Button>
+            <div className="flex flex-wrap items-center gap-2">
+                {podeCriar && (
+                    <div data-tour="pedidos.novo" className="flex items-center gap-2">
+                        {currentTipo === 'peca' && (
+                            <Button href={route('pecas.solicitar')} icon={PlusIcon}>
+                                Solicitar Peças
+                            </Button>
+                        )}
+
+                        {currentTipo === 'moto' && (
+                            <Button href={route('solicitar')} icon={PlusIcon}>
+                                Nova Solicitação (Motos)
+                            </Button>
+                        )}
+
+                        {currentTipo !== 'peca' && currentTipo !== 'moto' && (
+                            <>
+                                <Button href={route('solicitar')} variant="secondary" icon={PlusIcon} size="sm">
+                                    Nova Moto
+                                </Button>
+                                <Button href={route('pecas.solicitar')} icon={PlusIcon} size="sm">
+                                    Nova Peça
+                                </Button>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                <BotaoTourDoModulo modulo="pedidos.lista" />
             </div>
         );
     };
@@ -142,7 +155,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
 
             {/* ---------- FILTROS & ABAS ---------- */}
             <Card padding="none" className="mb-6">
-                <div className="border-b border-line px-4 pt-2">
+                <div data-tour="pedidos.abas-tipo" className="border-b border-line px-4 pt-2">
                     <Tabs
                         tabs={tabsTipo}
                         active={currentTipo}
@@ -151,7 +164,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                     />
                 </div>
                 <form onSubmit={handleSearch} className="grid grid-cols-1 gap-2 p-4 md:grid-cols-12">
-                    <div className="relative md:col-span-4">
+                    <div data-tour="pedidos.busca" className="relative md:col-span-4">
                         <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
                         <input
                             type="text"
@@ -162,7 +175,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                         />
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div data-tour="pedidos.filtro-datas" className="md:col-span-2">
                         <input
                             type="date"
                             className={classeCampo}
@@ -182,7 +195,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                         />
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div data-tour="pedidos.filtro-status" className="md:col-span-2">
                         <select
                             className={classeCampo}
                             value={data.status}
@@ -325,7 +338,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                                             <VolumeIndicator pedido={pedido} />
                                         </td>
 
-                                        <td className="px-4 py-3 align-middle">
+                                        <td data-tour="pedidos.linha-status" className="px-4 py-3 align-middle">
                                             <StatusBadge status={pedido.status} size="sm" />
                                             <EmbarqueParcial pedido={pedido} />
                                             <MotivoRecusa pedido={pedido} />

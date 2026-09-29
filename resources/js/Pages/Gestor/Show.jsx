@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import axios from 'axios';
 import ChatBox from '@/Components/ChatBox';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import { ArrowPathIcon, ExclamationTriangleIcon, MapPinIcon } from '@heroicons/react/24/outline';
 
 export default function GestorShow({ auth, pedido, mensagemChat }) {
@@ -271,6 +272,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                             { label: 'Painel', href: route('gestor.index') },
                             { label: `#${pedido.id}` },
                         ]}
+                        actions={<BotaoTourDoModulo modulo="gestor.analise" />}
                     />
                     
                     {/* --- CABEÇALHO LOGÍSTICO (NOVIDADE V2) --- */}
@@ -349,7 +351,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                                     Aguardando CD
                                 </span>
                             </div>
-                            <div className="divide-y divide-line">
+                            <div data-tour="gestor.itens" className="divide-y divide-line">
                                 {pedido.itens_pedido.map((item) => {
                                     const isApproved = itemAprovacoes[item.id] !== false;
                                     return (
@@ -381,7 +383,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                                             </div>
 
                                             {!isApproved && (
-                                                <div className="p-3 bg-status-danger-bg border border-status-danger-solid/30 rounded-lg text-xs space-y-1 animate-fade-in-down">
+                                                <div data-tour="gestor.motivo-item" className="p-3 bg-status-danger-bg border border-status-danger-solid/30 rounded-lg text-xs space-y-1 animate-fade-in-down">
                                                     <label className="font-bold text-status-danger-fg uppercase block">Motivo do Corte deste Item (Obrigatório)</label>
                                                     <select
                                                         className="w-full border-line-strong rounded-md text-xs focus:border-brand-500 focus:ring-brand-500 bg-surface-card"
@@ -487,7 +489,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                     </div>
 
                     {/* OBSERVAÇÕES GERAIS */}
-                    <div className="bg-surface-card p-5 rounded-xl shadow-sm border border-line mb-8">
+                    <div data-tour="gestor.justificativa" className="bg-surface-card p-5 rounded-xl shadow-sm border border-line mb-8">
                         <label className="block text-sm font-bold text-content-secondary mb-2">📝 Observações Gerais / Feedback para Loja</label>
                         <textarea 
                             className="w-full border-line-strong rounded-lg text-sm h-20 focus:ring-brand-500 focus:border-brand-500" 
@@ -504,6 +506,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                 <div className="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
                     <button 
                         type="button"
+                        data-tour="gestor.rejeitar"
                         onClick={handleCancelarPedidoCompleto} 
                         disabled={processing} 
                         className="w-full sm:w-auto bg-status-danger-bg hover:bg-status-danger-bg text-status-danger-fg border border-status-danger-solid/30 font-bold text-sm py-3 px-6 rounded-xl transition flex items-center justify-center gap-2"
@@ -513,6 +516,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
 
                     <button 
                         type="button"
+                        data-tour="gestor.aprovar"
                         onClick={handleFinalizar} 
                         disabled={processing} 
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-8 py-3 text-base font-bold text-white shadow-lg transition hover:bg-brand-700 sm:w-auto"
@@ -523,7 +527,11 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
             </div>
 
             {/* CHAT */}
-            <ChatBox pedidoId={pedido.id} />
+            {/* O holofote precisa de um elemento estavel: o ChatBox e um widget
+                flutuante que abre e fecha, entao a ancora fica no wrapper. */}
+            <span data-tour="gestor.chat">
+                <ChatBox pedidoId={pedido.id} />
+            </span>
 
         </>
     );

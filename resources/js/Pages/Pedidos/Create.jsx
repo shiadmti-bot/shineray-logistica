@@ -1,7 +1,9 @@
 import { PageHeader } from '@/Components/UI';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
+import SeletorModelo from '@/Components/Pedidos/SeletorModelo';
 import axios from 'axios';
 import {
     ArchiveBoxIcon,
@@ -16,6 +18,9 @@ import {
 
 export default function PedidoCreate({
     auth,
+    // v3.7: catalogo completo [{nome, disponivel_total, cores:[{cor, disponivel}]}].
+    // E o catalogo que manda na lista; estoqueCD apenas anota o saldo.
+    catalogoModelos = [],
     listaModelos,
     lojasDisponiveis = [],
     cdUserId,
@@ -53,31 +58,48 @@ export default function PedidoCreate({
         "Manutenção / Reparo"
     ];
 
-    // Se o cron do Microwork falhar, estoqueCD vem vazio e o formulário volta
-    // automaticamente para digitação livre — a loja nunca fica impedida de pedir.
-    const temEstoqueCD = estoqueCD.length > 0;
+    /*
+     * DUAS PERGUNTAS SEPARADAS (v3.7).
+     *
+     * `temCatalogo` responde "o que se pode pedir" e vem da tabela de modelos.
+     * `temSaldo` responde "quanto existe agora" e vem do cache do Microwork.
+     *
+     * Antes as duas eram a MESMA coisa: o seletor estruturado só aparecia se
+     * `estoqueCD` tivesse itens, e a lista de modelos saía dos chassis em pátio.
+     * Duas consequências — modelo esgotado não podia ser pedido, e um cron do
+     * Microwork fora do ar derrubava a tela inteira para digitação livre.
+     *
+     * Agora o catálogo sustenta o seletor mesmo com o saldo indisponível; a tela
+     * só deixa de mostrar os números.
+     */
+    const temCatalogo = catalogoModelos.length > 0;
+    const temSaldo = estoqueCD.length > 0;
 
-    // Modelos disponíveis para o dropdown (combina estoque do CD com catálogo completo do banco)
-    const modelosCD = useMemo(
-        () => Array.from(new Set([...estoqueCD.map(e => e.modelo), ...(listaModelos || [])])).filter(Boolean).sort(),
-        [estoqueCD, listaModelos]
+    const catalogoPorNome = useMemo(
+        () => new Map(catalogoModelos.map(m => [m.nome, m])),
+        [catalogoModelos]
     );
 
+    /**
+     * Cores conhecidas do modelo, vindas do CATÁLOGO — não mais de lista fixa.
+     *
+     * Aqui havia sete cores escritas no código ('VERMELHA', 'PRETA', 'BRANCA',
+     * 'CINZA', 'AZUL', 'AMARELA', 'BEGE'), usadas sempre que o modelo não tinha
+     * saldo. A loja escolhia entre opções que podiam não existir para aquele
+     * modelo, e o pedido nascia com um nome que não casava com variante real
+     * nenhuma do Microwork.
+     */
     const coresDoModelo = (modelo) => {
-        const doEstoque = estoqueCD.filter(e => e.modelo === modelo);
-        if (doEstoque.length > 0) {
-            return doEstoque.sort((a, b) => a.cor.localeCompare(b.cor));
+        const doCatalogo = catalogoPorNome.get(modelo)?.cores ?? [];
+
+        if (doCatalogo.length > 0) {
+            return doCatalogo;
         }
-        // Se o modelo não possui saldo no CD no momento, oferece opções de cores para permitir o pedido
-        return [
-            { cor: 'VERMELHA', disponivel: 0 },
-            { cor: 'PRETA', disponivel: 0 },
-            { cor: 'BRANCA', disponivel: 0 },
-            { cor: 'CINZA', disponivel: 0 },
-            { cor: 'AZUL', disponivel: 0 },
-            { cor: 'AMARELA', disponivel: 0 },
-            { cor: 'BEGE', disponivel: 0 }
-        ];
+
+        // Modelo digitado à mão, fora do catálogo: o que o saldo souber dele.
+        return estoqueCD
+            .filter(e => e.modelo === modelo)
+            .sort((a, b) => a.cor.localeCompare(b.cor));
     };
 
     const disponivelDe = (modelo, cor) =>
@@ -220,7 +242,7 @@ export default function PedidoCreate({
         novosItens[index] = { ...novosItens[index], [field]: value };
 
         // Trocou o modelo: a cor anterior pode não existir para o novo modelo
-        if (field === 'modelo' && temEstoqueCD && data.modo === 'cd') {
+        if (field === 'modelo' && temCatalogo && data.modo === 'cd') {
             const cores = coresDoModelo(value);
             novosItens[index].cor = cores.length === 1 ? cores[0].cor : '';
         }
@@ -352,13 +374,18 @@ export default function PedidoCreate({
             ? "w-full border-line-strong rounded-lg uppercase font-bold text-base py-3 px-4 focus:ring-brand-500 focus:border-brand-500 bg-surface-card"
             : "w-full border-line-strong rounded uppercase font-bold text-sm focus:ring-brand-500 focus:border-brand-500 bg-surface-card";
 
-        // Pedido genérico ao CD com estoque sincronizado => select do estoque real
-        if (data.modo === 'cd' && !exigeChassi(item) && temEstoqueCD) {
+        // Pedido genérico ao CD: busca sobre o catálogo completo, com o saldo
+        // anotado em cada linha. Ver SeletorModelo.
+        if (data.modo === 'cd' && !exigeChassi(item) && temCatalogo) {
             return (
-                <select required value={item.modelo} onChange={(e) => updateItem(index, 'modelo', e.target.value)} className={base}>
-                    <option value="">Selecione o modelo...</option>
-                    {modelosCD.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <SeletorModelo
+                    required
+                    mobile={mobile}
+                    valor={item.modelo}
+                    catalogo={catalogoModelos}
+                    mostrarSaldo={temSaldo}
+                    onChange={(nome) => updateItem(index, 'modelo', nome)}
+                />
             );
         }
 
@@ -411,8 +438,21 @@ export default function PedidoCreate({
             ? "w-full border-line-strong rounded-lg uppercase text-base py-3 px-4"
             : "w-full border-line-strong rounded uppercase text-sm";
 
-        if (data.modo === 'cd' && !exigeChassi(item) && temEstoqueCD) {
+        if (data.modo === 'cd' && !exigeChassi(item) && temCatalogo) {
             const cores = coresDoModelo(item.modelo);
+
+            // Modelo fora do catálogo e sem saldo conhecido: não há cor para
+            // sugerir, então o campo volta a texto em vez de um select vazio.
+            if (item.modelo && cores.length === 0) {
+                return (
+                    <input
+                        required type="text" placeholder="COR" value={item.cor}
+                        onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
+                        className={base}
+                    />
+                );
+            }
+
             return (
                 <select
                     required value={item.cor} disabled={!item.modelo}
@@ -421,7 +461,10 @@ export default function PedidoCreate({
                 >
                     <option value="">{item.modelo ? 'Cor...' : 'Escolha o modelo'}</option>
                     {cores.map(c => (
-                        <option key={c.cor} value={c.cor}>{c.cor} ({c.disponivel})</option>
+                        <option key={c.cor} value={c.cor}>
+                            {/* Sem sincronia de saldo o numero seria mentira: mostra so a cor. */}
+                            {temSaldo ? `${c.cor} (${c.disponivel})` : c.cor}
+                        </option>
                     ))}
                 </select>
             );
@@ -490,6 +533,7 @@ export default function PedidoCreate({
                         { label: 'Pedidos', href: route('pedidos.index') },
                         { label: 'Nova Solicitação' },
                     ]}
+                    actions={<BotaoTourDoModulo modulo="pedidos.criacao" />}
                 />
 
                     {Object.keys(errors).length > 0 && (
@@ -520,12 +564,24 @@ export default function PedidoCreate({
                         </div>
                     )}
 
-                    {!temEstoqueCD && (
+                    {/*
+                        Só o SALDO caiu, não o catálogo (v3.7). O seletor de
+                        modelo continua funcionando: a lista vem da tabela de
+                        modelos, que não depende da sincronia. O que falta é o
+                        número ao lado de cada cor — e pedir nunca dependeu de
+                        saber o saldo.
+                    */}
+                    {!temSaldo && (
                         <div className="mb-6 bg-status-warning-bg border-l-4 border-status-warning-solid p-4 rounded shadow flex items-start gap-3">
                             <ExclamationTriangleIcon className="w-6 h-6 text-status-warning-fg flex-shrink-0" />
                             <div>
-                                <h3 className="font-bold text-status-warning-fg text-sm">Estoque do CD indisponível no momento</h3>
-                                <p className="text-xs text-status-warning-fg">A sincronização com o Microwork não retornou dados. Você pode continuar pedindo normalmente digitando o modelo e a cor à mão.</p>
+                                <h3 className="font-bold text-status-warning-fg text-sm">Saldo do CD indisponível no momento</h3>
+                                <p className="text-xs text-status-warning-fg">
+                                    A sincronização com o Microwork não retornou dados, então não
+                                    conseguimos mostrar quantas unidades há de cada cor. A lista de
+                                    modelos e cores continua completa e o pedido segue normalmente —
+                                    o CD confirma as quantidades na separação.
+                                </p>
                             </div>
                         </div>
                     )}
@@ -535,7 +591,7 @@ export default function PedidoCreate({
                         <div className={`bg-surface-card overflow-hidden shadow-sm sm:rounded-lg p-6 border-l-4 ${data.modo === 'transferencia' ? 'border-status-warning-solid' : 'border-status-info-solid'}`}>
                             <h3 className="text-lg font-bold text-content-primary mb-4 flex items-center gap-2"><ArchiveBoxIcon className="w-5 h-5" /> Tipo de Movimentação</h3>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div data-tour="criar.modo" className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div
                                     onClick={() => handleModeChange('cd')}
                                     className={`cursor-pointer border-2 rounded-lg p-4 flex items-center gap-4 transition ${data.modo === 'cd' ? 'border-status-info-solid bg-status-info-bg ring-1 ring-status-info-solid' : 'border-line hover:border-status-info-solid/40'}`}
@@ -648,15 +704,15 @@ export default function PedidoCreate({
                                         <div className="hidden md:grid grid-cols-12 gap-3 items-center p-4">
                                             <div className="col-span-1 text-center font-bold text-content-muted">{index + 1}</div>
 
-                                            <div className="col-span-3">
+                                            <div data-tour={index === 0 ? 'criar.modelo' : undefined} className="col-span-3">
                                                 {campoModelo(item, index, false)}
                                             </div>
 
-                                            <div className="col-span-2">
+                                            <div data-tour={index === 0 ? 'criar.quantidade' : undefined} className="col-span-2">
                                                 {campoChassiOuQtd(item, index, false)}
                                             </div>
 
-                                            <div className="col-span-2 relative">
+                                            <div data-tour={index === 0 ? 'criar.destino' : undefined} className="col-span-2 relative">
                                                 {enviandoParaCD ? (
                                                     <input disabled value="Matriz / CD" className="w-full rounded text-sm bg-status-warning-bg text-status-warning-fg border-status-warning-solid/30 font-bold text-center" />
                                                 ) : (
@@ -672,11 +728,11 @@ export default function PedidoCreate({
                                                 )}
                                             </div>
 
-                                            <div className="col-span-1">
+                                            <div data-tour={index === 0 ? 'criar.cor' : undefined} className="col-span-1">
                                                 {campoCor(item, index, false)}
                                             </div>
 
-                                            <div className="col-span-2">
+                                            <div data-tour={index === 0 ? 'criar.motivo' : undefined} className="col-span-2">
                                                 {campoMotivo(item, index, false)}
                                             </div>
 
@@ -704,7 +760,9 @@ export default function PedidoCreate({
 
                                             <div>
                                                 <label className="block text-xs font-bold text-content-muted uppercase mb-1">Modelo *</label>
-                                                {campoModelo(item, index, true)}
+                                                <span data-tour={index === 0 ? 'criar.modelo' : undefined}>
+                                                    {campoModelo(item, index, true)}
+                                                </span>
                                             </div>
 
                                             <div>
@@ -713,7 +771,9 @@ export default function PedidoCreate({
                                                         ? <>Chassi * <span className="text-content-muted normal-case font-normal">(mín. 11 caracteres)</span></>
                                                         : <>Quantidade * <span className="text-content-muted normal-case font-normal">(o CD define os chassis)</span></>}
                                                 </label>
-                                                {campoChassiOuQtd(item, index, true)}
+                                                <span data-tour={index === 0 ? 'criar.quantidade' : undefined}>
+                                                    {campoChassiOuQtd(item, index, true)}
+                                                </span>
                                             </div>
 
                                             <div>
@@ -743,11 +803,15 @@ export default function PedidoCreate({
                                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
                                                 <div className="sm:col-span-2">
                                                     <label className="block text-xs font-bold text-content-muted uppercase mb-1">Cor *</label>
-                                                    {campoCor(item, index, true)}
+                                                    <span data-tour={index === 0 ? 'criar.cor' : undefined}>
+                                                        {campoCor(item, index, true)}
+                                                    </span>
                                                 </div>
                                                 <div className="sm:col-span-3">
                                                     <label className="block text-xs font-bold text-content-muted uppercase mb-1">Motivo *</label>
-                                                    {campoMotivo(item, index, true)}
+                                                    <span data-tour={index === 0 ? 'criar.motivo' : undefined}>
+                                                        {campoMotivo(item, index, true)}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -758,6 +822,7 @@ export default function PedidoCreate({
                             <div className="mt-6 flex flex-col md:flex-row justify-between items-start gap-6 border-t border-line pt-6">
                                 <button
                                     type="button"
+                                    data-tour="criar.adicionar"
                                     onClick={addItem}
                                     className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-status-info-solid/40 px-6 py-4 font-bold text-status-info-fg transition hover:bg-status-info-bg md:w-auto"
                                 >
@@ -782,6 +847,7 @@ export default function PedidoCreate({
                                     <span className="md:ml-2 text-xl md:text-2xl font-black text-brand-600 leading-none">{totalUnidades} <span className="hidden md:inline">motos</span></span>
                                 </div>
                                 <button
+                                    data-tour="criar.enviar"
                                     type="submit"
                                     disabled={processing || (data.modo === 'transferencia' && (!logisticaInfo || logisticaInfo.erro))}
                                     className="w-full md:w-auto px-4 md:px-8 py-3 md:py-3 rounded-lg font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 text-white text-xs md:text-base whitespace-nowrap bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800"
