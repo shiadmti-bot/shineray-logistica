@@ -436,22 +436,69 @@ class HistoricoRejeicaoTest extends TestCase
     }
 
     /**
-     * Numa transferência, a loja de ORIGEM também é avisada: as motos dela
-     * estavam presas ao pedido e acabaram de voltar ao estoque. Sem o aviso ela
-     * descobre pela contagem física.
+     * Numa transferência, cada lado recebe a mensagem que é verdadeira PARA ELE.
+     *
+     * O BUG QUE ISTO FECHA (relatado pela operação em 30/09/2026): Tailândia
+     * pediu uma moto que sairia de Belém, o gestor rejeitou, e BELÉM recebeu
+     * "Um pedido seu foi recusado". Belém não pediu nada — ela ia entregar a
+     * moto. O aviso dela agora fala do que mudou no trabalho dela: a moto não
+     * sai mais e voltou ao estoque.
      */
-    public function test_loja_de_origem_da_transferencia_tambem_e_avisada()
+    public function test_cada_lado_da_transferencia_recebe_a_mensagem_certa()
     {
         $this->withoutDefer();
 
-        $pedido = $this->pedidoEmAnalise();
-        $pedido->update(['origem_user_id' => $this->outraLoja->id]);
+        $pedido = $this->pedidoEmAnalise();               // destino: $this->loja
+        $pedido->update(['origem_user_id' => $this->outraLoja->id]); // fornece a moto
 
         $this->actingAs($this->gestor)
-            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Origem sem saldo']);
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Cor errada']);
 
-        Notification::assertSentTo($this->loja, PedidoAtualizado::class);
-        Notification::assertSentTo($this->outraLoja, PedidoAtualizado::class);
+        // Quem pediu: "seu pedido caiu".
+        Notification::assertSentTo($this->loja, PedidoAtualizado::class, function ($aviso) {
+            $this->assertStringContainsString('foi rejeitado', $aviso->mensagem);
+
+            return true;
+        });
+
+        // Quem forneceria: "a moto voltou para o seu estoque".
+        Notification::assertSentTo($this->outraLoja, PedidoAtualizado::class, function ($aviso) {
+            $this->assertSame('Motos liberadas ↩️', $aviso->titulo);
+            $this->assertStringContainsString('voltaram ao seu estoque', $aviso->mensagem);
+            $this->assertStringContainsString('Cor errada', $aviso->mensagem);
+
+            // A frase não pode sugerir que o pedido era dela.
+            $this->assertStringNotContainsString('seu pedido', mb_strtolower($aviso->mensagem));
+
+            return true;
+        });
+    }
+
+    /**
+     * Na transferência de SAÍDA (loja devolvendo ao CD) quem abre o pedido é a
+     * ORIGEM — `user_id` é o CD. Aí a mensagem certa para ela é a de rejeição
+     * mesmo, e não a de "motos liberadas".
+     */
+    public function test_loja_que_devolve_ao_cd_recebe_o_aviso_de_rejeicao()
+    {
+        $this->withoutDefer();
+
+        $cd = $this->usuario('cd', ['filial' => 'CD Matriz']);
+
+        $pedido = $this->pedidoEmAnalise();
+        $pedido->update([
+            'user_id'        => $cd->id,          // destino: o CD
+            'origem_user_id' => $this->loja->id,  // quem abriu
+        ]);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Devolução indevida']);
+
+        Notification::assertSentTo($this->loja, PedidoAtualizado::class, function ($aviso) {
+            $this->assertStringContainsString('foi rejeitado', $aviso->mensagem);
+
+            return true;
+        });
     }
 
     /**
@@ -560,6 +607,59 @@ class HistoricoRejeicaoTest extends TestCase
                 ->where('recusas.0.motivo', 'Modelo descontinuado')
                 ->where('recusas.0.autor', $this->gestor->name)
             );
+    }
+
+    /**
+     * O BUG RELATADO. A loja que apenas FORNECERIA a moto não vê o card.
+     *
+     * O card diz "Um pedido seu foi recusado — leia o motivo antes de pedir de
+     * novo". Para quem não pediu, as duas frases são falsas.
+     */
+    public function test_loja_de_origem_da_transferencia_nao_ve_o_card_de_recusa()
+    {
+        $pedido = $this->pedidoEmAnalise();                          // destino: $this->loja
+        $pedido->update(['origem_user_id' => $this->outraLoja->id]);  // fornece a moto
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Cor errada']);
+
+        // Quem pediu vê.
+        $this->actingAs($this->loja)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('recusas.0.id', $pedido->id));
+
+        // Quem forneceria, não.
+        $this->actingAs($this->outraLoja)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->count('recusas', 0));
+    }
+
+    /**
+     * Mas a transferência de SAÍDA continua aparecendo para quem a abriu.
+     *
+     * Aqui `user_id` é o CD e a autora é a ORIGEM. Filtrar o card só por
+     * `user_id` faria este pedido sumir para todo mundo, porque o card não é
+     * renderizado para perfil que não é loja.
+     */
+    public function test_loja_que_devolve_ao_cd_ve_o_card_de_recusa()
+    {
+        $cd = $this->usuario('cd', ['filial' => 'CD Matriz']);
+
+        $pedido = $this->pedidoEmAnalise();
+        $pedido->update([
+            'user_id'        => $cd->id,
+            'origem_user_id' => $this->loja->id,
+        ]);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.rejeitar', $pedido->id), ['justificativa' => 'Devolução indevida']);
+
+        $this->actingAs($this->loja)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('recusas.0.id', $pedido->id));
     }
 
     /** Recusa de outra filial não aparece no painel de ninguém. */

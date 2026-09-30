@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
 use App\Enums\StatusPedido;
 use App\Models\Moto;
 use App\Models\Notice;
@@ -50,7 +51,23 @@ class DashboardController extends Controller
      * bloco fica para sempre (e vira paisagem), ou precisaria de um fluxo de
      * "dar ciência" — coluna, rota e botão — que ninguém pediu.
      *
-     * Inclui a loja de ORIGEM de uma transferência: as motos eram dela.
+     * QUEM VÊ O CARD: QUEM PEDIU, e só.
+     *
+     * A primeira versão também mostrava para a loja de ORIGEM da transferência,
+     * com o argumento de que as motos eram dela. Estava errado, e a operação
+     * pegou: Tailândia pediu uma moto que sairia de Belém, o pedido foi
+     * rejeitado, e BELÉM recebeu "Um pedido seu foi recusado — leia o motivo
+     * antes de pedir de novo". Belém não pediu nada. O card fala com quem fez a
+     * solicitação; para a loja que apenas fornecia a moto, existe um aviso
+     * próprio no sininho (ver CancelarPedido::executar), que diz a coisa certa
+     * para ela: as motos voltaram ao estoque.
+     *
+     * A EXCEÇÃO, que não pode ser esquecida: na TRANSFERÊNCIA DE SAÍDA (a loja
+     * devolve ao CD/Matriz), quem abre o pedido é a loja de ORIGEM e o destino
+     * é o CD — ver CriarPedido::resolverOrigemEDestino. Filtrar só por `user_id`
+     * faria esse pedido não aparecer para ninguém, porque o card não é
+     * renderizado para perfil que não é loja. O discriminador é o destino: se
+     * ele não é uma loja, quem abriu foi a origem.
      *
      * @return list<array<string, mixed>>
      */
@@ -63,8 +80,13 @@ class DashboardController extends Controller
         return Pedido::onlyTrashed()
             ->whereIn('status', ['rejeitado', 'cancelado'])
             ->where(function ($q) use ($user) {
+                // Quem pediu (caso normal: reposição e transferência de entrada).
                 $q->where('user_id', $user->id)
-                  ->orWhere('origem_user_id', $user->id);
+                  // Transferência de SAÍDA: a loja é a origem e abriu o pedido,
+                  // e o destino é o CD/Matriz.
+                  ->orWhere(fn ($saida) => $saida
+                      ->where('origem_user_id', $user->id)
+                      ->whereHas('user', fn ($destino) => $destino->where('perfil', '!=', Perfil::Loja->value)));
             })
             // `rejeitado_em` só existe a partir da v3.6; nos anteriores a data
             // da recusa é o próprio soft delete.

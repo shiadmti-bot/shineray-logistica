@@ -98,44 +98,88 @@ final class CancelarPedido
                 ],
             ]);
 
-            $this->enviarNotificacao(
-                $this->quemPrecisaSaber($pedido, $user),
-                $tipo === 'rejeitado' ? 'Pedido rejeitado ❌' : 'Pedido cancelado ❌',
-                "Pedido #{$pedido->id} foi {$tipo}. Motivo: "
-                    . ($motivo ?: 'não informado pelo responsável.'),
-                route('pedidos.show', $pedido->id),
-            );
+            $this->avisarEnvolvidos($pedido, $user, $tipo, $motivo);
 
             $pedido->delete(); // soft delete
         });
     }
 
     /**
-     * Quem tem de ser avisado da recusa.
+     * Avisa cada envolvido com a mensagem que é verdadeira PARA ELE.
      *
-     * A loja que PEDIU, sempre — ela planejou a reposição em cima deste pedido.
-     * E, numa transferência, também a loja de ORIGEM: as motos dela estavam
-     * presas ao pedido e acabaram de voltar ao estoque; sem o aviso, ela
-     * descobre pela contagem física.
+     * DUAS MENSAGENS DIFERENTES, E ISSO É O PONTO. A primeira versão mandava
+     * "Pedido #X foi rejeitado" para os dois lados da transferência, e a
+     * operação pegou o erro: Tailândia pediu uma moto que sairia de Belém, o
+     * pedido caiu, e Belém recebeu um aviso dizendo que o pedido dela tinha
+     * sido rejeitado. Belém não pediu nada — ela ia ENTREGAR a moto.
      *
-     * Quem executou a recusa fica FORA. A pessoa acabou de ver a mensagem de
-     * confirmação na tela; um sininho dizendo "seu pedido foi cancelado" logo
-     * depois de ela mesma cancelar só treina o usuário a ignorar o sininho.
+     * Para quem pediu, o fato é "seu pedido caiu, e por este motivo".
+     * Para quem forneceria, o fato é "a moto que ia sair do seu pátio não sai
+     * mais e voltou ao seu estoque" — que é o que muda o trabalho dela hoje, e
+     * o motivo entra como contexto, não como acusação.
      *
-     * @return list<User>
+     * Quem executou a recusa fica FORA das duas. A pessoa acabou de ver a
+     * confirmação na tela; um sininho logo depois só treina o usuário a ignorar
+     * o sininho.
      */
-    private function quemPrecisaSaber(Pedido $pedido, ?User $autor): array
+    private function avisarEnvolvidos(Pedido $pedido, ?User $autor, string $tipo, ?string $motivo): void
     {
         $pedido->loadMissing(['user', 'origem']);
 
-        $destinatarios = [$pedido->user, $pedido->origem];
+        $link = route('pedidos.show', $pedido->id);
+        $motivoTexto = $motivo ?: 'não informado pelo responsável.';
+        $ehOutroUsuario = fn (?User $u) => $u && (! $autor || $u->id !== $autor->id);
 
-        return collect($destinatarios)
-            ->filter()
-            ->unique('id')
-            ->reject(fn (User $u) => $autor && $u->id === $autor->id)
-            ->values()
-            ->all();
+        // --- Quem pediu ---
+        if ($ehOutroUsuario($pedido->user)) {
+            $this->enviarNotificacao(
+                [$pedido->user],
+                $tipo === 'rejeitado' ? 'Pedido rejeitado ❌' : 'Pedido cancelado ❌',
+                "Pedido #{$pedido->id} foi {$tipo}. Motivo: {$motivoTexto}",
+                $link,
+            );
+        }
+
+        // --- A loja de origem ---
+        if (! $ehOutroUsuario($pedido->origem) || (int) $pedido->origem->id === (int) $pedido->user_id) {
+            return;
+        }
+
+        /*
+         * A origem recebe uma de DUAS mensagens, e quem decide é o perfil do
+         * destino.
+         *
+         * Na transferência de SAÍDA (loja devolvendo ao CD/Matriz), quem ABRE o
+         * pedido é a origem e o destino é o CD — ver
+         * CriarPedido::resolverOrigemEDestino. O bloco acima avisou o CD, não
+         * ela. Então ela é a autora e merece a mensagem de "pedido rejeitado".
+         *
+         * Quando o destino é uma LOJA, a origem é só quem forneceria a moto, e
+         * dizer "seu pedido foi rejeitado" para ela é falso — foi esse o erro
+         * relatado pela operação.
+         */
+        $origemAbriuOPedido = $pedido->user && ! $pedido->user->isLoja();
+
+        if ($origemAbriuOPedido) {
+            $this->enviarNotificacao(
+                [$pedido->origem],
+                $tipo === 'rejeitado' ? 'Pedido rejeitado ❌' : 'Pedido cancelado ❌',
+                "Pedido #{$pedido->id} foi {$tipo}. Motivo: {$motivoTexto}",
+                $link,
+            );
+
+            return;
+        }
+
+        $destino = $pedido->user?->filial ?: 'outra filial';
+
+        $this->enviarNotificacao(
+            [$pedido->origem],
+            'Motos liberadas ↩️',
+            "As motos que sairiam da sua loja para {$destino} no pedido #{$pedido->id} "
+                . "voltaram ao seu estoque: o pedido foi {$tipo}. Motivo: {$motivoTexto}",
+            $link,
+        );
     }
 
     /**
