@@ -568,7 +568,10 @@ class RomaneioController extends Controller
 
             // 4. Atualiza os pedidos vinculados (Motos e Peças)
             foreach ($pedidosAfetados as $pedido) {
-                if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado', 'aguardando_coleta'])) {
+                // 'solicitado' entrou pelo hotfix 8dab1d8 da main (v2.6): um pedido
+                // aprovado cujas motos ja foram bipadas na carga precisa receber o
+                // log e o aviso de despacho, mesmo sem ter passado por 'separado'.
+                if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado', 'aguardando_coleta', 'solicitado'])) {
                     $saldoSemChassi = $pedido->saldoPendente();
                     $motosNaoDespachadas = $pedido->motos()
                         ->whereNotIn('motos.status', ['transito_loja', 'em_transito', 'concluido', 'vendida', 'cancelado', 'avariado'])
