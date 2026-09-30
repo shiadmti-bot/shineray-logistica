@@ -122,7 +122,7 @@ class EstoqueController extends Controller
         try {
             DB::beginTransaction();
 
-            $cdUser = User::whereIn('perfil', ['cd', 'admin'])->orderBy('id')->first();
+            $cdUser = User::comPerfil(\App\Enums\Perfil::Cd, \App\Enums\Perfil::Admin)->orderBy('id')->first();
 
             // 1. Criar o Pedido Padrão do Sistema
             $itens = [

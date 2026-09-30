@@ -33,7 +33,7 @@ class FilialSeeder extends Seeder
 
             // CEARÁ (Bairros de Fortaleza/Região)
             ['cidade' => 'Fortaleza (Aldeota)', 'uf' => 'CE'],
-            ['cidade' => 'Fortaleza (Demócrito Rocha)', 'uf' => 'CE'],
+            ['cidade' => 'Fortaleza (José Bastos)', 'uf' => 'CE'],
             ['cidade' => 'Fortaleza (Parangaba)', 'uf' => 'CE'],
         ];
 

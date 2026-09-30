@@ -177,8 +177,8 @@ export default function StockTable({ user }) {
             html: `
                 <div class="text-left space-y-4">
                     <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-1">Agrupamento do Relatório</label>
-                        <select id="swal-print-group" class="w-full border-gray-300 rounded-lg shadow-sm text-sm p-3">
+                        <label class="block text-sm font-bold text-content-secondary mb-1">Agrupamento do Relatório</label>
+                        <select id="swal-print-group" class="w-full border-line-strong rounded-lg shadow-sm text-sm p-3">
                             <option value="situacao">Por Situação > Modelo (Padrão)</option>
                             <option value="patio">Por Pátio Físico > Modelo</option>
                             <option value="modelo">Apenas por Modelo</option>
@@ -186,13 +186,13 @@ export default function StockTable({ user }) {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-bold text-gray-700 mb-1">Filtrar por Ano</label>
-                        <select id="swal-print-ano" class="w-full border-gray-300 rounded-lg shadow-sm text-sm p-3">
+                        <label class="block text-sm font-bold text-content-secondary mb-1">Filtrar por Ano</label>
+                        <select id="swal-print-ano" class="w-full border-line-strong rounded-lg shadow-sm text-sm p-3">
                             <option value="todos">Todos os Anos</option>
                             ${anosOptions}
                         </select>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2 text-center">Serão impressas apenas as motos (<b>${estoqueFiltrado.length}</b>) atualmente visíveis em tela pelos filtros de busca.</p>
+                    <p class="text-xs text-content-muted mt-2 text-center">Serão impressas apenas as motos (<b>${estoqueFiltrado.length}</b>) atualmente visíveis em tela pelos filtros de busca.</p>
                 </div>
             `,
             focusConfirm: false,
@@ -373,16 +373,16 @@ export default function StockTable({ user }) {
     };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-surface-card p-6 rounded-lg shadow-sm border border-line">
             <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <BuildingOffice2Icon className="w-6 h-6 text-red-700" /> Estoque Fábrica (Microwork)
-                    {loading && <ArrowPathIcon className="w-5 h-5 animate-spin text-gray-500" />}
+                <h2 className="text-xl font-bold text-content-primary flex items-center gap-2">
+                    <BuildingOffice2Icon className="w-6 h-6 text-brand-700" /> Estoque Fábrica (Microwork)
+                    {loading && <ArrowPathIcon className="w-5 h-5 animate-spin text-content-muted" />}
                 </h2>
                 
                 <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
                     <select
-                        className="w-full md:w-auto border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full md:w-auto border-line-strong rounded-lg shadow-sm focus:ring-status-info-solid focus:border-status-info-solid"
                         value={statusFiltro}
                         onChange={(e) => setStatusFiltro(e.target.value)}
                     >
@@ -394,14 +394,14 @@ export default function StockTable({ user }) {
                     <input 
                         type="text" 
                         placeholder="Filtrar por Modelo, Cor ou Chassi..." 
-                        className="w-full md:w-80 border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full md:w-80 border-line-strong rounded-lg shadow-sm focus:ring-status-info-solid focus:border-status-info-solid"
                         value={filtro}
                         onChange={(e) => setFiltro(e.target.value)}
                     />
                     {isAdminOrCD && (
                         <button 
                             onClick={handlePrintConference}
-                            className="bg-gray-800 text-white p-2 md:px-4 md:py-2 rounded-lg font-bold hover:bg-black transition flex items-center justify-center gap-2 shadow-sm shrink-0"
+                            className="bg-surface-inverted text-white p-2 md:px-4 md:py-2 rounded-lg font-bold hover:bg-black transition flex items-center justify-center gap-2 shadow-sm shrink-0"
                             title="Imprimir Relatório de Conferência"
                         >
                             <PrinterIcon className="w-5 h-5" />
@@ -412,20 +412,20 @@ export default function StockTable({ user }) {
             </div>
 
             {/* --- ABAS: MONTADAS / DESMONTADAS --- */}
-            <div className="flex gap-1 mb-6 border-b border-gray-200">
+            <div className="flex gap-1 mb-6 border-b border-line">
                 <button
                     onClick={() => setAbaAtiva('montadas')}
                     className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-t-lg border-b-2 transition-all ${
                         abaAtiva === 'montadas'
-                            ? 'border-green-600 text-green-700 bg-green-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                            ? 'border-status-success-solid text-status-success-fg bg-status-success-bg'
+                            : 'border-transparent text-content-muted hover:text-content-secondary hover:bg-surface-sunken'
                     }`}
                 >
                     <CheckCircleIcon className="w-4 h-4" />
                     Disponíveis (Montadas)
                     {!loading && (
                         <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-black ${
-                            abaAtiva === 'montadas' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600'
+                            abaAtiva === 'montadas' ? 'bg-status-success-solid text-white' : 'bg-surface-sunken text-content-secondary'
                         }`}>{totalMontadas}</span>
                     )}
                 </button>
@@ -434,15 +434,15 @@ export default function StockTable({ user }) {
                     onClick={() => setAbaAtiva('desmontadas')}
                     className={`flex items-center gap-2 px-5 py-2.5 text-sm font-bold rounded-t-lg border-b-2 transition-all ${
                         abaAtiva === 'desmontadas'
-                            ? 'border-amber-600 text-amber-700 bg-amber-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                            ? 'border-status-warning-solid text-status-warning-fg bg-status-warning-bg'
+                            : 'border-transparent text-content-muted hover:text-content-secondary hover:bg-surface-sunken'
                     }`}
                 >
                     <WrenchIcon className="w-4 h-4" />
                     Desmontadas
                     {!loading && (
                         <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-black ${
-                            abaAtiva === 'desmontadas' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'
+                            abaAtiva === 'desmontadas' ? 'bg-status-warning-solid text-white' : 'bg-surface-sunken text-content-secondary'
                         }`}>{totalDesmontadas}</span>
                     )}
                 </button>
@@ -450,14 +450,14 @@ export default function StockTable({ user }) {
 
             {/* Banner informativo para loja */}
             {isLoja && (
-                <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
-                    <CheckCircleIcon className="w-4 h-4 shrink-0 text-blue-600" />
+                <div className="mb-4 bg-status-info-bg border border-status-info-solid/30 rounded-lg px-4 py-3 text-sm text-status-info-fg flex items-center gap-2">
+                    <CheckCircleIcon className="w-4 h-4 shrink-0 text-status-info-fg" />
                     Exibindo motos <strong>montadas e desmontadas disponíveis</strong> para solicitação (motos em conserto e inativadas são ocultadas).
                 </div>
             )}
 
             {error && (
-                <div className="bg-red-50 text-red-700 p-3 rounded mb-4 flex items-center gap-2">
+                <div className="bg-status-danger-bg text-status-danger-fg p-3 rounded mb-4 flex items-center gap-2">
                     <ExclamationTriangleIcon className="w-5 h-5" />
                     {error}
                 </div>
@@ -465,41 +465,41 @@ export default function StockTable({ user }) {
 
             <div className="space-y-6">
                 {loading ? (
-                    <div className="p-8 text-center text-gray-500 flex justify-center items-center gap-2 border rounded-lg bg-gray-50">
+                    <div className="p-8 text-center text-content-muted flex justify-center items-center gap-2 border rounded-lg bg-surface-sunken">
                         <ArrowPathIcon className="w-5 h-5 animate-spin" />
                         Carregando dados do ERP em tempo real...
                     </div>
                 ) : situacoesAgrupadas.length > 0 ? (
                     situacoesAgrupadas.map(([nomeSituacao, dadosSituacao], sitIdx) => {
                         
-                        let situacaoBg = 'bg-gray-100 border-gray-300';
-                        let situacaoText = 'text-gray-800';
+                        let situacaoBg = 'bg-surface-sunken border-line-strong';
+                        let situacaoText = 'text-content-primary';
                         let SitIcon = PauseCircleIcon;
-                        let iconColor = 'text-gray-600';
+                        let iconColor = 'text-content-secondary';
 
                         if (nomeSituacao.includes('Montadas')) { 
-                            situacaoBg = 'bg-green-100 border-green-300'; 
-                            situacaoText = 'text-green-900'; 
+                            situacaoBg = 'bg-status-success-bg border-status-success-solid/40'; 
+                            situacaoText = 'text-status-success-fg'; 
                             SitIcon = CheckCircleIcon;
-                            iconColor = 'text-green-700';
+                            iconColor = 'text-status-success-fg';
                         }
                         else if (nomeSituacao.includes('Desmontadas')) {
-                            situacaoBg = 'bg-amber-100 border-amber-300';
-                            situacaoText = 'text-amber-900';
+                            situacaoBg = 'bg-status-warning-bg border-status-warning-solid/40';
+                            situacaoText = 'text-status-warning-fg';
                             SitIcon = WrenchIcon;
-                            iconColor = 'text-amber-700';
+                            iconColor = 'text-status-warning-fg';
                         }
                         else if (nomeSituacao.includes('Separada')) { 
-                            situacaoBg = 'bg-blue-100 border-blue-300'; 
-                            situacaoText = 'text-blue-900'; 
+                            situacaoBg = 'bg-status-info-bg border-status-info-solid/40'; 
+                            situacaoText = 'text-status-info-fg'; 
                             SitIcon = ArchiveBoxIcon;
-                            iconColor = 'text-blue-700';
+                            iconColor = 'text-status-info-fg';
                         }
                         else if (nomeSituacao.includes('Conserto')) { 
-                            situacaoBg = 'bg-orange-100 border-orange-300'; 
-                            situacaoText = 'text-orange-900'; 
+                            situacaoBg = 'bg-status-warning-bg border-status-warning-solid/40'; 
+                            situacaoText = 'text-status-warning-fg'; 
                             SitIcon = WrenchScrewdriverIcon;
-                            iconColor = 'text-orange-700';
+                            iconColor = 'text-status-warning-fg';
                         }
 
                         return (
@@ -510,7 +510,7 @@ export default function StockTable({ user }) {
                                     onClick={() => toggleStatusAccordion(nomeSituacao)}
                                 >
                                     <div className="flex items-center gap-3">
-                                        <button className="text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-sm">
+                                        <button className="text-content-secondary focus:outline-none focus:ring-2 focus:ring-status-info-solid rounded-sm">
                                             {expandedStatus[nomeSituacao] ? <ChevronUpIcon className="w-6 h-6" /> : <ChevronDownIcon className="w-6 h-6" />}
                                         </button>
                                         <h3 className={`font-black text-xl flex items-center gap-2 ${situacaoText}`}>
@@ -537,26 +537,26 @@ export default function StockTable({ user }) {
                                         )].filter(c => c !== '-').sort();
 
                                         return (
-                                            <div key={modIdx} className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm hover:border-gray-300 transition-colors">
+                                            <div key={modIdx} className="border border-line rounded-lg overflow-hidden bg-surface-card shadow-sm hover:border-line-strong transition-colors">
                                                 {/* Cabeçalho do Accordion (Resumo do Modelo) */}
                                                 <div 
-                                                    className="p-4 bg-gray-50 cursor-pointer flex justify-between items-center"
+                                                    className="p-4 bg-surface-sunken cursor-pointer flex justify-between items-center"
                                                     onClick={() => toggleAccordion(modelKey)}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <button className="text-gray-500 hover:text-gray-800 focus:outline-none">
+                                                        <button className="text-content-muted hover:text-content-primary focus:outline-none">
                                                             {isExpanded ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}
                                                         </button>
                                                         <div>
                                                             <div className="flex items-center gap-3">
-                                                                <h4 className="font-bold text-gray-800 text-lg">{nomeModelo}</h4>
-                                                                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full font-bold">
+                                                                <h4 className="font-bold text-content-primary text-lg">{nomeModelo}</h4>
+                                                                <span className="text-xs bg-surface-sunken text-content-secondary px-2 py-0.5 rounded-full font-bold">
                                                                     {dadosModelo.total} un.
                                                                 </span>
                                                             </div>
                                                             {coresDisp.length > 0 && (
-                                                                <p className="text-xs text-gray-600 mt-1">
-                                                                    <span className="font-semibold text-gray-700">Cores: </span> 
+                                                                <p className="text-xs text-content-secondary mt-1">
+                                                                    <span className="font-semibold text-content-secondary">Cores: </span> 
                                                                     {coresDisp.join(', ')}
                                                                 </p>
                                                             )}
@@ -566,9 +566,9 @@ export default function StockTable({ user }) {
 
                                                 {/* Corpo do Accordion (Tabela Detalhada) */}
                                                 {isExpanded && (
-                                                    <div className="border-t border-gray-200 overflow-x-auto">
+                                                    <div className="border-t border-line overflow-x-auto">
                                                         <table className="w-full text-sm text-left">
-                                                            <thead className="bg-gray-100 text-gray-600 uppercase font-bold text-xs">
+                                                            <thead className="bg-surface-sunken text-content-secondary uppercase font-bold text-xs">
                                                                 <tr>
                                                                     {isLoja && ALLOW_REQUESTS && <th className="p-3 pl-4 text-center w-12">Sel.</th>}
                                                                     <th className={`p-3 ${isLoja && ALLOW_REQUESTS ? '' : 'pl-6'}`}>Cor</th>
@@ -580,7 +580,7 @@ export default function StockTable({ user }) {
                                                                     <th className="p-3 text-center w-24">Ações</th>
                                                                 </tr>
                                                             </thead>
-                                                            <tbody className="divide-y divide-gray-100">
+                                                            <tbody className="divide-y divide-line">
                                                                 {dadosModelo.motos.map((moto, idx) => {
                                                                     const chassi = moto.Chassi || moto.chassi;
                                                                     const isReservado = reservas.includes(chassi);
@@ -588,31 +588,31 @@ export default function StockTable({ user }) {
                                                                     const isSelected = selectedMotos.some(m => (m.Chassi || m.chassi) === chassi);
 
                                                                     return (
-                                                                        <tr key={idx} className={`hover:bg-blue-50 transition ${isSelected ? 'bg-blue-50' : 'bg-white'}`}>
+                                                                        <tr key={idx} className={`hover:bg-status-info-bg transition ${isSelected ? 'bg-status-info-bg' : 'bg-surface-card'}`}>
                                                                             {isLoja && ALLOW_REQUESTS && (
                                                                                 <td className="p-3 pl-4 text-center">
                                                                                     {isDispReal && !isReservado && (
                                                                                         <input 
                                                                                             type="checkbox" 
-                                                                                            className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                                                                            className="w-5 h-5 text-status-info-fg rounded border-line-strong focus:ring-status-info-solid cursor-pointer"
                                                                                             checked={isSelected}
                                                                                             onChange={() => handleCheckboxChange(moto)}
                                                                                         />
                                                                                     )}
                                                                                 </td>
                                                                             )}
-                                                                            <td className={`p-3 ${isLoja && ALLOW_REQUESTS ? '' : 'pl-6'} font-bold text-gray-900 border-l-4 ${isSelected ? 'border-l-blue-600' : 'border-l-blue-500'}`}>{moto.Cor || moto.cor || '-'}</td>
-                                                                            <td className="p-3 font-mono text-xs text-gray-600 font-semibold">{chassi || '-'}</td>
-                                                                            <td className="p-3 text-gray-600">{moto.AnoFabricacao || moto.anofabricacao || '-'}</td>
-                                                                            <td className="p-3 text-xs text-gray-500 font-medium">
+                                                                            <td className={`p-3 ${isLoja && ALLOW_REQUESTS ? '' : 'pl-6'} font-bold text-content-primary border-l-4 ${isSelected ? 'border-l-blue-600' : 'border-l-blue-500'}`}>{moto.Cor || moto.cor || '-'}</td>
+                                                                            <td className="p-3 font-mono text-xs text-content-secondary font-semibold">{chassi || '-'}</td>
+                                                                            <td className="p-3 text-content-secondary">{moto.AnoFabricacao || moto.anofabricacao || '-'}</td>
+                                                                            <td className="p-3 text-xs text-content-muted font-medium">
                                                                                 {moto.patio}
                                                                             </td>
                                                                             <td className="p-3 text-center">
-                                                                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 font-bold shadow-sm border border-gray-200 text-xs">
+                                                                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-surface-sunken text-content-secondary font-bold shadow-sm border border-line text-xs">
                                                                                     {moto.diasestoque !== undefined ? moto.diasestoque : (moto.DiasEstoque !== undefined ? moto.DiasEstoque : '-')}
                                                                                 </span>
                                                                             </td>
-                                                                            <td className="p-3 text-xs text-gray-500 text-center font-medium">
+                                                                            <td className="p-3 text-xs text-content-muted text-center font-medium">
                                                                                 {moto.SituacaoDescricao || moto.situacaodescricao || moto.situacaoestoque || moto.Situacao || moto.situacao || '-'}
                                                                             </td>
                                                                             <td className="p-3 text-center">
@@ -627,13 +627,13 @@ export default function StockTable({ user }) {
                                                                                             }]));
                                                                                             window.location.href = route('solicitar') + '?prefill_motos=' + jsonStr;
                                                                                         }}
-                                                                                        className="text-xs px-3 py-1.5 rounded shadow-sm text-white font-bold transition flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700"
+                                                                                        className="text-xs px-3 py-1.5 rounded shadow-sm text-white font-bold transition flex items-center justify-center w-full bg-status-info-solid hover:bg-status-info-solid"
                                                                                     >
                                                                                         Solicitar
                                                                                     </button>
                                                                                 )}
                                                                                 {isAdminOrCD && isReservado && (
-                                                                                     <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded shadow-sm border border-red-200">RESERVADO</span>
+                                                                                     <span className="text-xs font-bold text-brand-600 bg-status-danger-bg px-2 py-1 rounded shadow-sm border border-status-danger-solid/30">RESERVADO</span>
                                                                                 )}
                                                                             </td>
                                                                         </tr>
@@ -652,67 +652,67 @@ export default function StockTable({ user }) {
                         );
                     })
                 ) : (
-                    <div className="p-8 text-center text-gray-500 border rounded-lg bg-gray-50">
+                    <div className="p-8 text-center text-content-muted border rounded-lg bg-surface-sunken">
                         {estoque.length === 0 && !loading ? 'Nenhum veículo encontrado no estoque do CD.' : 'Nenhum resultado para o filtro.'}
                     </div>
                 )}
             </div>
             
             {/* Legenda Explicativa */}
-            <div className="mt-8 bg-gray-50 p-4 border border-gray-200 rounded-lg shadow-sm">
-                <h4 className="text-sm font-bold text-gray-700 mb-3 border-b pb-2 flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5"/> Legenda de Situações (Origem Microwork)</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-xs text-gray-600">
+            <div className="mt-8 bg-surface-sunken p-4 border border-line rounded-lg shadow-sm">
+                <h4 className="text-sm font-bold text-content-secondary mb-3 border-b pb-2 flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5"/> Legenda de Situações (Origem Microwork)</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-xs text-content-secondary">
                     <div className="flex items-start gap-2">
-                        <span className="bg-green-100 text-green-800 border border-green-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><CheckCircleIcon className="w-3 h-3"/> Disponível (Montadas)</span>
+                        <span className="bg-status-success-bg text-status-success-fg border border-status-success-solid/30 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><CheckCircleIcon className="w-3 h-3"/> Disponível (Montadas)</span>
                         <p>Motos completamente montadas no CD, prontas para faturar.</p>
                     </div>
                     <div className="flex items-start gap-2">
-                        <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><WrenchIcon className="w-3 h-3"/> Desmontadas</span>
+                        <span className="bg-status-warning-bg text-status-warning-fg border border-status-warning-solid/30 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><WrenchIcon className="w-3 h-3"/> Desmontadas</span>
                         <p>Motos no pátio de desmontagem do CD (não disponíveis para lojas).</p>
                     </div>
                     <div className="flex items-start gap-2">
-                        <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><ArchiveBoxIcon className="w-3 h-3"/> Separada / Solicitada</span>
+                        <span className="bg-status-info-bg text-status-info-fg border border-status-info-solid/30 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><ArchiveBoxIcon className="w-3 h-3"/> Separada / Solicitada</span>
                         <p>Motos que estão em expedição no Microwork.</p>
                     </div>
                     <div className="flex items-start gap-2">
-                        <span className="bg-orange-100 text-orange-800 border border-orange-200 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><WrenchScrewdriverIcon className="w-3 h-3"/> Em Conserto</span>
+                        <span className="bg-status-warning-bg text-status-warning-fg border border-status-warning-solid/30 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><WrenchScrewdriverIcon className="w-3 h-3"/> Em Conserto</span>
                         <p>Motos que estão no pátio de avarias.</p>
                     </div>
                     <div className="flex items-start gap-2">
-                        <span className="bg-gray-200 text-gray-600 border border-gray-300 px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><PauseCircleIcon className="w-3 h-3"/> Parada</span>
+                        <span className="bg-surface-sunken text-content-secondary border border-line-strong px-2 py-0.5 rounded shadow-sm shrink-0 whitespace-nowrap flex items-center gap-1"><PauseCircleIcon className="w-3 h-3"/> Parada</span>
                         <p>Motos que estão Inativadas no CD.</p>
                     </div>
                 </div>
             </div>
 
-            <div className="mt-4 flex justify-between items-center text-xs text-gray-500 pt-2 px-2">
+            <div className="mt-4 flex justify-between items-center text-xs text-content-muted pt-2 px-2">
                 <span>Total Visualizado: {estoqueFiltrado.length} motos</span>
                 <span>Fonte: Microwork Cloud API</span>
             </div>
 
             {/* BARRA FLUTUANTE DE SOLICITAÇÃO MÚLTIPLA */}
             {selectedMotos.length > 0 && ALLOW_REQUESTS && (
-                <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-blue-600 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] p-4 flex justify-between items-center z-50 transform transition-transform animate-slideUp">
+                <div className="fixed bottom-0 left-0 right-0 bg-surface-card border-t-4 border-status-info-solid shadow-[0_-10px_40px_rgba(0,0,0,0.1)] p-4 flex justify-between items-center z-50 transform transition-transform animate-slideUp">
                     <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-3">
-                            <span className="bg-blue-100 text-blue-800 font-black text-xl px-4 py-2 rounded-lg border border-blue-200">
+                            <span className="bg-status-info-bg text-status-info-fg font-black text-xl px-4 py-2 rounded-lg border border-status-info-solid/30">
                                 {selectedMotos.length}
                             </span>
                             <div>
-                                <h4 className="font-bold text-gray-800 text-lg">Motos Selecionadas</h4>
-                                <p className="text-xs text-gray-500">Prontas para adicionar à sua Nova Solicitação.</p>
+                                <h4 className="font-bold text-content-primary text-lg">Motos Selecionadas</h4>
+                                <p className="text-xs text-content-muted">Prontas para adicionar à sua Nova Solicitação.</p>
                             </div>
                         </div>
                         <div className="flex gap-3 w-full sm:w-auto">
                             <button 
                                 onClick={() => setSelectedMotos([])}
-                                className="px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                                className="px-4 py-2 text-sm font-bold text-content-secondary hover:bg-surface-sunken rounded-lg transition"
                             >
                                 Limpar
                             </button>
                             <button 
                                 onClick={handleSolicitarSelecionadas}
-                                className="flex-1 sm:flex-none px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"
+                                className="flex-1 sm:flex-none px-8 py-3 bg-status-info-solid hover:bg-status-info-solid text-white font-black rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1"
                             >
                                 Prosseguir Solicitação ({selectedMotos.length})
                             </button>

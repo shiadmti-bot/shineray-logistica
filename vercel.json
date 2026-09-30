@@ -7,6 +7,12 @@
             "maxDuration": 10
         }
     },
+    "crons": [
+        {
+            "path": "/webhook/pecas-cobranca",
+            "schedule": "0 11 * * *"
+        }
+    ],
     "routes": [
         {
             "src": "/(OneSignalSDKWorker\\.js|build/.*|storage/.*|img/.*|favicon\\.ico|robots\\.txt|manifest\\.json)",

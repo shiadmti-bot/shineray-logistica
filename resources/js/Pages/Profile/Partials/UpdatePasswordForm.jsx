@@ -1,44 +1,41 @@
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
+import { useRef } from 'react';
 import { Transition } from '@headlessui/react';
 import { useForm } from '@inertiajs/react';
-import { useRef } from 'react';
+import { CheckIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+
+import CampoTexto from '@/Components/Auth/CampoTexto';
+import { Button } from '@/Components/UI';
 
 export default function UpdatePasswordForm({ className = '' }) {
-    const passwordInput = useRef();
-    const currentPasswordInput = useRef();
+    const campoSenha = useRef();
+    const campoSenhaAtual = useRef();
 
-    const {
-        data,
-        setData,
-        errors,
-        put,
-        reset,
-        processing,
-        recentlySuccessful,
-    } = useForm({
+    const { data, setData, errors, put, reset, processing, recentlySuccessful } = useForm({
         current_password: '',
         password: '',
         password_confirmation: '',
     });
 
-    const updatePassword = (e) => {
+    const atualizarSenha = (e) => {
         e.preventDefault();
 
         put(route('password.update'), {
             preserveScroll: true,
             onSuccess: () => reset(),
-            onError: (errors) => {
-                if (errors.password) {
+            /*
+             * Devolver o foco ao campo que errou é o que depende do
+             * forwardRef em CampoTexto. Sem ele, `.focus()` cairia no wrapper
+             * e o usuário erraria a senha sem o cursor voltar.
+             */
+            onError: (erros) => {
+                if (erros.password) {
                     reset('password', 'password_confirmation');
-                    passwordInput.current.focus();
+                    campoSenha.current?.focus();
                 }
 
-                if (errors.current_password) {
+                if (erros.current_password) {
                     reset('current_password');
-                    currentPasswordInput.current.focus();
+                    campoSenhaAtual.current?.focus();
                 }
             },
         });
@@ -46,93 +43,63 @@ export default function UpdatePasswordForm({ className = '' }) {
 
     return (
         <section className={className}>
-            <header>
-                <h2 className="text-lg font-medium text-gray-900">
-                    Update Password
-                </h2>
+            <form onSubmit={atualizarSenha} className="space-y-4">
+                <CampoTexto
+                    id="current_password"
+                    name="current_password"
+                    type="password"
+                    label="Senha atual"
+                    icone={LockClosedIcon}
+                    ref={campoSenhaAtual}
+                    erro={errors.current_password}
+                    value={data.current_password}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    onChange={(e) => setData('current_password', e.target.value)}
+                />
 
-                <p className="mt-1 text-sm text-gray-600">
-                    Ensure your account is using a long, random password to stay
-                    secure.
-                </p>
-            </header>
+                <CampoTexto
+                    id="password"
+                    name="password"
+                    type="password"
+                    label="Nova senha"
+                    icone={LockClosedIcon}
+                    ref={campoSenha}
+                    erro={errors.password}
+                    value={data.password}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    onChange={(e) => setData('password', e.target.value)}
+                />
 
-            <form onSubmit={updatePassword} className="mt-6 space-y-6">
-                <div>
-                    <InputLabel
-                        htmlFor="current_password"
-                        value="Current Password"
-                    />
+                <CampoTexto
+                    id="password_confirmation"
+                    name="password_confirmation"
+                    type="password"
+                    label="Confirmar nova senha"
+                    icone={LockClosedIcon}
+                    erro={errors.password_confirmation}
+                    value={data.password_confirmation}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    onChange={(e) => setData('password_confirmation', e.target.value)}
+                />
 
-                    <TextInput
-                        id="current_password"
-                        ref={currentPasswordInput}
-                        value={data.current_password}
-                        onChange={(e) =>
-                            setData('current_password', e.target.value)
-                        }
-                        type="password"
-                        className="mt-1 block w-full"
-                        autoComplete="current-password"
-                    />
-
-                    <InputError
-                        message={errors.current_password}
-                        className="mt-2"
-                    />
-                </div>
-
-                <div>
-                    <InputLabel htmlFor="password" value="New Password" />
-
-                    <TextInput
-                        id="password"
-                        ref={passwordInput}
-                        value={data.password}
-                        onChange={(e) => setData('password', e.target.value)}
-                        type="password"
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                    />
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div>
-                    <InputLabel
-                        htmlFor="password_confirmation"
-                        value="Confirm Password"
-                    />
-
-                    <TextInput
-                        id="password_confirmation"
-                        value={data.password_confirmation}
-                        onChange={(e) =>
-                            setData('password_confirmation', e.target.value)
-                        }
-                        type="password"
-                        className="mt-1 block w-full"
-                        autoComplete="new-password"
-                    />
-
-                    <InputError
-                        message={errors.password_confirmation}
-                        className="mt-2"
-                    />
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                <div className="flex items-center gap-4 pt-1">
+                    <Button type="submit" loading={processing}>
+                        {processing ? 'Salvando…' : 'Alterar senha'}
+                    </Button>
 
                     <Transition
                         show={recentlySuccessful}
-                        enter="transition ease-in-out"
-                        enterFrom="opacity-0"
-                        leave="transition ease-in-out"
+                        enter="transition ease-in-out duration-300"
+                        enterFrom="opacity-0 translate-y-1"
+                        leave="transition ease-in-out duration-300"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-gray-600">
-                            Saved.
+                        <p className="flex items-center gap-1 text-xs font-semibold text-status-success-fg">
+                            <CheckIcon className="h-4 w-4" />
+                            Senha alterada
                         </p>
                     </Transition>
                 </div>

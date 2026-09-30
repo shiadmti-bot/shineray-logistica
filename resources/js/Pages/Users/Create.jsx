@@ -1,17 +1,76 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { PageHeader, Card, Button } from '@/Components/UI';
+import { Head, useForm } from '@inertiajs/react';
+import { useState } from 'react';
+import {
+    BuildingStorefrontIcon,
+    BuildingOffice2Icon,
+    ShieldCheckIcon,
+    BriefcaseIcon,
+    UserIcon,
+    EnvelopeIcon,
+    KeyIcon,
+    EyeIcon,
+    EyeSlashIcon,
+    BoltIcon,
+    TruckIcon,
+    CheckCircleIcon,
+    ArrowLeftIcon,
+    CheckIcon,
+} from '@heroicons/react/24/outline';
 
-// Agora recebemos também 'rotas' vindo do Controller
 export default function UserCreate({ auth, filiais, rotas }) {
+    const [mostrarSenha, setMostrarSenha] = useState(false);
+
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         email: '',
         password: '',
         password_confirmation: '',
-        perfil: 'loja', // Padrão
+        perfil: 'loja',
         filial: '',
-        default_route_id: '' // Campo da v2.0
+        is_interior: false,
+        default_route_id: '',
+        valida_pecas: false,
+        valida_motos: false,
     });
+
+    const perfisConfig = [
+        {
+            key: 'loja',
+            titulo: 'Loja / Revenda',
+            descricao: 'Acesso da filial para solicitar motos, peças, receber cargas e abrir devoluções.',
+            icon: BuildingStorefrontIcon,
+            badgeClass: 'bg-brand-50 text-brand-700 ring-1 ring-brand-200',
+            borderActive: 'border-brand-500 ring-2 ring-brand-500/20 bg-brand-50/20',
+        },
+        {
+            key: 'cd',
+            titulo: 'Operação CD',
+            descricao: 'Acesso do Centro de Distribuição para separação, basquetas de peças e despacho.',
+            icon: BuildingOffice2Icon,
+            badgeClass: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
+            borderActive: 'border-sky-500 ring-2 ring-sky-500/20 bg-sky-50/20',
+        },
+        {
+            key: 'gestor',
+            titulo: 'Diretoria / Gestão',
+            descricao: 'Visão executiva para aprovar pedidos, validar devoluções e acompanhar métricas.',
+            icon: BriefcaseIcon,
+            badgeClass: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+            borderActive: 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/20',
+        },
+        {
+            key: 'admin',
+            titulo: 'Administrador Geral',
+            descricao: 'Controle irrestrito do sistema, gestão de acessos, auditoria e cadastros globais.',
+            icon: ShieldCheckIcon,
+            badgeClass: 'bg-zinc-900 text-white',
+            borderActive: 'border-zinc-900 ring-2 ring-zinc-900/20 bg-zinc-50',
+        },
+    ];
+
+    const perfilAtual = perfisConfig.find((p) => p.key === data.perfil) || perfisConfig[0];
+    const rotaSelecionada = rotas?.find((r) => String(r.id) === String(data.default_route_id));
 
     const submit = (e) => {
         e.preventDefault();
@@ -19,124 +78,514 @@ export default function UserCreate({ auth, filiais, rotas }) {
     };
 
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-bold text-2xl text-gray-800">Novo Acesso</h2>}>
-            <Head title="Criar Usuário" />
+        <>
+            <Head title="Novo Usuário" />
 
-            <div className="py-12 bg-gray-100 min-h-screen">
-                <div className="max-w-2xl mx-auto sm:px-6 lg:px-8">
-                    
-                    <form onSubmit={submit} className="bg-white p-8 shadow-lg rounded-xl border-t-4 border-red-600">
-                        <h3 className="text-lg font-bold text-gray-700 mb-6">Dados da Conta</h3>
+            <PageHeader
+                title="Cadastrar Novo Usuário"
+                description="Crie uma conta de acesso personalizada com definição de perfil, unidade e diretrizes logísticas."
+                breadcrumbs={[
+                    { label: 'Início', href: route('dashboard') },
+                    { label: 'Usuários', href: route('users.index') },
+                    { label: 'Novo Cadastro' },
+                ]}
+                actions={
+                    <Button href={route('users.index')} variant="secondary" icon={ArrowLeftIcon}>
+                        Voltar para Lista
+                    </Button>
+                }
+            />
 
-                        <div className="grid grid-cols-1 gap-6">
-                            
-                            {/* Tipo de Perfil */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Tipo de Acesso</label>
-                                <div className="flex gap-4">
-                                    {['loja', 'cd', 'admin', 'gestor'].map((tipo) => (
-                                        <label key={tipo} className={`flex-1 border rounded-lg p-3 cursor-pointer text-center uppercase font-bold text-sm transition ${data.perfil === tipo ? 'bg-red-50 border-red-500 text-red-700' : 'border-gray-200 hover:border-gray-400'}`}>
-                                            <input 
-                                                type="radio" 
-                                                name="perfil" 
-                                                value={tipo} 
-                                                checked={data.perfil === tipo} 
-                                                onChange={e => setData('perfil', e.target.value)} 
-                                                className="sr-only"
-                                            />
-                                            {tipo === 'cd' ? 'Operação CD' : tipo}
-                                        </label>
-                                    ))}
-                                </div>
+            <form onSubmit={submit}>
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+                    {/* ========================================================
+                        COLUNA PRINCIPAL: FORMULÁRIO COMPLETO
+                    ======================================================== */}
+                    <div className="lg:col-span-8 space-y-6">
+                        {/* 1. SELEÇÃO DE PERFIL */}
+                        <Card
+                            title="1. Nível de Acesso & Perfil"
+                            subtitle="Defina a função operacional que este usuário desempenha na empresa."
+                        >
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                {perfisConfig.map((p) => {
+                                    const Icon = p.icon;
+                                    const isSelected = data.perfil === p.key;
+
+                                    return (
+                                        <div
+                                            key={p.key}
+                                            onClick={() => {
+                                                setData('perfil', p.key);
+                                                if (p.key !== 'loja') {
+                                                    setData((prev) => ({
+                                                        ...prev,
+                                                        perfil: p.key,
+                                                        filial: p.key === 'cd' ? 'CD Ananindeua' : 'Matriz',
+                                                    }));
+                                                }
+                                            }}
+                                            className={`relative cursor-pointer rounded-xl border p-4 transition-all ${
+                                                isSelected
+                                                    ? p.borderActive
+                                                    : 'border-line hover:border-line-strong hover:bg-surface-sunken/40'
+                                            }`}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div
+                                                    className={`p-2.5 rounded-lg shrink-0 ${
+                                                        isSelected
+                                                            ? 'bg-surface-card shadow-sm'
+                                                            : 'bg-surface-sunken text-content-secondary'
+                                                    }`}
+                                                >
+                                                    <Icon className="h-5 w-5" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="font-bold text-sm text-content-primary">
+                                                            {p.titulo}
+                                                        </span>
+                                                        {isSelected && (
+                                                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-white text-xs">
+                                                                <CheckIcon className="h-3 w-3 stroke-[3]" />
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-1 text-xs text-content-secondary leading-relaxed">
+                                                        {p.descricao}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
-
-                            {/* Nome */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700">Nome do Responsável / Loja</label>
-                                <input type="text" value={data.name} onChange={e => setData('name', e.target.value)} className="w-full border-gray-300 rounded mt-1" placeholder="Ex: João Silva ou Loja Centro" required />
-                                {errors.name && <div className="text-red-500 text-xs mt-1">{errors.name}</div>}
-                            </div>
-
-                            {/* Email */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700">E-mail de Acesso</label>
-                                <input type="email" value={data.email} onChange={e => setData('email', e.target.value)} className="w-full border-gray-300 rounded mt-1" placeholder="usuario@shineray.com" required />
-                                {errors.email && <div className="text-red-500 text-xs mt-1">{errors.email}</div>}
-                            </div>
-
-                            {/* Filial */}
-                            {data.perfil === 'loja' && (
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700">Selecione a Loja / Filial</label>
-                                    <select
-                                        value={data.filial}
-                                        onChange={e => setData('filial', e.target.value)}
-                                        className="w-full border-gray-300 rounded mt-1 text-gray-700"
-                                        required
-                                    >
-                                        <option value="">-- Selecione na lista --</option>
-                                        {filiais && filiais.map((filial) => (
-                                            <option key={filial.id} value={`${filial.cidade}/${filial.uf}`}>
-                                                {filial.uf} - {filial.cidade} - {filial.nome}
-                                            </option>
-                                        ))}
-                                        <option value="Matriz">Matriz</option>
-                                    </select>
-                                </div>
+                            {errors.perfil && (
+                                <p className="mt-2 text-xs text-status-danger-fg">{errors.perfil}</p>
                             )}
+                        </Card>
 
-                            {/* --- CONFIGURAÇÃO LOGÍSTICA V2.0 --- */}
-                            {/* Mostramos para Loja e CD, pois ambos participam da logística */}
-                            {(data.perfil === 'loja' || data.perfil === 'cd') && (
-                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mt-2">
-                                    <h4 className="font-bold text-blue-900 text-sm flex items-center gap-2 mb-2">
-                                        🚚 Rota Logística (v2.0)
-                                    </h4>
-                                    <p className="text-xs text-blue-600 mb-3">
-                                        Vincule este usuário a uma rota oficial para habilitar o calendário de entregas automático.
-                                    </p>
-                                    
-                                    <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Rota Padrão</label>
+                        {/* 2. DADOS PESSOAIS & LOGIN */}
+                        <Card
+                            title="2. Identificação & Credenciais"
+                            subtitle="Dados de acesso e informações básicas da conta."
+                        >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-content-secondary mb-1.5">
+                                        Nome Completo ou Nome da Unidade <span className="text-status-danger-fg">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <UserIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+                                        <input
+                                            type="text"
+                                            value={data.name}
+                                            onChange={(e) => setData('name', e.target.value)}
+                                            placeholder="Ex: João da Silva ou Loja Castanhal"
+                                            className="w-full rounded-lg border border-line-strong bg-surface-canvas pl-10 pr-4 py-2 text-sm text-content-primary placeholder-content-muted focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                            required
+                                        />
+                                    </div>
+                                    {errors.name && (
+                                        <p className="mt-1 text-xs text-status-danger-fg">{errors.name}</p>
+                                    )}
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-content-secondary mb-1.5">
+                                        E-mail de Acesso (Login) <span className="text-status-danger-fg">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <EnvelopeIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+                                        <input
+                                            type="email"
+                                            value={data.email}
+                                            onChange={(e) => setData('email', e.target.value)}
+                                            placeholder="usuario@shineray.com.br"
+                                            className="w-full rounded-lg border border-line-strong bg-surface-canvas pl-10 pr-4 py-2 text-sm text-content-primary placeholder-content-muted focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                            required
+                                        />
+                                    </div>
+                                    {errors.email && (
+                                        <p className="mt-1 text-xs text-status-danger-fg">{errors.email}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-content-secondary mb-1.5">
+                                        Senha Inicial <span className="text-status-danger-fg">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <KeyIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+                                        <input
+                                            type={mostrarSenha ? 'text' : 'password'}
+                                            value={data.password}
+                                            onChange={(e) => setData('password', e.target.value)}
+                                            placeholder="Mínimo 8 caracteres"
+                                            className="w-full rounded-lg border border-line-strong bg-surface-canvas pl-10 pr-10 py-2 text-sm text-content-primary placeholder-content-muted focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setMostrarSenha(!mostrarSenha)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary"
+                                        >
+                                            {mostrarSenha ? (
+                                                <EyeSlashIcon className="h-4 w-4" />
+                                            ) : (
+                                                <EyeIcon className="h-4 w-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    {errors.password && (
+                                        <p className="mt-1 text-xs text-status-danger-fg">{errors.password}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-content-secondary mb-1.5">
+                                        Confirmar Senha <span className="text-status-danger-fg">*</span>
+                                    </label>
+                                    <div className="relative">
+                                        <KeyIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+                                        <input
+                                            type={mostrarSenha ? 'text' : 'password'}
+                                            value={data.password_confirmation}
+                                            onChange={(e) => setData('password_confirmation', e.target.value)}
+                                            placeholder="Repita a senha"
+                                            className="w-full rounded-lg border border-line-strong bg-surface-canvas pl-10 pr-4 py-2 text-sm text-content-primary placeholder-content-muted focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+
+                        {/* 3. FILIAL & DIRETRIZES LOGÍSTICAS */}
+                        {data.perfil === 'loja' && (
+                            <Card
+                                title="3. Vínculo Territorial da Filial"
+                                subtitle="Selecione a loja da rede para vincular os pedidos e o saldo."
+                            >
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wider text-content-secondary mb-1.5">
+                                            Loja / Filial Oficial <span className="text-status-danger-fg">*</span>
+                                        </label>
+                                        <select
+                                            value={data.filial}
+                                            onChange={(e) => setData('filial', e.target.value)}
+                                            className="w-full rounded-lg border border-line-strong bg-surface-canvas px-3.5 py-2 text-sm text-content-primary focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                            required
+                                        >
+                                            <option value="">-- Selecione a filial correspondente --</option>
+                                            {filiais?.map((f) => (
+                                                <option key={f.id} value={`${f.cidade}/${f.uf}`}>
+                                                    [{f.uf}] {f.cidade} - {f.nome}
+                                                </option>
+                                            ))}
+                                            <option value="Matriz">Matriz / Escritório Central</option>
+                                        </select>
+                                        {errors.filial && (
+                                            <p className="mt-1 text-xs text-status-danger-fg">{errors.filial}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Modelo Logístico: Capital vs Interior */}
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wider text-content-secondary mb-1.5">
+                                            Modelo Logístico de Roteamento
+                                        </label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div
+                                                onClick={() => setData('is_interior', false)}
+                                                className={`cursor-pointer rounded-xl border p-3.5 flex items-center gap-3 transition ${
+                                                    !data.is_interior
+                                                        ? 'border-status-success-solid bg-status-success-bg/30 ring-2 ring-status-success-solid/20 shadow-sm'
+                                                        : 'border-line hover:border-line-strong bg-surface-card'
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg ${
+                                                        !data.is_interior
+                                                            ? 'bg-status-success-bg text-status-success-fg'
+                                                            : 'bg-surface-sunken text-content-muted'
+                                                    }`}
+                                                >
+                                                    <BoltIcon className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold text-content-primary">
+                                                        Capital (Direto)
+                                                    </div>
+                                                    <div className="text-xs text-content-secondary">
+                                                        Transferência Loja ➔ Loja
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div
+                                                onClick={() => setData('is_interior', true)}
+                                                className={`cursor-pointer rounded-xl border p-3.5 flex items-center gap-3 transition ${
+                                                    data.is_interior
+                                                        ? 'border-status-warning-solid bg-status-warning-bg/30 ring-2 ring-status-warning-solid/20 shadow-sm'
+                                                        : 'border-line hover:border-line-strong bg-surface-card'
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg ${
+                                                        data.is_interior
+                                                            ? 'bg-status-warning-bg text-status-warning-fg'
+                                                            : 'bg-surface-sunken text-content-muted'
+                                                    }`}
+                                                >
+                                                    <TruckIcon className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-bold text-content-primary">
+                                                        Interior (Via CD)
+                                                    </div>
+                                                    <div className="text-xs text-content-secondary">
+                                                        Triagem obrigatória no CD
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
+
+                        {/* 4. ROTA LOGÍSTICA OFICIAL (LOJA OU CD) */}
+                        {(data.perfil === 'loja' || data.perfil === 'cd') && (
+                            <Card
+                                title="4. Rota Logística Oficial"
+                                subtitle="Vincula este usuário ao calendário e escalas de transporte do CD."
+                            >
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-content-secondary mb-1.5">
+                                        Rota Preferencial
+                                    </label>
                                     <select
                                         value={data.default_route_id}
-                                        onChange={e => setData('default_route_id', e.target.value)}
-                                        className="w-full border-blue-300 rounded text-sm text-blue-900 font-semibold focus:ring-blue-500"
+                                        onChange={(e) => setData('default_route_id', e.target.value)}
+                                        className="w-full rounded-lg border border-line-strong bg-surface-canvas px-3.5 py-2 text-sm text-content-primary focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                                     >
-                                        <option value="">-- Sem Rota Definida --</option>
-                                        {rotas && rotas.map((rota) => (
-                                            <option key={rota.id} value={rota.id}>
-                                                {rota.code} {rota.name ? `- ${rota.name}` : ''}
+                                        <option value="">-- Nenhuma rota padrão atribuída --</option>
+                                        {rotas?.map((r) => (
+                                            <option key={r.id} value={r.id}>
+                                                [{r.code}] {r.name ? `- ${r.name}` : ''}
                                             </option>
                                         ))}
                                     </select>
-                                    {errors.default_route_id && <div className="text-red-500 text-xs mt-1">{errors.default_route_id}</div>}
+                                    <p className="mt-1.5 text-xs text-content-muted">
+                                        Quando definida, o calendário de expedição do CD priorizará as viagens nesta rota para esta unidade.
+                                    </p>
+                                    {errors.default_route_id && (
+                                        <p className="mt-1 text-xs text-status-danger-fg">
+                                            {errors.default_route_id}
+                                        </p>
+                                    )}
                                 </div>
-                            )}
+                            </Card>
+                        )}
 
-                            {/* Senhas */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700">Senha</label>
-                                    <input type="password" value={data.password} onChange={e => setData('password', e.target.value)} className="w-full border-gray-300 rounded mt-1" required />
+                        {/* 5. ATRIBUIÇÕES DE VALIDAÇÃO (SEPARAÇÃO MOTOS VS PEÇAS) */}
+                        {data.perfil !== 'loja' && (
+                            <Card
+                                title="5. Atribuições de Validação (Módulos Independentes)"
+                                subtitle="Quem valida peças NÃO necessariamente valida motos, e vice-versa. Configure cada alçada."
+                            >
+                                <div className="space-y-3.5">
+                                    {/* Validador de Motos */}
+                                    <div className={`rounded-xl border p-4 transition ${data.valida_motos ? 'border-amber-400 bg-amber-50/20' : 'border-line bg-surface-sunken/40'}`}>
+                                        <label className="flex items-start gap-3.5 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(data.valida_motos)}
+                                                onChange={(e) => setData('valida_motos', e.target.checked)}
+                                                className="mt-1 h-4 w-4 rounded border-line-strong text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-content-primary">
+                                                        Validador de Motos (Gestão Comercial)
+                                                    </span>
+                                                    <span className="rounded bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold text-amber-700 uppercase">
+                                                        Motos
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1 text-xs text-content-secondary leading-relaxed">
+                                                    Autoriza a aprovar ou rejeitar pedidos de reposição e transferência de motos e aprovar estornos/devoluções no painel de Motos. Não dá acesso à liberação de peças.
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    {/* Validador de Peças */}
+                                    <div className={`rounded-xl border p-4 transition ${data.valida_pecas ? 'border-brand-400 bg-brand-50/20' : 'border-line bg-surface-sunken/40'}`}>
+                                        <label className="flex items-start gap-3.5 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.valida_pecas}
+                                                onChange={(e) => setData('valida_pecas', e.target.checked)}
+                                                className="mt-1 h-4 w-4 rounded border-line-strong text-brand-600 focus:ring-brand-500"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-content-primary">
+                                                        Validador de Peças (Pós-Venda - Gate 1)
+                                                    </span>
+                                                    <span className="rounded bg-brand-50 px-2 py-0.5 text-[10px] font-extrabold text-brand-700 uppercase">
+                                                        Peças
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1 text-xs text-content-secondary leading-relaxed">
+                                                    Autoriza a assinar a liberação técnica de peças sem código ou com divergência de preço na Fila de Atendimento do Pós-Venda. Não dá acesso a aprovações de motos.
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700">Confirmar Senha</label>
-                                    <input type="password" value={data.password_confirmation} onChange={e => setData('password_confirmation', e.target.value)} className="w-full border-gray-300 rounded mt-1" required />
+                            </Card>
+                        )}
+
+                        {/* BOTÕES DO FORMULÁRIO */}
+                        <div className="flex items-center justify-end gap-3 pt-4 border-t border-line">
+                            <Button href={route('users.index')} variant="secondary">
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="submit"
+                                loading={processing}
+                                icon={CheckCircleIcon}
+                            >
+                                Criar Usuário
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* ========================================================
+                        COLUNA LATERAL: PRÉ-VISUALIZAÇÃO / CRACHÁ DIGITAL
+                    ======================================================== */}
+                    <div className="lg:col-span-4 sticky top-6 space-y-4">
+                        <div className="rounded-2xl border border-line bg-surface-card p-5 shadow-sm space-y-4">
+                            <div className="flex items-center justify-between pb-3 border-b border-line">
+                                <span className="text-xs font-bold uppercase tracking-wider text-content-muted">
+                                    Crachá de Acesso
+                                </span>
+                                <span className="flex h-2 w-2 rounded-full bg-status-success-solid animate-pulse" />
+                            </div>
+
+                            {/* Avatar & Identificação */}
+                            <div className="flex flex-col items-center text-center pt-2">
+                                <div
+                                    className={`flex h-20 w-20 items-center justify-center rounded-2xl text-2xl font-black text-white uppercase shadow-md transition-colors ${
+                                        data.perfil === 'admin'
+                                            ? 'bg-zinc-900'
+                                            : data.perfil === 'gestor'
+                                            ? 'bg-amber-600'
+                                            : data.perfil === 'cd'
+                                            ? 'bg-sky-600'
+                                            : 'bg-brand-600'
+                                    }`}
+                                >
+                                    {data.name ? data.name.charAt(0) : 'U'}
+                                </div>
+
+                                <h3 className="mt-3 font-black text-content-primary text-base truncate max-w-full">
+                                    {data.name || 'Nome do Usuário'}
+                                </h3>
+                                <p className="text-xs text-content-secondary truncate max-w-full">
+                                    {data.email || 'email@shineray.com.br'}
+                                </p>
+
+                                <div className="mt-3">
+                                    <span
+                                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${perfilAtual.badgeClass}`}
+                                    >
+                                        {perfilAtual.titulo}
+                                    </span>
                                 </div>
                             </div>
-                            {errors.password && <div className="text-red-500 text-xs">{errors.password}</div>}
 
-                        </div>
+                            {/* Detalhes Operacionais */}
+                            <div className="rounded-xl bg-surface-sunken/60 p-3.5 text-xs space-y-2.5">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-content-muted">Unidade:</span>
+                                    <span className="font-semibold text-content-primary truncate max-w-[170px]">
+                                        {data.perfil === 'loja'
+                                            ? data.filial || 'Pendente'
+                                            : data.perfil === 'cd'
+                                            ? 'CD Ananindeua'
+                                            : 'Matriz Geral'}
+                                    </span>
+                                </div>
 
-                        <div className="mt-8 flex justify-end gap-4 border-t pt-6">
-                            <Link href={route('users.index')} className="px-6 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition">Cancelar</Link>
-                            <button disabled={processing} className="bg-red-700 text-white px-6 py-2 rounded font-bold hover:bg-red-800 shadow transition transform hover:-translate-y-0.5">
-                                {processing ? 'Salvando...' : 'Criar Conta'}
-                            </button>
+                                {data.perfil === 'loja' && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-content-muted">Logística:</span>
+                                        <span
+                                            className={`font-bold ${
+                                                data.is_interior
+                                                    ? 'text-status-warning-fg'
+                                                    : 'text-status-success-fg'
+                                            }`}
+                                        >
+                                            {data.is_interior ? '🏭 Interior (CD)' : '⚡ Capital (Direto)'}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {(data.perfil === 'loja' || data.perfil === 'cd') && (
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-content-muted">Rota:</span>
+                                        <span className="font-mono font-semibold text-content-primary">
+                                            {rotaSelecionada ? rotaSelecionada.code : 'Não vinculada'}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {data.perfil !== 'loja' && (
+                                    <>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-content-muted">Valida Motos:</span>
+                                            <span
+                                                className={`font-bold ${
+                                                    data.valida_motos || data.perfil === 'admin'
+                                                        ? 'text-amber-700'
+                                                        : 'text-content-muted'
+                                                }`}
+                                            >
+                                                {data.valida_motos || data.perfil === 'admin' ? 'Sim (Aprova Motos)' : 'Não'}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-content-muted">Valida Peças:</span>
+                                            <span
+                                                className={`font-bold ${
+                                                    data.valida_pecas || data.perfil === 'admin'
+                                                        ? 'text-brand-700'
+                                                        : 'text-content-muted'
+                                                }`}
+                                            >
+                                                {data.valida_pecas || data.perfil === 'admin' ? 'Sim (Gate 1 Ativo)' : 'Não'}
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Informações de Escopo */}
+                            <div className="text-[11px] text-content-muted leading-relaxed bg-brand-50/40 p-3 rounded-lg border border-brand-100">
+                                💡 <strong>Resumo do Acesso:</strong> {perfilAtual.descricao}
+                            </div>
                         </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
-        </AuthenticatedLayout>
+            </form>
+        </>
     );
 }

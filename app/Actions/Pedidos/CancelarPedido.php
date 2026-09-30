@@ -1,0 +1,355 @@
+<?php
+
+namespace App\Actions\Pedidos;
+
+use App\Actions\Pedidos\Concerns\RegistraHistorico;
+use App\Enums\EventoPedido;
+use App\Enums\Perfil;
+use App\Exceptions\OperacaoPedidoRecusada;
+use App\Models\Basqueta;
+use App\Models\EstoqueLocal;
+use App\Models\Pedido;
+use App\Models\PedidoLog;
+use App\Models\ReservaMicrowork;
+use App\Models\User;
+use App\Services\Estoque\EstoquePecaService;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Cancelamento (pela loja) ou rejeição (pela gestão) de um pedido.
+ *
+ * Moto volta ao estoque de onde saiu; peça tem a reserva liberada. O pedido é
+ * soft-deleted com o motivo registrado. Extraído de
+ * PedidoController::cancelarGenerico (v3.5).
+ */
+final class CancelarPedido
+{
+    use RegistraHistorico;
+
+    /**
+     * Estágios em que um pedido de peça ainda não teve peça tirada da prateleira.
+     * Até aqui cancelar não move nada físico: não há reserva nem basqueta.
+     */
+    private const PECA_CANCELAVEL_PRE_SEPARACAO = [
+        'solicitado', 'aguardando_confirmacao', 'em_atendimento', 'aprovado',
+    ];
+
+    public function __construct(private EstoquePecaService $estoque)
+    {
+    }
+
+    /**
+     * @param  Pedido  $pedido  com `motos`, `user` e `itensPedido.peca` carregados
+     * @param  string  $tipo  'cancelado' ou 'rejeitado'
+     *
+     * @throws OperacaoPedidoRecusada
+     */
+    public function executar(Pedido $pedido, ?User $user, string $tipo, ?string $motivo): void
+    {
+        $ehStaff = (bool) $user?->temPerfil(...Perfil::operacaoCentral());
+        $ehDono = $user && ($pedido->user_id === $user->id || $pedido->origem_user_id === $user->id);
+
+        if (! $ehStaff && ! $ehDono) {
+            throw new OperacaoPedidoRecusada('Você não tem permissão para cancelar este pedido.');
+        }
+
+        // Moto: a loja só cancela até a análise. A REJEIÇÃO não tem trava de
+        // estágio, e é intencional (confirmado com a operação em 14/09/2026):
+        // a gestão pode desfazer um pedido de moto em qualquer ponto do fluxo.
+        if ($pedido->tipo_carga === 'peca') {
+            $impedimento = $this->impedimentoPeca($pedido, $user);
+
+            if ($impedimento !== null) {
+                throw new OperacaoPedidoRecusada($impedimento);
+            }
+        } elseif ($tipo === 'cancelado' && ! in_array($pedido->status, ['solicitado', 'em_analise'], true)) {
+            throw new OperacaoPedidoRecusada('Não é possível cancelar neste estágio.');
+        }
+
+        DB::transaction(function () use ($pedido, $user, $tipo, $motivo) {
+            // O inventário do que estava no pedido tem de ser lido ANTES de
+            // liberar: liberarMotos desanexa o pivô e liberarPecas mexe nas
+            // reservas. Depois disso não há mais o que fotografar.
+            $conteudo = $this->inventario($pedido);
+
+            $pedido->tipo_carga === 'peca'
+                ? $this->liberarPecas($pedido)
+                : $this->liberarMotos($pedido);
+
+            $pedido->update([
+                'status'          => $tipo,
+                'motivo_rejeicao' => $motivo,
+                'rejeitado_por'   => $user?->id,
+                'rejeitado_em'    => now(),
+            ]);
+
+            PedidoLog::create([
+                'pedido_id' => $pedido->id,
+                'user_id'   => $user?->id,
+                'titulo'    => ucfirst($tipo) . ' ❌',
+                'evento'    => $tipo === 'rejeitado'
+                    ? EventoPedido::Rejeitado->value
+                    : EventoPedido::Cancelado->value,
+                'descricao' => ($user?->name ?? 'Sistema') . " {$tipo} o pedido: " . ($motivo ?: 'Sem observação'),
+                'dados'     => [
+                    'motivo'     => $motivo,
+                    'tipo_carga' => $pedido->tipo_carga,
+                    'conteudo'   => $conteudo,
+                ],
+            ]);
+
+            $this->avisarEnvolvidos($pedido, $user, $tipo, $motivo);
+
+            $pedido->delete(); // soft delete
+        });
+    }
+
+    /**
+     * Avisa cada envolvido com a mensagem que é verdadeira PARA ELE.
+     *
+     * DUAS MENSAGENS DIFERENTES, E ISSO É O PONTO. A primeira versão mandava
+     * "Pedido #X foi rejeitado" para os dois lados da transferência, e a
+     * operação pegou o erro: Tailândia pediu uma moto que sairia de Belém, o
+     * pedido caiu, e Belém recebeu um aviso dizendo que o pedido dela tinha
+     * sido rejeitado. Belém não pediu nada — ela ia ENTREGAR a moto.
+     *
+     * Para quem pediu, o fato é "seu pedido caiu, e por este motivo".
+     * Para quem forneceria, o fato é "a moto que ia sair do seu pátio não sai
+     * mais e voltou ao seu estoque" — que é o que muda o trabalho dela hoje, e
+     * o motivo entra como contexto, não como acusação.
+     *
+     * Quem executou a recusa fica FORA das duas. A pessoa acabou de ver a
+     * confirmação na tela; um sininho logo depois só treina o usuário a ignorar
+     * o sininho.
+     */
+    private function avisarEnvolvidos(Pedido $pedido, ?User $autor, string $tipo, ?string $motivo): void
+    {
+        $pedido->loadMissing(['user', 'origem']);
+
+        $link = route('pedidos.show', $pedido->id);
+        $motivoTexto = $motivo ?: 'não informado pelo responsável.';
+        $ehOutroUsuario = fn (?User $u) => $u && (! $autor || $u->id !== $autor->id);
+
+        // --- Quem pediu ---
+        if ($ehOutroUsuario($pedido->user)) {
+            $this->enviarNotificacao(
+                [$pedido->user],
+                $tipo === 'rejeitado' ? 'Pedido rejeitado ❌' : 'Pedido cancelado ❌',
+                "Pedido #{$pedido->id} foi {$tipo}. Motivo: {$motivoTexto}",
+                $link,
+            );
+        }
+
+        // --- A loja de origem ---
+        if (! $ehOutroUsuario($pedido->origem) || (int) $pedido->origem->id === (int) $pedido->user_id) {
+            return;
+        }
+
+        /*
+         * A origem recebe uma de DUAS mensagens, e quem decide é o perfil do
+         * destino.
+         *
+         * Na transferência de SAÍDA (loja devolvendo ao CD/Matriz), quem ABRE o
+         * pedido é a origem e o destino é o CD — ver
+         * CriarPedido::resolverOrigemEDestino. O bloco acima avisou o CD, não
+         * ela. Então ela é a autora e merece a mensagem de "pedido rejeitado".
+         *
+         * Quando o destino é uma LOJA, a origem é só quem forneceria a moto, e
+         * dizer "seu pedido foi rejeitado" para ela é falso — foi esse o erro
+         * relatado pela operação.
+         */
+        $origemAbriuOPedido = $pedido->user && ! $pedido->user->isLoja();
+
+        if ($origemAbriuOPedido) {
+            $this->enviarNotificacao(
+                [$pedido->origem],
+                $tipo === 'rejeitado' ? 'Pedido rejeitado ❌' : 'Pedido cancelado ❌',
+                "Pedido #{$pedido->id} foi {$tipo}. Motivo: {$motivoTexto}",
+                $link,
+            );
+
+            return;
+        }
+
+        $destino = $pedido->user?->filial ?: 'outra filial';
+
+        $this->enviarNotificacao(
+            [$pedido->origem],
+            'Motos liberadas ↩️',
+            "As motos que sairiam da sua loja para {$destino} no pedido #{$pedido->id} "
+                . "voltaram ao seu estoque: o pedido foi {$tipo}. Motivo: {$motivoTexto}",
+            $link,
+        );
+    }
+
+    /**
+     * O que havia dentro do pedido no instante da recusa.
+     *
+     * Vai para `pedido_logs.dados` e existe para a pergunta que a loja faz
+     * depois: "o que eu tinha pedido?". A resposta não sobrevive nas tabelas —
+     * a moto pode ter o cadastro apagado no corte, e a reserva de peça é
+     * desfeita — então o histórico guarda a própria fotografia em vez de
+     * depender de um JOIN que não vai mais encontrar as linhas.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function inventario(Pedido $pedido): array
+    {
+        // Quem chama normalmente já trouxe as relações, mas o inventário não
+        // pode depender disso: um caller esquecido produziria histórico vazio,
+        // que é pior do que uma consulta extra.
+        $pedido->loadMissing(['motos', 'itensPedido.peca']);
+
+        if ($pedido->tipo_carga === 'peca') {
+            return $pedido->itensPedido
+                ->map(fn ($item) => [
+                    'descricao'  => $item->descricao,
+                    'quantidade' => (int) $item->quantidade,
+                ])
+                ->values()
+                ->all();
+        }
+
+        $chassis = $pedido->motos
+            ->map(fn ($moto) => [
+                'modelo' => $moto->modelo,
+                'cor'    => $moto->cor,
+                'chassi' => $moto->chassi,
+            ])
+            ->values()
+            ->all();
+
+        // Cotas genéricas ainda sem chassi atribuído (V2.6): a loja pediu
+        // "5x NEW JEF VERMELHA" e o CD não chegou a vincular unidade nenhuma.
+        $cotas = $pedido->itensPedido
+            ->filter(fn ($item) => $item->qtd_pendente > 0)
+            ->map(fn ($item) => [
+                'modelo'     => $item->modelo,
+                'cor'        => $item->cor,
+                'quantidade' => $item->qtd_pendente,
+            ])
+            ->values()
+            ->all();
+
+        return [...$chassis, ...$cotas];
+    }
+
+    /**
+     * Por que este pedido de peça NÃO pode ser cancelado — ou null se pode.
+     *
+     * FONTE ÚNICA DA REGRA (v3.3). A tela (`pode_cancelar`, em
+     * PedidoController::contextoPeca) e o servidor consultam este mesmo método.
+     * Manter duas listas de status equivalentes em lugares diferentes é como
+     * nasceu a segunda porta da carga: uma delas envelhece e vira brecha.
+     *
+     * DUAS TRAVAS, POR MOTIVOS DIFERENTES:
+     *
+     *   1. Depois de SEPARADO, quem desfaz é quem separou. A loja cancela até
+     *      o CD tirar a peça da prateleira — mesma regra que o fluxo de motos
+     *      já aplica ao cancelamento pela loja.
+     *
+     *   2. Depois de FATURADA a basqueta, ninguém cancela por aqui. A caixa
+     *      foi lacrada sob uma NF; esvaziá-la deixaria a nota cobrindo
+     *      mercadoria que não está mais lá. O caminho certo é o ciclo de
+     *      ajuste do Passo 7, que cancela a nota e reabre a caixa antes de
+     *      qualquer coisa sair.
+     */
+    public function impedimentoPeca(Pedido $pedido, ?User $user): ?string
+    {
+        if (! $user) {
+            return 'Sessão expirada. Entre novamente para cancelar o pedido.';
+        }
+
+        $ehStaff = $user->temPerfil(...Perfil::operacaoCentral());
+        $ehDono = $pedido->user_id === $user->id || $pedido->origem_user_id === $user->id;
+
+        if (! $ehStaff && ! $ehDono) {
+            return 'Você não tem permissão para cancelar este pedido.';
+        }
+
+        if (in_array($pedido->status, self::PECA_CANCELAVEL_PRE_SEPARACAO, true)) {
+            return null;
+        }
+
+        if ($pedido->status !== 'separado') {
+            return "Não é possível cancelar um pedido de peças no estágio '{$pedido->status}'.";
+        }
+
+        // --- Daqui para baixo o pedido já foi separado. ---
+
+        if (! $ehStaff) {
+            return 'O Estoque Central já separou estas peças. Peça ao CD para cancelar o pedido.';
+        }
+
+        $pedido->loadMissing('itensPedido');
+
+        $basquetaIds = $pedido->itensPedido->pluck('basqueta_id')->filter()->unique();
+
+        if ($basquetaIds->isEmpty()) {
+            return null;
+        }
+
+        $fechada = Basqueta::whereIn('id', $basquetaIds)
+            ->whereNotIn('status', Basqueta::ABERTAS)
+            ->first();
+
+        if ($fechada) {
+            $nota = $fechada->notaVigente();
+
+            return "A basqueta #{$fechada->id} já foi faturada"
+                . ($nota ? " sob a NF {$nota->rotulo}" : '')
+                . '. Cancelar agora deixaria a nota cobrindo mercadoria fora da caixa.'
+                . ' Use o ajuste na conferência para cancelar a nota e reabrir a caixa antes.';
+        }
+
+        return null;
+    }
+
+    private function liberarPecas(Pedido $pedido): void
+    {
+        $origemId = $pedido->local_origem_id ?? EstoqueLocal::cd()?->id;
+
+        foreach ($pedido->itensPedido as $item) {
+            /*
+             * Sem try/catch aqui, de propósito.
+             *
+             * Engolir a falha e seguir até o soft delete cancelava o pedido
+             * deixando a reserva presa no CD — saldo prometido a um pedido que
+             * não existe mais. Deixar a exceção subir derruba a transação
+             * inteira: o cancelamento falha, o operador vê o motivo e nada fica
+             * pela metade.
+             */
+            if ($item->isPeca() && $item->qtd_atribuida > 0 && $item->peca && $origemId) {
+                $this->estoque->liberarReserva(
+                    peca: $item->peca,
+                    localId: $origemId,
+                    quantidade: $item->qtd_atribuida,
+                    pedido: $pedido,
+                    pedidoItem: $item,
+                    observacao: "Cancelamento do pedido #{$pedido->id}",
+                );
+            }
+
+            if ($item->basqueta_id) {
+                $item->update(['basqueta_id' => null]);
+            }
+        }
+    }
+
+    private function liberarMotos(Pedido $pedido): void
+    {
+        // Transferência volta para a loja dona; reposição volta para o CD.
+        $statusVolta = $pedido->origem_user_id ? 'disponivel' : 'estoque_fabrica';
+        $localVolta = $pedido->origem_user_id ? 'Estoque Loja' : 'Pátio CD/Fábrica';
+
+        foreach ($pedido->motos as $moto) {
+            $moto->update(['status' => $statusVolta, 'localizacao_atual' => $localVolta]);
+        }
+
+        $pedido->motos()->detach();
+
+        ReservaMicrowork::where('pedido_id', $pedido->id)
+            ->whereIn('status', ['pendente', 'faturada'])
+            ->update(['status' => 'cancelada']);
+    }
+}

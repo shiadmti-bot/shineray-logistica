@@ -16,10 +16,15 @@ class Pedido extends Model
         'user_id',
         'origem_user_id', // <--- Origem da Carga (Loja ou NULL para CD)
         'status',
+        'tipo_carga',       // v3: moto | peca | misto
+        'local_origem_id',  // v3: local de estoque que atende
+        'local_destino_id', // v3: local de estoque que recebe
         'observacao',
         'itens',          // <--- OBRIGATÓRIO: Salva o JSON da solicitação
         'romaneio_id',
         'motivo_rejeicao',
+        'rejeitado_por',   // v3.6: quem recusou
+        'rejeitado_em',    // v3.6: quando
         'comprovante_url',
         'previsao_coleta',  // Logística V2
         'previsao_entrega'  // Logística V2
@@ -30,8 +35,37 @@ class Pedido extends Model
         'updated_at' => 'datetime',
         'previsao_coleta' => 'date',
         'previsao_entrega' => 'date',
+        'rejeitado_em' => 'datetime',
         'itens' => 'array', // <--- Converte JSON <-> Array automaticamente
     ];
+
+    /**
+     * Estados em que um pedido de peça já separado ainda pode entrar numa carga.
+     *
+     * Depois de separado, o pedido de peça anda nos MESMOS trilhos da moto: o
+     * calendário o leva para 'aguardando_rota' e, na confirmação da viagem,
+     * para 'rota_confirmada' (ver CalendarController::store). Aceitar só
+     * 'separado' fazia a peça sumir da mesa de montagem assim que o gerente do
+     * CD confirmava a rota — com o saldo reservado e sem caminho de volta,
+     * porque 'rota_confirmada' também não está entre os estados que permitem
+     * separar de novo.
+     *
+     * A lista espelha a das motos em RomaneioController::create.
+     */
+    public const STATUS_PECA_EMBARCAVEL = [
+        'separado',
+        'aguardando_rota',
+        'aguardando_coleta',
+        'rota_confirmada',
+    ];
+
+    /**
+     * A partir de quando a transferência saindo de loja do INTERIOR passou a
+     * esperar a rota do CD ('aguardando_rota') em vez da coleta direta.
+     * Pedidos anteriores seguem no fluxo antigo — ver SepararPedido e
+     * RegredirRotasVencidas, que precisam concordar nesta data.
+     */
+    public const INTERIOR_AGUARDA_ROTA_DESDE = '2026-03-12 00:00:00';
 
     // --- RELACIONAMENTOS ---
 
@@ -45,6 +79,45 @@ class Pedido extends Model
     public function origem()
     {
         return $this->belongsTo(User::class, 'origem_user_id');
+    }
+
+    /**
+     * Quem recusou o pedido (v3.6). NULL em pedido ativo e nos encerrados
+     * antes da v3.6 — o autor daquela época só existe como texto no log, e a
+     * migration não o adivinha a partir de frase.
+     */
+    public function rejeitadoPor()
+    {
+        return $this->belongsTo(User::class, 'rejeitado_por');
+    }
+
+    // --- LOCAIS DE ESTOQUE (v3) ---
+
+    public function localOrigem()
+    {
+        return $this->belongsTo(EstoqueLocal::class, 'local_origem_id');
+    }
+
+    public function localDestino()
+    {
+        return $this->belongsTo(EstoqueLocal::class, 'local_destino_id');
+    }
+
+    /** Cotas de peça deste pedido. */
+    public function itensPecas()
+    {
+        return $this->itensPedido()->where('tipo', 'peca');
+    }
+
+    /** Cotas de moto deste pedido. */
+    public function itensMotos()
+    {
+        return $this->itensPedido()->where('tipo', 'moto');
+    }
+
+    public function movimentosPeca()
+    {
+        return $this->hasMany(PecaMovimento::class);
     }
 
     // Motos vinculadas (Quando o pedido é processado e ganha chassis reais)
@@ -85,6 +158,19 @@ class Pedido extends Model
     public function romaneio()
     {
         return $this->belongsTo(Romaneio::class);
+    }
+
+    /**
+     * Dossiê da devolução que gerou este pedido (v3). NULL na esmagadora
+     * maioria dos pedidos, que são reposição ou transferência comum.
+     *
+     * Quando existe, este pedido é apenas o FRETE: quem fecha a entrega é
+     * DevolucaoController::receber, com o checklist de destino assinado — e não
+     * PedidoController::finalizarEntrega, que não tem como colher esse veredito.
+     */
+    public function devolucao()
+    {
+        return $this->hasOne(Devolucao::class);
     }
 
     public function logs()

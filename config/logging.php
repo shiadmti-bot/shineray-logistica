@@ -5,6 +5,20 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
 
+/*
+ * Na Vercel o disco é o /tmp de cada instância: log em arquivo some com ela e
+ * ninguém chega a ler. Lá, os canais de arquivo viram stderr, que aparece em
+ * Runtime Logs. Não basta mudar o default de LOG_CHANNEL: se o painel define
+ * LOG_CHANNEL=stack (como o .env local), o stack caía em `single` no /tmp.
+ * Um canal externo explícito (slack, papertrail...) continua valendo.
+ */
+$naVercel = isset($_ENV['VERCEL']) || isset($_SERVER['VERCEL']);
+$canalPadrao = env('LOG_CHANNEL', 'stack');
+
+if ($naVercel && in_array($canalPadrao, ['stack', 'single', 'daily'], true)) {
+    $canalPadrao = 'stderr';
+}
+
 return [
 
     /*
@@ -18,7 +32,7 @@ return [
     |
     */
 
-    'default' => env('LOG_CHANNEL', 'stack'),
+    'default' => $canalPadrao,
 
     /*
     |--------------------------------------------------------------------------
@@ -124,7 +138,9 @@ return [
         ],
 
         'emergency' => [
-            'path' => storage_path('logs/laravel.log'),
+            'path' => $naVercel
+                ? '/tmp/storage/logs/laravel.log'
+                : storage_path('logs/laravel.log'),
         ],
 
     ],

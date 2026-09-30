@@ -2,28 +2,31 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\Perfil;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Illuminate\Support\Facades\Auth;
 
 class CheckPerfil
 {
-    public function handle(Request $request, Closure $next, ...$perfils): Response
+    public function handle(Request $request, Closure $next, string ...$perfis): Response
     {
+        $user = $request->user();
+
         // Se o usuário não estiver logado
-        if (!Auth::check()) {
+        if (! $user) {
             return redirect('/login');
         }
 
-        $user = Auth::user();
+        // Perfil inválido na declaração da rota lança ValueError aqui mesmo: um
+        // erro de digitação em `check_perfil:` não pode virar "acesso negado
+        // para todo mundo" sem ninguém perceber.
+        $permitidos = array_map(fn (string $perfil) => Perfil::from($perfil), $perfis);
 
-        // Se o perfil do usuário estiver na lista de permitidos
-        if (in_array($user->perfil, $perfils)) {
+        if ($user->temPerfil(...$permitidos)) {
             return $next($request);
         }
 
-        // Se não tiver permissão
         abort(403, 'Acesso não autorizado para seu perfil.');
     }
 }

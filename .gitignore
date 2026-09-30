@@ -24,3 +24,6 @@ Thumbs.db
 
 .vercel
 .env*.local
+
+# Ambiente da faixa de release: credenciais do TiDB Cloud, nunca versionado.
+.env.tidb

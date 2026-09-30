@@ -26,7 +26,16 @@ return new class extends Migration
                          '<p>Dúvidas? Use o chat interno ou procure o suporte de TI.</p>',
             'type' => 'info',
             'is_active' => true,
-            'created_by' => 1,
+            /*
+             * Autor do aviso: o usuário 1 SE ele existir.
+             *
+             * Era `1` fixo. No TiDB Serverless a foreign key não barrava o
+             * insert com a tabela users vazia, então passava despercebido; num
+             * engine que valida FK de verdade, `migrate:fresh` quebra aqui — e
+             * o schema não sobe do zero. Resolver a referência em vez de
+             * assumi-la faz a migration valer em qualquer engine.
+             */
+            'created_by' => DB::table('users')->where('id', 1)->value('id'),
             'created_at' => now(),
             'updated_at' => now(),
         ]);

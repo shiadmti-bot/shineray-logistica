@@ -15,7 +15,7 @@ class ScheduleController extends Controller
     public function manager(Request $request)
     {
         // Garante que só CD/Admin/Gestor acessa
-        if (Auth::user()->perfil === 'loja') {
+        if (Auth::user()->isLoja()) {
             abort(403);
         }
 

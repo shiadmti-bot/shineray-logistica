@@ -123,4 +123,20 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Manutenção do Sistema (VerificarManutencao)
+    |--------------------------------------------------------------------------
+    |
+    | `ativa` fecha o sistema para todos. `chave` é o que a TI informa em
+    | /liberar-acesso-ti?chave=... para entrar mesmo assim. Sem chave
+    | configurada, ninguém fura a manutenção pela URL.
+    |
+    */
+
+    'manutencao' => [
+        'ativa' => (bool) env('SISTEMA_MANUTENCAO', false),
+        'chave' => env('MANUTENCAO_CHAVE'),
+    ],
+
 ];

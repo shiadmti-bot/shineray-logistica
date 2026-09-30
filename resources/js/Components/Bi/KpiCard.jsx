@@ -1,10 +1,10 @@
 export default function KpiCard({ title, value, icon, color = 'blue', helperText }) {
     const colorClasses = {
-        blue: 'bg-blue-50 text-blue-600 border-blue-200',
-        green: 'bg-green-50 text-green-600 border-green-200',
-        red: 'bg-red-50 text-red-600 border-red-200',
-        orange: 'bg-orange-50 text-orange-600 border-orange-200',
-        purple: 'bg-purple-50 text-purple-600 border-purple-200',
+        blue: 'bg-status-info-bg text-status-info-fg border-status-info-solid/30',
+        green: 'bg-status-success-bg text-status-success-fg border-status-success-solid/30',
+        red: 'bg-status-danger-bg text-status-danger-fg border-status-danger-solid/30',
+        orange: 'bg-status-warning-bg text-status-warning-fg border-status-warning-solid/30',
+        purple: 'bg-brand-50 text-brand-600 border-brand-600/30',
     };
 
     const currentTheme = colorClasses[color] || colorClasses.blue;

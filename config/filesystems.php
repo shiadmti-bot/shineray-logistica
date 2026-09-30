@@ -60,6 +60,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Comprovantes (romaneios, avarias e anexos de devolução)
+    |--------------------------------------------------------------------------
+    |
+    | O destino durável é o Google Drive. O disco `public` só serve de reserva
+    | onde ele persiste: no XAMPP sim; na Vercel não — /tmp some no próximo cold
+    | start e nem é servido em /storage. Por isso a reserva vem desligada quando
+    | a variável VERCEL existe. Ver App\Services\ArquivoComprovante.
+    |
+    */
+
+    'comprovantes' => [
+        'fallback_local' => (bool) env('COMPROVANTES_FALLBACK_LOCAL', ! env('VERCEL')),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Symbolic Links
     |--------------------------------------------------------------------------
     |

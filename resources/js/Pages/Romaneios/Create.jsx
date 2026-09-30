@@ -1,527 +1,404 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useMemo } from 'react';
-import Swal from 'sweetalert2';
+import { useMemo, useState } from 'react';
+import { Head, useForm } from '@inertiajs/react';
+import {
+    ArrowPathIcon,
+    MagnifyingGlassIcon,
+    QrCodeIcon,
+    TruckIcon,
+    WrenchScrewdriverIcon,
+    XMarkIcon,
+} from '@heroicons/react/24/outline';
 
-export default function RomaneioCreate({ auth, expedicao = [], coletas = [], cargasEmAberto = [], aguardandoChassi = [] }) {
+import { Button, EmptyState, PageHeader, StatCard } from '@/Components/UI';
+import { avisar, avisarErro, dialogo } from '@/Lib/alertas';
 
-    // --- ESTADOS ---
-    // Agora armazena IDs das MOTOS, não dos pedidos, para permitir seleção parcial
-    const [selectedMotoIds, setSelectedMotoIds] = useState([]); 
-    const [activeTab, setActiveTab] = useState('expedicao'); 
-    
-    // Estado para controlar quais pedidos estão expandidos (para ver as motos)
-    const [expandedPedidoIds, setExpandedPedidoIds] = useState([]);
+import AbaBiparChassi from '@/Components/Romaneios/AbaBiparChassi';
+import AbaComposicaoCarga from '@/Components/Romaneios/AbaComposicaoCarga';
+import AbasMontagem from '@/Components/Romaneios/AbasMontagem';
+import BarraResumoCarga from '@/Components/Romaneios/BarraResumoCarga';
+import ConfiguracaoViagem from '@/Components/Romaneios/ConfiguracaoViagem';
+import GrupoBasquetas from '@/Components/Romaneios/GrupoBasquetas';
+import GrupoColeta from '@/Components/Romaneios/GrupoColeta';
+import GrupoExpedicao from '@/Components/Romaneios/GrupoExpedicao';
+import useSelecaoCarga, { useIdsAlternaveis } from '@/Components/Romaneios/useSelecaoCarga';
+import { agruparPor, contarMotos, contem, filtrarGrupos } from '@/Components/Romaneios/agrupar';
 
-    const { data, setData, post, processing, errors } = useForm({
+const motoCasa = (m, termo) => contem(m.chassi, termo) || contem(m.modelo, termo);
+
+const destinoDoPedido = (p) => p.user?.filial || p.user?.name || 'DESTINO NÃO INFORMADO';
+
+/**
+ * Mesa de montagem de carga: motos do CD, basquetas de peças e coletas nas
+ * lojas no mesmo caminhão.
+ *
+ * Até a v3.4 era um arquivo de 1.900 linhas. A página agora cuida do que é
+ * dela — o formulário, a busca, os agrupamentos e o resumo — e cada aba é um
+ * componente em Components/Romaneios.
+ */
+export default function RomaneioCreate({
+    expedicao = [],
+    coletas = [],
+    cargasEmAberto = [],
+    aguardandoChassi = [],
+    pecasProntas = [],
+    rotas = [],
+}) {
+    const selecao = useSelecaoCarga();
+    const [pedidosAbertos, alternarPedidoAberto] = useIdsAlternaveis();
+    const [basquetasAbertas, alternarBasquetaAberta] = useIdsAlternaveis();
+    const [abaAtiva, setAbaAtiva] = useState('expedicao');
+    const [filtroTexto, setFiltroTexto] = useState('');
+
+    const { data, setData, post, transform, processing, errors } = useForm({
         motorista: '',
         placa: '',
         rota_nome: '',
         romaneio_id: '',
-        motos_ids: [] // Mudança no nome para refletir que são motos
     });
 
-    // --- 1. AGRUPAMENTO INTELIGENTE ---
-    const agrupadosExpedicao = useMemo(() => {
-        const grupos = {};
-        expedicao.forEach(p => {
-            const destino = p.user?.filial || p.user?.name || 'DESTINO NÃO INFORMADO';
-            if (!grupos[destino]) grupos[destino] = [];
-            grupos[destino].push(p);
-        });
-        return grupos;
-    }, [expedicao]);
+    // --- AGRUPAMENTO POR FILIAL / DESTINO ---
+    const agrupadosExpedicao = useMemo(() => agruparPor(expedicao, destinoDoPedido), [expedicao]);
+    const agrupadosColeta = useMemo(() => agruparPor(coletas, (p) => p.origem?.filial || 'ORIGEM NÃO INFORMADA'), [coletas]);
+    const agrupadosPecas = useMemo(() => agruparPor(pecasProntas, (b) => b.loja || 'DESTINO NÃO INFORMADO'), [pecasProntas]);
 
-    const agrupadosColeta = useMemo(() => {
-        const grupos = {};
-        coletas.forEach(p => {
-            const origem = p.origem?.filial || 'ORIGEM NÃO INFORMADA';
-            if (!grupos[origem]) grupos[origem] = [];
-            grupos[origem].push(p);
-        });
-        return grupos;
-    }, [coletas]);
+    // --- BUSCA ---
+    const termo = filtroTexto.trim().toLowerCase();
 
-    // --- 2. LÓGICA DE SELEÇÃO (GRANULARIDADE: MOTO) ---
-    
-    // Selecionar/Deselecionar uma única moto
-    const toggleMoto = (motoId) => {
-        if (selectedMotoIds.includes(motoId)) {
-            setSelectedMotoIds(selectedMotoIds.filter(i => i !== motoId));
-        } else {
-            setSelectedMotoIds([...selectedMotoIds, motoId]);
-        }
-    };
+    const expedicaoFiltrada = useMemo(
+        () =>
+            filtrarGrupos(agrupadosExpedicao, termo, (p, t) =>
+                String(p.id).includes(t) || contem(p.user?.name, t) || (p.motos || []).some((m) => motoCasa(m, t))
+            ),
+        [agrupadosExpedicao, termo]
+    );
 
-    // Selecionar/Deselecionar TODAS as motos de um Pedido
-    const togglePedido = (pedido) => {
-        const motosDoPedido = pedido.motos.map(m => m.id);
-        const todasSelecionadas = motosDoPedido.every(id => selectedMotoIds.includes(id));
+    const pecasFiltradas = useMemo(
+        () =>
+            filtrarGrupos(agrupadosPecas, termo, (b, t) =>
+                String(b.id).includes(t) ||
+                contem(b.nota, t) ||
+                (b.itens || []).some((i) => contem(i.codigo, t) || contem(i.descricao, t))
+            ),
+        [agrupadosPecas, termo]
+    );
 
-        if (todasSelecionadas) {
-            // Remove todas
-            setSelectedMotoIds(selectedMotoIds.filter(id => !motosDoPedido.includes(id)));
-        } else {
-            // Adiciona as que faltam
-            const novas = motosDoPedido.filter(id => !selectedMotoIds.includes(id));
-            setSelectedMotoIds([...selectedMotoIds, ...novas]);
-        }
-    };
+    const coletasFiltradas = useMemo(
+        () =>
+            filtrarGrupos(agrupadosColeta, termo, (p, t) =>
+                String(p.id).includes(t) || contem(p.user?.filial, t) || (p.motos || []).some((m) => motoCasa(m, t))
+            ),
+        [agrupadosColeta, termo]
+    );
 
-    // Selecionar/Deselecionar TODO um Grupo (Destino/Origem)
-    const toggleGrupo = (pedidosDoGrupo) => {
-        // Pega todas as motos de todos os pedidos do grupo
-        const todasMotosDoGrupo = pedidosDoGrupo.flatMap(p => p.motos.map(m => m.id));
-        const todasSelecionadas = todasMotosDoGrupo.every(id => selectedMotoIds.includes(id));
+    const filaChassiFiltrada = useMemo(
+        () =>
+            !termo
+                ? aguardandoChassi
+                : aguardandoChassi.filter(
+                      (p) =>
+                          String(p.id).includes(termo) ||
+                          contem(p.loja, termo) ||
+                          p.itens.some((i) => contem(i.modelo, termo) || contem(i.cor, termo))
+                  ),
+        [aguardandoChassi, termo]
+    );
 
-        if (todasSelecionadas) {
-            setSelectedMotoIds(selectedMotoIds.filter(id => !todasMotosDoGrupo.includes(id)));
-        } else {
-            const novas = todasMotosDoGrupo.filter(id => !selectedMotoIds.includes(id));
-            setSelectedMotoIds([...selectedMotoIds, ...novas]);
-        }
-    };
-
-    const toggleExpand = (pedidoId) => {
-        if (expandedPedidoIds.includes(pedidoId)) {
-            setExpandedPedidoIds(expandedPedidoIds.filter(id => id !== pedidoId));
-        } else {
-            setExpandedPedidoIds([...expandedPedidoIds, pedidoId]);
-        }
-    };
-
-    // --- 3. SUBMIT ---
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        
-        if (selectedMotoIds.length === 0) {
-            Swal.fire('Vazio', 'Selecione pelo menos uma moto para a carga.', 'warning');
-            return;
-        }
-
-        data.motos_ids = selectedMotoIds;
-        
-        post(route('romaneios.store'), {
-            onSuccess: () => Swal.fire({ icon: 'success', title: 'Sucesso', text: 'Carga gerada! Redirecionando...', timer: 2000, showConfirmButton: false }),
-            onError: () => Swal.fire('Erro', 'Verifique os dados obrigatórios.', 'error')
-        });
-    };
-
-    // --- V2.6: BIPAGEM DE CHASSIS DURANTE A MONTAGEM (FLUXO B) ---
-    // O operador bipa o chassi e o sistema descobre sozinho a qual pedido ele pertence
-    // (mesmo modelo + cor, pedido mais antigo primeiro).
-    const [chassiCarga, setChassiCarga] = useState('');
-    const [pedidoAlvo, setPedidoAlvo] = useState(''); // '' = descoberta automática
-
+    // --- TOTAIS DISPONÍVEIS ---
     const totalChassisPendentes = aguardandoChassi.reduce(
-        (acc, p) => acc + p.itens.reduce((s, i) => s + i.qtd_pendente, 0),
+        (acc, p) => acc + p.itens.reduce((s, i) => s + (i.qtd_pendente || 0), 0),
         0
     );
 
-    const handleBiparCarga = () => {
-        const chassi = chassiCarga.trim().toUpperCase();
+    const contagens = {
+        expedicao: Object.values(expedicaoFiltrada).reduce((acc, pedidos) => acc + contarMotos(pedidos), 0),
+        pecas: Object.values(pecasFiltradas).reduce((acc, basquetas) => acc + basquetas.length, 0),
+        coleta: Object.values(coletasFiltradas).reduce((acc, pedidos) => acc + contarMotos(pedidos), 0),
+        chassi: totalChassisPendentes,
+        composicao: selecao.total,
+    };
 
-        if (chassi.length < 11) {
-            return Swal.fire('Chassi inválido', 'Informe ao menos 11 caracteres.', 'warning');
+    // --- O QUE JÁ ESTÁ NA CARGA ---
+    const basquetasSelecionadas = useMemo(
+        () => pecasProntas.filter((b) => selecao.basquetaIds.includes(b.id)),
+        [pecasProntas, selecao.basquetaIds]
+    );
+
+    const paradas = useMemo(() => {
+        const mapa = {};
+        const parada = (nome) => (mapa[nome] ??= { motos: [], basquetas: [], coletas: [] });
+
+        expedicao.forEach((p) => {
+            (p.motos || [])
+                .filter((m) => selecao.motoIds.includes(m.id))
+                .forEach((m) => parada(destinoDoPedido(p)).motos.push({ ...m, pedidoId: p.id }));
+        });
+
+        basquetasSelecionadas.forEach((b) => parada(b.loja || 'DESTINO NÃO INFORMADO').basquetas.push(b));
+
+        coletas.forEach((p) => {
+            const destino = p.user?.filial || 'CD Matriz';
+            const origem = p.origem?.filial || 'Origem';
+
+            (p.motos || [])
+                .filter((m) => selecao.motoIds.includes(m.id))
+                .forEach((m) => parada(`${origem} ➔ ${destino}`).coletas.push({ ...m, pedidoId: p.id, origem, destino }));
+        });
+
+        return mapa;
+    }, [expedicao, coletas, selecao.motoIds, basquetasSelecionadas]);
+
+    const resumo = {
+        motos: selecao.motoIds.length,
+        basquetas: selecao.basquetaIds.length,
+        pecasUn: basquetasSelecionadas.reduce((t, b) => t + (b.total_un || 0), 0),
+        volumes: basquetasSelecionadas.reduce((t, b) => t + (b.volumes || 1), 0),
+        destinos: Object.keys(paradas).length,
+        total: selecao.total,
+    };
+
+    const destinoCompleto = (local) => ({
+        pedidos: agrupadosExpedicao[local] || [],
+        basquetas: agrupadosPecas[local] || [],
+    });
+
+    // --- ENVIO ---
+    const gerarCarga = (e) => {
+        e.preventDefault();
+
+        if (selecao.total === 0) {
+            avisar('Nenhum item selecionado', 'Selecione ao menos uma moto ou uma basqueta de peças para montar a carga.', 'warning');
+            return;
         }
 
-        router.post(route('romaneios.atribuir_chassi'), {
-            chassi,
-            pedido_id: pedidoAlvo || null
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                setChassiCarga('');
-                try { new Audio('/plim.mp3').play().catch(() => {}); } catch (e) {}
-            },
-            onError: (errs) => Swal.fire('Não foi possível atribuir', Object.values(errs)[0] || 'Erro desconhecido.', 'error')
+        if (!data.romaneio_id && (!data.rota_nome || !data.motorista || !data.placa)) {
+            avisar(
+                'Dados da Viagem Incompletos',
+                'Informe a Rota/Região, o Motorista e a Placa do veículo para criar uma nova carga.',
+                'warning'
+            );
+            return;
+        }
+
+        transform((dados) => ({ ...dados, motos_ids: selecao.motoIds, basquetas_ids: selecao.basquetaIds }));
+
+        post(route('romaneios.store'), {
+            onSuccess: () =>
+                dialogo().fire({
+                    icon: 'success',
+                    title: 'Carga Criada com Sucesso!',
+                    text: 'Redirecionando para o romaneio...',
+                    timer: 2000,
+                    showConfirmButton: false,
+                }),
+            onError: (erros) => avisarErro(erros, 'Erro ao Salvar Carga', 'Verifique os dados obrigatórios.'),
         });
     };
 
-    // --- CÁLCULO DE TOTAIS ---
-    const totalMotosSelecionadas = selectedMotoIds.length;
-
-    // Conta quantos pedidos estão PARCIALMENTE ou TOTALMENTE selecionados
-    const countExp = expedicao.filter(p => p.motos.some(m => selectedMotoIds.includes(m.id))).length;
-    const countCol = coletas.filter(p => p.motos.some(m => selectedMotoIds.includes(m.id))).length;
-
     return (
-        <AuthenticatedLayout user={auth.user} header={<h2 className="font-black text-xl text-gray-800 uppercase tracking-tight">Montagem de Carga <span className="text-red-600">V2</span></h2>}>
-            <Head title="Nova Carga" />
+        <>
+            <Head title="Montagem de Carga" />
 
-            <div className="py-6 bg-gray-100 min-h-screen pb-40 font-sans">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    
-                    <form onSubmit={handleSubmit}>
-                        
-                        {/* --- DADOS DA CARGA --- */}
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
-                            <div className="flex justify-between items-center mb-4 border-b pb-2 border-gray-100">
-                                <h3 className="font-bold text-gray-700 flex items-center gap-2 uppercase text-sm tracking-wider">
-                                    🚚 Configuração da Viagem
-                                </h3>
-                                <div className="flex bg-gray-100 p-1 rounded-lg">
-                                    <button 
-                                        type="button"
-                                        onClick={() => setData('romaneio_id', '')}
-                                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${!data.romaneio_id ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-                                    >
-                                        ✨ NOVA CARGA
-                                    </button>
-                                    <button 
-                                        type="button"
-                                        disabled={cargasEmAberto.length === 0}
-                                        onClick={() => cargasEmAberto.length > 0 && setData('romaneio_id', cargasEmAberto[0].id)}
-                                        className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${data.romaneio_id ? 'bg-orange-100 text-orange-800' : 'text-gray-500'} ${cargasEmAberto.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:text-gray-700'}`}
-                                    >
-                                        ➕ ADICIONAR À EXISTENTE
-                                    </button>
-                                </div>
-                            </div>
+            <div className="space-y-6 pb-44">
+                <PageHeader
+                    title="Montagem de Carga"
+                    description="Mesa de expedição unificada para montagem de cargas mistas com motos e peças ou coletas Milk Run."
+                    breadcrumbs={[
+                        { label: 'Logística' },
+                        { label: 'Cargas', href: route('romaneios.index') },
+                        { label: 'Nova Carga' },
+                    ]}
+                />
 
-                            {!data.romaneio_id ? (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-down">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Rota / Região</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Ex: Rota Bragança"
-                                            className="w-full border-gray-300 rounded-lg text-sm focus:ring-gray-900 focus:border-gray-900"
-                                            value={data.rota_nome}
-                                            onChange={e => setData('rota_nome', e.target.value)}
-                                        />
-                                        {errors.rota_nome && <div className="text-red-500 text-[10px] mt-1 font-bold">{errors.rota_nome}</div>}
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Motorista</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Nome Completo"
-                                            className="w-full border-gray-300 rounded-lg text-sm uppercase focus:ring-gray-900 focus:border-gray-900"
-                                            value={data.motorista}
-                                            onChange={e => setData('motorista', e.target.value)}
-                                        />
-                                        {errors.motorista && <div className="text-red-500 text-[10px] mt-1 font-bold">{errors.motorista}</div>}
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Placa</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="ABC-1234"
-                                            className="w-full border-gray-300 rounded-lg text-sm uppercase text-center font-mono font-bold focus:ring-gray-900 focus:border-gray-900"
-                                            maxLength={8}
-                                            value={data.placa}
-                                            onChange={e => setData('placa', e.target.value.toUpperCase())}
-                                        />
-                                        {errors.placa && <div className="text-red-500 text-[10px] mt-1 font-bold">{errors.placa}</div>}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 animate-fade-in-down">
-                                    <label className="block text-xs font-bold text-orange-800 mb-2 uppercase">Selecione a Carga Aberta:</label>
-                                    <select 
-                                        value={data.romaneio_id} 
-                                        onChange={e => setData('romaneio_id', e.target.value)} 
-                                        className="block w-full rounded-md border-orange-300 shadow-sm font-bold text-gray-700 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                                    >
-                                        <option value="">-- Selecione --</option>
-                                        {cargasEmAberto.map(r => (
-                                            <option key={r.id} value={r.id}>
-                                                #{String(r.id).padStart(6,'0')} - {r.rota} ({r.motorista}) - {r.motos_count} vols
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <StatCard
+                        label="Motos no CD"
+                        value={contarMotos(expedicao)}
+                        hint={`${expedicao.length} pedido(s) de saída`}
+                        icon={TruckIcon}
+                        tone="brand"
+                    />
+                    <StatCard
+                        label="Basquetas Prontas"
+                        value={pecasProntas.length}
+                        hint={`${pecasProntas.reduce((acc, b) => acc + (b.total_un || 0), 0)} peça(s) faturada(s)`}
+                        icon={WrenchScrewdriverIcon}
+                        tone="info"
+                    />
+                    <StatCard
+                        label="Coletas Milk Run"
+                        value={contarMotos(coletas)}
+                        hint={`${coletas.length} pedido(s) em lojas`}
+                        icon={ArrowPathIcon}
+                        tone="warning"
+                    />
+                    <StatCard
+                        label="Chassis Pendentes"
+                        value={totalChassisPendentes}
+                        hint={`${aguardandoChassi.length} pedido(s) a bipar`}
+                        icon={QrCodeIcon}
+                        tone={totalChassisPendentes > 0 ? 'danger' : 'success'}
+                    />
+                </div>
+
+                <form onSubmit={gerarCarga} className="space-y-6">
+                    <ConfiguracaoViagem data={data} setData={setData} errors={errors} rotas={rotas} cargasEmAberto={cargasEmAberto} />
+
+                    {/* Busca e atalhos */}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="relative flex-1">
+                            <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
+                            <input
+                                type="search"
+                                aria-label="Filtrar itens da carga"
+                                placeholder="Filtrar por cidade, filial, cliente, pedido ou chassi..."
+                                value={filtroTexto}
+                                onChange={(e) => setFiltroTexto(e.target.value)}
+                                className="w-full rounded-lg border-line-strong bg-surface-card py-2 pl-9 pr-9 text-sm text-content-primary placeholder-content-muted focus:border-brand-500 focus:ring-brand-500"
+                            />
+                            {filtroTexto && (
+                                <button
+                                    type="button"
+                                    onClick={() => setFiltroTexto('')}
+                                    aria-label="Limpar busca"
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-content-muted hover:text-content-primary"
+                                >
+                                    <XMarkIcon className="h-4 w-4" />
+                                </button>
                             )}
                         </div>
 
-                        {/* --- ABAS --- */}
-                        <div className="mb-6">
-                            <div className="flex border-b border-gray-300 bg-white rounded-t-xl overflow-hidden shadow-sm">
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab('expedicao')}
-                                    className={`flex-1 py-4 text-center font-black text-xs uppercase tracking-widest border-b-4 transition ${activeTab === 'expedicao' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    🏭 Estoque CD (Saída)
-                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'expedicao' ? 'bg-blue-200 text-blue-900' : 'bg-gray-200 text-gray-500'}`}>{expedicao.length}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab('coleta')}
-                                    className={`flex-1 py-4 text-center font-black text-xs uppercase tracking-widest border-b-4 transition ${activeTab === 'coleta' ? 'border-orange-500 text-orange-700 bg-orange-50' : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    🚚 Coletas (Milk Run)
-                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'coleta' ? 'bg-orange-200 text-orange-900' : 'bg-gray-200 text-gray-500'}`}>{coletas.length}</span>
-                                </button>
-                                {/* V2.6: pedidos genéricos que ainda não têm chassi definido */}
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab('chassi')}
-                                    className={`flex-1 py-4 text-center font-black text-xs uppercase tracking-widest border-b-4 transition ${activeTab === 'chassi' ? 'border-amber-500 text-amber-700 bg-amber-50' : 'border-transparent text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                    🔢 Atribuir Chassis
-                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'chassi' ? 'bg-amber-200 text-amber-900' : 'bg-gray-200 text-gray-500'}`}>{totalChassisPendentes}</span>
-                                </button>
-                            </div>
-                        </div>
+                        {selecao.total > 0 && (
+                            <Button variant="secondary" size="sm" onClick={selecao.limpar} icon={XMarkIcon}>
+                                Limpar Seleção ({selecao.total})
+                            </Button>
+                        )}
+                    </div>
 
-                        {/* --- V2.6: PAINEL DE ATRIBUIÇÃO DE CHASSIS --- */}
-                        {activeTab === 'chassi' && (
-                            <div className="space-y-6">
-                                <div className="bg-white rounded-xl shadow-sm border-2 border-amber-300 overflow-hidden">
-                                    <div className="px-6 py-3 bg-amber-50 border-b border-amber-200">
-                                        <h3 className="font-black text-amber-900 text-sm uppercase tracking-wide">Bipagem Rápida</h3>
-                                        <p className="text-[11px] text-amber-700 mt-0.5">
-                                            Bipe o chassi da moto que está sendo carregada. O sistema identifica o modelo/cor
-                                            e vincula ao pedido mais antigo que aguarda essa moto.
+                    <AbasMontagem ativa={abaAtiva} onMudar={setAbaAtiva} contagens={contagens} />
+
+                    {abaAtiva === 'expedicao' && (
+                        <div className="space-y-6">
+                            {Object.keys(expedicaoFiltrada).length === 0 ? (
+                                <EmptyState
+                                    icon={TruckIcon}
+                                    title="Nenhuma moto disponível para expedição"
+                                    description={
+                                        filtroTexto
+                                            ? 'Nenhum pedido ou moto encontrado para os termos da busca.'
+                                            : 'Todos os pedidos de motos aprovados já foram embarcados ou aguardam faturamento/chassi.'
+                                    }
+                                />
+                            ) : (
+                                Object.entries(expedicaoFiltrada).map(([local, pedidos]) => (
+                                    <GrupoExpedicao
+                                        key={local}
+                                        local={local}
+                                        pedidos={pedidos}
+                                        destinoCompleto={destinoCompleto(local)}
+                                        selecao={selecao}
+                                        pedidosAbertos={pedidosAbertos}
+                                        alternarPedidoAberto={alternarPedidoAberto}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    )}
+
+                    {abaAtiva === 'pecas' && (
+                        <div className="space-y-6">
+                            <div className="rounded-card border border-status-info-solid/30 bg-status-info-bg/40 p-4">
+                                <div className="flex items-start gap-3">
+                                    <span className="rounded-md bg-status-info-solid/20 p-2 text-status-info-fg">
+                                        <WrenchScrewdriverIcon className="h-5 w-5" />
+                                    </span>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-status-info-fg">
+                                            Gate 2 de Logística de Peças (Conferência e Faturamento)
+                                        </h4>
+                                        <p className="mt-0.5 text-xs text-content-secondary leading-relaxed">
+                                            A unidade de embarque oficial é a <strong>basqueta lacrada</strong>. Apenas basquetas
+                                            faturadas e liberadas pelo Pós-Venda aparecem para embarque, garantindo que a nota
+                                            fiscal bata com a mercadoria em trânsito. O estoque segue sob responsabilidade do CD
+                                            até a conferência pela filial receptora.
                                         </p>
                                     </div>
-
-                                    <div className="p-4 space-y-3">
-                                        <div className="flex flex-col sm:flex-row gap-2">
-                                            <input
-                                                type="text"
-                                                placeholder="Bipe ou digite o chassi..."
-                                                value={chassiCarga}
-                                                maxLength={17}
-                                                onChange={e => setChassiCarga(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                                                onKeyDown={e => {
-                                                    // Impede que o Enter do leitor envie o formulário do romaneio
-                                                    if (e.key === 'Enter') { e.preventDefault(); handleBiparCarga(); }
-                                                }}
-                                                className="flex-1 rounded-lg border-gray-300 font-mono tracking-widest text-base py-3 px-4 focus:ring-amber-500 focus:border-amber-500"
-                                            />
-                                            <select
-                                                value={pedidoAlvo}
-                                                onChange={e => setPedidoAlvo(e.target.value)}
-                                                className="rounded-lg border-gray-300 text-sm font-bold text-gray-600 py-3"
-                                            >
-                                                <option value="">Descobrir automaticamente</option>
-                                                {aguardandoChassi.map(p => (
-                                                    <option key={p.id} value={p.id}>Forçar Pedido #{p.id} — {p.loja}</option>
-                                                ))}
-                                            </select>
-                                            <button
-                                                type="button"
-                                                onClick={handleBiparCarga}
-                                                className="px-6 py-3 rounded-lg bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 transition shadow-sm whitespace-nowrap"
-                                            >
-                                                Atribuir
-                                            </button>
-                                        </div>
-                                    </div>
                                 </div>
-
-                                {aguardandoChassi.length === 0 ? (
-                                    <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-                                        <p className="text-4xl mb-2">✅</p>
-                                        <p className="font-bold text-gray-600">Nenhum pedido aguardando chassi.</p>
-                                        <p className="text-sm text-gray-400 mt-1">Todos os pedidos aprovados já têm as motos definidas.</p>
-                                    </div>
-                                ) : (
-                                    aguardandoChassi.map(p => (
-                                        <div key={p.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                                            <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                                <div>
-                                                    <h3 className="font-black text-base text-gray-800">
-                                                        Pedido #{String(p.id).padStart(6, '0')}
-                                                    </h3>
-                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">{p.loja}</p>
-                                                </div>
-                                                <a
-                                                    href={route('pedidos.show', p.id)}
-                                                    className="text-[10px] font-bold px-4 py-2 rounded uppercase border border-gray-200 text-gray-600 hover:bg-gray-100 transition"
-                                                >
-                                                    Abrir Pedido
-                                                </a>
-                                            </div>
-                                            <div className="divide-y divide-gray-100">
-                                                {p.itens.map(item => (
-                                                    <div key={item.id} className="px-6 py-3 flex justify-between items-center">
-                                                        <div>
-                                                            <span className="font-bold text-gray-800">{item.modelo}</span>{' '}
-                                                            <span className="text-gray-500">{item.cor}</span>
-                                                            <p className="text-[10px] text-gray-400 uppercase font-bold">Destino: {item.local}</p>
-                                                        </div>
-                                                        <span className="bg-amber-100 text-amber-800 text-xs font-black px-3 py-1.5 rounded-lg border border-amber-200 whitespace-nowrap">
-                                                            faltam {item.qtd_pendente} de {item.quantidade}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
                             </div>
-                        )}
 
-                        {/* --- LISTAGEM DETALHADA --- */}
-                        <div className={`space-y-6 ${activeTab === 'chassi' ? 'hidden' : ''}`}>
-                            {Object.entries(activeTab === 'coleta' ? agrupadosColeta : agrupadosExpedicao).map(([local, pedidos]) => {
-                                // Verifica se TODAS as motos de TODOS os pedidos desse grupo estão selecionadas
-                                const todasMotosGrupo = pedidos.flatMap(p => p.motos.map(m => m.id));
-                                const grupoSelecionado = todasMotosGrupo.length > 0 && todasMotosGrupo.every(id => selectedMotoIds.includes(id));
-
-                                return (
-                                    <div key={local} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition hover:shadow-md">
-                                        
-                                        {/* HEADER DO GRUPO (LOCAL) */}
-                                        <div className={`px-6 py-3 border-b flex justify-between items-center ${activeTab === 'expedicao' ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-full text-lg shadow-sm bg-white ${activeTab === 'expedicao' ? 'text-blue-600' : 'text-orange-600'}`}>
-                                                    {activeTab === 'expedicao' ? '📍' : '🏪'}
-                                                </div>
-                                                <div>
-                                                    <h3 className={`font-black text-base ${activeTab === 'expedicao' ? 'text-blue-900' : 'text-orange-900'}`}>
-                                                        {local}
-                                                    </h3>
-                                                    <p className={`text-[10px] font-bold uppercase tracking-wide ${activeTab === 'expedicao' ? 'text-blue-400' : 'text-orange-400'}`}>
-                                                        {activeTab === 'expedicao' ? 'Destino Final' : 'Local de Coleta'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => toggleGrupo(pedidos)}
-                                                className={`text-[10px] font-bold px-4 py-2 rounded uppercase border transition shadow-sm ${
-                                                    grupoSelecionado
-                                                    ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' 
-                                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                                                }`}
-                                            >
-                                                {grupoSelecionado ? 'Desmarcar Local' : 'Selecionar Local'}
-                                            </button>
-                                        </div>
-
-                                        {/* LISTA DE PEDIDOS DO LOCAL */}
-                                        <div className="divide-y divide-gray-100">
-                                            {pedidos.map(pedido => {
-                                                const motosDoPedido = pedido.motos.map(m => m.id);
-                                                const selecionadasDoPedido = motosDoPedido.filter(id => selectedMotoIds.includes(id));
-                                                const todasSelecionadas = motosDoPedido.length > 0 && motosDoPedido.length === selecionadasDoPedido.length;
-                                                const algumaSelecionada = selecionadasDoPedido.length > 0;
-                                                
-                                                const isExpanded = expandedPedidoIds.includes(pedido.id);
-
-                                                return (
-                                                    <div key={pedido.id} className="bg-white">
-                                                        {/* HEADER DO PEDIDO */}
-                                                        <div className={`p-4 flex items-center justify-between transition ${algumaSelecionada ? (activeTab === 'expedicao' ? 'bg-blue-50/20' : 'bg-orange-50/20') : ''}`}>
-                                                            
-                                                            <div className="flex items-center gap-4 cursor-pointer" onClick={() => togglePedido(pedido)}>
-                                                                {/* Checkbox "Tri-state" Visual */}
-                                                                <div className={`w-6 h-6 rounded border flex items-center justify-center transition shadow-sm ${todasSelecionadas ? 'bg-green-500 border-green-500 text-white' : (algumaSelecionada ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-gray-300')}`}>
-                                                                    {todasSelecionadas && <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
-                                                                    {!todasSelecionadas && algumaSelecionada && <div className="w-3 h-3 bg-green-500 rounded-sm"></div>}
-                                                                </div>
-                                                                
-                                                                <div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="font-bold text-gray-800 text-sm">Pedido #{pedido.id}</span>
-                                                                        {pedido.status === 'no_cd' && <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold">TRANSBORDO</span>}
-                                                                    </div>
-                                                                    <div className="text-xs text-gray-500 mt-0.5 font-medium">
-                                                                        {activeTab === 'expedicao' ? `Solicitante: ${pedido.user.name}` : `Vai para: ${pedido.user.filial || 'Matriz'}`}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="text-right">
-                                                                    <span className="block text-lg font-black text-gray-800 leading-none">
-                                                                        {selecionadasDoPedido.length} <span className="text-gray-400 text-sm font-normal">/ {pedido.motos.length}</span>
-                                                                    </span>
-                                                                    <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider">Motos</span>
-                                                                </div>
-                                                                
-                                                                {/* Botão Expandir */}
-                                                                <button 
-                                                                    type="button" 
-                                                                    onClick={() => toggleExpand(pedido.id)}
-                                                                    className="p-2 rounded-full hover:bg-gray-100 text-gray-400 transition"
-                                                                >
-                                                                    <svg className={`w-5 h-5 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                                                </button>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* LISTA DE MOTOS (EXPANDIDA) */}
-                                                        {isExpanded && (
-                                                            <div className="border-t border-gray-100 bg-gray-50 px-4 py-2 space-y-1 animate-fade-in">
-                                                                <div className="text-[10px] font-bold text-gray-400 uppercase mb-2 pl-9">Selecione as motos individualmente:</div>
-                                                                {pedido.motos.map(moto => {
-                                                                    const isMotoSelected = selectedMotoIds.includes(moto.id);
-                                                                    return (
-                                                                        <div 
-                                                                            key={moto.id} 
-                                                                            onClick={() => toggleMoto(moto.id)}
-                                                                            className={`flex items-center gap-3 p-2 rounded cursor-pointer transition ml-8 border ${isMotoSelected ? 'bg-white border-green-300 shadow-sm' : 'border-transparent hover:bg-white hover:border-gray-200'}`}
-                                                                        >
-                                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition ${isMotoSelected ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300'}`}>
-                                                                                {isMotoSelected && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>}
-                                                                            </div>
-                                                                            <div className="flex gap-4 text-xs">
-                                                                                <span className="font-mono font-bold text-gray-700">{moto.chassi}</span>
-                                                                                <span className="text-gray-600 font-bold">{moto.modelo}</span>
-                                                                                <span className="text-gray-500">{moto.cor}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {Object.keys(pecasFiltradas).length === 0 ? (
+                                <EmptyState
+                                    icon={WrenchScrewdriverIcon}
+                                    title="Nenhuma basqueta pronta para embarcar"
+                                    description={
+                                        filtroTexto
+                                            ? 'Nenhuma basqueta de peças corresponde aos filtros da busca.'
+                                            : 'Assim que as caixas forem faturadas e liberadas na tela de Basquetas, elas aparecerão automaticamente aqui.'
+                                    }
+                                />
+                            ) : (
+                                Object.entries(pecasFiltradas).map(([local, basquetas]) => (
+                                    <GrupoBasquetas
+                                        key={local}
+                                        local={local}
+                                        basquetas={basquetas}
+                                        destinoCompleto={destinoCompleto(local)}
+                                        selecao={selecao}
+                                        basquetasAbertas={basquetasAbertas}
+                                        alternarBasquetaAberta={alternarBasquetaAberta}
+                                    />
+                                ))
+                            )}
                         </div>
+                    )}
 
-                        {/* --- BARRA FLUTUANTE DE RESUMO --- */}
-                        <div className="fixed bottom-0 left-0 w-full bg-gray-900 text-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.4)] z-50 border-t border-gray-800 safe-area-bottom">
-                            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                                <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-start">
-                                    <div className="flex flex-col">
-                                        <span className="text-[9px] text-gray-400 uppercase font-bold tracking-widest mb-1">Total Carga</span>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-3xl font-black text-yellow-400 leading-none">{totalMotosSelecionadas}</span>
-                                            <span className="text-xs font-bold text-gray-500">MOTOS</span>
-                                        </div>
-                                    </div>
-                                    <div className="h-8 w-px bg-gray-700 hidden md:block"></div>
-                                    <div className="flex gap-6 text-sm">
-                                        <div>
-                                            <span className="text-gray-500 block text-[10px] font-bold uppercase">Expedição</span>
-                                            <span className="font-bold text-blue-300">{countExp} peds</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-gray-500 block text-[10px] font-bold uppercase">Coletas</span>
-                                            <span className="font-bold text-orange-300">{countCol} peds</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button 
-                                    type="submit" 
-                                    disabled={processing || selectedMotoIds.length === 0}
-                                    className={`w-full md:w-auto bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-12 rounded-lg shadow-lg transition transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 uppercase tracking-wide text-sm ${processing ? 'animate-pulse' : ''}`}
-                                >
-                                    {processing ? 'Gerando Manifesto...' : (
-                                        <>
-                                            <span>🚀</span> Gerar Carga
-                                        </>
-                                    )}
-                                </button>
-                            </div>
+                    {abaAtiva === 'coleta' && (
+                        <div className="space-y-6">
+                            {Object.keys(coletasFiltradas).length === 0 ? (
+                                <EmptyState
+                                    icon={ArrowPathIcon}
+                                    title="Nenhuma coleta solicitada"
+                                    description={
+                                        filtroTexto
+                                            ? 'Nenhuma coleta corresponde aos termos da busca.'
+                                            : 'Não há transferências ou devoluções de motos pendentes de coleta nas lojas.'
+                                    }
+                                />
+                            ) : (
+                                Object.entries(coletasFiltradas).map(([origem, pedidos]) => (
+                                    <GrupoColeta
+                                        key={origem}
+                                        origem={origem}
+                                        pedidos={pedidos}
+                                        selecao={selecao}
+                                        pedidosAbertos={pedidosAbertos}
+                                        alternarPedidoAberto={alternarPedidoAberto}
+                                    />
+                                ))
+                            )}
                         </div>
+                    )}
 
-                    </form>
+                    {abaAtiva === 'chassi' && (
+                        <AbaBiparChassi aguardandoChassi={aguardandoChassi} filaFiltrada={filaChassiFiltrada} />
+                    )}
 
-                </div>
+                    {abaAtiva === 'composicao' && (
+                        <AbaComposicaoCarga
+                            paradas={paradas}
+                            resumo={resumo}
+                            selecao={selecao}
+                            onIrParaMotos={() => setAbaAtiva('expedicao')}
+                        />
+                    )}
+
+                    <BarraResumoCarga
+                        resumo={resumo}
+                        processando={processing}
+                        romaneioId={data.romaneio_id}
+                        onVerComposicao={() => setAbaAtiva('composicao')}
+                    />
+                </form>
             </div>
-        </AuthenticatedLayout>
+        </>
     );
 }

@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Perfil;
+use App\Models\Notice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Notice;
 
 class NoticeController extends Controller
 {
@@ -13,7 +14,7 @@ class NoticeController extends Controller
         $user = Auth::user();
 
         // 1. Autorização: Apenas Admin e Gestor
-        if (!in_array($user->perfil, ['admin', 'gestor'])) {
+        if (! $user->temPerfil(Perfil::Admin, Perfil::Gestor)) {
             abort(403, 'Acesso negado.');
         }
 
@@ -41,7 +42,7 @@ class NoticeController extends Controller
         $user = Auth::user();
 
         // 1. Autorização
-        if (!in_array($user->perfil, ['admin', 'gestor'])) {
+        if (! $user->temPerfil(Perfil::Admin, Perfil::Gestor)) {
             abort(403, 'Acesso negado.');
         }
 

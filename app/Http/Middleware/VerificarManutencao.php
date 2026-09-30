@@ -11,9 +11,10 @@ class VerificarManutencao
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. Verifica se a manutenção está DESLIGADA no .env
-        // Se estiver 'false', libera o acesso imediatamente para todos
-        if (env('SISTEMA_MANUTENCAO', false) === false) {
+        // 1. Manutenção desligada: libera o acesso imediatamente para todos.
+        // Lido de config, não de env(): com `config:cache` o env() devolve null,
+        // e `null === false` fechava o sistema inteiro sem ninguém pedir.
+        if (! config('app.manutencao.ativa')) {
             return $next($request);
         }
 
