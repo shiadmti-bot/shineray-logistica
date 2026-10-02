@@ -1,27 +1,11 @@
 {
     "version": 2,
     "framework": null,
-    "functions": {
-        "api/index.php": {
-            "runtime": "vercel-php@0.7.2",
-            "maxDuration": 10
-        }
-    },
+    "buildCommand": "npm run build && node scripts/vercel/build.mjs",
     "crons": [
         {
             "path": "/webhook/pecas-cobranca",
             "schedule": "0 11 * * *"
-        }
-    ],
-    "routes": [
-        {
-            "src": "/(OneSignalSDKWorker\\.js|build/.*|storage/.*|img/.*|favicon\\.ico|robots\\.txt|manifest\\.json)",
-            "headers": { "cache-control": "public, max-age=31536000, immutable" },
-            "dest": "/public/$1"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/api/index.php"
         }
     ]
 }

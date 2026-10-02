@@ -167,14 +167,5 @@ Devido à latência entre a Vercel (Serverless) e o TiDB, a inserção de pedido
 Substituição de loops `foreach { create() }` por **`Model::insert($array)` (Bulk Insert)**.
 Isso garante que uma carga de 50 motos seja gravada em uma única query SQL, mantendo o tempo de execução abaixo de 1 segundo.
 
-**Configuração `vercel.json` recomendada:**
-```json
-{
-    "functions": {
-        "api/index.php": {
-            "memory": 1024,
-            "maxDuration": 10
-        }
-    }
-}
-```
+**Configuração da função na Vercel:**
+O deploy não usa mais o runtime `vercel-php`, cuja função deixou de ser carregada pela Vercel ([vercel-community/php#650](https://github.com/vercel-community/php/issues/650)). O Build Command (`vercel.json`) roda `scripts/vercel/build.mjs`, que gera `.vercel/output` (Build Output API) com um launcher Node que sobe o PHP 8.4. Limites como `maxDuration` (10 s) e as rotas ficam nesse script.
