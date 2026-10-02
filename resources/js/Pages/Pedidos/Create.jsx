@@ -20,7 +20,8 @@ export default function PedidoCreate({
     cdUserId,
     locaisEntrega = [],
     estoqueCD = [],
-    motivosChassiObrigatorio = []
+    motivosChassiObrigatorio = [],
+    coresCatalogo = {}
 }) {
 
     // Configura um "Anti-Dormida" para manter a sessão ativa enquanto o usuário demora digitando
@@ -67,7 +68,12 @@ export default function PedidoCreate({
         if (doEstoque.length > 0) {
             return doEstoque.sort((a, b) => a.cor.localeCompare(b.cor));
         }
-        // Se o modelo não possui saldo no CD no momento, oferece opções de cores para permitir o pedido
+        // Se o modelo tem cores cadastradas no catálogo, usa essas
+        const doCatalogo = coresCatalogo[modelo];
+        if (doCatalogo && doCatalogo.length > 0) {
+            return doCatalogo.map(cor => ({ cor, disponivel: 0 }));
+        }
+        // Fallback final: cores genéricas para modelos sem cadastro
         return [
             { cor: 'VERMELHA', disponivel: 0 },
             { cor: 'PRETA', disponivel: 0 },

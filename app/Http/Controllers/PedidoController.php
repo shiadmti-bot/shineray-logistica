@@ -306,6 +306,22 @@ class PedidoController extends Controller
         // automaticamente no modo digitação livre (não trava a loja).
         $estoqueCD = $microwork->getEstoqueDisponivelAgregado();
 
+        // V2.5-hotfix: Cores reais do catálogo por modelo, para que modelos sem
+        // estoque no momento ainda mostrem as cores corretas (não as 7 hardcoded).
+        // A tabela modelo_cores já existe em produção (criada pela v3).
+        $coresCatalogo = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('modelo_cores')) {
+            $coresCatalogo = \Illuminate\Support\Facades\DB::table('modelo_cores')
+                ->join('modelos', 'modelos.id', '=', 'modelo_cores.modelo_id')
+                ->select('modelos.nome as modelo', 'modelo_cores.cor')
+                ->orderBy('modelos.nome')
+                ->orderBy('modelo_cores.cor')
+                ->get()
+                ->groupBy('modelo')
+                ->map(fn ($cores) => $cores->pluck('cor')->values())
+                ->toArray();
+        }
+
         return Inertia::render('Pedidos/Create', [
             'listaModelos' => $listaModelos,
             'lojasDisponiveis' => $lojas,
@@ -313,6 +329,7 @@ class PedidoController extends Controller
             'locaisEntrega' => $locaisEntrega, // Variável recuperada
             'estoqueCD' => $estoqueCD,
             'motivosChassiObrigatorio' => self::MOTIVOS_EXIGEM_CHASSI,
+            'coresCatalogo' => $coresCatalogo,
         ]);
     }
 
