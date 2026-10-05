@@ -39,7 +39,7 @@ const STATIC_EXCLUDES = new Set(['index.php', '.htaccess', 'hot', 'storage']);
 // As mesmas rotas que ficavam no vercel.json.
 const ROUTES = [
     {
-        src: '^/(OneSignalSDKWorker\\.js|build/.*|storage/.*|img/.*|favicon\\.ico|robots\\.txt|manifest\\.json)$',
+        src: '^/(OneSignalSDKWorker\\.js|plim\\.mp3|build/.*|storage/.*|img/.*|favicon\\.ico|robots\\.txt|manifest\\.json)$',
         headers: { 'cache-control': 'public, max-age=31536000, immutable' },
         dest: '/public/$1',
     },
