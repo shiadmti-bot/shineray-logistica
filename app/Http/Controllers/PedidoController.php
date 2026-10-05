@@ -296,10 +296,18 @@ class PedidoController extends Controller
         }
         sort($modelosMicrowork);
 
-        // Se houver modelos do Microwork, utiliza a lista exata do Microwork; caso contrário usa o DB como fallback
-        $listaModelos = !empty($modelosMicrowork) 
-            ? array_values(array_unique($modelosMicrowork)) 
-            : \App\Models\Modelo::orderBy('nome')->pluck('nome')->toArray();
+        // Se houver modelos do Microwork, utiliza a lista do Microwork combinada com os modelos do banco
+        $modelosBanco = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('modelos')) {
+            $temAtivo = \Illuminate\Support\Facades\Schema::hasColumn('modelos', 'ativo');
+            $modelosBanco = \App\Models\Modelo::when($temAtivo, fn ($q) => $q->where('ativo', true))
+                ->orderBy('nome')
+                ->pluck('nome')
+                ->toArray();
+        }
+
+        $listaModelos = array_values(array_unique(array_merge($modelosMicrowork, $modelosBanco)));
+        sort($listaModelos);
 
         // V2.6: Estoque real do CD agregado por Modelo + Cor, para o pedido genérico.
         // Se o cron de sincronia falhar, este array vem vazio e o frontend cai
@@ -311,8 +319,13 @@ class PedidoController extends Controller
         // A tabela modelo_cores já existe em produção (criada pela v3).
         $coresCatalogo = [];
         if (\Illuminate\Support\Facades\Schema::hasTable('modelo_cores')) {
+            $temAtivoModelos = \Illuminate\Support\Facades\Schema::hasColumn('modelos', 'ativo');
+            $temAtivoCores = \Illuminate\Support\Facades\Schema::hasColumn('modelo_cores', 'ativo');
+
             $coresCatalogo = \Illuminate\Support\Facades\DB::table('modelo_cores')
                 ->join('modelos', 'modelos.id', '=', 'modelo_cores.modelo_id')
+                ->when($temAtivoModelos, fn ($q) => $q->where('modelos.ativo', true))
+                ->when($temAtivoCores, fn ($q) => $q->where('modelo_cores.ativo', true))
                 ->select('modelos.nome as modelo', 'modelo_cores.cor')
                 ->orderBy('modelos.nome')
                 ->orderBy('modelo_cores.cor')

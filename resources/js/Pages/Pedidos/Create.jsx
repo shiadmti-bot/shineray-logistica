@@ -63,30 +63,57 @@ export default function PedidoCreate({
         [estoqueCD, listaModelos]
     );
 
+    const temOpcoesCD = temEstoqueCD || modelosCD.length > 0;
+
     const coresDoModelo = (modelo) => {
-        const doEstoque = estoqueCD.filter(e => e.modelo === modelo);
-        if (doEstoque.length > 0) {
-            return doEstoque.sort((a, b) => a.cor.localeCompare(b.cor));
+        if (!modelo) return [];
+
+        const modeloNorm = modelo.trim().toUpperCase();
+        const doEstoque = estoqueCD.filter(e => (e.modelo || '').trim().toUpperCase() === modeloNorm);
+        const mapaEstoque = new Map(doEstoque.map(e => [e.cor.trim().toUpperCase(), e.disponivel]));
+
+        // Procura no catálogo (case-insensitive)
+        let doCatalogo = coresCatalogo[modelo] || [];
+        if (!doCatalogo.length) {
+            const matchChave = Object.keys(coresCatalogo).find(k => k.trim().toUpperCase() === modeloNorm);
+            if (matchChave) {
+                doCatalogo = coresCatalogo[matchChave] || [];
+            }
         }
-        // Se o modelo tem cores cadastradas no catálogo, usa essas
-        const doCatalogo = coresCatalogo[modelo];
-        if (doCatalogo && doCatalogo.length > 0) {
-            return doCatalogo.map(cor => ({ cor, disponivel: 0 }));
-        }
-        // Fallback final: cores genéricas para modelos sem cadastro
-        return [
-            { cor: 'VERMELHA', disponivel: 0 },
-            { cor: 'PRETA', disponivel: 0 },
-            { cor: 'BRANCA', disponivel: 0 },
-            { cor: 'CINZA', disponivel: 0 },
-            { cor: 'AZUL', disponivel: 0 },
-            { cor: 'AMARELA', disponivel: 0 },
-            { cor: 'BEGE', disponivel: 0 }
+
+        const coresFallback = [
+            'VERMELHA', 'PRETA', 'BRANCA', 'CINZA', 'AZUL', 'AMARELA', 'BEGE'
         ];
+
+        // Se o modelo tem cores cadastradas no catálogo, usa essas como base;
+        // senão usa as cores vistas no estoque; senão usa as 7 cores genéricas
+        const coresBase = doCatalogo.length > 0
+            ? doCatalogo
+            : (doEstoque.length > 0 ? Array.from(mapaEstoque.keys()) : coresFallback);
+
+        // Garante a união de todas as cores existentes (catálogo + estoque)
+        const todasCores = Array.from(new Set([
+            ...coresBase.map(c => (c || '').trim().toUpperCase()),
+            ...Array.from(mapaEstoque.keys())
+        ]))
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b));
+
+        return todasCores.map(cor => ({
+            cor,
+            disponivel: mapaEstoque.get(cor) ?? 0
+        }));
     };
 
-    const disponivelDe = (modelo, cor) =>
-        estoqueCD.find(e => e.modelo === modelo && e.cor === cor)?.disponivel ?? null;
+    const disponivelDe = (modelo, cor) => {
+        if (!modelo || !cor) return null;
+        const mod = modelo.trim().toUpperCase();
+        const cr = cor.trim().toUpperCase();
+        return estoqueCD.find(e =>
+            (e.modelo || '').trim().toUpperCase() === mod &&
+            (e.cor || '').trim().toUpperCase() === cr
+        )?.disponivel ?? null;
+    };
 
     const novoItem = (base = {}) => ({
         modelo: '',
@@ -225,7 +252,7 @@ export default function PedidoCreate({
         novosItens[index] = { ...novosItens[index], [field]: value };
 
         // Trocou o modelo: a cor anterior pode não existir para o novo modelo
-        if (field === 'modelo' && temEstoqueCD && data.modo === 'cd') {
+        if (field === 'modelo' && temOpcoesCD && data.modo === 'cd') {
             const cores = coresDoModelo(value);
             novosItens[index].cor = cores.length === 1 ? cores[0].cor : '';
         }
@@ -357,8 +384,8 @@ export default function PedidoCreate({
             ? "w-full border-gray-300 rounded-lg uppercase font-bold text-base py-3 px-4 focus:ring-red-500 focus:border-red-500 bg-white"
             : "w-full border-gray-300 rounded uppercase font-bold text-sm focus:ring-red-500 focus:border-red-500 bg-white";
 
-        // Pedido genérico ao CD com estoque sincronizado => select do estoque real
-        if (data.modo === 'cd' && !exigeChassi(item) && temEstoqueCD) {
+        // Pedido genérico ao CD com estoque sincronizado ou modelos catalogados => select
+        if (data.modo === 'cd' && !exigeChassi(item) && temOpcoesCD) {
             return (
                 <select required value={item.modelo} onChange={(e) => updateItem(index, 'modelo', e.target.value)} className={base}>
                     <option value="">Selecione o modelo...</option>
@@ -416,7 +443,7 @@ export default function PedidoCreate({
             ? "w-full border-gray-300 rounded-lg uppercase text-base py-3 px-4"
             : "w-full border-gray-300 rounded uppercase text-sm";
 
-        if (data.modo === 'cd' && !exigeChassi(item) && temEstoqueCD) {
+        if (data.modo === 'cd' && !exigeChassi(item) && temOpcoesCD) {
             const cores = coresDoModelo(item.modelo);
             return (
                 <select
