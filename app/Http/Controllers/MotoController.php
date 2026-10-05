@@ -31,27 +31,12 @@ class MotoController extends Controller
          * O módulo de peças já resolve isso do jeito certo em
          * PecaController::resolverLocal; isto é o mesmo movimento para motos.
          *
-         * TRÊS CAMINHOS LEGÍTIMOS, e a loja precisa dos três:
-         *   está comigo    -> loja_atual_id
-         *   estou pedindo  -> pedido.user_id
-         *   está saindo    -> pedido.origem_user_id (transferência)
-         *
-         * Sem o terceiro, a loja que cede a moto perderia de vista a própria
-         * moto no instante em que ela é prometida a outra filial.
+         * A regra (os três caminhos da loja) mora em Moto::scopeVisivelPara,
+         * porque a timeline aplica exatamente a mesma.
          */
         $user = auth()->user();
 
-        if ($user->isLoja()) {
-            $query->where(function ($q) use ($user) {
-                $q->where('loja_atual_id', $user->id)
-                  ->orWhereHas('pedidos', function ($p) use ($user) {
-                      $p->where(function ($sub) use ($user) {
-                          $sub->where('user_id', $user->id)
-                              ->orWhere('origem_user_id', $user->id);
-                      })->where('pedidos.status', '!=', 'cancelado');
-                  });
-            });
-        }
+        $query->visivelPara($user);
 
         // Filtro de Texto (Chassi ou Modelo)
         if ($request->filled('search')) {
@@ -106,9 +91,16 @@ class MotoController extends Controller
         $historico = [];
 
         if ($chassi) {
-            // Busca a moto (inclusive se foi deletada/vendida, caso use SoftDeletes)
-            // Carrega todos os pedidos que essa moto já participou
-            $moto = Moto::with(['pedidos.user', 'pedidos.origem'])
+            /*
+             * Escopo antes da busca (v3.7). A rota não tem `check_perfil` e o
+             * LIKE aceita qualquer pedaço do chassi: qualquer loja digitava
+             * dígitos soltos e lia a linha do tempo inteira de motos de outras
+             * filiais — logs dos pedidos delas, motivos de recusa e links das
+             * fotos de avaria — exatamente o que PedidoPolicy nega na tela do
+             * pedido. A loja continua chegando à timeline das próprias motos
+             * pelo link da lista de estoque.
+             */
+            $moto = Moto::visivelPara($request->user())
                 ->where('chassi', 'LIKE', "%{$chassi}%") // Permite buscar pelos últimos dígitos
                 ->first();
 
@@ -173,7 +165,9 @@ class MotoController extends Controller
         }
 
         return Inertia::render('Motos/Timeline', [
-            'moto' => $moto,
+            // Só o que a tela mostra. Com o model inteiro iam junto os pedidos e
+            // os usuários deles (e-mail, onesignal_id) para o navegador.
+            'moto' => $moto?->only(['id', 'chassi', 'modelo', 'cor', 'status', 'localizacao_atual']),
             'timeline' => $historico,
             'filtro' => $chassi
         ]);

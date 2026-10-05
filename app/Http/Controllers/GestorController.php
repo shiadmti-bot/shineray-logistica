@@ -235,42 +235,76 @@ class GestorController extends Controller
     {
         $this->autorizarGestorMotos();
 
-        $moto = Moto::findOrFail($id);
-        
-        // 1. Guarda apenas os pedidos ATIVOS aos quais ela pertencia (para não apagar histórico de concluídos)
-        $pedidosAtivos = $moto->pedidos()->whereNotIn('status', ['concluido', 'cancelado', 'rejeitado'])->get();
-        
-        // Remove a moto APENAS desses pedidos (evita conflitar com outros pedidos caso houvesse duplicidade)
-        foreach ($pedidosAtivos as $pedido) {
-            $pedido->motos()->detach($moto->id);
-        }
+        $aprovado = DB::transaction(function () use ($id) {
+            // Relida com trava: dois cliques não processam o mesmo corte duas vezes.
+            $moto = Moto::whereKey($id)->lockForUpdate()->firstOrFail();
 
-        // 1.5. Verifica se os pedidos ficaram vazios e limpa se necessário
-        foreach ($pedidosAtivos as $pedido) {
-            if ($pedido->motos()->count() === 0) {
-                // Se o pedido ficou com 0 motos reais, ele é inútil. Cancela.
+            /*
+             * SÓ SE APROVA O QUE ALGUÉM PEDIU.
+             *
+             * Sem esta trava, o id de QUALQUER moto passava por aqui — inclusive
+             * uma já na estrada ou entregue: ela saía dos pedidos ativos, o
+             * pedido que ficasse vazio era cancelado e a moto voltava a
+             * 'disponivel'. A tela só oferece o botão para as motos da lista de
+             * estornos pendentes; agora o servidor exige o mesmo.
+             */
+            if (! $moto->estorno_pendente) {
+                return false;
+            }
+
+            $motivo = $moto->motivo_estorno ?? 'Motivo não informado';
+            $gestor = Auth::user();
+
+            // 1. Guarda apenas os pedidos ATIVOS aos quais ela pertencia (para não apagar histórico de concluídos)
+            $pedidosAtivos = $moto->pedidos()->whereNotIn('status', ['concluido', 'cancelado', 'rejeitado'])->get();
+
+            // Remove a moto APENAS desses pedidos (evita conflitar com outros pedidos caso houvesse duplicidade)
+            foreach ($pedidosAtivos as $pedido) {
+                $pedido->motos()->detach($moto->id);
+
+                // O corte fica na linha do tempo do pedido, com quem aprovou.
                 PedidoLog::create([
                     'pedido_id' => $pedido->id,
-                    'titulo' => 'Pedido Cancelado Automaticamente',
-                    'descricao' => "O pedido foi cancelado porque seu último item foi removido/estornado."
+                    'user_id'   => $gestor->id,
+                    'titulo'    => 'Corte Aprovado ✂️',
+                    'descricao' => "Moto {$moto->modelo} (Chassi: {$moto->chassi}) retirada do pedido. "
+                        . "Solicitação: {$motivo}. Aprovado por {$gestor->name}.",
                 ]);
-                $pedido->update(['status' => 'cancelado']);
-                $pedido->delete();
             }
+
+            // 1.5. Verifica se os pedidos ficaram vazios e limpa se necessário
+            foreach ($pedidosAtivos as $pedido) {
+                if ($pedido->motos()->count() === 0) {
+                    // Se o pedido ficou com 0 motos reais, ele é inútil. Cancela.
+                    PedidoLog::create([
+                        'pedido_id' => $pedido->id,
+                        'titulo' => 'Pedido Cancelado Automaticamente',
+                        'descricao' => "O pedido foi cancelado porque seu último item foi removido/estornado."
+                    ]);
+                    $pedido->update(['status' => 'cancelado']);
+                    $pedido->delete();
+                }
+            }
+
+            // 2. Tira do romaneio se por acaso já tivesse sido bipada (segurança)
+            $moto->romaneio_id = null;
+
+            // 3. Define o destino da moto.
+            // Volta para 'disponivel' para ser auditada ou consertada
+            $moto->update([
+                'estorno_pendente' => false,
+                'motivo_estorno' => null,
+                'user_estorno_id' => null,
+                'status' => 'disponivel',
+                'localizacao_atual' => 'Estoque (Retorno de Estorno CD/Loja)'
+            ]);
+
+            return true;
+        });
+
+        if (! $aprovado) {
+            return back()->with('error', 'Esta moto não tem solicitação de corte pendente.');
         }
-
-        // 2. Tira do romaneio se por acaso já tivesse sido bipada (segurança)
-        $moto->romaneio_id = null;
-
-        // 3. Define o destino da moto. 
-        // Volta para 'disponivel' para ser auditada ou consertada
-        $moto->update([
-            'estorno_pendente' => false,
-            'motivo_estorno' => null,
-            'user_estorno_id' => null,
-            'status' => 'disponivel', 
-            'localizacao_atual' => 'Estoque (Retorno de Estorno CD/Loja)' 
-        ]);
 
         return back()->with('success', 'Corte aprovado! A moto foi removida do pedido e voltou ao estoque.');
     }

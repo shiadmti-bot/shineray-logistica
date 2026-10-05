@@ -50,11 +50,19 @@ class PedidoPolicy
             : Response::deny('Este pedido pertence a outra filial.');
     }
 
-    /** Aprovar movimentação de moto: diretoria. */
+    /**
+     * Aprovar movimentação de moto: quem assina a Gestão Comercial.
+     *
+     * Mesma régua do painel do gestor (GestorController::autorizarGestorMotos),
+     * que é a porta que a tela usa. Esta rota (`pedidos.aprovar`) não tem tela
+     * e aceitava qualquer gestor pelo perfil — um gestor sem a atribuição
+     * `valida_motos` era barrado no painel e aprovava por aqui. A régua é a
+     * atribuição, não o perfil (ver User::podeValidarMotos; admin por herança).
+     */
     public function aprovar(User $user, Pedido $pedido): Response
     {
-        return $user->temPerfil(Perfil::Admin, Perfil::Gestor)
+        return $user->podeValidarMotos()
             ? Response::allow()
-            : Response::deny('Apenas a diretoria pode aprovar movimentações.');
+            : Response::deny('Apenas quem valida motos (Gestão Comercial) pode aprovar movimentações.');
     }
 }

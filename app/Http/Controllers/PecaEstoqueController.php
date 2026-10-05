@@ -48,7 +48,13 @@ class PecaEstoqueController extends Controller
     public function buscar(Request $request)
     {
         $termo = trim((string) $request->input('termo'));
-        $localId = (int) $request->input('local_id');
+
+        // A loja consulta só o próprio saldo — a mesma régua de localDoUsuario.
+        // O `local_id` vinha livre na query string e devolvia saldo, reserva e
+        // mínimo de qualquer filial.
+        $localId = $request->user()->isLoja()
+            ? (int) $request->user()->estoque_local_id
+            : (int) $request->input('local_id');
 
         if (mb_strlen($termo) < 2) {
             return response()->json(['pecas' => []]);
@@ -97,7 +103,7 @@ class PecaEstoqueController extends Controller
             peca: Peca::findOrFail($dados['peca_id']),
             localId: $dados['local_id'],
             quantidade: $dados['quantidade'],
-            observacao: $dados['observacao'] ?: 'Entrada manual',
+            observacao: ($dados['observacao'] ?? null) ?: 'Entrada manual',
         );
 
         return back()->with('success', "Entrada de {$dados['quantidade']} un. registrada.");
@@ -162,7 +168,7 @@ class PecaEstoqueController extends Controller
                 localDestinoId: $dados['destino_id'],
                 quantidade: $dados['quantidade'],
                 consomeReserva: false, // transferência avulsa não tem reserva
-                observacao: $dados['observacao'] ?: 'Transferência manual',
+                observacao: ($dados['observacao'] ?? null) ?: 'Transferência manual',
             );
         } catch (EstoqueInsuficienteException $e) {
             return back()->withErrors(['quantidade' => $e->getMessage()]);

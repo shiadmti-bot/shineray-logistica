@@ -217,7 +217,10 @@ class PecaPendenciaController extends Controller
      */
     public function sugerirMinimo(Request $request)
     {
-        $localId = $request->integer('local_id');
+        // Mesma régua de definirMinimo: a loja só olha o consumo do próprio local.
+        $localId = $request->user()->isLoja()
+            ? (int) $request->user()->estoque_local_id
+            : $request->integer('local_id');
         $dias = 90;
 
         $consumo = PecaMovimento::query()

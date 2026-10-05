@@ -56,14 +56,25 @@ final class CancelarPedido
         // Moto: a loja só cancela até a análise. A REJEIÇÃO não tem trava de
         // estágio, e é intencional (confirmado com a operação em 14/09/2026):
         // a gestão pode desfazer um pedido de moto em qualquer ponto do fluxo.
+        //
+        // Essa liberdade é da GESTÃO, não do tipo. Até aqui a trava olhava só
+        // `$tipo`, e a loja dona do pedido escapava dela chamando a rota de
+        // rejeitar em vez da de cancelar: desfazia um pedido já separado, em
+        // trânsito ou concluído, e as motos voltavam ao estoque de origem com a
+        // carga na estrada. A tela só oferece a recusa à loja em 'solicitado'
+        // (AcoesPedido.jsx); o servidor agora diz o mesmo.
         if ($pedido->tipo_carga === 'peca') {
             $impedimento = $this->impedimentoPeca($pedido, $user);
 
             if ($impedimento !== null) {
                 throw new OperacaoPedidoRecusada($impedimento);
             }
-        } elseif ($tipo === 'cancelado' && ! in_array($pedido->status, ['solicitado', 'em_analise'], true)) {
-            throw new OperacaoPedidoRecusada('Não é possível cancelar neste estágio.');
+        } elseif (($tipo === 'cancelado' || ! $ehStaff) && ! in_array($pedido->status, ['solicitado', 'em_analise'], true)) {
+            throw new OperacaoPedidoRecusada(
+                $tipo === 'cancelado'
+                    ? 'Não é possível cancelar neste estágio.'
+                    : 'A loja só recusa o pedido até a separação. Depois disso, peça à gestão para desfazê-lo.'
+            );
         }
 
         DB::transaction(function () use ($pedido, $user, $tipo, $motivo) {

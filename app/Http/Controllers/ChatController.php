@@ -58,6 +58,15 @@ class ChatController extends Controller
     }
 
     /**
+     * O que o chat mostra de quem escreveu.
+     *
+     * `with('user')` mandava o usuário inteiro — e-mail, onesignal_id,
+     * atribuições — a cada participante, inclusive pelo broadcast. A tela usa
+     * nome, perfil e id (ChatBox.jsx).
+     */
+    private const AUTOR = 'user:id,name,perfil,filial';
+
+    /**
      * Lista as mensagens de um pedido.
      */
     public function index($pedidoId)
@@ -65,7 +74,7 @@ class ChatController extends Controller
         $this->autorizarParticipante($pedidoId);
 
         return Message::where('pedido_id', $pedidoId)
-            ->with('user') // Traz o nome e dados do usuário
+            ->with(self::AUTOR)
             ->orderBy('created_at', 'asc')
             ->get();
     }
@@ -76,8 +85,8 @@ class ChatController extends Controller
     public function store(Request $request, $pedidoId)
     {
         // 1. Validação
-        $request->validate([
-            'content' => 'required|string',
+        $dados = $request->validate([
+            'content' => 'required|string|max:5000',
             'canal'   => 'required|string|in:cd,gestor'
         ]);
 
@@ -86,13 +95,13 @@ class ChatController extends Controller
         // 2. Criação da Mensagem
         $message = $pedido->messages()->create([
             'user_id' => Auth::id(),
-            'content' => $request->content,
-            'canal'   => $request->canal,
+            'content' => $dados['content'],
+            'canal'   => $dados['canal'],
             'read_at' => null
         ]);
 
-        // Carrega o usuário para exibir nome/foto instantaneamente no frontend
-        $message->load('user');
+        // Carrega o autor para exibir o nome instantaneamente no frontend
+        $message->load(self::AUTOR);
 
         // 3. Dispara o Evento (WebSocket - Atualiza o Chat aberto)
         event(new NewMessage($message));
@@ -109,8 +118,11 @@ class ChatController extends Controller
             if ($pedido->user_id !== $user->id) {
                 $destinatarios->push($pedido->user); // Solicitante
             }
+            // A relação é `origem`. O código lia `origem_user`, que não existe
+            // no model e dava sempre null: a loja de origem de uma
+            // transferência nunca era avisada das mensagens do CD e do gestor.
             if ($pedido->origem_user_id && $pedido->origem_user_id !== $user->id) {
-                $destinatarios->push($pedido->origem_user); // Origem (se houver)
+                $destinatarios->push($pedido->origem); // Origem (se houver)
             }
         }
 
@@ -121,7 +133,7 @@ class ChatController extends Controller
 
         // A. Envia Notificação Interna (Sininho + Toast)
         Notification::send($destinatarios, new \App\Notifications\NovaMensagemChat(
-            $request->content, 
+            $dados['content'], 
             $user->name, 
             $pedido->id
         ));
@@ -133,7 +145,7 @@ class ChatController extends Controller
                 (new \App\Services\OneSignalService())->sendToUser(
                     $onesignalIds,
                     "Nova mensagem de {$user->name}",
-                    $request->content,
+                    $dados['content'],
                     route('pedidos.show', $pedido->id)
                 );
             } catch (\Exception $e) {

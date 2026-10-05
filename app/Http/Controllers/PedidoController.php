@@ -34,6 +34,9 @@ class PedidoController extends Controller
      */
     use RegistraHistorico;
 
+    /** Moto ainda no lugar de onde sai: só nestes status o corte pode ser pedido. */
+    private const MOTO_CORTAVEL = ['solicitado', 'separado', 'estoque_fabrica'];
+
     // --- API v2: CÉREBRO LOGÍSTICO ---
     public function calcularLogistica(Request $request) {
         $destino = Auth::user(); // Quem pede
@@ -338,18 +341,45 @@ class PedidoController extends Controller
     }
 
     // --- FLUXO DE RETIRADA / ESTORNO ---
+
+    /**
+     * Pedido de corte de uma moto, que o gestor aprova em GestorController::aprovarEstorno.
+     *
+     * Antes só o CD tinha trava (de status) e qualquer outro usuário marcava
+     * QUALQUER moto como estorno pendente — de outra filial, já na estrada —
+     * sem nem precisar de motivo. A regra agora é a da tela
+     * (ListaMotosPedido.jsx): pede o corte o CD ou a loja que cede a moto,
+     * dentro de um pedido ativo, enquanto ela não saiu do lugar.
+     */
     public function solicitarRetiradaItem(Request $request, $id)
     {
+        $dados = $request->validate([
+            'motivo' => ['required', 'string', 'min:3', 'max:500'],
+        ], [
+            'motivo.required' => 'Informe o motivo do corte — é o que o gestor lê para decidir.',
+        ]);
+
         $moto = Moto::with('pedidos')->findOrFail($id);
         $user = Auth::user();
-        
-        // Validações básicas de permissão e status
-        if ($user->isCd() && !in_array($moto->status, ['solicitado', 'separado', 'estoque_fabrica'])) 
-            return back()->withErrors('CD só cancela item em separação.');
-        
+
+        // O pedido atual da moto (Moto::pedidos ordena pelo vínculo mais recente).
+        $pedido = $moto->pedidos->first();
+        $pedidoAtivo = $pedido && ! StatusPedido::tryFrom((string) $pedido->status)?->encerrado();
+
+        $podePedir = $user->temPerfil(Perfil::Cd, Perfil::Admin)
+            || ($pedido && (int) $pedido->origem_user_id === $user->id);
+
+        if (! $pedidoAtivo || ! $podePedir) {
+            abort(403, 'Só o CD ou a loja de origem pedem o corte de uma moto em pedido ativo.');
+        }
+
+        if (! in_array($moto->status, self::MOTO_CORTAVEL, true)) {
+            return back()->withErrors('O corte só pode ser pedido enquanto a moto está em separação.');
+        }
+
         $moto->update([
-            'estorno_pendente' => true, 
-            'motivo_estorno' => "$user->perfil: $request->motivo", 
+            'estorno_pendente' => true,
+            'motivo_estorno' => "{$user->perfil}: {$dados['motivo']}",
             'user_estorno_id' => $user->id
         ]);
         

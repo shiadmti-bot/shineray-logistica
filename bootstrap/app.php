@@ -20,6 +20,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         
         $middleware->trustProxies(at: '*');
 
+        // Global: vale também para os webhooks e para o /up.
+        $middleware->append(\App\Http\Middleware\CabecalhosDeSeguranca::class);
+
         $middleware->web(append: [
             \App\Http\Middleware\UserActivity::class,
             \App\Http\Middleware\HandleInertiaRequests::class,

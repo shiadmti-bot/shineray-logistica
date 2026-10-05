@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Gate;
@@ -116,6 +117,23 @@ class AppServiceProvider extends ServiceProvider
      */
     private function travarComandosDestrutivosRemotos(): void
     {
+        /*
+         * CAMADA 2 — A QUE NÃO DEPENDE DE EVENTO (v3.7).
+         *
+         * A camada 1, abaixo, escuta CommandStarting. Só que o Kernel do
+         * Laravel 12 só dispara esse evento fora de "unit tests" — e decide
+         * isso por APP_ENV === 'testing', não por estar no PHPUnit. Resultado:
+         * `migrate:fresh --env=testing`, o comando EXATO de 11/09, passava por
+         * fora da trava e seguia para o banco do .env. Verificado com um host
+         * `.invalid`: sem --env, BLOQUEADO; com --env=testing, tentava conectar.
+         *
+         * Os cinco comandos da lista têm uma trava nativa (Prohibitable),
+         * conferida dentro do próprio handle(), em qualquer ambiente. Ela é a
+         * que garante; a camada 1 continua porque explica o porquê na tela.
+         */
+        DB::prohibitDestructiveCommands($this->bancoRemotoSemLiberacao());
+
+        // CAMADA 1 — a mensagem completa, quando o evento é disparado.
         Event::listen(CommandStarting::class, function (CommandStarting $evento) {
             if (! in_array($evento->command, self::COMANDOS_DESTRUTIVOS, true)) {
                 return;
@@ -126,11 +144,11 @@ class AppServiceProvider extends ServiceProvider
             $base    = (string) config("database.connections.{$conexao}.database", '');
 
             // SQLite e afins não têm host: não há rede, não há risco remoto.
-            if ($host === '' || in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+            if (! $this->hostRemoto($host)) {
                 return;
             }
 
-            if (strtolower((string) env('PERMITIR_DESTRUIR_BANCO_REMOTO')) === 'sim') {
+            if ($this->destruicaoRemotaLiberada()) {
                 $evento->output->writeln(
                     "<comment>Destruindo dados em host REMOTO {$host}/{$base} — liberado explicitamente.</comment>"
                 );
@@ -144,10 +162,29 @@ class AppServiceProvider extends ServiceProvider
                 . "  host: {$host}" . PHP_EOL
                 . "  base: {$base}" . PHP_EOL . PHP_EOL
                 . "Se a intencao era o banco de testes, use:" . PHP_EOL
-                . "  php artisan migrate:fresh --env=testing      (MariaDB local, ver .env.testing)" . PHP_EOL . PHP_EOL
+                . "  composer db:local      (recria 127.0.0.1/shineray_test; nao existe .env.testing de proposito)" . PHP_EOL . PHP_EOL
                 . "Se a intencao E destruir este banco remoto, declare:" . PHP_EOL
                 . "  PERMITIR_DESTRUIR_BANCO_REMOTO=sim php artisan {$evento->command}" . PHP_EOL
             );
         });
+    }
+
+    /** O banco padrão é remoto e ninguém liberou a destruição explicitamente. */
+    private function bancoRemotoSemLiberacao(): bool
+    {
+        $conexao = config('database.default');
+
+        return $this->hostRemoto((string) config("database.connections.{$conexao}.host", ''))
+            && ! $this->destruicaoRemotaLiberada();
+    }
+
+    private function hostRemoto(string $host): bool
+    {
+        return $host !== '' && ! in_array($host, ['127.0.0.1', 'localhost', '::1'], true);
+    }
+
+    private function destruicaoRemotaLiberada(): bool
+    {
+        return strtolower((string) env('PERMITIR_DESTRUIR_BANCO_REMOTO')) === 'sim';
     }
 }

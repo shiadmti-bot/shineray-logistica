@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -69,6 +70,36 @@ class Moto extends Model
                     ->withPivot(['created_at', 'destino', 'motivo']) // Traz dados da tabela pivo
                     ->withTimestamps()
                     ->orderByPivot('created_at', 'desc'); // O mais recente primeiro
+    }
+
+    /**
+     * As motos que este usuário pode ver (escopo da v3.4, antes inline em
+     * MotoController::index).
+     *
+     * A operação central vê a frota inteira. Qualquer outro perfil vê só o
+     * que participa — e a loja precisa dos três caminhos:
+     *   está comigo    -> loja_atual_id
+     *   estou pedindo  -> pedido.user_id
+     *   está saindo    -> pedido.origem_user_id (transferência)
+     *
+     * Sem o terceiro, a loja que cede a moto a perderia de vista no instante
+     * em que ela é prometida a outra filial.
+     */
+    public function scopeVisivelPara(Builder $query, User $user): Builder
+    {
+        if ($user->isOperacaoCentral()) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($user) {
+            $q->where('loja_atual_id', $user->id)
+              ->orWhereHas('pedidos', function ($p) use ($user) {
+                  $p->where(function ($sub) use ($user) {
+                      $sub->where('user_id', $user->id)
+                          ->orWhere('origem_user_id', $user->id);
+                  })->where('pedidos.status', '!=', 'cancelado');
+              });
+        });
     }
 
     /**

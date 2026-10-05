@@ -29,6 +29,7 @@ Desenvolvido e arquitetado por **Délcio Farias Dias Neto**, construído inteira
 - [Funcionalidades por Módulo](#-funcionalidades-por-módulo)
 - [Stack Tecnológica](#-stack-tecnológica)
 - [Instalação e Configuração](#-instalação-e-configuração)
+- [Testes](#-testes)
 - [Solução de Performance (TiDB/Vercel)](#-solução-de-performance-tidbvercel)
 
 ---
@@ -156,6 +157,36 @@ Esta grande atualização traz a expansão completa para **Peças**, **Padroniza
    # Em outro terminal:
    php artisan serve
    ```
+
+---
+
+## 🧪 Testes
+
+A suíte roda em duas faixas (detalhes nos comentários de `phpunit.xml` e `phpunit.tidb.xml`):
+
+```bash
+# Faixa rápida — MariaDB local (127.0.0.1/shineray_test), a do dia a dia e a do CI
+composer db:local        # cria/recria o schema do banco de teste
+php artisan test
+
+# Faixa de release — TiDB (engine de produção), antes de merge ou release
+php artisan test -c phpunit.tidb.xml
+```
+
+O CI (`.github/workflows/ci.yml`) roda a faixa rápida em todo push e PR para `main` e `dev`.
+
+**Organização por módulo:**
+
+| Pasta | O que garante |
+|---|---|
+| `tests/Unit/Enums`, `Models`, `Policies`, `Middleware` | Regras puras, sem banco: perfis, status, quem vê/aprova cada pedido, devolução e basqueta, cabeçalhos de segurança |
+| `tests/Feature/Seguranca/MatrizDeAcessoTest` | **Quem abre cada tela**, perfil a perfil. Mudou uma permissão de propósito? Atualize a linha da tela nesta matriz |
+| `tests/Feature/Auth` | Login, força bruta, conta arquivada, recuperação de senha sem revelar e-mails, troca de senha |
+| `tests/Feature/Pedidos`, `Gestor`, `Logistica`, `Motos` | Travas de servidor do fluxo de motos: rejeição, corte (estorno), aprovação, recebimento, montagem e desfazer carga, timeline |
+| `tests/Feature/Pecas`, `Devolucoes`, `Chat`, `Avisos`, `Notificacoes` | Escopo por filial/local, portões da devolução, privacidade do chat, mural e sininho |
+| `tests/Feature/*Test.php` (raiz) | Suítes anteriores por fluxo: peças, carga, catálogo, comprovantes, histórico de rejeição, usuários, filiais |
+
+Novas suítes podem usar `Tests\Concerns\CriaCenario` (usuário, moto e pedido de teste).
 
 ---
 

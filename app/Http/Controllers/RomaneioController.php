@@ -14,6 +14,15 @@ use Illuminate\Support\Facades\DB;
 
 class RomaneioController extends Controller
 {
+    /** Moto pronta para subir no caminhão — a régua da mesa de montagem. */
+    private const MOTO_EMBARCAVEL = ['separado', 'disponivel', 'no_cd', 'aguardando_rota', 'aguardando_coleta', 'rota_confirmada'];
+
+    /** Pedido que ainda não foi liberado (análise, separação) ou que já acabou. */
+    private const PEDIDO_NAO_EMBARCAVEL = ['em_analise', 'solicitado', 'concluido', 'cancelado', 'rejeitado'];
+
+    /** Carga que já saiu do CD: desfazê-la registraria no estoque o que está na estrada. */
+    private const CARGA_NAO_DESFAZIVEL = ['concluido', 'em_transito', 'em_transito_cd'];
+
     // 1. LISTA DE CARGAS (DASHBOARD)
     public function index(Request $request)
     {
@@ -329,7 +338,16 @@ class RomaneioController extends Controller
             
             // A) Cria ou Recupera o Romaneio (Cabeçalho da Carga)
             if ($request->romaneio_id) {
-                $romaneio = Romaneio::findOrFail($request->romaneio_id);
+                $romaneio = Romaneio::whereKey($request->romaneio_id)->lockForUpdate()->firstOrFail();
+
+                // A mesa de montagem só oferece cargas abertas. Item posto numa
+                // carga que já saiu nunca ganha a transição de trânsito
+                // (iniciarTransito exige 'aberto') e fica preso em 'expedido'.
+                if ($romaneio->status !== 'aberto') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'romaneio_id' => "A carga #{$romaneio->id} não está mais aberta (status '{$romaneio->status}'). Monte uma carga nova.",
+                    ]);
+                }
             } else {
                 $romaneio = Romaneio::create([
                     'user_id'   => Auth::id(),
@@ -351,14 +369,27 @@ class RomaneioController extends Controller
             
             // Array para controlar quais pedidos tiveram status alterado (evita update repetido)
             $pedidosAfetados = [];
+            $motosEmbarcadas = 0;
 
             foreach ($motos as $moto) {
-                
+
                 // Pega o pedido ATIVO vinculado a esta moto para saber Origem/Destino
                 // Assumimos que o primeiro da coleção é o atual (devido ao latest() no model ou lógica de negócio)
-                $pedido = $moto->pedidos->first(); 
+                $pedido = $moto->pedidos->first();
 
                 if (!$pedido) continue; // Segurança caso a moto esteja órfã
+
+                /*
+                 * Só embarca o que está pronto para sair. Antes a moto fora da
+                 * régua era pulada, mas o PEDIDO dela avançava do mesmo jeito:
+                 * um id enviado à mão levava um pedido ainda em análise — sem
+                 * aprovação do gestor — direto para 'expedido', ou reabria um
+                 * pedido já concluído.
+                 */
+                if (! in_array($moto->status, self::MOTO_EMBARCAVEL, true)
+                    || in_array($pedido->status, self::PEDIDO_NAO_EMBARCAVEL, true)) {
+                    continue;
+                }
 
                 // --- LÓGICA INTELIGENTE (MILK RUN) ---
                 
@@ -378,15 +409,13 @@ class RomaneioController extends Controller
                     $localizacaoTexto = "Em Carga (Docas CD) - Romaneio #{$romaneio->id}";
                 }
 
-                // 1. Atualiza a MOTO (Item Individual)
-                // Só atualiza se ela estiver disponível para movimentação
-                if (in_array($moto->status, ['separado', 'disponivel', 'no_cd', 'aguardando_rota', 'aguardando_coleta', 'rota_confirmada'])) {
-                    $moto->update([
-                        'status'            => $novoStatusMoto,
-                        'romaneio_id'       => $romaneio->id,
-                        'localizacao_atual' => $localizacaoTexto
-                    ]);
-                }
+                // 1. Atualiza a MOTO (Item Individual) — a régua já foi checada acima.
+                $moto->update([
+                    'status'            => $novoStatusMoto,
+                    'romaneio_id'       => $romaneio->id,
+                    'localizacao_atual' => $localizacaoTexto
+                ]);
+                $motosEmbarcadas++;
 
                 // 2. Prepara atualização do PEDIDO PAI
                 // V2.6: Só marca o pedido pai como expedido/coleta se todas as cotas já tiverem chassis atribuídos
@@ -411,6 +440,13 @@ class RomaneioController extends Controller
             // O saldo NÃO se move aqui — a peça continua sendo do CD enquanto
             // está no caminhão. A baixa acontece no recebimento pela loja.
             $pecasEmbarcadas = $this->embarcarPecas($request->input('basquetas_ids', []), $romaneio);
+
+            // Nada da seleção estava apto: não nasce carga vazia (a transação desfaz o cabeçalho).
+            if ($motosEmbarcadas === 0 && $pecasEmbarcadas === 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'motos_ids' => 'Nenhum dos itens selecionados está pronto para embarcar. Recarregue a mesa de montagem e refaça a seleção.',
+                ]);
+            }
 
             $msg = 'Romaneio salvo! Itens vinculados à carga com sucesso.';
             if ($pecasEmbarcadas > 0) {
@@ -727,8 +763,16 @@ class RomaneioController extends Controller
     {
         $romaneio = Romaneio::with('motos.pedidos')->findOrFail($id);
 
-        if ($romaneio->status === 'concluido') {
-            return back()->withErrors(['erro' => 'Cargas concluídas não podem ser excluídas.']);
+        /*
+         * Mesma régua da tela (Romaneios/Show.jsx, `podeDesfazer`). O servidor
+         * só barrava a concluída: uma carga NA ESTRADA podia ser desfeita, e
+         * motos e peças que estavam no caminhão voltavam a 'separado' como se
+         * nunca tivessem saído.
+         */
+        if (in_array($romaneio->status, self::CARGA_NAO_DESFAZIVEL, true)) {
+            return back()->withErrors(['erro' => $romaneio->status === 'concluido'
+                ? 'Cargas concluídas não podem ser excluídas.'
+                : 'Esta carga já saiu do CD e não pode ser desfeita. Os itens são baixados no recebimento.']);
         }
 
         DB::transaction(function () use ($romaneio) {

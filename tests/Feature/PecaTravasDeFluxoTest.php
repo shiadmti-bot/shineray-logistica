@@ -721,7 +721,11 @@ class PecaTravasDeFluxoTest extends TestCase
         $pedido = $this->pedidoSolicitado();
         $pedido->update(['status' => 'em_analise']);
 
-        $resposta = $this->actingAs($this->gestor)
+        // Admin e não o gestor da suíte: desde que `pedidos.aprovar` exige a
+        // atribuição `valida_motos` (PedidoPolicy::aprovar), o gestor daqui —
+        // que não a tem — pararia no 403 antes de chegar à trava de peça, que
+        // é o que este teste prova.
+        $resposta = $this->actingAs($this->admin)
             ->post(route('pedidos.aprovar', $pedido->id));
 
         $resposta->assertSessionHas('error');

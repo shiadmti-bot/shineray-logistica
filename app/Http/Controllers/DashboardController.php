@@ -22,8 +22,10 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        // Gestor tem painel próprio.
-        if ($user->isGestor()) {
+        // Gestor comercial tem painel próprio. Só ele: o gestor SEM a atribuição
+        // `valida_motos` é barrado nesse painel (403), e redirecioná-lo para lá
+        // deixava a conta sem tela inicial — o login caía direto num erro.
+        if ($user->isGestor() && $user->podeValidarMotos()) {
             return redirect()->route('gestor.index');
         }
 

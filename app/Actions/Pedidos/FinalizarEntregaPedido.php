@@ -36,6 +36,12 @@ final class FinalizarEntregaPedido
         'concluido', 'estoque_loja', 'vendida', 'cancelado', 'rejeitado', 'avariado',
     ];
 
+    /**
+     * Só se recebe carga que saiu — a mesma condição em que a tela oferece a
+     * conferência (Pedidos/Show.jsx, `aguardandoRecebimento`).
+     */
+    private const PEDIDO_RECEBIVEL = ['em_transito', 'em_transito_cd'];
+
     public function __construct(private ArquivoComprovante $comprovantes)
     {
     }
@@ -67,6 +73,20 @@ final class FinalizarEntregaPedido
 
             if ($user->isCd() && ! $isDestinoCD) {
                 throw new AuthorizationException('O CD não tem permissão para finalizar pedidos. O recebimento oficial deve ser feito pela loja de destino.');
+            }
+
+            /*
+             * Sem esta trava o servidor recebia o pedido em qualquer status. O
+             * caso grave era o REPETIDO: um pedido já concluído podia ser
+             * "recebido" de novo, e o laço abaixo regravava status e loja de
+             * motos que, desde então, podiam ter seguido em outro pedido.
+             */
+            if (! in_array($pedido->status, self::PEDIDO_RECEBIVEL, true)) {
+                throw ValidationException::withMessages([
+                    'arquivo_romaneio' => $pedido->status === 'concluido'
+                        ? "O pedido #{$pedido->id} já foi recebido."
+                        : "O pedido #{$pedido->id} ainda não saiu para entrega (status '{$pedido->status}').",
+                ]);
             }
 
             $this->barrarRecebimentoIncompleto($pedido);
