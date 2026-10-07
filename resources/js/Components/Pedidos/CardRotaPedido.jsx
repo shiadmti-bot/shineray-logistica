@@ -10,8 +10,22 @@ import {
 /** Data vinda como 'AAAA-MM-DD...' exibida sem o deslocamento de fuso do navegador. */
 const dataLocal = (valor) => new Date(valor.substring(0, 10) + 'T12:00:00');
 
+/**
+ * Cargas do pedido. Num embarque parcial cada moto viaja numa carga e
+ * `pedido.romaneio_id` guarda só a última — mostrar só ela escondia a carga
+ * anterior, que ainda estava na estrada. Pedido encerrado fica só com o
+ * romaneio_id: depois do recebimento a moto pode ter seguido em outra carga.
+ */
+const cargasDoPedido = (pedido) => {
+    const ativo = !['concluido', 'cancelado', 'rejeitado'].includes(pedido.status);
+    const ids = [pedido.romaneio_id, ...(ativo ? (pedido.motos || []).map((m) => m.romaneio_id) : [])];
+    return [...new Set(ids.filter(Boolean))].sort((a, b) => a - b);
+};
+
 /** Origem, destino e dados logísticos do pedido. */
 export default function CardRotaPedido({ pedido, destinoFinalLabel }) {
+    const cargas = cargasDoPedido(pedido);
+
     return (
         <div className="bg-surface-card rounded-card shadow-sm border border-line overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
             {/* Origem */}
@@ -61,14 +75,21 @@ export default function CardRotaPedido({ pedido, destinoFinalLabel }) {
                     </span>
                 </div>
                 <div className="flex justify-between items-center mt-3 pt-3 border-t border-line">
-                    <span className="text-xs font-bold text-content-muted uppercase tracking-wide">Carga</span>
-                    {pedido.romaneio_id ? (
-                        <Link
-                            href={route('romaneios.show', pedido.romaneio_id)}
-                            className="flex items-center gap-1 bg-status-info-solid text-white px-2 py-1 rounded text-xs font-bold hover:brightness-95 transition"
-                        >
-                            <DocumentTextIcon className="w-4 h-4" /> #{pedido.romaneio_id}
-                        </Link>
+                    <span className="text-xs font-bold text-content-muted uppercase tracking-wide">
+                        {cargas.length > 1 ? 'Cargas' : 'Carga'}
+                    </span>
+                    {cargas.length > 0 ? (
+                        <div className="flex flex-wrap justify-end gap-1">
+                            {cargas.map((id) => (
+                                <Link
+                                    key={id}
+                                    href={route('romaneios.show', id)}
+                                    className="flex items-center gap-1 bg-status-info-solid text-white px-2 py-1 rounded text-xs font-bold hover:brightness-95 transition"
+                                >
+                                    <DocumentTextIcon className="w-4 h-4" /> #{id}
+                                </Link>
+                            ))}
+                        </div>
                     ) : (
                         <span className="text-xs italic text-content-muted">Aguardando...</span>
                     )}

@@ -484,7 +484,7 @@ class RomaneioController extends Controller
             'user', 
             // Carrega motos diretas e seus pedidos
             'motos' => function($query) {
-                $query->with(['pedidos.user', 'pedidos.origem']);
+                $query->with(['pedidos.user', 'pedidos.origem', 'pedidos.devolucao:id,pedido_id,status']);
             }
         ])->findOrFail($id);
 
@@ -651,95 +651,177 @@ class RomaneioController extends Controller
         });
     }
 
-    // 6. RECEBER CARGA (BAIXA LOGÍSTICA / TRANSBORDO)
-    public function receber($id)
+    // 6. RECEBER CARGA (BAIXA LOGÍSTICA / DEVOLUÇÃO / TRANSBORDO NO CD)
+    public function receber(Request $request, $id)
     {
-        return DB::transaction(function () use ($id) {
-            $romaneio = Romaneio::with(['motos.pedidos.user'])->findOrFail($id);
+        return DB::transaction(function () use ($request, $id) {
+            $romaneio = Romaneio::with(['motos.pedidos.user', 'motos.pedidos.origem', 'itens.destino', 'itens.pedido.user'])->findOrFail($id);
             $user = Auth::user();
 
-            // --- CASO 1: CHEGADA NO CD (TRANSBORDO) ---
+            // --- CASO 1: CHEGADA NO CD (DEVOLUÇÃO / RETORNO / TRANSBORDO) ---
             if ($user->isCd() || $user->isAdmin()) {
-                $itensRecebidos = 0;
-                $pedidosAfetados = [];
+                $itensRecebidosDevolucao = 0;
+                $itensRecebidosTransbordo = 0;
+                $pedidosDevolucao = [];
+                $pedidosTransbordo = [];
+                $devolucoesChecklistPendente = [];
+                $motoFiltroId = $request->input('moto_id');
 
                 foreach ($romaneio->motos as $moto) {
+                    if ($motoFiltroId && (int) $moto->id !== (int) $motoFiltroId) {
+                        continue;
+                    }
+
                     if (in_array($moto->status, ['aguardando_coleta', 'coletado', 'transito_loja', 'em_transito'])) {
                         $pedido = $moto->pedidos->first();
                         if (!$pedido) continue;
 
-                        if ($pedido->origem_user_id) {
+                        $destinoTexto = mb_strtoupper(trim((string) ($moto->pivot?->destino ?? $pedido->user?->filial ?? '')));
+                        $isDestinoCD = !$pedido->user_id 
+                            || in_array($pedido->user?->perfil, ['cd', 'admin'])
+                            || in_array($destinoTexto, ['MATRIZ / CD', 'CD', 'MATRIZ', 'CENTRO DE DISTRIBUIÇÃO', 'CD MATRIZ', 'CD ANANINDEUA'])
+                            || in_array(mb_strtoupper((string) ($pedido->user?->filial ?? '')), ['MATRIZ ADMINISTRATIVA', 'CD MATRIZ', 'CD ANANINDEUA', 'CENTRO DE DISTRIBUIÇÃO']);
+
+                        if ($isDestinoCD) {
+                            $pedido->loadMissing('devolucao');
+                            // v3: Se o pedido é o frete de uma devolução formal (com checklist e dossiê),
+                            // o encerramento oficial é feito com a conferência do CD no módulo de Devoluções.
+                            if ($pedido->devolucao && !$pedido->devolucao->estaEncerrada()) {
+                                $devolucoesChecklistPendente[$pedido->devolucao->id] = $pedido->devolucao->id;
+                                continue;
+                            }
+
+                            // Devolução direta / Retorno ao CD concluído: integra ao pátio/estoque do CD
                             $moto->update([
-                                'status' => 'no_cd',
-                                'localizacao_atual' => 'Depósito CD (Aguardando Rota Final)',
-                                'romaneio_id' => null
+                                'status'            => 'estoque_fabrica',
+                                'localizacao_atual' => 'Pátio CD/Fábrica (Recebido no CD)',
+                                'loja_atual_id'     => null,
                             ]);
-                            $itensRecebidos++;
-                            $pedidosAfetados[$pedido->id] = $pedido;
+                            $itensRecebidosDevolucao++;
+                            $pedidosDevolucao[$pedido->id] = $pedido;
+                        } elseif ($pedido->origem_user_id) {
+                            // Transbordo: descarrega no hub do CD para aguardar rota final
+                            $moto->update([
+                                'status'            => 'no_cd',
+                                'localizacao_atual' => 'Depósito CD (Aguardando Rota Final)',
+                                'romaneio_id'       => null,
+                            ]);
+                            $itensRecebidosTransbordo++;
+                            $pedidosTransbordo[$pedido->id] = $pedido;
                         }
                     }
                 }
 
-                foreach ($pedidosAfetados as $pedido) {
-                    $pedido->update(['status' => 'no_cd', 'romaneio_id' => null]); // LIBERA PARA NOVA CARGA
+                // Trata devoluções concluídas
+                foreach ($pedidosDevolucao as $pedido) {
+                    $motosAindaNaEstrada = $pedido->motos()
+                        ->whereIn('motos.status', ['transito_loja', 'em_transito', 'aguardando_coleta', 'coletado'])
+                        ->count();
 
-                    // LOG E NOTIFICAÇÃO
+                    if ($motosAindaNaEstrada === 0) {
+                        $pedido->update(['status' => 'concluido']);
+                    }
+
                     PedidoLog::create([
                         'pedido_id' => $pedido->id,
-                        'titulo' => 'Chegou no CD 🏢',
+                        'titulo'    => 'Recebido no CD 🏢',
+                        'descricao' => "Devolução/Retorno (#{$pedido->id}) recebido no CD. Moto integrada ao estoque da Matriz/CD."
+                    ]);
+
+                    try {
+                        $destinatarios = array_filter([$pedido->user?->onesignal_id, $pedido->origem?->onesignal_id]);
+                        if (!empty($destinatarios)) {
+                            (new \App\Services\OneSignalService())->sendToUser(
+                                $destinatarios,
+                                'Devolução Recebida no CD 🏢',
+                                "A devolução da moto do pedido #{$pedido->id} foi recebida e concluída no Centro de Distribuição.",
+                                route('pedidos.show', $pedido->id)
+                            );
+                        }
+                    } catch (\Exception $e) {}
+                }
+
+                // Trata transbordo (aguardando próxima rota)
+                foreach ($pedidosTransbordo as $pedido) {
+                    $pedido->update(['status' => 'no_cd', 'romaneio_id' => null]);
+
+                    PedidoLog::create([
+                        'pedido_id' => $pedido->id,
+                        'titulo'    => 'Chegou no CD 🏢',
                         'descricao' => "Transferência recebida no Hub Logístico. Aguardando rota final."
                     ]);
 
                     try {
-                        (new \App\Services\OneSignalService())->sendToUser(
-                            [$pedido->user->onesignal_id],
-                            'Chegou no CD 🏢',
-                            "Seus itens do pedido #{$pedido->id} chegaram ao Centro de Distribuição e aguardam rota final.",
-                            route('pedidos.show', $pedido->id)
-                        );
+                        if ($pedido->user?->onesignal_id) {
+                            (new \App\Services\OneSignalService())->sendToUser(
+                                [$pedido->user->onesignal_id],
+                                'Chegou no CD 🏢',
+                                "Seus itens do pedido #{$pedido->id} chegaram ao Centro de Distribuição e aguardam rota final.",
+                                route('pedidos.show', $pedido->id)
+                            );
+                        }
                     } catch (\Exception $e) {}
                 }
 
-                /*
-                 * PEÇA NÃO SE CONCLUI POR AUSÊNCIA DE MOTO (v3.2).
-                 *
-                 * Este bloco fechava a carga assim que ela ficasse sem moto —
-                 * regra escrita quando carga só levava moto. Com carga mista,
-                 * uma carga de peças satisfazia `motos()->count() === 0` e era
-                 * marcada 'concluido' com a mercadoria ainda em trânsito, sem
-                 * nunca ter sido recebida por ninguém.
-                 */
-                $pecasEmAberto = \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
-                    ->pecas()
-                    ->whereNotIn('status', [
-                        \App\Models\RomaneioItem::STATUS_ENTREGUE,
-                        \App\Models\RomaneioItem::STATUS_DIVERGENCIA,
-                        \App\Models\RomaneioItem::STATUS_RETORNADO,
-                    ])
-                    ->count();
+                // Trata eventuais peças destinadas ao CD
+                $pecasRecebidas = 0;
+                foreach ($romaneio->itens as $item) {
+                    if ($item->isPeca() && $item->status !== \App\Models\RomaneioItem::STATUS_ENTREGUE) {
+                        $destinoItem = mb_strtoupper((string) ($item->destino?->nome ?? $item->pedido?->user?->filial ?? ''));
+                        if (in_array($destinoItem, ['MATRIZ / CD', 'CD', 'MATRIZ', 'CENTRO DE DISTRIBUIÇÃO', 'CD MATRIZ', 'CD ANANINDEUA'])) {
+                            $item->update([
+                                'status'              => \App\Models\RomaneioItem::STATUS_ENTREGUE,
+                                'quantidade_recebida' => $item->quantidade,
+                                'recebido_em'         => now(),
+                            ]);
+                            $pecasRecebidas++;
+                        }
+                    }
+                }
 
-                if ($itensRecebidos > 0) {
-                    if ($romaneio->fresh()->motos()->count() === 0 && $pecasEmAberto === 0) {
-                        $romaneio->update(['status' => 'concluido']);
+                $totalBaixados = $itensRecebidosDevolucao + $itensRecebidosTransbordo + $pecasRecebidas;
+
+                if ($totalBaixados > 0) {
+                    $romaneio->fresh()->fecharSeTudoEntregue();
+
+                    $msgs = [];
+                    if ($itensRecebidosDevolucao > 0) {
+                        $msgs[] = "{$itensRecebidosDevolucao} devolução/retorno recebida(s) no CD";
+                    }
+                    if ($itensRecebidosTransbordo > 0) {
+                        $msgs[] = "{$itensRecebidosTransbordo} item(ns) de transbordo recebido(s)";
+                    }
+                    if ($pecasRecebidas > 0) {
+                        $msgs[] = "{$pecasRecebidas} item(ns) de peça recebido(s)";
                     }
 
-                    $msg = "$itensRecebidos itens deram entrada no CD (Transbordo).";
+                    $msg = implode(', ', $msgs) . ' com sucesso!';
 
-                    /*
-                     * O transbordo de PEÇA ainda não é automatizado: as motos
-                     * voltam para 'no_cd' e liberam para nova carga, mas a
-                     * basqueta já foi despachada sob uma nota e reembarcá-la
-                     * envolve decisão fiscal que o sistema não toma sozinho.
-                     * Avisar é melhor do que ignorar em silêncio — antes, o
-                     * operador não tinha como saber que as peças ficaram para
-                     * trás.
-                     */
-                    if ($pecasEmAberto > 0) {
+                    $pecasEmAberto = \App\Models\RomaneioItem::where('romaneio_id', $romaneio->id)
+                        ->pecas()
+                        ->whereNotIn('status', [
+                            \App\Models\RomaneioItem::STATUS_ENTREGUE,
+                            \App\Models\RomaneioItem::STATUS_DIVERGENCIA,
+                            \App\Models\RomaneioItem::STATUS_RETORNADO,
+                        ])
+                        ->count();
+
+                    if ($pecasEmAberto > 0 && $itensRecebidosTransbordo > 0) {
                         $msg .= " Atenção: {$pecasEmAberto} item(ns) de peça continuam vinculados a esta carga"
                               . ' e não entram no transbordo automático. Trate a basqueta manualmente com o Pós-Venda.';
                     }
 
+                    if (!empty($devolucoesChecklistPendente)) {
+                        $ids = implode(', #', $devolucoesChecklistPendente);
+                        $msg .= " Nota: a(s) Devolução(ões) #{$ids} possui(em) checklist pendente no módulo de Devoluções.";
+                    }
+
                     return back()->with('success', $msg);
+                }
+
+                if (!empty($devolucoesChecklistPendente)) {
+                    $ids = implode(', #', $devolucoesChecklistPendente);
+                    return back()->with('warning', "O item desta carga pertence à Devolução #{$ids}. O recebimento deve ser realizado pelo módulo de Devoluções com o Checklist de Destino.");
                 }
             }
 
@@ -748,7 +830,7 @@ class RomaneioController extends Controller
                 return back()->withErrors(['erro' => 'Por favor, realize o recebimento pelo menu "Meus Pedidos".']);
             }
 
-            return back()->with('info', 'Nenhum item de transbordo encontrado para baixar nesta carga.');
+            return back()->with('info', 'Nenhum item com destino ao CD ou de transbordo pendente de baixa nesta carga.');
         });
     }
 
