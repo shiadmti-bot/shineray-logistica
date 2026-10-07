@@ -116,6 +116,66 @@ export default function RomaneioShow({ auth, romaneio }) {
         });
     };
 
+    const souCdOuAdmin = ['cd', 'admin'].includes(auth.user?.perfil);
+    const cargaEmTransito = ['em_transito', 'em_transito_cd'].includes(romaneio.status);
+
+    const isDestinoCD = (dest) => {
+        if (!dest) return false;
+        const d = String(dest).toUpperCase();
+        return d.includes('CD') || d.includes('MATRIZ') || d.includes('CENTRO DE DISTRIBUIÇÃO');
+    };
+
+    const temItensRecebiveisNoCd = useMemo(() => {
+        if (!cargaEmTransito || !souCdOuAdmin) return false;
+        const motosRecebiveis = (romaneio.motos || []).some(m => {
+            if (!['transito_loja', 'em_transito', 'coletado'].includes(m.status)) return false;
+            const dest = (m._pedido_info?.pivot?.destino || m._pedido_info?.user?.filial || '').toUpperCase().trim();
+            return isDestinoCD(dest) || !!m._pedido_info?.origem_user_id || m._pedido_info?.tipo === 'devolucao';
+        });
+        const rotaEhCD = (romaneio.rota || '').toUpperCase().includes('CENTRO DE DISTRIBUIÇÃO') || (romaneio.rota || '').toUpperCase().includes('CD');
+        return motosRecebiveis || rotaEhCD;
+    }, [romaneio, cargaEmTransito, souCdOuAdmin]);
+
+    const handleReceberNoCD = (motoId = null) => {
+        Swal.fire({
+            title: motoId ? 'Receber no CD?' : 'Dar Entrada no CD?',
+            text: motoId
+                ? 'Confirma a entrada física desta moto no Centro de Distribuição?'
+                : 'Confirma a entrada física e recebimento dos itens com destino ou transbordo no CD?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#059669',
+            confirmButtonText: 'Sim, confirmar recebimento',
+            cancelButtonText: 'Cancelar',
+        }).then((r) => {
+            if (r.isConfirmed) {
+                router.post(
+                    route('romaneios.receber', romaneio.id),
+                    motoId ? { moto_id: motoId } : {},
+                    {
+                        preserveScroll: true,
+                        onSuccess: () => {
+                            Swal.fire({
+                                title: 'Recebido!',
+                                text: 'Entrada no CD registrada com sucesso.',
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false,
+                            });
+                        },
+                        onError: (erros) => {
+                            Swal.fire({
+                                title: 'Erro ao receber',
+                                text: Object.values(erros || {})[0] || 'Não foi possível registrar o recebimento.',
+                                icon: 'error',
+                            });
+                        }
+                    }
+                );
+            }
+        });
+    };
+
     const getColorHex = (cor) => {
         if (!cor) return '#cccccc';
         const map = { 'VERMELHO': '#ef4444', 'AZUL': '#3b82f6', 'PRETO': '#1f2937', 'BRANCO': '#ffffff', 'PRATA': '#9ca3af', 'CINZA': '#6b7280', 'AMARELO': '#eab308' };
@@ -173,6 +233,15 @@ export default function RomaneioShow({ auth, romaneio }) {
                                 🖨️ IMPRIMIR
                             </button>
                             
+                            {souCdOuAdmin && cargaEmTransito && temItensRecebiveisNoCd && (
+                                <button
+                                    onClick={() => handleReceberNoCD()}
+                                    className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-lg"
+                                >
+                                    🏢 Dar Entrada no CD
+                                </button>
+                            )}
+
                             {romaneio.status === 'aberto' && (
                                 <button onClick={handleSaida} className="bg-orange-500 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-600">
                                     🚛 Liberar Saída
@@ -233,9 +302,19 @@ export default function RomaneioShow({ auth, romaneio }) {
                                                 <h3 className="font-black text-gray-800 text-xl leading-none">{destinoNome}</h3>
                                             </div>
                                         </div>
-                                        <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">
-                                            {motosDesteDestino.length} Itens
-                                        </span>
+                                        <div className="flex items-center gap-3">
+                                            {souCdOuAdmin && cargaEmTransito && isDestinoCD(destinoNome) && (
+                                                <button
+                                                    onClick={() => handleReceberNoCD()}
+                                                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow transition"
+                                                >
+                                                    🏢 Dar Entrada no CD
+                                                </button>
+                                            )}
+                                            <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">
+                                                {motosDesteDestino.length} Itens
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="min-w-full divide-y divide-gray-200">
@@ -246,6 +325,9 @@ export default function RomaneioShow({ auth, romaneio }) {
                                                     <th className="px-6 py-3 text-left text-xs font-extrabold text-gray-400 uppercase">Chassi</th>
                                                     <th className="px-6 py-3 text-center text-xs font-extrabold text-gray-400 uppercase">Pedido</th>
                                                     <th className="px-6 py-3 text-right text-xs font-extrabold text-gray-400 uppercase">Origem</th>
+                                                    {souCdOuAdmin && cargaEmTransito && (
+                                                        <th className="px-6 py-3 text-right text-xs font-extrabold text-gray-400 uppercase">Ação</th>
+                                                    )}
                                                 </tr>
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-100">
@@ -271,10 +353,27 @@ export default function RomaneioShow({ auth, romaneio }) {
                                                         <td className="px-6 py-3 text-right">
                                                             {moto._pedido_info?.origem_user_id ? (
                                                                 <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-200">TRANSF.</span>
+                                                            ) : isDestinoCD(destinoNome) ? (
+                                                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">DEVOLUÇÃO/CD</span>
                                                             ) : (
                                                                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">CD</span>
                                                             )}
                                                         </td>
+                                                        {souCdOuAdmin && cargaEmTransito && (
+                                                            <td className="px-6 py-3 text-right">
+                                                                {['transito_loja', 'em_transito', 'coletado'].includes(moto.status) && (isDestinoCD(destinoNome) || moto._pedido_info?.origem_user_id) ? (
+                                                                    <button
+                                                                        onClick={() => handleReceberNoCD(moto.id)}
+                                                                        className="text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded shadow"
+                                                                        title="Receber este item no CD"
+                                                                    >
+                                                                        Dar Entrada
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="text-xs text-gray-400 font-medium">{moto.status}</span>
+                                                                )}
+                                                            </td>
+                                                        )}
                                                     </tr>
                                                 ))}
                                             </tbody>

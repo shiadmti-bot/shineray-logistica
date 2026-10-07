@@ -1,7 +1,7 @@
 import ChatBox from "@/Components/ChatBox";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, useForm, Link, router } from "@inertiajs/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Swal from "sweetalert2";
 import imageCompression from "browser-image-compression";
 import {
@@ -83,6 +83,15 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
         destinosReais.length > 0
             ? destinosReais.join(", ")
             : pedido.user?.filial || "Destino não definido";
+
+    const romaneiosVinculados = useMemo(() => {
+        const ids = new Set();
+        if (pedido.romaneio_id) ids.add(pedido.romaneio_id);
+        (pedido.motos || []).forEach((m) => {
+            if (m.romaneio_id) ids.add(m.romaneio_id);
+        });
+        return Array.from(ids);
+    }, [pedido]);
 
     // --- 2. ATUALIZAÇÃO EM TEMPO REAL (ECHO) ---
     useEffect(() => {
@@ -616,19 +625,21 @@ export default function PedidoShow({ auth, pedido, atribuicao = null }) {
                             </div>
                             <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200">
                                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
-                                    Carga
+                                    Carga{romaneiosVinculados.length > 1 ? "s" : ""}
                                 </span>
-                                {pedido.romaneio_id ? (
-                                    <Link
-                                        href={route(
-                                            "romaneios.show",
-                                            pedido.romaneio_id,
-                                        )}
-                                        className="flex items-center gap-1 bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-blue-700 transition"
-                                    >
-                                        <DocumentTextIcon className="w-4 h-4" />{" "}
-                                        #{pedido.romaneio_id}
-                                    </Link>
+                                {romaneiosVinculados.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1 justify-end">
+                                        {romaneiosVinculados.map((rid) => (
+                                            <Link
+                                                key={rid}
+                                                href={route("romaneios.show", rid)}
+                                                className="flex items-center gap-1 bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-blue-700 transition"
+                                            >
+                                                <DocumentTextIcon className="w-4 h-4" />{" "}
+                                                #{rid}
+                                            </Link>
+                                        ))}
+                                    </div>
                                 ) : (
                                     <span className="text-xs italic text-gray-400">
                                         Aguardando...

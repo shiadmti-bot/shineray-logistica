@@ -318,34 +318,15 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         */
         Route::get('/corrigir-status-romaneios', function() {
             // Script para garantir consistência dos status de carga
-            // Fecha cargas vazias ou 100% entregues automaticamente
+            // Fecha cargas apenas se todos os itens foram entregues/resolvidos (nunca fecha com motos na estrada)
             $romaneiosAbertos = \App\Models\Romaneio::whereNotIn('status', ['concluido', 'cancelado'])->get();
             $corrigidos = 0;
             $detalhes = [];
 
             foreach ($romaneiosAbertos as $carga) {
-                $pedidosAtivos = $carga->pedidos()->where('status', '!=', 'cancelado');
-                
-                // Fecha se vazio
-                if ($pedidosAtivos->count() === 0) {
-                    $carga->update(['status' => 'concluido']);
+                if ($carga->fecharSeTudoEntregue()) {
                     $corrigidos++;
-                    $detalhes[] = "Carga #{$carga->id} fechada (Vazia).";
-                    continue;
-                }
-
-                // Fecha se tudo entregue (Ignora 'no_cd' pois é status intermediário de transbordo)
-                $pendencias = $carga->pedidos()
-                    ->whereNotIn('status', ['concluido', 'cancelado', 'no_cd'])
-                    ->count();
-
-                if ($pendencias === 0) {
-                    // Verifica se o último status não foi um transbordo
-                    $statusAtual = $carga->pedidos->first()->status ?? 'concluido';
-                    if ($statusAtual !== 'no_cd') {
-                        $carga->update(['status' => 'concluido']);
-                        $corrigidos++;
-                    }
+                    $detalhes[] = "Carga #{$carga->id} fechada (todos os itens resolvidos).";
                 }
             }
             return ['status' => 'Processamento Finalizado', 'cargas_corrigidas' => $corrigidos, 'log' => $detalhes];

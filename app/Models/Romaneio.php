@@ -64,4 +64,87 @@ class Romaneio extends Model
     public function pedidos() { 
         return $this->hasMany(Pedido::class); 
     }
+
+    // --- REGRAS DE FECHAMENTO SEGURO E RASTREIO FÍSICO ---
+
+    /** Pedido nestes status não segura mais a carga ('no_cd' = transbordo). */
+    public const PEDIDO_RESOLVIDO = ['concluido', 'cancelado', 'no_cd'];
+
+    /** Moto fisicamente dentro do caminhão, já fora do pátio. */
+    public const MOTO_NA_ESTRADA = ['transito_loja', 'em_transito', 'em_transito_cd', 'coletado'];
+
+    /**
+     * Fecha a carga se nada mais nela estiver pendente.
+     *
+     * @return bool true se a carga foi fechada agora
+     */
+    public function fecharSeTudoEntregue(): bool
+    {
+        if ($this->status === 'concluido' || ! $this->podeFechar()) {
+            return false;
+        }
+
+        $this->update(['status' => 'concluido']);
+
+        return true;
+    }
+
+    /**
+     * A regra de fechamento, sem efeito colateral.
+     *
+     * Lê o que ESTÁ na carga fisicamente (motos vinculadas a este romaneio_id),
+     * nunca pedidos.romaneio_id. Num embarque parcial o pedido aponta só para a
+     * ÚLTIMA carga em que teve moto — a carga anterior ficava parecendo vazia
+     * e era fechada com moto ainda na estrada.
+     */
+    public function podeFechar(): bool
+    {
+        $this->loadMissing('motos.pedidos');
+
+        if ($this->motos->isEmpty()) {
+            if (class_exists(\App\Models\RomaneioItem::class)) {
+                $temPecas = \App\Models\RomaneioItem::where('romaneio_id', $this->id)
+                    ->where('itemable_type', 'App\Models\Peca')
+                    ->whereNotIn('status', ['entregue', 'divergencia', 'retornado'])
+                    ->exists();
+                return !$temPecas;
+            }
+            return true;
+        }
+
+        foreach ($this->motos as $moto) {
+            $pedido = $moto->pedidos->first();
+
+            if (! $pedido || ! in_array($pedido->status, self::PEDIDO_RESOLVIDO, true)) {
+                return false;
+            }
+        }
+
+        if (class_exists(\App\Models\RomaneioItem::class)) {
+            return ! \App\Models\RomaneioItem::where('romaneio_id', $this->id)
+                ->where('itemable_type', 'App\Models\Peca')
+                ->whereNotIn('status', ['entregue', 'divergencia', 'retornado'])
+                ->exists();
+        }
+
+        return true;
+    }
+
+    /**
+     * Motos que continuam no caminhão desta carga e cujo pedido ainda não foi
+     * recebido. Numa carga 'concluido' isto deveria ser sempre vazio; se não
+     * for, a carga foi fechada antes da hora.
+     */
+    public function motosNaEstrada()
+    {
+        $this->loadMissing('motos.pedidos');
+
+        return $this->motos->filter(function (Moto $moto) {
+            $pedido = $moto->pedidos->first();
+
+            return in_array($moto->status, self::MOTO_NA_ESTRADA, true)
+                && $pedido
+                && ! in_array($pedido->status, self::PEDIDO_RESOLVIDO, true);
+        })->values();
+    }
 }

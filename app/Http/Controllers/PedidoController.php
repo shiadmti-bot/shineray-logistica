@@ -1116,18 +1116,8 @@ class PedidoController extends Controller
 
         foreach ($romaneiosAfetados as $rom_id) {
             $romaneio = \App\Models\Romaneio::with('motos.pedidos')->find($rom_id);
-            if ($romaneio && $romaneio->status !== 'concluido') {
-                $todasConcluidas = true;
-                foreach ($romaneio->motos as $rm) {
-                    $rp = $rm->pedidos->first();
-                    if (!$rp || !in_array($rp->status, ['concluido', 'cancelado', 'no_cd'])) {
-                        $todasConcluidas = false;
-                        break;
-                    }
-                }
-                if ($todasConcluidas) {
-                    $romaneio->update(['status' => 'concluido']);
-                }
+            if ($romaneio) {
+                $romaneio->fecharSeTudoEntregue();
             }
         }
         
