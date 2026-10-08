@@ -78,6 +78,86 @@ class UserManagementTest extends TestCase
         $this->assertEquals($this->rota->id, $user->default_route_id);
     }
 
+    /**
+     * O local de estoque é por onde o sistema decide quem movimenta peça e
+     * confere basqueta. Antes só era preenchido quando vazio: a loja trocada
+     * de filial seguia operando o estoque da filial antiga.
+     */
+    public function test_trocar_a_filial_da_loja_troca_o_local_de_estoque()
+    {
+        $antiga = $this->localDeLoja('Velhacidade' . uniqid());
+        $nova = $this->localDeLoja('Novacidade' . uniqid());
+
+        $loja = $this->lojaEm($antiga);
+
+        $this->actingAs($this->admin)
+            ->put(route('users.update', $loja->id), $this->dadosDeEdicao($loja, ['filial' => "{$nova->nome}/PA"]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($nova->id, (int) $loja->fresh()->estoque_local_id);
+    }
+
+    public function test_editar_so_o_nome_nao_mexe_no_local_de_estoque()
+    {
+        $local = $this->localDeLoja('Mesmacidade' . uniqid());
+        $outro = $this->localDeLoja('Outracidade' . uniqid());
+
+        // Vínculo feito à mão, diferente do que a busca por cidade daria.
+        $loja = $this->lojaEm($local, ['estoque_local_id' => $outro->id]);
+
+        $this->actingAs($this->admin)
+            ->put(route('users.update', $loja->id), $this->dadosDeEdicao($loja, ['name' => 'Nome Novo']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($outro->id, (int) $loja->fresh()->estoque_local_id);
+    }
+
+    public function test_loja_nao_herda_o_local_do_cd_pela_cidade()
+    {
+        $cidade = 'Cidadecd' . uniqid();
+        EstoqueLocal::create(['nome' => "CD {$cidade}", 'slug' => 'cd-' . uniqid(), 'tipo' => EstoqueLocal::TIPO_CD]);
+        Filial::create(['nome' => "Loja {$cidade}", 'cidade' => $cidade, 'uf' => 'PA', 'ativo' => true]);
+
+        $email = 'loja_cd_' . uniqid() . '@shineray.com.br';
+
+        $this->actingAs($this->admin)->post(route('users.store'), [
+            'name' => 'Loja Sem Local', 'email' => $email,
+            'password' => 'password123', 'password_confirmation' => 'password123',
+            'perfil' => 'loja', 'filial' => "{$cidade}/PA",
+        ])->assertSessionHasNoErrors();
+
+        $this->assertNull(User::where('email', $email)->value('estoque_local_id'));
+    }
+
+    private function localDeLoja(string $cidade): EstoqueLocal
+    {
+        Filial::create(['nome' => "Loja {$cidade}", 'cidade' => $cidade, 'uf' => 'PA', 'ativo' => true]);
+
+        return EstoqueLocal::create(['nome' => $cidade, 'slug' => 'loja-' . uniqid(), 'tipo' => EstoqueLocal::TIPO_LOJA]);
+    }
+
+    private function lojaEm(EstoqueLocal $local, array $extra = []): User
+    {
+        return User::factory()->create([
+            'email'            => 'loja_local_' . uniqid() . '@shineray.com.br',
+            'perfil'           => 'loja',
+            'filial'           => "{$local->nome}/PA",
+            'estoque_local_id' => $local->id,
+            ...$extra,
+        ]);
+    }
+
+    private function dadosDeEdicao(User $user, array $mudancas): array
+    {
+        return [
+            'name'   => $user->name,
+            'email'  => $user->email,
+            'perfil' => $user->perfil,
+            'filial' => $user->filial,
+            ...$mudancas,
+        ];
+    }
+
     public function test_admin_pode_criar_usuario_cd_com_gate1_pecas()
     {
         $emailCd = 'cd_' . uniqid() . '@shineray.com.br';

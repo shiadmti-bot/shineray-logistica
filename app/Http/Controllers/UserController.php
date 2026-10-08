@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Perfil;
+use App\Models\EstoqueLocal;
 use App\Models\Filial;
 use App\Models\User;
 use App\Models\Route;
@@ -136,15 +137,7 @@ class UserController extends Controller implements HasMiddleware
             }
         }
 
-        // Auto-vincula estoque_local_id quando aplicável
-        $estoqueLocalId = null;
-        if ($request->perfil === Perfil::Cd->value) {
-            $estoqueLocalId = \App\Models\EstoqueLocal::where('tipo', \App\Models\EstoqueLocal::TIPO_CD)->value('id');
-        } elseif ($request->perfil === Perfil::Loja->value && $filial) {
-            $partes = explode('/', $filial);
-            $cidade = trim($partes[0]);
-            $estoqueLocalId = \App\Models\EstoqueLocal::where('nome', 'LIKE', "%{$cidade}%")->value('id');
-        }
+        $estoqueLocalId = $this->localDeEstoque($request->perfil, $filial);
 
         User::create([
             'name' => $request->name,
@@ -216,15 +209,21 @@ class UserController extends Controller implements HasMiddleware
             $validated['password'] = bcrypt($validated['password']);
         }
 
-        // Se estoque_local_id ainda estiver nulo, sincroniza agora
-        if (!$user->estoque_local_id) {
-            if ($validated['perfil'] === Perfil::Cd->value) {
-                $validated['estoque_local_id'] = \App\Models\EstoqueLocal::where('tipo', \App\Models\EstoqueLocal::TIPO_CD)->value('id');
-            } elseif ($validated['perfil'] === Perfil::Loja->value && !empty($validated['filial'])) {
-                $partes = explode('/', $validated['filial']);
-                $cidade = trim($partes[0]);
-                $validated['estoque_local_id'] = \App\Models\EstoqueLocal::where('nome', 'LIKE', "%{$cidade}%")->value('id');
-            }
+        /*
+         * O local de estoque acompanha perfil e filial.
+         *
+         * Antes só era preenchido quando estava vazio: uma loja transferida de
+         * filial continuava apontando para o estoque da filial antiga — e é
+         * por esse campo que o sistema decide quem movimenta peça, quem
+         * confere a basqueta e quem recebe o pedido de peça. Mudou perfil ou
+         * filial, recalcula; uma edição só de nome ou e-mail não mexe.
+         */
+        $novaFilial = array_key_exists('filial', $validated) ? $validated['filial'] : $user->filial;
+
+        if (! $user->estoque_local_id
+            || $validated['perfil'] !== $user->perfil
+            || $novaFilial !== $user->filial) {
+            $validated['estoque_local_id'] = $this->localDeEstoque($validated['perfil'], $novaFilial);
         }
 
         $user->update($validated);
@@ -250,6 +249,32 @@ class UserController extends Controller implements HasMiddleware
         $user->restore();
 
         return back()->with('success', "Acesso do usuário {$user->name} restaurado com sucesso!");
+    }
+
+    /**
+     * Local de estoque pelo perfil e pela filial: o CD aponta para o local do
+     * CD; a loja, para o local de LOJA da cidade da filial. Admin e gestor não
+     * têm local próprio.
+     *
+     * O filtro por tipo é novo: a busca por cidade rodava sobre todos os
+     * locais, e uma loja numa cidade presente no nome do local do CD herdaria
+     * o estoque central.
+     */
+    private function localDeEstoque(string $perfil, ?string $filial): ?int
+    {
+        if ($perfil === Perfil::Cd->value) {
+            return EstoqueLocal::where('tipo', EstoqueLocal::TIPO_CD)->value('id');
+        }
+
+        $cidade = trim(explode('/', (string) $filial)[0]);
+
+        if ($perfil !== Perfil::Loja->value || $cidade === '') {
+            return null;
+        }
+
+        return EstoqueLocal::where('tipo', EstoqueLocal::TIPO_LOJA)
+            ->where('nome', 'LIKE', "%{$cidade}%")
+            ->value('id');
     }
 
     public function toggleInterior($id)
