@@ -229,6 +229,46 @@ class PecaTravasDeFluxoTest extends TestCase
         $this->assertNotSame('concluido', $pedido->fresh()->status);
     }
 
+    /**
+     * Peças do mesmo pedido em duas cargas: receber a primeira fecha a
+     * PRIMEIRA.
+     *
+     * O embarque grava em `pedidos.romaneio_id` só a última carga, e o
+     * recebimento conferia essa — a carga de onde a peça saiu de fato ficava
+     * "em trânsito" para sempre.
+     */
+    public function test_receber_fecha_a_carga_de_onde_a_peca_saiu()
+    {
+        [$pedido, $itemCarga] = $this->pedidoEmTransito(quantidade: 3);
+        $primeiraCarga = $itemCarga->romaneio;
+
+        // O resto do pedido seguiu numa segunda carga, ainda na estrada.
+        $segundaCarga = Romaneio::create([
+            'user_id' => $this->admin->id, 'status' => 'em_transito',
+            'motorista' => 'MOTORISTA TRAVAS', 'placa' => 'TRV0003', 'rota' => 'ROTA TRAVAS', 'tipo' => 'misto',
+        ]);
+        RomaneioItem::create([
+            'romaneio_id'      => $segundaCarga->id,
+            'pedido_id'        => $pedido->id,
+            'itemable_type'    => Peca::class,
+            'itemable_id'      => $this->peca->id,
+            'quantidade'       => 1,
+            'status'           => RomaneioItem::STATUS_EM_TRANSITO,
+            'local_destino_id' => $this->localLoja->id,
+        ]);
+        $pedido->update(['romaneio_id' => $segundaCarga->id]);
+
+        $this->actingAs($this->lojaUser)
+            ->post(route('pecas.receber', $pedido->id), [
+                'itens' => [['item_id' => $itemCarga->id, 'quantidade' => 3]],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('concluido', $primeiraCarga->fresh()->status);
+        $this->assertSame('em_transito', $segundaCarga->fresh()->status, 'A segunda carga ainda leva peça.');
+        $this->assertNotSame('concluido', $pedido->fresh()->status, 'Falta receber a peça da segunda carga.');
+    }
+
     // ==================================================================
     // ACHADO 03 — conclusão sem recebimento
     // ==================================================================

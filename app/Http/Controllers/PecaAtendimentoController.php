@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Enums\Perfil;
 use App\Models\EstoqueLocal;
-use App\Models\Peca;
 use App\Models\Pedido;
 use App\Models\PedidoLog;
 use App\Models\Romaneio;
@@ -309,6 +308,9 @@ class PecaAtendimentoController extends Controller
              */
             Pedido::where('id', $pedido->id)->lockForUpdate()->first();
 
+            // Cargas de onde saíram os itens baixados agora — ver o fechamento abaixo.
+            $cargasTocadas = [];
+
             foreach ($dados['itens'] as $linha) {
                 $itemCarga = RomaneioItem::with('itemable')->find($linha['item_id']);
 
@@ -386,6 +388,8 @@ class PecaAtendimentoController extends Controller
                         : RomaneioItem::STATUS_ENTREGUE,
                     'entregue_em'         => now(),
                 ]);
+
+                $cargasTocadas[$itemCarga->romaneio_id] = true;
             }
 
             /*
@@ -412,24 +416,17 @@ class PecaAtendimentoController extends Controller
                 $pedido->update(['status' => 'concluido']);
             }
 
-            // Verifica se a carga foi integralmente entregue
-            if ($pedido->romaneio_id) {
-                $romaneio = Romaneio::with(['motos.pedidos'])->find($pedido->romaneio_id);
-                if ($romaneio && $romaneio->status !== 'concluido') {
-                    $motosConcluidas = $romaneio->motos->every(function ($m) {
-                        $p = $m->pedidos->first();
-                        return $p && in_array($p->status, ['concluido', 'cancelado', 'no_cd']);
-                    });
-
-                    $pecasConcluidas = RomaneioItem::where('romaneio_id', $romaneio->id)
-                        ->where('itemable_type', Peca::class)
-                        ->whereNotIn('status', [RomaneioItem::STATUS_ENTREGUE, RomaneioItem::STATUS_DIVERGENCIA, RomaneioItem::STATUS_RETORNADO])
-                        ->count() === 0;
-
-                    if ($motosConcluidas && $pecasConcluidas) {
-                        $romaneio->update(['status' => 'concluido']);
-                    }
-                }
+            /*
+             * Fecha as cargas de onde estas peças saíram.
+             *
+             * A carga é a do ITEM, não `pedidos.romaneio_id`: o embarque grava
+             * no pedido só a ÚLTIMA carga em que ele entrou. Com as peças em
+             * duas cargas, receber a primeira conferia a segunda, e a primeira
+             * ficava "em trânsito" para sempre — o mesmo engano do incidente de
+             * 01/10. A regra de fechamento é a única, de Romaneio.
+             */
+            foreach (array_keys($cargasTocadas) as $romaneioId) {
+                Romaneio::find($romaneioId)?->fecharSeTudoEntregue();
             }
 
             // Envio que não moveu nada não vira evento no histórico: poluiria a
