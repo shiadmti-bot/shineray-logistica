@@ -23,6 +23,15 @@ class RomaneioController extends Controller
     /** Carga que já saiu do CD: desfazê-la registraria no estoque o que está na estrada. */
     private const CARGA_NAO_DESFAZIVEL = ['concluido', 'em_transito', 'em_transito_cd'];
 
+    /** Só se dá entrada no CD de carga que está na estrada. */
+    private const CARGA_RECEBIVEL_NO_CD = ['em_transito', 'em_transito_cd'];
+
+    /**
+     * Moto a bordo do caminhão. 'aguardando_coleta' fica de fora: a moto ainda
+     * está na loja de origem.
+     */
+    private const MOTO_RECEBIVEL_NO_CD = ['coletado', 'transito_loja', 'em_transito'];
+
     // 1. LISTA DE CARGAS (DASHBOARD)
     public function index(Request $request)
     {
@@ -660,6 +669,23 @@ class RomaneioController extends Controller
 
             // --- CASO 1: CHEGADA NO CD (DEVOLUÇÃO / RETORNO / TRANSBORDO) ---
             if ($user->isCd() || $user->isAdmin()) {
+                /*
+                 * Só chega ao CD o que saiu. Mesma régua da tela
+                 * (Romaneios/Show.jsx, `podeReceberNoCd`): carga em trânsito e
+                 * moto já a bordo.
+                 *
+                 * O servidor não conferia nenhuma das duas. Uma carga ainda
+                 * ABERTA, com a moto esperando coleta na loja, podia ser
+                 * "recebida": a moto entrava no pátio do CD enquanto seguia na
+                 * loja, o pedido era concluído e a carga fechava antes de sair.
+                 */
+                if (! in_array($romaneio->status, self::CARGA_RECEBIVEL_NO_CD, true)) {
+                    return back()->withErrors([
+                        'erro' => "A carga #{$romaneio->id} ainda não saiu (status '{$romaneio->status}'). "
+                            . 'Confirme a coleta e libere a saída antes de dar entrada no CD.',
+                    ]);
+                }
+
                 $itensRecebidosDevolucao = 0;
                 $itensRecebidosTransbordo = 0;
                 $pedidosDevolucao = [];
@@ -672,7 +698,7 @@ class RomaneioController extends Controller
                         continue;
                     }
 
-                    if (in_array($moto->status, ['aguardando_coleta', 'coletado', 'transito_loja', 'em_transito'])) {
+                    if (in_array($moto->status, self::MOTO_RECEBIVEL_NO_CD, true)) {
                         $pedido = $moto->pedidos->first();
                         if (!$pedido) continue;
 

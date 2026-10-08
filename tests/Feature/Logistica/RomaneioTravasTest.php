@@ -156,6 +156,73 @@ class RomaneioTravasTest extends TestCase
             ->assertForbidden();
     }
 
+    // ------------------------------------------------------------------
+    // ENTRADA NO CD (retorno / transbordo)
+    // ------------------------------------------------------------------
+
+    /**
+     * Carga ainda aberta, moto esperando coleta na loja: nada chegou ao CD.
+     * Antes a moto entrava no pátio do CD, o pedido era concluído e a carga
+     * fechava antes de sair.
+     */
+    public function test_cd_nao_da_entrada_em_carga_que_nao_saiu(): void
+    {
+        [$pedido, $moto, $carga] = $this->retornoAoCd('aberto', 'aguardando_coleta');
+
+        $this->actingAs($this->cd)
+            ->post(route('romaneios.receber', $carga->id))
+            ->assertSessionHasErrors('erro');
+
+        $this->assertSame('aguardando_coleta', $moto->fresh()->status);
+        $this->assertSame($this->loja->id, (int) $moto->fresh()->loja_atual_id, 'A moto continua na loja.');
+        $this->assertSame('aguardando_coleta', $pedido->fresh()->status);
+        $this->assertSame('aberto', $carga->fresh()->status);
+    }
+
+    /** Carga na estrada, mas esta moto nunca foi coletada: continua fora do CD. */
+    public function test_moto_nao_coletada_nao_entra_no_cd_mesmo_com_carga_na_estrada(): void
+    {
+        [$pedido, $moto, $carga] = $this->retornoAoCd('em_transito', 'aguardando_coleta');
+
+        $this->actingAs($this->cd)->post(route('romaneios.receber', $carga->id));
+
+        $this->assertSame('aguardando_coleta', $moto->fresh()->status);
+        $this->assertSame('aguardando_coleta', $pedido->fresh()->status);
+    }
+
+    public function test_cd_da_entrada_na_moto_que_chegou(): void
+    {
+        [$pedido, $moto, $carga] = $this->retornoAoCd('em_transito', 'transito_loja');
+
+        $this->actingAs($this->cd)
+            ->post(route('romaneios.receber', $carga->id))
+            ->assertSessionHasNoErrors();
+
+        $moto->refresh();
+        $this->assertSame('estoque_fabrica', $moto->status);
+        $this->assertNull($moto->loja_atual_id);
+        $this->assertSame('concluido', $pedido->fresh()->status);
+    }
+
+    /**
+     * Retorno direto de uma loja ao CD (sem dossiê de devolução), já numa carga.
+     *
+     * @return array{0: \App\Models\Pedido, 1: \App\Models\Moto, 2: Romaneio}
+     */
+    private function retornoAoCd(string $statusCarga, string $statusMoto): array
+    {
+        $carga = Romaneio::create([
+            'user_id' => $this->cd->id, 'status' => $statusCarga,
+            'motorista' => 'JOAO', 'placa' => 'ABC1D23', 'rota' => 'RETORNO',
+        ]);
+
+        $pedido = $this->pedidoMoto($this->cd, 'aguardando_coleta', $this->loja);
+        $moto = $this->moto($statusMoto, ['loja_atual_id' => $this->loja->id, 'romaneio_id' => $carga->id]);
+        $pedido->motos()->attach($moto->id, ['destino' => 'CD']);
+
+        return [$pedido, $moto, $carga];
+    }
+
     /** @param list<int> $motos */
     private function novaCarga(array $motos): array
     {
