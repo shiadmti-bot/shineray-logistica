@@ -189,7 +189,7 @@ class CalendarController extends Controller
                         $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja();
                         
                         if ($isTransferencia) {
-                            $novoStatus = ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') ? 'aguardando_rota' : 'aguardando_coleta';
+                            $novoStatus = ($pedido->origem->is_interior && $pedido->created_at >= \App\Models\Pedido::INTERIOR_AGUARDA_ROTA_DESDE) ? 'aguardando_rota' : 'aguardando_coleta';
                         } else {
                             $novoStatus = 'separado';
                         }
@@ -274,7 +274,7 @@ class CalendarController extends Controller
                     $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja();
                     
                     if ($isTransferencia) {
-                        if ($pedido->origem->is_interior && $pedido->created_at >= '2026-03-12 00:00:00') {
+                        if ($pedido->origem->is_interior && $pedido->created_at >= \App\Models\Pedido::INTERIOR_AGUARDA_ROTA_DESDE) {
                             $novoStatus = 'aguardando_rota';
                             $msg = "A rota de envio foi cancelada pelo CD. O pedido retornou para a fila de espera do calendário.";
                         } else {

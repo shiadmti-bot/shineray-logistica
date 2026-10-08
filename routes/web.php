@@ -110,14 +110,11 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
             ->name('api.estoque.microwork');
             
         /*
-         * Reservar tira um chassi da disponibilidade da rede e abre um Pedido
-         * em nome de quem chamou. A trava de corrida já existia — recusa chassi
-         * que outra loja acabou de pegar; faltava a de papel. Mesmo critério de
-         * `pecas.solicitar`: quem reserva é quem vende.
+         * A rota de RESERVA de chassi (POST /microwork/estoque-cd/reservar) foi
+         * removida na v3.8: nenhuma tela a chamava, e ela abria pedido sem cota e
+         * sem moto vinculada. Rota sem UI é pior que rota visível — ver a
+         * autoexclusão de perfil, removida pelo mesmo motivo.
          */
-        Route::post('/microwork/estoque-cd/reservar', [\App\Http\Controllers\Api\EstoqueController::class, 'reservar'])
-            ->middleware(['auth', 'verified', 'check_perfil:loja,admin'])
-            ->name('api.estoque.reservar');
 
         Route::post('/microwork/buscar-chassis', [\App\Http\Controllers\Api\EstoqueController::class, 'buscarPorChassis'])
             ->middleware(['auth', 'verified'])

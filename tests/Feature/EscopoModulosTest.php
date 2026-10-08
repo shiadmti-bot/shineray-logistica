@@ -207,29 +207,4 @@ class EscopoModulosTest extends TestCase
             ->assertOk()
             ->assertSee($daVizinha->chassi);
     }
-
-    // ==================================================================
-    // ACHADO 04 — reserva de chassi no Microwork
-    // ==================================================================
-
-    /**
-     * Reservar tira um chassi da disponibilidade da rede e abre um Pedido.
-     * Quem não vende não segura estoque.
-     */
-    public function test_gestor_nao_reserva_chassi_no_microwork()
-    {
-        $this->actingAs($this->gestor)
-            ->postJson(route('api.estoque.reservar'), [
-                'chassi' => 'CHASSIRESERVA123',
-                'modelo' => 'JET 125',
-                'cor'    => 'VERMELHA',
-            ])
-            ->assertForbidden();
-
-        // Tabela é 'reservas_microwork' — o model sobrescreve a pluralização
-        // padrão do Eloquent, e a convenção aqui é a do banco.
-        $this->assertDatabaseMissing('reservas_microwork', [
-            'chassi' => 'CHASSIRESERVA123',
-        ]);
-    }
 }
