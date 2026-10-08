@@ -6,6 +6,7 @@ use App\Actions\Pedidos\Concerns\RegistraHistorico;
 use App\Enums\Perfil;
 use App\Exceptions\OperacaoPedidoRecusada;
 use App\Models\Pedido;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -56,11 +57,16 @@ final class SepararPedido
             // CD não pode cair na coleta.
             $isTransferencia = $pedido->origem_user_id && $pedido->origem && $pedido->origem->isLoja();
 
-            [$novoStatus, $msgLog] = $isTransferencia
-                ? $this->destinoDaTransferencia($pedido, $user)
-                : $this->destinoDaReposicao($pedido, $user);
+            $viagem = $this->viagemConfirmada($pedido);
 
-            $pedido->update(['status' => $novoStatus]);
+            [$novoStatus, $msgLog] = $isTransferencia
+                ? $this->destinoDaTransferencia($pedido, $user, $viagem)
+                : $this->destinoDaReposicao($user, $viagem);
+
+            // Com rota confirmada, a previsão passa a ser a data dessa viagem:
+            // é por ela que RegredirRotasVencidas mede o vencimento.
+            $pedido->update(['status' => $novoStatus]
+                + ($novoStatus === 'rota_confirmada' ? ['previsao_entrega' => $viagem->date] : []));
             $pedido->motosNoPatio()->update(['status' => $novoStatus]);
 
             $this->registrarLog($pedido, 'Separado 📦', $msgLog);
@@ -77,15 +83,36 @@ final class SepararPedido
         });
     }
 
+    /**
+     * A próxima viagem CONFIRMADA (verde) que para no destino do pedido.
+     *
+     * A régua era `previsao_entrega != null`, e previsão não prova
+     * confirmação: a aprovação a preenche com a viagem mais próxima do
+     * calendário — inclusive a só pré-agendada (amarela) —, e o próprio
+     * calendário grava previsão no pré-agendamento. Um pedido aprovado com
+     * viagem amarela pulava, na separação, direto para 'rota_confirmada', o
+     * que o calendário só faz na confirmação ("Pré-agendado ainda não é
+     * promessa").
+     *
+     * A parada é a loja de destino, o mesmo critério de CalendarController::store.
+     */
+    private function viagemConfirmada(Pedido $pedido): ?Schedule
+    {
+        return Schedule::where('status', 'confirmed')
+            ->whereDate('date', '>=', now()->toDateString())
+            ->whereHas('stops', fn ($q) => $q->where('user_id', $pedido->user_id))
+            ->orderBy('date')
+            ->first();
+    }
+
     /** @return array{0: string, 1: string} novo status e texto da linha do tempo */
-    private function destinoDaTransferencia(Pedido $pedido, User $user): array
+    private function destinoDaTransferencia(Pedido $pedido, User $user, ?Schedule $viagem): array
     {
         if ($user->id !== $pedido->origem_user_id && ! $user->isAdmin()) {
             throw new OperacaoPedidoRecusada("Apenas a loja de origem ({$pedido->origem->filial}) pode confirmar a separação desta moto.");
         }
 
-        // Rota anexada na aprovação: pula direto para confirmada.
-        if ($pedido->previsao_entrega != null) {
+        if ($viagem) {
             return ['rota_confirmada', "Separado na origem ({$pedido->origem->filial}). Rota já estava previamente confirmada para entrega."];
         }
 
@@ -97,9 +124,9 @@ final class SepararPedido
     }
 
     /** @return array{0: string, 1: string} novo status e texto da linha do tempo */
-    private function destinoDaReposicao(Pedido $pedido, User $user): array
+    private function destinoDaReposicao(User $user, ?Schedule $viagem): array
     {
-        $destino = $pedido->previsao_entrega != null
+        $destino = $viagem
             ? ['rota_confirmada', 'Separado no CD. Rota já havia sido confirmada pelo calendário.']
             // Para o CD, continua separado até virar romaneio.
             : ['separado', 'Separado no estoque do CD. Pronto para embarque.'];

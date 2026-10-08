@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Moto;
 use App\Models\Pedido;
+use App\Models\Schedule;
+use App\Models\ScheduleStop;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
@@ -187,6 +189,59 @@ class PedidoMotoFluxoTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame('aguardando_coleta', $pedido->fresh()->status);
+    }
+
+    /**
+     * Viagem só pré-agendada (amarela) é estimativa, não rota confirmada. A
+     * aprovação grava essa estimativa em `previsao_entrega`, e a separação
+     * tratava qualquer previsão como confirmação.
+     */
+    public function test_viagem_so_pre_agendada_nao_confirma_a_rota_na_separacao()
+    {
+        $data = now()->addDays(3)->toDateString();
+        $this->viagem('planned', $data);
+
+        $pedido = Pedido::create(['user_id' => $this->loja->id, 'status' => 'solicitado', 'previsao_entrega' => $data]);
+        $moto = $this->moto('solicitado');
+        $pedido->motos()->attach($moto->id, ['destino' => 'Loja Fluxo Destino']);
+
+        $this->actingAs($this->cd)
+            ->post(route('pedidos.separar', $pedido->id))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('separado', $pedido->fresh()->status);
+        $this->assertSame('separado', $moto->fresh()->status);
+    }
+
+    public function test_viagem_confirmada_leva_a_separacao_para_rota_confirmada()
+    {
+        $data = now()->addDays(2)->toDateString();
+        $this->viagem('confirmed', $data);
+
+        $pedido = Pedido::create(['user_id' => $this->loja->id, 'status' => 'solicitado']);
+        $moto = $this->moto('solicitado');
+        $pedido->motos()->attach($moto->id, ['destino' => 'Loja Fluxo Destino']);
+
+        $this->actingAs($this->cd)
+            ->post(route('pedidos.separar', $pedido->id))
+            ->assertSessionHasNoErrors();
+
+        $pedido->refresh();
+        $this->assertSame('rota_confirmada', $pedido->status);
+        $this->assertSame($data, $pedido->previsao_entrega->toDateString(), 'A previsão é a da viagem que confirmou.');
+        $this->assertSame('rota_confirmada', $moto->fresh()->status);
+    }
+
+    private function viagem(string $status, string $data): void
+    {
+        $viagem = Schedule::create(['date' => $data, 'status' => $status, 'created_by' => $this->cd->id]);
+
+        ScheduleStop::create([
+            'schedule_id' => $viagem->id,
+            'user_id'     => $this->loja->id,
+            'sequence'    => 1,
+            'type'        => 'destination',
+        ]);
     }
 
     // ------------------------------------------------------------------
