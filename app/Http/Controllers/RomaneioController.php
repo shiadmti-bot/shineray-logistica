@@ -566,8 +566,10 @@ class RomaneioController extends Controller
     public function iniciarTransito($id)
     {
         return DB::transaction(function () use ($id) {
-            // Carrega o romaneio com as motos e seus pedidos
-            $romaneio = Romaneio::with(['motos.pedidos.user'])->findOrFail($id);
+            // Carrega o romaneio com as motos e seus pedidos. Com trava: no
+            // duplo clique, a segunda requisição espera a primeira e encontra a
+            // carga já em trânsito, em vez de repetir logs e avisos de saída.
+            $romaneio = Romaneio::with(['motos.pedidos.user'])->lockForUpdate()->findOrFail($id);
             
             if ($romaneio->status !== 'aberto') {
                 return back()->withErrors(['erro' => 'Esta carga já saiu ou foi concluída.']);

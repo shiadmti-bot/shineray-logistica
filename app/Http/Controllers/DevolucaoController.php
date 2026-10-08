@@ -534,6 +534,10 @@ class DevolucaoController extends Controller
         }
 
         DB::transaction(function () use ($devolucao) {
+            // Relida com trava: dois gestores aprovando ao mesmo tempo — ou o
+            // duplo clique — criariam dois pedidos de frete para as mesmas motos.
+            $this->travarAguardandoDecisao($devolucao);
+
             $cd = $devolucao->destino ?: $this->usuarioDoCd();
 
             if (! $cd) {
@@ -652,12 +656,18 @@ class DevolucaoController extends Controller
             return back()->withErrors(['geral' => 'Esta devolução não está aguardando aprovação.']);
         }
 
-        $devolucao->update([
-            'status'        => Devolucao::STATUS_RECUSADA,
-            'recusa_motivo' => $dados['motivo'],
-            'aprovado_por'  => Auth::id(),
-            'aprovado_em'   => now(),
-        ]);
+        // Mesma trava da aprovação: recusar por cima de uma aprovação que acabou
+        // de acontecer deixaria a devolução "recusada" com o frete já criado.
+        DB::transaction(function () use ($devolucao, $dados) {
+            $this->travarAguardandoDecisao($devolucao);
+
+            $devolucao->update([
+                'status'        => Devolucao::STATUS_RECUSADA,
+                'recusa_motivo' => $dados['motivo'],
+                'aprovado_por'  => Auth::id(),
+                'aprovado_em'   => now(),
+            ]);
+        });
 
         $this->notificar(
             $devolucao->loja,
@@ -842,6 +852,22 @@ class DevolucaoController extends Controller
 
                 return $moto;
             });
+    }
+
+    /**
+     * Relê o status com SELECT ... FOR UPDATE, dentro da transação de quem
+     * decide. A checagem no início de aprovar/recusar usa a devolução carregada
+     * pela rota, que pode ter mudado no meio do caminho.
+     */
+    private function travarAguardandoDecisao(Devolucao $devolucao): void
+    {
+        $status = Devolucao::whereKey($devolucao->id)->lockForUpdate()->value('status');
+
+        if ($status !== Devolucao::STATUS_AGUARDANDO) {
+            throw ValidationException::withMessages([
+                'geral' => 'Esta devolução já foi decidida por outra pessoa. Recarregue a página.',
+            ]);
+        }
     }
 
     private function motoPresaEmPedido(int $motoId): bool
