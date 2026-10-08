@@ -3,6 +3,9 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response;
 
 // 1. Configuração padrão do Laravel 11
 $app = Application::configure(basePath: dirname(__DIR__))
@@ -30,7 +33,48 @@ $app = Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        /*
+         * Erro com a cara do sistema, não do framework.
+         *
+         * A tela Pages/Error.jsx existia (e o app.jsx já a tirava do shell),
+         * mas nada a renderizava: quem esbarrava num 403 via a página crua do
+         * Laravel — no Inertia, dentro de um modal — e perdia o motivo que a
+         * regra escreveu em português ("Só a filial de destino confere...").
+         */
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            $status = $response->getStatusCode();
+
+            /*
+             * Sessão expirada (CSRF). Quem deixa a aba parada além do
+             * SESSION_LIFETIME e clica em salvar recebia "Page Expired" e
+             * nenhum caminho de volta. Agora volta para a tela, com aviso.
+             */
+            if ($status === 419) {
+                return back()->with('warning', 'Sua sessão expirou por inatividade. Confira os dados e envie de novo.');
+            }
+
+            // Chamadas do próprio front (sininho, chat, Microwork) seguem com o JSON delas.
+            if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+                return $response;
+            }
+
+            // 500 com debug ligado continua mostrando o stack trace para quem desenvolve.
+            $paginaPropria = in_array($status, [403, 404], true)
+                || (in_array($status, [500, 503], true) && ! config('app.debug'));
+
+            if (! $paginaPropria) {
+                return $response;
+            }
+
+            // Só o 403 traz texto escrito para o usuário (abort/Policy). Os
+            // outros podem carregar nome de classe ou SQL.
+            $mensagem = $status === 403 ? trim($e->getMessage()) : '';
+
+            return Inertia::render('Error', [
+                'status'   => $status,
+                'mensagem' => in_array($mensagem, ['', 'This action is unauthorized.'], true) ? null : $mensagem,
+            ])->toResponse($request)->setStatusCode($status);
+        });
     })->create();
 
 // 2. --- CORREÇÃO DEFINITIVA PARA VERCEL ---

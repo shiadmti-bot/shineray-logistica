@@ -1,6 +1,14 @@
 import { Link, Head } from '@inertiajs/react';
 
-export default function ErrorPage({ status }) {
+/**
+ * Tela de erro (403, 404 e, sem debug, 500/503) — renderizada pelo
+ * tratamento de exceções em bootstrap/app.php.
+ *
+ * `mensagem` só vem no 403: é o motivo que a regra escreveu para o usuário
+ * ("Só a filial de destino confere este romaneio."), e diz mais que o texto
+ * genérico.
+ */
+export default function ErrorPage({ status, mensagem = null }) {
     const title = {
         503: '503: Serviço Indisponível',
         500: '500: Erro no Servidor',
@@ -29,7 +37,7 @@ export default function ErrorPage({ status }) {
 
                 <h1 className="text-6xl font-black text-status-danger-fg mb-4">{status}</h1>
                 <h2 className="text-2xl font-bold mb-4">{title}</h2>
-                <p className="text-content-secondary mb-8">{description}</p>
+                <p className="text-content-secondary mb-8">{mensagem || description}</p>
 
                 <div className="space-x-4">
                     <Link href="/" className="bg-black text-white px-6 py-3 rounded-lg font-bold hover:bg-surface-inverted transition">
