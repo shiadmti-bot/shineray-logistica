@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Moto;
 use App\Models\Pedido;
+use App\Models\PedidoItem;
+use App\Models\PedidoLog;
 use App\Models\Schedule;
 use App\Models\ScheduleStop;
 use App\Models\User;
@@ -422,6 +424,106 @@ class PedidoMotoFluxoTest extends TestCase
         $this->assertSame('cancelado', $cancelado->status);
         $this->assertNotEmpty($cancelado->motivo_rejeicao);
         $this->assertTrue($cancelado->logs()->where('titulo', 'Auditoria Comercial (Gestor)')->exists());
+    }
+
+    /**
+     * Pedido aberto com chassi tem a cota E a moto. Cortar a única moto
+     * deixava a cota "atribuída" sem moto, e o pedido era APROVADO vazio.
+     */
+    public function test_cortar_a_unica_moto_de_pedido_com_chassi_cancela_o_pedido()
+    {
+        $pedido = Pedido::create(['user_id' => $this->loja->id, 'status' => 'em_analise']);
+        $moto = $this->moto('solicitado');
+        $cota = $this->cotaComChassi($pedido, $moto);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.aprovar', $pedido->id), [
+                'rejeitadas' => [$moto->id],
+                'motivos'    => [$moto->id => 'Sem estoque'],
+            ])
+            ->assertSessionHas('warning');
+
+        $cancelado = Pedido::withTrashed()->findOrFail($pedido->id);
+        $this->assertTrue($cancelado->trashed());
+        $this->assertSame('cancelado', $cancelado->status);
+
+        // A cota sai junto, com o motivo — é o que o dossiê da recusa lista.
+        $cota = PedidoItem::withTrashed()->findOrFail($cota->id);
+        $this->assertNotNull($cota->deleted_at);
+        $this->assertSame('Sem estoque', $cota->motivo_cancelamento);
+    }
+
+    public function test_cortar_uma_moto_tira_a_unidade_da_cota_e_o_resto_segue()
+    {
+        $pedido = Pedido::create(['user_id' => $this->loja->id, 'status' => 'em_analise']);
+        $cortada = $this->moto('solicitado');
+        $mantida = $this->moto('solicitado');
+        $cotaCortada = $this->cotaComChassi($pedido, $cortada);
+        $cotaMantida = $this->cotaComChassi($pedido, $mantida);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.aprovar', $pedido->id), [
+                'rejeitadas' => [$cortada->id],
+                'motivos'    => [$cortada->id => 'Avaria'],
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertSame('solicitado', $pedido->fresh()->status);
+        $this->assertSame([$mantida->id], $pedido->motos()->pluck('motos.id')->all());
+        $this->assertSoftDeleted('pedido_itens', ['id' => $cotaCortada->id]);
+        $this->assertSame(1, (int) $cotaMantida->fresh()->qtd_atribuida);
+        $this->assertSame(0, $pedido->saldoPendente());
+    }
+
+    /**
+     * O soft delete da cota não solta o pivô: a cota sumia da tela e a moto
+     * seguia no pedido, rumo à loja, mesmo cortada pelo gestor.
+     */
+    public function test_cortar_a_cota_com_chassi_tira_a_moto_do_pedido()
+    {
+        $pedido = Pedido::create([
+            'user_id'        => $this->loja->id,
+            'origem_user_id' => $this->lojaOrigem->id,
+            'status'         => 'em_analise',
+        ]);
+        $cortada = $this->moto('solicitado', $this->lojaOrigem);
+        $mantida = $this->moto('solicitado', $this->lojaOrigem);
+        $cota = $this->cotaComChassi($pedido, $cortada);
+        $this->cotaComChassi($pedido, $mantida);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.aprovar', $pedido->id), [
+                'itens_rejeitados' => [$cota->id],
+                'motivos'          => ['item_' . $cota->id => 'Moto reservada para venda'],
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertSame([$mantida->id], $pedido->motos()->pluck('motos.id')->all());
+        $this->assertSame('disponivel', $cortada->fresh()->status, 'A moto volta para a loja de origem.');
+
+        $log = PedidoLog::where('pedido_id', $pedido->id)->where('evento', 'corte_parcial')->sole();
+        $this->assertSame([$cortada->chassi], $log->dados['cortes'][0]['chassis']);
+        $this->assertStringContainsString($cortada->chassi, $log->descricao);
+    }
+
+    /** Cota "1x modelo/cor" já preenchida por um chassi, como CriarPedido grava. */
+    private function cotaComChassi(Pedido $pedido, Moto $moto): PedidoItem
+    {
+        $cota = PedidoItem::create([
+            'pedido_id'     => $pedido->id,
+            'tipo'          => 'moto',
+            'modelo'        => $moto->modelo,
+            'cor'           => $moto->cor,
+            'motivo'        => 'Venda Confirmada',
+            'local'         => 'Loja Fluxo Destino',
+            'quantidade'    => 1,
+            'qtd_atribuida' => 1,
+            'exige_chassi'  => true,
+        ]);
+
+        $pedido->motos()->attach($moto->id, ['destino' => 'Loja Fluxo Destino', 'pedido_item_id' => $cota->id]);
+
+        return $cota;
     }
 
     /** O corte só alcança as motos do próprio pedido. */

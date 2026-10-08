@@ -5,7 +5,10 @@ namespace App\Actions\Pedidos;
 use App\Actions\Pedidos\Concerns\RegistraHistorico;
 use App\Enums\EventoPedido;
 use App\Exceptions\OperacaoPedidoRecusada;
+use App\Models\Moto;
 use App\Models\Pedido;
+use App\Models\PedidoItem;
+use App\Models\ReservaMicrowork;
 use App\Models\Schedule;
 use App\Models\User;
 use Carbon\Carbon;
@@ -187,24 +190,78 @@ final class AprovarPedido
                 'motivo' => $motivo,
             ];
 
-            $pedido->motos()->detach($moto->id);
+            // Lido antes de retirar: é o pivô que diz qual cota o chassi ocupava.
+            $cotaId = $moto->pivot->pedido_item_id;
 
-            if ($pedido->origem_user_id) {
-                // Transferência: a moto é da loja de origem e volta para ela.
-                $moto->update(['status' => 'disponivel', 'localizacao_atual' => 'Estoque Loja']);
-            } elseif ($moto->pedidos()->exists()) {
-                $moto->update(['status' => 'disponivel', 'localizacao_atual' => 'Fábrica/CD']);
-            } else {
-                // Regra de negócio confirmada com a operação (14/09/2026): sem
-                // nenhum outro pedido, o cadastro da moto é apagado — não volta
-                // ao estoque. Moto não tem soft delete: a exclusão é definitiva.
-                // É por isso que o corte vai para `dados` do log: o chassi
-                // cortado deixa de existir como linha consultável no banco.
-                $moto->delete();
+            $this->retirarMoto($pedido, $moto);
+
+            if ($cotaId) {
+                $this->cancelarUnidadeDaCota((int) $cotaId, $motivo);
             }
         }
 
         return $cortes;
+    }
+
+    /**
+     * Desvincula a moto do pedido e a devolve para onde estava.
+     *
+     * Usado pelos dois cortes: o da moto e o da cota que tem chassi.
+     */
+    private function retirarMoto(Pedido $pedido, Moto $moto): void
+    {
+        $pedido->motos()->detach($moto->id);
+
+        ReservaMicrowork::where('pedido_id', $pedido->id)
+            ->where('chassi', $moto->chassi)
+            ->whereIn('status', ['pendente', 'faturada'])
+            ->update(['status' => 'cancelada']);
+
+        if ($pedido->origem_user_id) {
+            // Transferência: a moto é da loja de origem e volta para ela.
+            $moto->update(['status' => 'disponivel', 'localizacao_atual' => 'Estoque Loja']);
+        } elseif ($moto->pedidos()->exists()) {
+            $moto->update(['status' => 'disponivel', 'localizacao_atual' => 'Fábrica/CD']);
+        } else {
+            // Regra de negócio confirmada com a operação (14/09/2026): sem
+            // nenhum outro pedido, o cadastro da moto é apagado — não volta
+            // ao estoque. Moto não tem soft delete: a exclusão é definitiva.
+            // É por isso que o corte vai para `dados` do log: o chassi
+            // cortado deixa de existir como linha consultável no banco.
+            $moto->delete();
+        }
+    }
+
+    /**
+     * A unidade do chassi cortado sai também da cota que ele ocupava (v2.6).
+     *
+     * Pedido aberto com chassi tem as duas coisas: a cota ("1x JET 50 PRETA")
+     * e a moto vinculada a ela. Cortar só a moto deixava a cota "atribuída"
+     * sem moto — e como a cota ainda existia, o pedido não era considerado
+     * vazio: cortar a única moto APROVAVA um pedido sem nada dentro.
+     *
+     * Cota que fica sem unidade é cortada inteira, com soft delete, do mesmo
+     * jeito que cortarItens — e por isso aparece no dossiê da recusa.
+     */
+    private function cancelarUnidadeDaCota(int $cotaId, string $motivo): void
+    {
+        $cota = PedidoItem::find($cotaId);
+
+        if (! $cota) {
+            return;
+        }
+
+        $cota->update([
+            'qtd_atribuida'       => max(0, $cota->qtd_atribuida - 1),
+            'qtd_cancelada'       => $cota->qtd_cancelada + 1,
+            'motivo_cancelamento' => $motivo,
+            'cancelado_por'       => Auth::id(),
+            'cancelado_em'        => now(),
+        ]);
+
+        if ($cota->qtd_cancelada >= $cota->quantidade) {
+            $cota->delete();
+        }
     }
 
     /**
@@ -228,11 +285,26 @@ final class AprovarPedido
         foreach ($pedido->itensPedido()->whereKey(array_map('intval', $ids))->get() as $item) {
             $motivo = $motivos['item_'.$item->id] ?? $motivos[$item->id] ?? 'Motivo não informado';
 
+            /*
+             * Os chassis já vinculados à cota saem com ela.
+             *
+             * O soft delete da cota não solta o pivô (pedido_moto.pedido_item_id
+             * continua apontando para ela): a cota sumia da tela e a moto
+             * seguia no pedido. A loja recebia a moto que o gestor cortou.
+             */
+            $chassis = [];
+
+            foreach ($pedido->motos()->wherePivot('pedido_item_id', $item->id)->get() as $moto) {
+                $chassis[] = $moto->chassi;
+                $this->retirarMoto($pedido, $moto);
+            }
+
             $cortes[] = [
                 'tipo'       => 'cota',
                 'modelo'     => $item->modelo,
                 'cor'        => $item->cor,
                 'quantidade' => (int) $item->quantidade,
+                'chassis'    => $chassis,
                 'motivo'     => $motivo,
             ];
 
@@ -248,18 +320,17 @@ final class AprovarPedido
         return $cortes;
     }
 
+    /**
+     * Sobrou o que entregar: moto vinculada ou unidade esperando chassi.
+     *
+     * Contar "cota com quantidade" também era o furo: a cota de um chassi
+     * cortado continuava existindo, e o pedido sem moto nenhuma e sem saldo
+     * era aprovado e ficava parado na fila. Pedido legado não tem cota, então
+     * o saldo dele é sempre zero e vale só a primeira metade.
+     */
     private function sobrouAlgo(Pedido $pedido): bool
     {
-        if ($pedido->motos()->exists()) {
-            return true;
-        }
-
-        if ($pedido->isLegado()) {
-            return false;
-        }
-
-        return $pedido->saldoPendente() > 0
-            || $pedido->itensPedido()->where('quantidade', '>', 0)->exists();
+        return $pedido->motos()->exists() || $pedido->saldoPendente() > 0;
     }
 
     /**
@@ -281,7 +352,9 @@ final class AprovarPedido
             $linhas = array_map(
                 fn (array $corte) => $corte['tipo'] === 'moto'
                     ? "🚫 {$corte['modelo']} ({$corte['chassi']})\n   ↳ Motivo: {$corte['motivo']}"
-                    : "🚫 {$corte['modelo']} ({$corte['cor']}) - {$corte['quantidade']} un.\n   ↳ Motivo: {$corte['motivo']}",
+                    : "🚫 {$corte['modelo']} ({$corte['cor']}) - {$corte['quantidade']} un."
+                        . (empty($corte['chassis']) ? '' : ' — chassi ' . implode(', ', $corte['chassis']))
+                        . "\n   ↳ Motivo: {$corte['motivo']}",
                 $cortes,
             );
 

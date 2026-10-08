@@ -19,12 +19,17 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
     const destinosReais = [...new Set((pedido.motos || []).map(m => m.pivot?.destino).filter(Boolean))];
     const destinoFinalLabel = destinosReais.length > 0 ? destinosReais.join(', ') : (pedido.user?.filial || 'Matriz');
 
+    // Cotas que ainda esperam o CD informar o chassi. A cota de quem já tem
+    // chassi aparece só na lista de motos: mostrá-la nas duas listas dava ao
+    // gestor dois botões de corte para a mesma unidade.
+    const cotasPendentes = (pedido.itens_pedido || []).filter((item) => (item.qtd_pendente ?? 0) > 0);
+
     // Inicializa todos como aprovados (true)
     const [aprovacoes, setAprovacoes] = useState(
         (pedido.motos || []).reduce((acc, moto) => ({ ...acc, [moto.id]: true }), {})
     );
     const [itemAprovacoes, setItemAprovacoes] = useState(
-        (pedido.itens_pedido || []).reduce((acc, item) => ({ ...acc, [item.id]: true }), {})
+        cotasPendentes.reduce((acc, item) => ({ ...acc, [item.id]: true }), {})
     );
     const [motivosEspecificos, setMotivosEspecificos] = useState({});
     const [justificativaGeral, setJustificativaGeral] = useState('');
@@ -166,7 +171,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
         }
 
         const totalMotos = pedido.motos?.length || 0;
-        const totalItens = pedido.itens_pedido?.length || 0;
+        const totalItens = cotasPendentes.length;
         const totalVolume = totalMotos + totalItens;
         const totalCortados = rejeitadasIds.length + itensRejeitadosIds.length;
 
@@ -341,18 +346,18 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                     )}
 
                     {/* LISTA DE ITENS GENÉRICOS (v2.6 SEM CHASSI DEFINIDO) */}
-                    {pedido.itens_pedido && pedido.itens_pedido.length > 0 && (
+                    {cotasPendentes.length > 0 && (
                         <div className="bg-surface-card p-6 rounded-2xl shadow-sm border border-line mb-8 space-y-4">
                             <div className="flex justify-between items-center border-b border-line pb-3">
                                 <h4 className="font-black text-content-primary text-base uppercase tracking-wide flex items-center gap-2">
-                                    <span>📦</span> Solicitação por Modelo e Cor ({pedido.itens_pedido.reduce((acc, i) => acc + (i.quantidade || 0), 0)} unidades)
+                                    <span>📦</span> Solicitação por Modelo e Cor ({cotasPendentes.reduce((acc, i) => acc + (i.qtd_pendente || 0), 0)} unidades)
                                 </h4>
                                 <span className="bg-brand-100 text-brand-800 text-xs font-bold px-3 py-1 rounded-full border border-brand-600/30 uppercase">
                                     Aguardando CD
                                 </span>
                             </div>
                             <div data-tour="gestor.itens" className="divide-y divide-line">
-                                {pedido.itens_pedido.map((item) => {
+                                {cotasPendentes.map((item) => {
                                     const isApproved = itemAprovacoes[item.id] !== false;
                                     return (
                                         <div key={item.id} className="py-3.5 space-y-2">
@@ -370,7 +375,7 @@ export default function GestorShow({ auth, pedido, mensagemChat }) {
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <span className={`font-black text-xs px-3 py-1.5 rounded-xl shadow-sm ${isApproved ? 'bg-brand-600 text-white' : 'bg-status-danger-bg text-status-danger-fg'}`}>
-                                                        {item.quantidade} un.
+                                                        {item.qtd_pendente} un.
                                                     </span>
                                                     <button
                                                         type="button"
