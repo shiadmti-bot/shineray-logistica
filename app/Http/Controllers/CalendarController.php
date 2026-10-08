@@ -162,7 +162,7 @@ class CalendarController extends Controller
                 if ($request->status === 'confirmed') {
                     if ($pedido->status !== 'rota_confirmada') {
                         $pedido->update(['status' => 'rota_confirmada', 'previsao_entrega' => $request->date]);
-                        $pedido->motos()->update(['status' => 'rota_confirmada']);
+                        $pedido->motosNoPatio()->update(['status' => 'rota_confirmada']);
                         
                         \App\Models\PedidoLog::create([
                             'pedido_id' => $pedido->id,
@@ -195,7 +195,7 @@ class CalendarController extends Controller
                         }
 
                         $pedido->update(['status' => $novoStatus, 'previsao_entrega' => $request->date]);
-                        $pedido->motos()->update(['status' => $novoStatus]);
+                        $pedido->motosNoPatio()->update(['status' => $novoStatus]);
                         
                         \App\Models\PedidoLog::create([
                             'pedido_id' => $pedido->id,
@@ -287,7 +287,7 @@ class CalendarController extends Controller
                     }
                     
                     $pedido->update(['status' => $novoStatus]);
-                    $pedido->motos()->update(['status' => $novoStatus]);
+                    $pedido->motosNoPatio()->update(['status' => $novoStatus]);
                     
                     \App\Models\PedidoLog::create([
                         'pedido_id' => $pedido->id,

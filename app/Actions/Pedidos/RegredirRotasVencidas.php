@@ -50,7 +50,7 @@ final class RegredirRotasVencidas
         }
 
         $pedido->update(['previsao_entrega' => null, 'status' => $novoStatus]);
-        $pedido->motos()->update(['status' => $novoStatus]);
+        $pedido->motosNoPatio()->update(['status' => $novoStatus]);
 
         PedidoLog::create([
             'pedido_id' => $pedido->id,

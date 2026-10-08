@@ -67,6 +67,15 @@ class Pedido extends Model
      */
     public const INTERIOR_AGUARDA_ROTA_DESDE = '2026-03-12 00:00:00';
 
+    /**
+     * Moto que já subiu no caminhão — ou já chegou. As transições de pátio
+     * (separar, confirmar/rebaixar/cancelar rota, rota vencida) não podem
+     * reescrever o status delas. Ver motosNoPatio().
+     */
+    public const MOTO_JA_EMBARCADA = [
+        'expedido', 'coletado', 'transito_loja', 'em_transito', 'em_transito_cd', 'concluido', 'vendida',
+    ];
+
     // --- RELACIONAMENTOS ---
 
     // Quem pediu (Destino)
@@ -126,6 +135,33 @@ class Pedido extends Model
         return $this->belongsToMany(Moto::class, 'pedido_moto')
                     ->withPivot(['destino', 'motivo', 'detalhes_avaria', 'foto_avaria', 'pedido_item_id']) // Garante que avarias históricas venham junto
                     ->withTimestamps();
+    }
+
+    /**
+     * As motos deste pedido que ainda estão no pátio de origem.
+     *
+     * É o alvo das mudanças de status EM MASSA do fluxo de pátio. Até a v3.8
+     * elas usavam `motos()->update(...)` e reescreviam o pedido inteiro — mas
+     * num embarque parcial o pedido continua em 'separado' ou
+     * 'rota_confirmada' com parte das motos já na estrada. Uma rota vencida,
+     * por exemplo, devolvia a 'separado' a moto que estava no caminhão, e ela
+     * reaparecia na mesa de montagem (mesma família do incidente de 01/10).
+     *
+     * 'aguardando_coleta' é ambíguo: é a moto separada na loja esperando o
+     * frete, mas também a moto já posta numa carga ABERTA de coleta. Só a
+     * primeira é pátio.
+     */
+    public function motosNoPatio()
+    {
+        return $this->motos()
+            ->whereNotIn('motos.status', self::MOTO_JA_EMBARCADA)
+            ->where(function ($q) {
+                $q->where('motos.status', '!=', 'aguardando_coleta')
+                  ->orWhereNull('motos.romaneio_id')
+                  ->orWhereDoesntHave('romaneio', fn ($carga) => $carga->where(
+                      fn ($s) => $s->where('status', 'aberto')->orWhereNull('status')
+                  ));
+            });
     }
 
     /**

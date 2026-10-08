@@ -61,7 +61,7 @@ final class SepararPedido
                 : $this->destinoDaReposicao($pedido, $user);
 
             $pedido->update(['status' => $novoStatus]);
-            $pedido->motos()->update(['status' => $novoStatus]);
+            $pedido->motosNoPatio()->update(['status' => $novoStatus]);
 
             $this->registrarLog($pedido, 'Separado 📦', $msgLog);
 
