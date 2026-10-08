@@ -856,7 +856,15 @@ class RomaneioController extends Controller
                 return back()->withErrors(['erro' => 'Por favor, realize o recebimento pelo menu "Meus Pedidos".']);
             }
 
-            return back()->with('info', 'Nenhum item com destino ao CD ou de transbordo pendente de baixa nesta carga.');
+            /*
+             * Nada baixado é ERRO para quem clicou, não aviso. Isto era
+             * `with('info')` — chave que o layout não exibe —, e a tela tratava
+             * a resposta como sucesso: o CD via "Recebido! Entrada no CD
+             * registrada" sem que nada tivesse entrado.
+             */
+            return back()->withErrors([
+                'erro' => 'Nenhum item desta carga tem destino ao CD ou transbordo pendente de baixa. Nada foi recebido.',
+            ]);
         });
     }
 

@@ -205,6 +205,26 @@ class RomaneioTravasTest extends TestCase
     }
 
     /**
+     * Carga só com entrega para loja: não há o que dar entrada no CD. A tela
+     * mostrava "Recebido!" porque a resposta era um aviso que ninguém exibia.
+     */
+    public function test_entrada_no_cd_sem_nada_para_receber_responde_erro(): void
+    {
+        $carga = Romaneio::create([
+            'user_id' => $this->cd->id, 'status' => 'em_transito',
+            'motorista' => 'JOAO', 'placa' => 'ABC1D23', 'rota' => 'BR-316',
+        ]);
+        [, $moto] = $this->pedidoComMoto($this->loja, 'em_transito', 'transito_loja');
+        $moto->update(['romaneio_id' => $carga->id]);
+
+        $this->actingAs($this->cd)
+            ->post(route('romaneios.receber', $carga->id))
+            ->assertSessionHasErrors('erro');
+
+        $this->assertSame('transito_loja', $moto->fresh()->status);
+    }
+
+    /**
      * Retorno direto de uma loja ao CD (sem dossiê de devolução), já numa carga.
      *
      * @return array{0: \App\Models\Pedido, 1: \App\Models\Moto, 2: Romaneio}
