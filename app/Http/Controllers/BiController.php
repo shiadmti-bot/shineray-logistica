@@ -19,12 +19,22 @@ class BiController extends Controller
         $endDate = $request->input('end_date', Carbon::now()->endOfMonth()->format('Y-m-d'));
 
         // 2. Volumetria Geral (Pedidos Criados no Período)
-        $totalPedidos = Pedido::whereBetween('created_at', ["$startDate 00:00:00", "$endDate 23:59:59"])->count();
-        $totalConcluidos = Pedido::whereBetween('updated_at', ["$startDate 00:00:00", "$endDate 23:59:59"])
+        $periodo = ["$startDate 00:00:00", "$endDate 23:59:59"];
+
+        /*
+         * withTrashed no total e nos cancelados: pedido recusado é soft-deleted
+         * (CancelarPedido). Sem isto "Cancelados" marcava praticamente zero, e
+         * a taxa de sucesso saía inflada porque o total também perdia os
+         * recusados — o mesmo engano já corrigido no painel do admin
+         * (DashboardController::numerosDo).
+         */
+        $totalPedidos = Pedido::withTrashed()->whereBetween('created_at', $periodo)->count();
+        $totalConcluidos = Pedido::whereBetween('updated_at', $periodo)
                                  ->where('status', 'concluido')
                                  ->count();
-        $totalCancelados = Pedido::whereBetween('updated_at', ["$startDate 00:00:00", "$endDate 23:59:59"])
-                                 ->where('status', 'cancelado')
+        $totalCancelados = Pedido::withTrashed()
+                                 ->whereBetween('updated_at', $periodo)
+                                 ->whereIn('status', ['cancelado', 'rejeitado'])
                                  ->count();
 
         // 3. Status Atual (Snapshot em Tempo Real)
@@ -34,26 +44,6 @@ class BiController extends Controller
             ->get();
 
         // 4. Ranking de Lojas (Top 10 Solicitantes)
-        $rankingLojas = Pedido::select('user_id', DB::raw('count(*) as total'))
-            ->join('users', 'pedidos.user_id', '=', 'users.id') // Join para garantir acesso à filial
-            ->whereBetween('pedidos.created_at', ["$startDate 00:00:00", "$endDate 23:59:59"])
-            ->whereNotNull('users.filial') // Garante que tem filial
-            ->where('users.filial', '!=', '')
-            ->groupBy('user_id', 'users.filial') // Agrupa também por filial para compatibilidade SQL
-            ->orderByDesc('total')
-            ->limit(10)
-            ->get()
-            ->map(function ($item) {
-                // Recupera filial via Relation ou Join (neste caso, o join já filtrou, mas o model precisa acessar)
-                // Como fiz join, o campo filial pode não estar no model Pedido automaticamente sem select explícito ou with
-                // Melhor abordagem: Fazer a query direto na tabela Users contando pedidos
-                return [
-                    'boja' => $item->user->filial ?? 'Desconhecida',
-                    'total' => $item->total
-                ];
-            });
-
-        // REFAZENDO RANKING (Mais Seguro)
         $rankingLojas = User::lojas()
             ->whereNotNull('filial')
             ->withCount(['pedidos' => function($q) use ($startDate, $endDate) {
