@@ -6,6 +6,7 @@ use App\Models\Romaneio;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Notification;
+use Inertia\Testing\AssertableInertia;
 use Tests\Concerns\CriaCenario;
 use Tests\TestCase;
 
@@ -222,6 +223,23 @@ class RomaneioTravasTest extends TestCase
             ->assertSessionHasErrors('erro');
 
         $this->assertSame('transito_loja', $moto->fresh()->status);
+    }
+
+    /** Filtros da lista de cargas: voltam para o formulário e seguem na paginação. */
+    public function test_lista_de_cargas_preserva_os_filtros(): void
+    {
+        $filtros = ['status' => 'em_transito', 'data_inicio' => '2031-01-01', 'data_fim' => '2031-01-31'];
+
+        $this->actingAs($this->cd)
+            ->get(route('romaneios.index', $filtros))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('filters.status', 'em_transito')
+                ->where('filters.data_inicio', '2031-01-01')
+                ->where('filters.data_fim', '2031-01-31')
+                ->where('romaneios.first_page_url', fn ($url) => str_contains($url, 'status=em_transito')
+                    && str_contains($url, 'data_inicio=2031-01-01'))
+            );
     }
 
     /**

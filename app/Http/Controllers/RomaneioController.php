@@ -40,7 +40,7 @@ class RomaneioController extends Controller
         $dataInicio = $request->input('data_inicio');
         $dataFim = $request->input('data_fim');
 
-        $query = Romaneio::with(['motos.pedidos', 'user', 'pedidos.motos'])
+        $query = Romaneio::with(['motos.pedidos', 'user'])
             // v3: carga mista — contagem de itens de peça desta carga.
             ->withCount(['itens as pecas_count' => fn ($q) => $q->where('itemable_type', \App\Models\Peca::class)])
             ->withSum(['itens as pecas_unidades' => fn ($q) => $q->where('itemable_type', \App\Models\Peca::class)], 'quantidade') 
@@ -64,7 +64,8 @@ class RomaneioController extends Controller
             });
         }
 
-        $romaneios = $query->paginate(10)->through(function ($romaneio) {
+        // withQueryString: sem ele a página 2 perdia status e datas do filtro.
+        $romaneios = $query->paginate(10)->withQueryString()->through(function ($romaneio) {
             // Usa apenas as motos especificamente vinculadas a este romaneio logístico (Impede puxar o pedido pai inteiro)
             $todasMotos = $romaneio->motos;
             
@@ -101,7 +102,9 @@ class RomaneioController extends Controller
 
         return Inertia::render('Romaneios/Index', [
             'romaneios' => $romaneios,
-            'filters' => $request->only(['search'])
+            // A tela lê os quatro filtros; só a busca voltava, e status e
+            // datas apareciam vazios logo depois de filtrar.
+            'filters' => $request->only(['search', 'status', 'data_inicio', 'data_fim'])
         ]);
     }
 
