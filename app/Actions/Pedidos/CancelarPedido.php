@@ -77,6 +77,22 @@ final class CancelarPedido
             );
         }
 
+        $this->encerrar($pedido, $user, $tipo, $motivo);
+    }
+
+    /**
+     * O encerramento em si, sem as travas de QUEM e QUANDO de executar().
+     *
+     * Para quem já decidiu por uma regra própria e só precisa que o pedido
+     * caia pelo caminho de sempre: hoje, o corte aprovado pelo gestor que
+     * levou o último item (GestorController::aprovarEstorno). Antes ele
+     * cancelava por conta própria — sem motivo gravado, sem aviso à loja e
+     * sem liberar a reserva no Microwork.
+     *
+     * @param  string  $tipo  'cancelado' ou 'rejeitado'
+     */
+    public function encerrar(Pedido $pedido, ?User $user, string $tipo, ?string $motivo): void
+    {
         DB::transaction(function () use ($pedido, $user, $tipo, $motivo) {
             // O inventário do que estava no pedido tem de ser lido ANTES de
             // liberar: liberarMotos desanexa o pivô e liberarPecas mexe nas

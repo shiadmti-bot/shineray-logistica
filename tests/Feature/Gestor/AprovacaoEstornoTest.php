@@ -3,8 +3,11 @@
 namespace Tests\Feature\Gestor;
 
 use App\Models\Pedido;
+use App\Models\PedidoItem;
 use App\Models\PedidoLog;
+use App\Models\ReservaMicrowork;
 use App\Models\User;
+use App\Notifications\PedidoAtualizado;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Notification;
 use Tests\Concerns\CriaCenario;
@@ -75,13 +78,69 @@ class AprovacaoEstornoTest extends TestCase
 
     public function test_pedido_que_fica_vazio_e_cancelado(): void
     {
+        $this->withoutDefer();
+
         [$pedido, $moto] = $this->pedidoComMoto($this->loja, 'solicitado', 'separado');
         $moto->update(['estorno_pendente' => true, 'motivo_estorno' => 'loja: Cliente desistiu']);
 
         $this->actingAs($this->gestor)->post(route('gestor.aprovarEstorno', $moto->id));
 
         $this->assertSoftDeleted('pedidos', ['id' => $pedido->id]);
-        $this->assertSame('cancelado', Pedido::withTrashed()->find($pedido->id)->status);
+
+        // Pelo caminho de sempre: quem, por quê e a loja avisada.
+        $cancelado = Pedido::withTrashed()->find($pedido->id);
+        $this->assertSame('cancelado', $cancelado->status);
+        $this->assertSame($this->gestor->id, (int) $cancelado->rejeitado_por);
+        $this->assertStringContainsString('Cliente desistiu', $cancelado->motivo_rejeicao);
+
+        Notification::assertSentTo($this->loja, PedidoAtualizado::class);
+    }
+
+    /**
+     * Pedido de 2 unidades com 1 chassi atribuído: cortar esse chassi tira a
+     * unidade dele, mas a outra continua aguardando o CD. Antes o pedido
+     * inteiro era cancelado porque só as motos vinculadas eram contadas.
+     */
+    public function test_corte_nao_cancela_pedido_com_cota_aguardando_chassi(): void
+    {
+        $pedido = $this->pedidoMoto($this->loja, 'solicitado');
+        $cota = PedidoItem::create([
+            'pedido_id' => $pedido->id, 'tipo' => 'moto', 'modelo' => 'JET 50', 'cor' => 'PRETA',
+            'motivo' => 'Giro', 'local' => 'Loja Estorno/PA', 'quantidade' => 2, 'qtd_atribuida' => 1,
+        ]);
+        $moto = $this->moto('separado', ['estorno_pendente' => true, 'motivo_estorno' => 'cd: Avaria no pátio']);
+        $pedido->motos()->attach($moto->id, ['destino' => 'Loja Estorno/PA', 'pedido_item_id' => $cota->id]);
+
+        $this->actingAs($this->gestor)
+            ->post(route('gestor.aprovarEstorno', $moto->id))
+            ->assertSessionHas('success');
+
+        $pedido = Pedido::withTrashed()->find($pedido->id);
+        $this->assertFalse($pedido->trashed(), 'A unidade sem chassi ainda é devida à loja.');
+        $this->assertSame('solicitado', $pedido->status);
+
+        // A unidade cortada sai como cancelada, com o motivo; a outra segue pendente.
+        $cota->refresh();
+        $this->assertSame(0, (int) $cota->qtd_atribuida);
+        $this->assertSame(1, (int) $cota->qtd_cancelada);
+        $this->assertStringContainsString('Avaria no pátio', $cota->motivo_cancelamento);
+        $this->assertSame(1, $pedido->saldoPendente());
+    }
+
+    public function test_corte_libera_a_reserva_do_chassi_no_microwork(): void
+    {
+        [$pedido, $moto] = $this->pedidoComMoto($this->loja, 'solicitado', 'separado');
+        $outra = $this->moto('separado');
+        $pedido->motos()->attach($outra->id, ['destino' => 'Loja Estorno/PA']);
+        $moto->update(['estorno_pendente' => true, 'motivo_estorno' => 'cd: Avaria']);
+
+        $reserva = ReservaMicrowork::create([
+            'chassi' => $moto->chassi, 'user_id' => $this->loja->id, 'pedido_id' => $pedido->id, 'status' => 'pendente',
+        ]);
+
+        $this->actingAs($this->gestor)->post(route('gestor.aprovarEstorno', $moto->id));
+
+        $this->assertSame('cancelada', $reserva->fresh()->status);
     }
 
     public function test_quem_nao_valida_motos_nao_aprova_corte(): void

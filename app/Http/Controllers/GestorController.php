@@ -6,8 +6,11 @@ use App\Actions\Pedidos\AprovarPedido;
 use App\Actions\Pedidos\CancelarPedido;
 use App\Exceptions\OperacaoPedidoRecusada;
 use App\Models\Pedido;
+use App\Models\PedidoItem;
 use App\Models\PedidoLog;
 use App\Models\Moto;
+use App\Models\ReservaMicrowork;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -231,11 +234,11 @@ class GestorController extends Controller
      * Aprovação de Estorno/Devolução
      * Usado quando Loja ou CD solicitam devolução de um item.
      */
-    public function aprovarEstorno(Request $request, $id)
+    public function aprovarEstorno(Request $request, $id, CancelarPedido $cancelarPedido)
     {
         $this->autorizarGestorMotos();
 
-        $aprovado = DB::transaction(function () use ($id) {
+        $aprovado = DB::transaction(function () use ($id, $cancelarPedido) {
             // Relida com trava: dois cliques não processam o mesmo corte duas vezes.
             $moto = Moto::whereKey($id)->lockForUpdate()->firstOrFail();
 
@@ -260,7 +263,25 @@ class GestorController extends Controller
 
             // Remove a moto APENAS desses pedidos (evita conflitar com outros pedidos caso houvesse duplicidade)
             foreach ($pedidosAtivos as $pedido) {
+                // A cota que este chassi ocupava (v2.6). Lida antes do detach:
+                // é o pivô que diz qual era.
+                $cotaId = DB::table('pedido_moto')
+                    ->where('pedido_id', $pedido->id)
+                    ->where('moto_id', $moto->id)
+                    ->value('pedido_item_id');
+
                 $pedido->motos()->detach($moto->id);
+
+                if ($cotaId) {
+                    $this->cancelarUnidadeDaCota((int) $cotaId, $gestor, $motivo);
+                }
+
+                // Mesma limpeza da remoção pelo admin: o chassi cortado não
+                // segura mais reserva no Microwork em nome deste pedido.
+                ReservaMicrowork::where('pedido_id', $pedido->id)
+                    ->where('chassi', $moto->chassi)
+                    ->whereIn('status', ['pendente', 'faturada'])
+                    ->update(['status' => 'cancelada']);
 
                 // O corte fica na linha do tempo do pedido, com quem aprovou.
                 PedidoLog::create([
@@ -272,17 +293,27 @@ class GestorController extends Controller
                 ]);
             }
 
-            // 1.5. Verifica se os pedidos ficaram vazios e limpa se necessário
+            /*
+             * 1.5. Pedido que ficou vazio é cancelado.
+             *
+             * "Vazio" exige também que não haja cota aguardando chassi — a mesma
+             * regra que removerMotoAdmin ganhou na V2.6. Antes só se contavam as
+             * motos vinculadas: num pedido de 2 unidades com 1 chassi atribuído,
+             * cortar esse chassi cancelava o pedido inteiro, e a unidade que o
+             * CD ainda ia atribuir sumia junto.
+             *
+             * E o cancelamento passa pelo caminho de sempre (CancelarPedido):
+             * motivo e autor gravados, reservas liberadas e a loja avisada. A
+             * versão anterior só trocava o status e apagava.
+             */
             foreach ($pedidosAtivos as $pedido) {
-                if ($pedido->motos()->count() === 0) {
-                    // Se o pedido ficou com 0 motos reais, ele é inútil. Cancela.
-                    PedidoLog::create([
-                        'pedido_id' => $pedido->id,
-                        'titulo' => 'Pedido Cancelado Automaticamente',
-                        'descricao' => "O pedido foi cancelado porque seu último item foi removido/estornado."
-                    ]);
-                    $pedido->update(['status' => 'cancelado']);
-                    $pedido->delete();
+                if ($pedido->motos()->count() === 0 && $pedido->saldoPendente() === 0) {
+                    $cancelarPedido->encerrar(
+                        $pedido,
+                        $gestor,
+                        'cancelado',
+                        "O último item do pedido foi cortado. Solicitação: {$motivo}"
+                    );
                 }
             }
 
@@ -307,6 +338,33 @@ class GestorController extends Controller
         }
 
         return back()->with('success', 'Corte aprovado! A moto foi removida do pedido e voltou ao estoque.');
+    }
+
+    /**
+     * A unidade cortada sai da cota como CANCELADA, não como pendente.
+     *
+     * Antes o detach deixava `qtd_atribuida` contando um chassi que não estava
+     * mais no pedido: a cota mostrava "2/2 atribuídas" com uma moto só, e o
+     * corte não aparecia no saldo em lugar nenhum. Cancelar — e não devolver
+     * a unidade à fila do CD — é o que o corte já significava na prática: a
+     * loja recebe uma moto a menos. Trocar um chassi por outro é a
+     * desatribuição, não o corte.
+     */
+    private function cancelarUnidadeDaCota(int $cotaId, User $gestor, string $motivo): void
+    {
+        $cota = PedidoItem::lockForUpdate()->find($cotaId);
+
+        if (! $cota || $cota->qtd_atribuida <= 0) {
+            return;
+        }
+
+        $cota->update([
+            'qtd_atribuida'       => $cota->qtd_atribuida - 1,
+            'qtd_cancelada'       => $cota->qtd_cancelada + 1,
+            'motivo_cancelamento' => "Corte aprovado: {$motivo}",
+            'cancelado_por'       => $gestor->id,
+            'cancelado_em'        => now(),
+        ]);
     }
 
     /**
