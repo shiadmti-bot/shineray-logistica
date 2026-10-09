@@ -60,6 +60,7 @@ class MatrizDeAcessoTest extends TestCase
             'filiais'              => ['filiais.index', [200, 200, 403, 403]],
             'BI'                   => ['bi.index', [200, 200, 403, 403]],
             'usuários'             => ['users.index', [200, 403, 403, 403]],
+            'auditoria'            => ['auditoria.index', [200, 403, 403, 403]],
             // Atendimento é do CD ou de quem tem `valida_pecas` — o gestor da matriz não tem.
             'atendimento de peças' => ['pecas.atendimento', [200, 403, 200, 403]],
             // Segregação de funções: quem audita (gestor) não escreve estoque.

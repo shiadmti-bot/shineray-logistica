@@ -17,6 +17,7 @@ import {
     ArrowUturnLeftIcon,
     BuildingStorefrontIcon,
     MagnifyingGlassIcon,
+    ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 /**
@@ -225,6 +226,14 @@ export const NAV_SECTIONS = [
                 route: 'filiais.index',
                 match: 'filiais.*',
                 perfis: ['admin', 'gestor'],
+            },
+            {
+                key: 'auditoria',
+                label: 'Auditoria',
+                icon: ShieldCheckIcon,
+                route: 'auditoria.index',
+                match: 'auditoria.*',
+                perfis: ['admin'],
             },
         ],
     },

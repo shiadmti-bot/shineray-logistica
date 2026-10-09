@@ -1,7 +1,21 @@
 import { PageHeader } from '@/Components/UI';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 
-export default function Auditoria({ auth, logs }) {
+/**
+ * Valor de um campo alterado, pronto para a tabela.
+ *
+ * `itens` do pedido é uma lista de objetos: entregue direto ao React, ele
+ * derrubava a tela inteira ("Objects are not valid as a React child") no
+ * primeiro log de pedido.
+ */
+function formatar(valor) {
+    if (valor === null || valor === undefined || valor === '') return '—';
+    if (typeof valor === 'object') return JSON.stringify(valor);
+    return String(valor);
+}
+
+/** Trilha de alterações (activity_log). Rota: auditoria.index, só admin. */
+export default function Auditoria({ logs }) {
     return (
         <>
             <Head title="Logs do Sistema" />
@@ -44,7 +58,9 @@ export default function Auditoria({ auth, logs }) {
                                             }`}>
                                                 {log.description}
                                             </span>
-                                            <div className="text-xs text-content-muted mt-1">ID Objeto: {log.subject_id}</div>
+                                            <div className="text-xs text-content-muted mt-1">
+                                                {log.subject ?? 'Registro'} #{log.subject_id}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 font-mono text-xs">
                                             {log.properties && log.properties.attributes && (
@@ -53,12 +69,12 @@ export default function Auditoria({ auth, logs }) {
                                                         <div key={key}>
                                                             <span className="font-bold text-content-secondary uppercase">{key}:</span>{' '}
                                                             {log.properties.old && (
-                                                                <span className="text-status-danger-fg line-through mr-2">
-                                                                    {log.properties.old[key]}
+                                                                <span className="text-status-danger-fg line-through mr-2 break-all">
+                                                                    {formatar(log.properties.old[key])}
                                                                 </span>
                                                             )}
-                                                            <span className="text-status-success-fg font-bold">
-                                                                {log.properties.attributes[key]}
+                                                            <span className="text-status-success-fg font-bold break-all">
+                                                                {formatar(log.properties.attributes[key])}
                                                             </span>
                                                         </div>
                                                     ))}
@@ -67,14 +83,21 @@ export default function Auditoria({ auth, logs }) {
                                         </td>
                                     </tr>
                                 ))}
+                                {logs.data.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} className="px-6 py-10 text-center text-content-muted">
+                                            Nenhuma alteração registrada.
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                 </div>
                         {/* Paginação simples — fora da área de rolagem, para os
                             botões ficarem sempre visíveis sem rolar de lado. */}
                         <div className="p-4 flex justify-center gap-2">
-                            {logs.prev_page_url && <a href={logs.prev_page_url} className="px-3 py-1 bg-surface-sunken rounded">Anterior</a>}
-                            {logs.next_page_url && <a href={logs.next_page_url} className="px-3 py-1 bg-surface-sunken rounded">Próxima</a>}
+                            {logs.prev_page_url && <Link href={logs.prev_page_url} preserveScroll className="px-3 py-1 bg-surface-sunken rounded">Anterior</Link>}
+                            {logs.next_page_url && <Link href={logs.next_page_url} preserveScroll className="px-3 py-1 bg-surface-sunken rounded">Próxima</Link>}
                         </div>
                         </div>
         </>

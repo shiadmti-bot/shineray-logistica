@@ -477,6 +477,11 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
                 ->middleware('can:admin');
         });
 
+        // Trilha de alterações (activity_log) - Exclusivo Admin
+        Route::get('/auditoria', \App\Http\Controllers\AuditoriaController::class)
+            ->middleware('check_perfil:admin')
+            ->name('auditoria.index');
+
         // Gestão e Organização de Filiais (Admin/Gestor)
         Route::prefix('filiais')->name('filiais.')->middleware('check_perfil:admin,gestor')->group(function () {
             Route::get('/', [FilialController::class, 'index'])->name('index');
