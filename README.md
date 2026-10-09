@@ -29,6 +29,7 @@ Desenvolvido e arquitetado por **Délcio Farias Dias Neto**, construído inteira
 - [Funcionalidades por Módulo](#-funcionalidades-por-módulo)
 - [Stack Tecnológica](#-stack-tecnológica)
 - [Instalação e Configuração](#-instalação-e-configuração)
+- [Agendamentos e Webhooks](#-agendamentos-e-webhooks)
 - [Testes](#-testes)
 - [Solução de Performance (TiDB/Vercel)](#-solução-de-performance-tidbvercel)
 
@@ -157,6 +158,27 @@ Esta grande atualização traz a expansão completa para **Peças**, **Padroniza
    # Em outro terminal:
    php artisan serve
    ```
+
+---
+
+## ⏰ Agendamentos e Webhooks
+
+Na Vercel o agendador do Laravel (`routes/console.php`) não roda. As rotinas periódicas são disparadas por chamadas HTTP a dois webhooks:
+
+| Webhook | O que faz | Quem chama | Frequência |
+|---|---|---|---|
+| `GET /webhook/microwork` | Sincroniza o estoque de motos do CD com o Microwork (`microwork:sync-estoque`) e devolve à fila os pedidos com rota confirmada vencida | **cron-job.org** (conta externa, fora do repositório) | a cada 10 minutos |
+| `GET /webhook/pecas-cobranca` | Cobra as pendências do fluxo de peças (`pecas:cobrar`) | **Vercel Cron** (chave `crons` do `vercel.json`) | 1x por dia, 08:00 de Brasília (11:00 UTC) |
+
+**Autenticação.** As duas rotas passam pelo middleware `cron` (`App\Http\Middleware\AutenticarCron`) e exigem o cabeçalho `Authorization: Bearer <CRON_SECRET>`. Sem a variável `CRON_SECRET` no ambiente, recusam tudo com 401. A Vercel Cron envia o cabeçalho sozinha quando a variável existe no projeto; no cron-job.org, o job precisa estar com o método **GET** e com o cabeçalho configurado à mão. Há também limite de 30 chamadas por minuto.
+
+**Se o sync do Microwork parar**, nada avisa: as telas leem uma cópia em cache que vale 24 horas (`MicroworkService`). Passado esse prazo, o saldo some do formulário de pedido, da tabela de estoque de motos, do Dashboard e da localização no pátio que o gestor vê. Para conferir o webhook à mão:
+
+```bash
+curl -i -H "Authorization: Bearer $CRON_SECRET" https://<domínio-de-produção>/webhook/microwork
+```
+
+**A cobrança de peças roda uma vez por dia, e só uma.** A cadência anti-spam do `pecas:cobrar` (cobra ao cruzar o prazo, depois a cada 2 dias) é calculada pela idade da pendência: chamá-la com mais frequência transforma a cobrança em spam.
 
 ---
 
