@@ -61,4 +61,21 @@ class MuralDeAvisosTest extends TestCase
         $this->actingAs($this->usuario('gestor'))->delete(route('notices.destroy', $aviso->id));
         $this->assertDatabaseMissing('notices', ['id' => $aviso->id]);
     }
+
+    /**
+     * O aviso de lançamento da v3 (migration 2026_10_19_110000) substitui o
+     * "Em Desenvolvimento" e diz que pedidos de peças ainda não abriram.
+     */
+    public function test_mural_anuncia_a_v3_no_lugar_do_aviso_de_desenvolvimento(): void
+    {
+        $lancamento = Notice::where('title', '🚀 Chegou a versão 3 do BySabel Logística')->sole();
+
+        $this->assertTrue($lancamento->is_active);
+        $this->assertStringContainsString('pedidos de peças ainda não estão liberados', $lancamento->content);
+
+        $this->assertFalse(
+            Notice::where('title', 'LIKE', '%v3.0%Lançamento em Breve%')->where('is_active', true)->exists(),
+            'O aviso de "em desenvolvimento" sai do mural quando a v3 é lançada.'
+        );
+    }
 }
