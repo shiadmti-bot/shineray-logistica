@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -163,6 +164,31 @@ class Pedido extends Model
                   ));
             });
     }
+
+    /**
+     * Pedidos para LISTAR e CONTAR, incluindo os recusados.
+     *
+     * Recusa é soft delete com status 'rejeitado' ou 'cancelado' (CancelarPedido),
+     * e a listagem passou a mostrá-la na v3.6 — a loja precisa achar o pedido
+     * para ler o motivo. Mas a v2.6 excluía pedido SEM trocar o status: a
+     * rejeição total do gestor, o corte de todos os itens e o cancelamento pela
+     * loja só davam delete(). Em 19/10/2026 eram 139 excluídos com status de
+     * andamento ('em_analise', 'solicitado'...), além de 14 'concluido'
+     * excluídos à mão; com withTrashed puro eles voltaram ao topo da lista como
+     * se estivessem em andamento — vazios, porque as motos já tinham sido soltas.
+     *
+     * Regra: excluído só aparece se o status disser que ele foi recusado.
+     */
+    public function scopeComRecusados(Builder $query): Builder
+    {
+        return $query->withTrashed()->where(function (Builder $q) {
+            $q->whereNull($q->qualifyColumn('deleted_at'))
+              ->orWhereIn($q->qualifyColumn('status'), self::STATUS_RECUSADO);
+        });
+    }
+
+    /** Status de quem foi recusado — o soft delete que a listagem mostra. */
+    public const STATUS_RECUSADO = ['rejeitado', 'cancelado'];
 
     /**
      * Cotas do pedido (v2.6+). Pedidos legados retornam coleção vazia — ver isLegado().

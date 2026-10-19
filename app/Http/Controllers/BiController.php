@@ -27,6 +27,11 @@ class BiController extends Controller
          * a taxa de sucesso saía inflada porque o total também perdia os
          * recusados — o mesmo engano já corrigido no painel do admin
          * (DashboardController::numerosDo).
+         *
+         * Diferente da listagem (Pedido::comRecusados), aqui o excluído pela
+         * v2.6 sem status de recusa CONTA como cancelado: a rejeição do gestor
+         * e o cancelamento pela loja só davam delete(). Para o indicador do
+         * período isso foi recusa, mesmo sem motivo gravado.
          */
         $totalPedidos = Pedido::withTrashed()->whereBetween('created_at', $periodo)->count();
         $totalConcluidos = Pedido::whereBetween('updated_at', $periodo)
@@ -34,7 +39,11 @@ class BiController extends Controller
                                  ->count();
         $totalCancelados = Pedido::withTrashed()
                                  ->whereBetween('updated_at', $periodo)
-                                 ->whereIn('status', ['cancelado', 'rejeitado'])
+                                 ->where(fn ($q) => $q
+                                     ->whereIn('status', Pedido::STATUS_RECUSADO)
+                                     ->orWhere(fn ($legado) => $legado
+                                         ->whereNotNull('deleted_at')
+                                         ->where('status', '!=', 'concluido')))
                                  ->count();
 
         // 3. Status Atual (Snapshot em Tempo Real)

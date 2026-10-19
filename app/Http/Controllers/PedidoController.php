@@ -109,8 +109,11 @@ class PedidoController extends Controller
          * A ordenação abaixo (encerrados depois dos ativos) é o que impede a
          * recusa de poluir o topo da lista, do mesmo modo que já acontece com
          * 'concluido' — que nunca foi escondido.
+         *
+         * comRecusados e não withTrashed puro: a v2.6 excluía pedido sem trocar
+         * o status, e esses voltavam ao topo como "Em Análise" — ver o escopo.
          */
-        $pedidos = Pedido::withTrashed()
+        $pedidos = Pedido::comRecusados()
             ->select('pedidos.*')
             ->with([
                 'user:id,name,filial',    
@@ -183,7 +186,7 @@ class PedidoController extends Controller
         });
 
         // Contadores por Tipo para as Abas (mesmo universo da listagem)
-        $baseCounts = Pedido::withTrashed()
+        $baseCounts = Pedido::comRecusados()
             ->when($user->isLoja(), function($q) use ($user) {
                 $q->where(function($sub) use ($user) {
                     $sub->where('user_id', $user->id)

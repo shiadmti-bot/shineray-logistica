@@ -118,7 +118,8 @@ class DashboardController extends Controller
     {
         if ($user->isAdmin()) {
             return [
-                'total_pedidos'   => Pedido::withTrashed()->count(),
+                // Os mesmos pedidos que a listagem mostra (ver Pedido::comRecusados).
+                'total_pedidos'   => Pedido::comRecusados()->count(),
                 'em_andamento'    => Pedido::whereIn('status', StatusPedido::emAndamento())->count(),
                 // withTrashed: recusa é soft delete, então este contador marcava
                 // ZERO desde sempre — o painel do admin exibia "Cancelados: 0"
@@ -141,10 +142,11 @@ class DashboardController extends Controller
         }
 
         return [
-            // withTrashed: "histórico completo" precisa contar o que foi
+            // comRecusados: "histórico completo" precisa contar o que foi
             // recusado, senão o número cai quando um pedido é rejeitado e a
-            // loja vê o próprio histórico encolher.
-            'meus_pedidos' => Pedido::withTrashed()->where('user_id', $user->id)->count(),
+            // loja vê o próprio histórico encolher — mas não o excluído pela
+            // v2.6 sem status de recusa, que a listagem também não mostra.
+            'meus_pedidos' => Pedido::comRecusados()->where('user_id', $user->id)->count(),
 
             // Entradas: o que a loja pediu e está chegando.
             'receber' => Pedido::where('user_id', $user->id)
