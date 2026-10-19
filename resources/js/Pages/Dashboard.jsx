@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import NoticeBoard from '@/Components/NoticeBoard';
 import { Card, StatCard, Button } from '@/Components/UI';
@@ -36,6 +36,9 @@ import {
 export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }) {
     const hora = new Date().getHours();
     const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+
+    // Gestão > Módulos: atalho de módulo desligado não aparece.
+    const pedidosPecasLigado = usePage().props.modulos?.pedidos_pecas !== false;
 
     const [animatePulse, setAnimatePulse] = useState(false);
     const [showSeparationModal, setShowSeparationModal] = useState(false);
@@ -303,12 +306,14 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                             desc="Disponibilidade e saldo por empresa no ERP."
                             icon={WrenchScrewdriverIcon}
                         />
-                        <CartaoAcao
-                            href={route('pecas.pendencias.index')}
-                            titulo="6. Pendências de peças"
-                            desc="Divergências de recebimento e alertas de reposição."
-                            icon={ExclamationTriangleIcon}
-                        />
+                        {pedidosPecasLigado && (
+                            <CartaoAcao
+                                href={route('pecas.pendencias.index')}
+                                titulo="6. Pendências de peças"
+                                desc="Divergências de recebimento e alertas de reposição."
+                                icon={ExclamationTriangleIcon}
+                            />
+                        )}
                     </div>
 
                     <Card
@@ -401,13 +406,15 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                     <div className="mt-8">
                         <SecaoTitulo icon={WrenchScrewdriverIcon}>Módulo de peças</SecaoTitulo>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <CartaoAcao
-                                href={route('pecas.solicitar')}
-                                titulo="Solicitar peças"
-                                desc="Pedidos de reposição com busca por modelo de moto."
-                                icon={ShoppingCartIcon}
-                                destaque
-                            />
+                            {pedidosPecasLigado && (
+                                <CartaoAcao
+                                    href={route('pecas.solicitar')}
+                                    titulo="Solicitar peças"
+                                    desc="Pedidos de reposição com busca por modelo de moto."
+                                    icon={ShoppingCartIcon}
+                                    destaque
+                                />
+                            )}
                             <CartaoAcao
                                 href={route('pecas.index')}
                                 titulo="Onde encontrar peças"

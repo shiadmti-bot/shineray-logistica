@@ -30,6 +30,7 @@ Desenvolvido e arquitetado por **Délcio Farias Dias Neto**, construído inteira
 - [Stack Tecnológica](#-stack-tecnológica)
 - [Instalação e Configuração](#-instalação-e-configuração)
 - [Agendamentos e Webhooks](#-agendamentos-e-webhooks)
+- [Módulos Opcionais](#-módulos-opcionais)
 - [Testes](#-testes)
 - [Solução de Performance (TiDB/Vercel)](#-solução-de-performance-tidbvercel)
 
@@ -178,7 +179,23 @@ Na Vercel o agendador do Laravel (`routes/console.php`) não roda. As rotinas pe
 curl -i -H "Authorization: Bearer $CRON_SECRET" https://<domínio-de-produção>/webhook/microwork
 ```
 
-**A cobrança de peças roda uma vez por dia, e só uma.** A cadência anti-spam do `pecas:cobrar` (cobra ao cruzar o prazo, depois a cada 2 dias) é calculada pela idade da pendência: chamá-la com mais frequência transforma a cobrança em spam.
+**A cobrança de peças roda uma vez por dia, e só uma.** A cadência anti-spam do `pecas:cobrar` (cobra ao cruzar o prazo, depois a cada 2 dias) é calculada pela idade da pendência: chamá-la com mais frequência transforma a cobrança em spam. Com o módulo de pedidos de peças desligado, o comando não envia nada.
+
+---
+
+## 🧩 Módulos Opcionais
+
+Módulos liberados aos poucos podem ser ligados e desligados pelo admin em **Gestão → Módulos**, sem deploy:
+
+| Módulo | Padrão | O que cobre |
+|---|---|---|
+| `pedidos_pecas` | **desligado** (aguarda alinhamento com o Pós-Venda) | Solicitação, triagem e liberação (Gate 1), separação, basquetas, embarque, recebimento, pendências e indicadores. Catálogo, "Onde encontrar" e estoque de peças continuam abertos. |
+| `devolucoes` | ligado | Devolução de motos da loja para o CD. |
+
+- **Desligado**, o módulo some do menu e dos atalhos, e as rotas dele (middleware `modulo:<chave>`, `App\Http\Middleware\ExigirModulo`) voltam ao início com o aviso de módulo desativado. Nada é apagado.
+- **Estado:** o que o admin grava fica em `modulos_sistema` (com autor, e aparece na Auditoria). Sem registro, vale o padrão de `config/modulos.php`, que aceita as variáveis `MODULO_PEDIDOS_PECAS` e `MODULO_DEVOLUCOES`.
+- **Novo módulo:** entra em `App\Enums\Modulo`, em `config/modulos.php`, no grupo de rotas (`->middleware('modulo:<chave>')`) e nos itens do menu (`modulo: '<chave>'` em `resources/js/Layouts/navigation.js`).
+- A suíte de testes roda com os módulos ligados (`phpunit.xml`); o desligamento é coberto por `tests/Feature/ModulosTest.php`.
 
 ---
 

@@ -18,6 +18,7 @@ import {
     BuildingStorefrontIcon,
     MagnifyingGlassIcon,
     ShieldCheckIcon,
+    PuzzlePieceIcon,
 } from '@heroicons/react/24/outline';
 
 /**
@@ -68,6 +69,7 @@ export const NAV_SECTIONS = [
             },
             {
                 key: 'motos-devolucoes',
+                modulo: 'devolucoes',
                 label: 'Devoluções',
                 icon: ArrowUturnLeftIcon,
                 route: 'devolucoes.index',
@@ -93,6 +95,7 @@ export const NAV_SECTIONS = [
         items: [
             {
                 key: 'pecas-solicitar',
+                modulo: 'pedidos_pecas',
                 label: 'Solicitar Peças',
                 icon: PlusCircleIcon,
                 route: 'pecas.solicitar',
@@ -100,6 +103,7 @@ export const NAV_SECTIONS = [
             },
             {
                 key: 'pecas-pedidos',
+                modulo: 'pedidos_pecas',
                 label: 'Pedidos de Peças',
                 icon: ArchiveBoxIcon,
                 route: 'pedidos.index',
@@ -109,6 +113,7 @@ export const NAV_SECTIONS = [
             {
                 // Gate 1: Liberação técnica pelo Pós-Venda
                 key: 'pecas-aprovacoes',
+                modulo: 'pedidos_pecas',
                 label: 'Aprovações de Peças',
                 icon: ClipboardDocumentCheckIcon,
                 route: 'pecas.atendimento',
@@ -120,6 +125,7 @@ export const NAV_SECTIONS = [
             {
                 // Triagem e identificação no e-Part pelo CD
                 key: 'pecas-triagem',
+                modulo: 'pedidos_pecas',
                 label: 'Triagem de Peças',
                 icon: MagnifyingGlassIcon,
                 route: 'pecas.atendimento',
@@ -130,6 +136,7 @@ export const NAV_SECTIONS = [
             },
             {
                 key: 'pecas-basquetas',
+                modulo: 'pedidos_pecas',
                 label: 'Basquetas',
                 icon: ArchiveBoxIcon,
                 route: 'pecas.basquetas',
@@ -153,6 +160,7 @@ export const NAV_SECTIONS = [
             },
             {
                 key: 'pecas-indicadores',
+                modulo: 'pedidos_pecas',
                 icon: PresentationChartLineIcon,
                 label: 'Indicadores',
                 route: 'pecas.indicadores',
@@ -161,6 +169,7 @@ export const NAV_SECTIONS = [
             },
             {
                 key: 'pecas-pendencias',
+                modulo: 'pedidos_pecas',
                 label: 'Pendências',
                 icon: ExclamationTriangleIcon,
                 route: 'pecas.pendencias.index',
@@ -235,6 +244,14 @@ export const NAV_SECTIONS = [
                 match: 'auditoria.*',
                 perfis: ['admin'],
             },
+            {
+                key: 'modulos',
+                label: 'Módulos',
+                icon: PuzzlePieceIcon,
+                route: 'modulos.index',
+                match: 'modulos.*',
+                perfis: ['admin'],
+            },
         ],
     },
 
@@ -249,8 +266,12 @@ export const NAV_SECTIONS = [
 
 /**
  * Seções visíveis para um perfil/usuário, com respeito estrito a validações independentes.
+ *
+ * `modulos` é a prop compartilhada de mesmo nome (chave => ligado). Item de
+ * módulo desligado sai do menu; módulo ausente do mapa conta como ligado, porque
+ * quem barra de verdade é o servidor (middleware `modulo:`).
  */
-export function navegacaoPara(userOrPerfil) {
+export function navegacaoPara(userOrPerfil, modulos = {}) {
     const perfil = typeof userOrPerfil === 'string' ? userOrPerfil : (userOrPerfil?.perfil || 'loja');
     const validaPecas = typeof userOrPerfil === 'object'
         ? Boolean(userOrPerfil?.valida_pecas)
@@ -265,6 +286,9 @@ export function navegacaoPara(userOrPerfil) {
             ...secao,
             items: secao.items.filter((item) => {
                 if (item.pronto === false) return false;
+
+                // Módulo opcional desligado em Gestão > Módulos
+                if (item.modulo && modulos[item.modulo] === false) return false;
 
                 // Restrição por perfil genérico
                 if (item.perfis && !item.perfis.includes(perfil)) {

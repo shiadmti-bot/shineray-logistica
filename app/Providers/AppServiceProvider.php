@@ -55,6 +55,10 @@ class AppServiceProvider extends ServiceProvider
          * um Google\Service\Drive sem credencial e o daria como "configurado".
          */
         $this->app->scoped(GoogleDriveComprovantes::class, fn () => new GoogleDriveComprovantes());
+
+        // Um por request: middleware, menu e controller perguntam o estado dos
+        // módulos na mesma requisição sem repetir a leitura — ver Modulos.
+        $this->app->scoped(\App\Services\Modulos::class);
     }
 
     /**

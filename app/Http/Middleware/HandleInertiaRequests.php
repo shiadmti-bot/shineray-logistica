@@ -2,12 +2,14 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\Modulo;
 use App\Enums\Perfil;
 use App\Enums\StatusPedido;
 use App\Models\Devolucao;
 use App\Models\Pedido;
 use App\Models\RomaneioItem;
 use App\Models\User;
+use App\Services\Modulos;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
@@ -83,8 +85,47 @@ class HandleInertiaRequests extends Middleware
             ],
 
             // 4. CONTADORES DO MENU — closure: não roda em recarga parcial.
-            'navCounts' => fn () => $user ? $this->contadoresDoMenu($user) : [],
+            'navCounts' => fn () => $user ? $this->menuDe($user)['contadores'] : [],
+
+            // 5. MÓDULOS OPCIONAIS — o que o menu e os atalhos escondem
+            // (Gestão > Módulos). Quem barra de verdade é o middleware `modulo:`.
+            'modulos' => fn () => $user ? $this->menuDe($user)['modulos'] : [],
         ];
+    }
+
+    /** Chave do cache do menu de um usuário — esquecida quando ele muda um módulo. */
+    public static function chaveDoMenu(int $userId): string
+    {
+        return "menu:{$userId}";
+    }
+
+    /** @var array{contadores: array<string, int>, modulos: array<string, bool>}|null */
+    private ?array $menu = null;
+
+    /**
+     * Contadores e estado dos módulos numa entrada de cache só.
+     *
+     * Saem juntos de propósito: o estado dos módulos é lido a cada navegação
+     * para montar o menu, e uma leitura de cache a mais por clique é uma ida
+     * a mais ao banco na nuvem. Assim ele aproveita a que os contadores já
+     * faziam — e a troca de estado chega ao menu em até 30 s.
+     *
+     * @return array{contadores: array<string, int>, modulos: array<string, bool>}
+     */
+    private function menuDe(User $user): array
+    {
+        return $this->menu ??= Cache::remember(
+            self::chaveDoMenu($user->id),
+            self::CONTADORES_SEGUNDOS,
+            function () use ($user) {
+                $modulos = app(Modulos::class)->estados();
+
+                return [
+                    'contadores' => $this->contadoresDoMenu($user, $modulos),
+                    'modulos'    => $modulos,
+                ];
+            },
+        );
     }
 
     /**
@@ -95,40 +136,45 @@ class HandleInertiaRequests extends Middleware
      * chegando para conferir e a loja tem rascunho parado — três números
      * diferentes no mesmo lugar do menu.
      *
+     * Módulo desligado não conta nada: o item dele nem aparece no menu.
+     *
+     * @param  array<string, bool>  $modulos
      * @return array<string, int>
      */
-    private function contadoresDoMenu(User $user): array
+    private function contadoresDoMenu(User $user, array $modulos): array
     {
-        return Cache::remember("nav_counts:{$user->id}", self::CONTADORES_SEGUNDOS, function () use ($user) {
-            $pecas = fn () => Pedido::where('tipo_carga', 'peca');
+        $pecasLigado = $modulos[Modulo::PedidosPecas->value] ?? true;
+        $devolucoesLigado = $modulos[Modulo::Devolucoes->value] ?? true;
+        $pecas = fn () => Pedido::where('tipo_carga', 'peca');
 
-            return [
-                'pecasAprovacoesPendentes' => $user->podeValidarPecas()
-                    ? $pecas()->where('status', StatusPedido::AguardandoConfirmacao->value)->count()
-                    : 0,
+        return [
+            'pecasAprovacoesPendentes' => $pecasLigado && $user->podeValidarPecas()
+                ? $pecas()->where('status', StatusPedido::AguardandoConfirmacao->value)->count()
+                : 0,
 
-                'pecasTriagemPendentes' => $user->temPerfil(Perfil::Cd, Perfil::Admin)
-                    ? $pecas()->whereIn('status', [StatusPedido::Solicitado->value, StatusPedido::EmAtendimento->value])->count()
-                    : 0,
+            'pecasTriagemPendentes' => $pecasLigado && $user->temPerfil(Perfil::Cd, Perfil::Admin)
+                ? $pecas()->whereIn('status', [StatusPedido::Solicitado->value, StatusPedido::EmAtendimento->value])->count()
+                : 0,
 
-                'pecasPendencias' => RomaneioItem::pecas()
+            'pecasPendencias' => $pecasLigado
+                ? RomaneioItem::pecas()
                     ->divergenciasAbertas()
                     ->when(
                         ! $user->temPerfil(...Perfil::operacaoCentral()),
                         fn ($q) => $q->where('local_destino_id', $user->estoque_local_id)
                     )
-                    ->count(),
+                    ->count()
+                : 0,
 
-                'devolucoesPendentes' => match (Perfil::tryFrom((string) $user->perfil)) {
-                    Perfil::Gestor => Devolucao::pendentesDeAprovacao()->count(),
-                    Perfil::Cd     => Devolucao::where('status', Devolucao::STATUS_APROVADA)->count(),
-                    Perfil::Admin  => Devolucao::emAndamento()->count(),
-                    Perfil::Loja   => Devolucao::where('user_id', $user->id)
-                        ->whereIn('status', [Devolucao::STATUS_RASCUNHO, Devolucao::STATUS_AGUARDANDO])
-                        ->count(),
-                    default        => 0,
-                },
-            ];
-        });
+            'devolucoesPendentes' => ! $devolucoesLigado ? 0 : match (Perfil::tryFrom((string) $user->perfil)) {
+                Perfil::Gestor => Devolucao::pendentesDeAprovacao()->count(),
+                Perfil::Cd     => Devolucao::where('status', Devolucao::STATUS_APROVADA)->count(),
+                Perfil::Admin  => Devolucao::emAndamento()->count(),
+                Perfil::Loja   => Devolucao::where('user_id', $user->id)
+                    ->whereIn('status', [Devolucao::STATUS_RASCUNHO, Devolucao::STATUS_AGUARDANDO])
+                    ->count(),
+                default        => 0,
+            },
+        ];
     }
 }

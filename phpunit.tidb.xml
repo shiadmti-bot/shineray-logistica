@@ -114,6 +114,9 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- Módulos opcionais ligados, como na faixa rápida (phpunit.xml). -->
+        <env name="MODULO_PEDIDOS_PECAS" value="true"/>
+        <env name="MODULO_DEVOLUCOES" value="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

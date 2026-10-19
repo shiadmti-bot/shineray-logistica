@@ -69,7 +69,7 @@ export default function AppLayout({ user, header, children, contained = true }) 
         }
     };
 
-    const secoes = navegacaoPara(currentUser);
+    const secoes = navegacaoPara(currentUser, props.modulos ?? {});
     const contadores = props.navCounts ?? {};
 
     const contarSecao = (secao) =>

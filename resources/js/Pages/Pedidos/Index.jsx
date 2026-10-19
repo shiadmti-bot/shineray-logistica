@@ -1,4 +1,4 @@
-import { Head, Link, useForm, router } from '@inertiajs/react';
+import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import useNotificacoesTempoReal from '@/Hooks/useNotificacoesTempoReal';
 import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import {
@@ -25,6 +25,11 @@ import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs, Pagination } f
  */
 export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, tipoCounts, currentTipo = 'all' }) {
     const safePedidos = pedidos || { data: [], links: [], total: 0 };
+
+    // Gestão > Módulos: com pedidos de peças desligado, somem a aba e os botões
+    // de solicitar. A aba continua se alguém abrir ?tipo=peca direto, para os
+    // pedidos que já existem seguirem consultáveis.
+    const pedidosPecasLigado = usePage().props.modulos?.pedidos_pecas !== false;
 
     // Transferências em que ESTA loja é a origem: exigem separação física.
     const transferenciasAEnviar = safePedidos.data.filter(
@@ -53,7 +58,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
         { key: 'all', label: 'Todos os Pedidos', count: tipoCounts?.all ?? safePedidos.total, icon: InboxIcon },
         { key: 'moto', label: 'Pedidos de Motos', count: tipoCounts?.moto ?? 0, icon: CubeIcon },
         { key: 'peca', label: 'Pedidos de Peças', count: tipoCounts?.peca ?? 0, icon: WrenchScrewdriverIcon },
-    ];
+    ].filter((aba) => aba.key !== 'peca' || pedidosPecasLigado || currentTipo === 'peca');
 
     const handleTabChange = (tipoKey) => {
         router.get(
@@ -109,7 +114,7 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
             <div className="flex flex-wrap items-center gap-2">
                 {podeCriar && (
                     <div data-tour="pedidos.novo" className="flex items-center gap-2">
-                        {currentTipo === 'peca' && (
+                        {currentTipo === 'peca' && pedidosPecasLigado && (
                             <Button href={route('pecas.solicitar')} icon={PlusIcon}>
                                 Solicitar Peças
                             </Button>
@@ -126,9 +131,11 @@ export default function PedidosIndex({ auth, pedidos, perfil, filters, lojas, ti
                                 <Button href={route('solicitar')} variant="secondary" icon={PlusIcon} size="sm">
                                     Nova Moto
                                 </Button>
-                                <Button href={route('pecas.solicitar')} icon={PlusIcon} size="sm">
-                                    Nova Peça
-                                </Button>
+                                {pedidosPecasLigado && (
+                                    <Button href={route('pecas.solicitar')} icon={PlusIcon} size="sm">
+                                        Nova Peça
+                                    </Button>
+                                )}
                             </>
                         )}
                     </div>

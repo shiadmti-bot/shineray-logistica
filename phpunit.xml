@@ -51,6 +51,11 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Módulos opcionais LIGADOS na suíte: as suítes de peças e devoluções
+             testam o fluxo. Quem testa o desligamento é ModulosTest, que muda
+             o estado na mão. Ver config/modulos.php. -->
+        <env name="MODULO_PEDIDOS_PECAS" value="true"/>
+        <env name="MODULO_DEVOLUCOES" value="true"/>
 
         <!--
             Host e porta são declarados AQUI, não herdados do .env. Herdar era

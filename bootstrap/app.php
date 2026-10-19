@@ -19,6 +19,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
          $middleware->alias([
             'check_perfil' => \App\Http\Middleware\CheckPerfil::class,
             'cron'         => \App\Http\Middleware\AutenticarCron::class,
+            'modulo'       => \App\Http\Middleware\ExigirModulo::class,
         ]);
         
         $middleware->trustProxies(at: '*');

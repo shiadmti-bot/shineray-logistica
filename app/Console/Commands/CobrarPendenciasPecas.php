@@ -2,11 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\Modulo;
 use App\Enums\Perfil;
 use App\Models\Basqueta;
 use App\Models\PedidoItem;
 use App\Models\User;
 use App\Notifications\PedidoAtualizado;
+use App\Services\Modulos;
 use App\Services\OneSignalService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -46,9 +48,17 @@ class CobrarPendenciasPecas extends Command
 
     private bool $dry = false;
 
-    public function handle(): int
+    public function handle(Modulos $modulos): int
     {
         $this->dry = (bool) $this->option('dry');
+
+        // Módulo desligado: o fluxo está congelado e ninguém pode agir sobre a
+        // pendência. Cobrar seria mandar aviso de algo que a tela não deixa resolver.
+        if (! $modulos->ativo(Modulo::PedidosPecas)) {
+            $this->info('Módulo de pedidos de peças desativado: nenhuma cobrança enviada.');
+
+            return self::SUCCESS;
+        }
 
         $enviadas = 0;
         $enviadas += $this->cobrarAtendimento();

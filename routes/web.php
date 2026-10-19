@@ -260,7 +260,7 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         | Três portões, e o middleware de cada rota diz de quem é cada um:
         |   a loja preenche e envia | o gestor decide | o CD confere e fecha.
         */
-        Route::prefix('devolucoes')->name('devolucoes.')->group(function () {
+        Route::prefix('devolucoes')->name('devolucoes.')->middleware('modulo:devolucoes')->group(function () {
             Route::get('/', [\App\Http\Controllers\DevolucaoController::class, 'index'])->name('index');
 
             // Abertura: quem devolve é a loja (admin entra por herança, mas
@@ -323,97 +323,113 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::prefix('pecas')->name('pecas.')->group(function () {
             Route::get('/', [\App\Http\Controllers\PecaController::class, 'index'])->name('index');
 
-            /*
-             * Solicitação da loja ao CD (mesma estrutura de Pedido das motos,
-             * com tipo_carga = 'peca').
-             *
-             * SÓ LOJA E ADMIN. Quem pede peça é quem tem oficina e um
-             * `estoque_local_id` para receber. CD e gestor não têm destino
-             * válido: o pedido nasceria com origem igual ao destino, ou sem
-             * destino nenhum, e morreria preso na separação sem caminho de
-             * saída — ver PecaPedidoController::store.
-             */
-            Route::middleware('check_perfil:loja,admin')->group(function () {
-                Route::get('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'create'])
-                    ->name('solicitar');
-                Route::post('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'store'])
-                    ->name('solicitar.store');
-            });
-
             // Captura de conhecimento: quem tem a peça na mão confirma em qual
             // moto ela serve. Vira vínculo manual, com confiança alta.
             Route::post('/{peca}/aplicacao', [\App\Http\Controllers\PecaPedidoController::class, 'confirmarAplicacao'])
                 ->name('aplicacao.confirmar');
 
             /*
-             * Passos 2 e 3 do manual: identificar o código e liberar o pedido.
-             * Acontece ANTES de qualquer movimento de estoque — ver
-             * PecaLiberacaoController. Sem a liberação, separar recusa.
-             */
-            Route::get('/atendimento', [\App\Http\Controllers\PecaLiberacaoController::class, 'index'])
-                ->name('atendimento');
-            Route::get('/atendimento/buscar', [\App\Http\Controllers\PecaLiberacaoController::class, 'buscar'])
-                ->name('atendimento.buscar');
-            Route::post('/pedidos/{pedido}/atender', [\App\Http\Controllers\PecaLiberacaoController::class, 'atender'])
-                ->name('atender');
-            Route::post('/pedidos/{pedido}/liberar', [\App\Http\Controllers\PecaLiberacaoController::class, 'liberar'])
-                ->name('liberar');
-            Route::post('/pedidos/{pedido}/recusar', [\App\Http\Controllers\PecaLiberacaoController::class, 'recusar'])
-                ->name('recusar');
-
-            /*
-             * Passo 4 do manual: o caixote reservado a cada filial. Enche na
-             * separação e esvazia na montagem de carga — ver Basqueta.
-             */
-            Route::get('/basquetas', [\App\Http\Controllers\BasquetaController::class, 'index'])
-                ->name('basquetas');
-
-            // Passo 6: recolher, faturar e emitir o romaneio de peças.
-            Route::post('/basquetas/{basqueta}/faturar', [\App\Http\Controllers\BasquetaController::class, 'faturar'])
-                ->name('basquetas.faturar');
-
-            // O documento que vai à conferência da filial (Passo 7).
-            Route::get('/basquetas/{basqueta}/romaneio', [\App\Http\Controllers\BasquetaController::class, 'romaneio'])
-                ->name('basquetas.romaneio');
-
-            /*
-             * GATE 2 — a filial confere antes do despacho. Dois desfechos:
-             * libera a caixa, ou devolve para ajuste cancelando a NF.
-             * A trava está em RomaneioController::embarcarPecas.
-             */
-            Route::post('/basquetas/{basqueta}/conferir', [\App\Http\Controllers\BasquetaController::class, 'conferir'])
-                ->name('basquetas.conferir');
-            Route::post('/basquetas/{basqueta}/ajustar', [\App\Http\Controllers\BasquetaController::class, 'ajustar'])
-                ->name('basquetas.ajustar');
-
-            // Fase 5: os números que medem a promessa do manual.
-            Route::get('/indicadores', [\App\Http\Controllers\PecaIndicadorController::class, 'index'])
-                ->name('indicadores');
-
-            /*
-             * Atendimento do pedido de peça. Três etapas com efeitos distintos
-             * sobre o estoque — ver PecaAtendimentoController:
-             *   separar -> reserva | carga -> nada | receber -> transfere
+             * PEDIDOS DE PEÇAS — módulo opcional (Gestão > Módulos).
              *
-             * Separar e embarcar são do CD, e só dele: quem tira da prateleira
-             * é quem responde pelo saldo. Receber fica fora deste grupo porque
-             * quem confere é a FILIAL DE DESTINO — regra de local, não de
-             * perfil, resolvida em PecaAtendimentoController::autorizarDestino.
+             * Da solicitação da loja ao recebimento, com triagem, liberação,
+             * basquetas, pendências e indicadores. Desligado, as rotas respondem
+             * com o aviso de módulo desativado — ver ExigirModulo. Catálogo,
+             * aplicação e estoque de peças ficam fora do grupo: não dependem do
+             * fluxo de pedido.
              */
-            Route::middleware('check_perfil:cd,admin')->group(function () {
-                Route::post('/pedidos/{pedido}/separar', [\App\Http\Controllers\PecaAtendimentoController::class, 'separar'])
-                    ->name('separar');
-                Route::post('/pedidos/{pedido}/carga', [\App\Http\Controllers\PecaAtendimentoController::class, 'adicionarNaCarga'])
-                    ->name('carga');
+            Route::middleware('modulo:pedidos_pecas')->group(function () {
+                /*
+                 * Solicitação da loja ao CD (mesma estrutura de Pedido das motos,
+                 * com tipo_carga = 'peca').
+                 *
+                 * SÓ LOJA E ADMIN. Quem pede peça é quem tem oficina e um
+                 * `estoque_local_id` para receber. CD e gestor não têm destino
+                 * válido: o pedido nasceria com origem igual ao destino, ou sem
+                 * destino nenhum, e morreria preso na separação sem caminho de
+                 * saída — ver PecaPedidoController::store.
+                 */
+                Route::middleware('check_perfil:loja,admin')->group(function () {
+                    Route::get('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'create'])
+                        ->name('solicitar');
+                    Route::post('/solicitar', [\App\Http\Controllers\PecaPedidoController::class, 'store'])
+                        ->name('solicitar.store');
+                });
+
+                /*
+                 * Passos 2 e 3 do manual: identificar o código e liberar o pedido.
+                 * Acontece ANTES de qualquer movimento de estoque — ver
+                 * PecaLiberacaoController. Sem a liberação, separar recusa.
+                 */
+                Route::get('/atendimento', [\App\Http\Controllers\PecaLiberacaoController::class, 'index'])
+                    ->name('atendimento');
+                Route::get('/atendimento/buscar', [\App\Http\Controllers\PecaLiberacaoController::class, 'buscar'])
+                    ->name('atendimento.buscar');
+                Route::post('/pedidos/{pedido}/atender', [\App\Http\Controllers\PecaLiberacaoController::class, 'atender'])
+                    ->name('atender');
+                Route::post('/pedidos/{pedido}/liberar', [\App\Http\Controllers\PecaLiberacaoController::class, 'liberar'])
+                    ->name('liberar');
+                Route::post('/pedidos/{pedido}/recusar', [\App\Http\Controllers\PecaLiberacaoController::class, 'recusar'])
+                    ->name('recusar');
+
+                /*
+                 * Passo 4 do manual: o caixote reservado a cada filial. Enche na
+                 * separação e esvazia na montagem de carga — ver Basqueta.
+                 */
+                Route::get('/basquetas', [\App\Http\Controllers\BasquetaController::class, 'index'])
+                    ->name('basquetas');
+
+                // Passo 6: recolher, faturar e emitir o romaneio de peças.
+                Route::post('/basquetas/{basqueta}/faturar', [\App\Http\Controllers\BasquetaController::class, 'faturar'])
+                    ->name('basquetas.faturar');
+
+                // O documento que vai à conferência da filial (Passo 7).
+                Route::get('/basquetas/{basqueta}/romaneio', [\App\Http\Controllers\BasquetaController::class, 'romaneio'])
+                    ->name('basquetas.romaneio');
+
+                /*
+                 * GATE 2 — a filial confere antes do despacho. Dois desfechos:
+                 * libera a caixa, ou devolve para ajuste cancelando a NF.
+                 * A trava está em RomaneioController::embarcarPecas.
+                 */
+                Route::post('/basquetas/{basqueta}/conferir', [\App\Http\Controllers\BasquetaController::class, 'conferir'])
+                    ->name('basquetas.conferir');
+                Route::post('/basquetas/{basqueta}/ajustar', [\App\Http\Controllers\BasquetaController::class, 'ajustar'])
+                    ->name('basquetas.ajustar');
+
+                // Fase 5: os números que medem a promessa do manual.
+                Route::get('/indicadores', [\App\Http\Controllers\PecaIndicadorController::class, 'index'])
+                    ->name('indicadores');
+
+                /*
+                 * Atendimento do pedido de peça. Três etapas com efeitos distintos
+                 * sobre o estoque — ver PecaAtendimentoController:
+                 *   separar -> reserva | carga -> nada | receber -> transfere
+                 *
+                 * Separar e embarcar são do CD, e só dele: quem tira da prateleira
+                 * é quem responde pelo saldo. Receber fica fora deste grupo porque
+                 * quem confere é a FILIAL DE DESTINO — regra de local, não de
+                 * perfil, resolvida em PecaAtendimentoController::autorizarDestino.
+                 */
+                Route::middleware('check_perfil:cd,admin')->group(function () {
+                    Route::post('/pedidos/{pedido}/separar', [\App\Http\Controllers\PecaAtendimentoController::class, 'separar'])
+                        ->name('separar');
+                    Route::post('/pedidos/{pedido}/carga', [\App\Http\Controllers\PecaAtendimentoController::class, 'adicionarNaCarga'])
+                        ->name('carga');
+                });
+
+                Route::post('/pedidos/{pedido}/receber', [\App\Http\Controllers\PecaAtendimentoController::class, 'receber'])
+                    ->name('receber');
+
+                // Pendências: divergências de recebimento e alertas de reposição.
+                Route::prefix('pendencias')->name('pendencias.')->group(function () {
+                    Route::get('/', [\App\Http\Controllers\PecaPendenciaController::class, 'index'])->name('index');
+                    Route::post('/{item}/resolver', [\App\Http\Controllers\PecaPendenciaController::class, 'resolver'])->name('resolver');
+                });
             });
 
-            Route::post('/pedidos/{pedido}/receber', [\App\Http\Controllers\PecaAtendimentoController::class, 'receber'])
-                ->name('receber');
-
-            // Pendências: divergências de recebimento e reposição de estoque.
+            // Estoque mínimo por peça e local: é cadastro de estoque (a tela de
+            // Entrada usa), por isso fica fora do módulo de pedidos.
             Route::prefix('pendencias')->name('pendencias.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\PecaPendenciaController::class, 'index'])->name('index');
-                Route::post('/{item}/resolver', [\App\Http\Controllers\PecaPendenciaController::class, 'resolver'])->name('resolver');
                 Route::post('/minimo', [\App\Http\Controllers\PecaPendenciaController::class, 'definirMinimo'])->name('minimo');
                 Route::get('/sugerir-minimo', [\App\Http\Controllers\PecaPendenciaController::class, 'sugerirMinimo'])->name('sugerir');
             });
@@ -481,6 +497,12 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         Route::get('/auditoria', \App\Http\Controllers\AuditoriaController::class)
             ->middleware('check_perfil:admin')
             ->name('auditoria.index');
+
+        // Módulos opcionais: ligar e desligar (ver ExigirModulo) - Exclusivo Admin
+        Route::prefix('modulos')->name('modulos.')->middleware('check_perfil:admin')->group(function () {
+            Route::get('/', [\App\Http\Controllers\ModuloController::class, 'index'])->name('index');
+            Route::patch('/{chave}', [\App\Http\Controllers\ModuloController::class, 'atualizar'])->name('atualizar');
+        });
 
         // Gestão e Organização de Filiais (Admin/Gestor)
         Route::prefix('filiais')->name('filiais.')->middleware('check_perfil:admin,gestor')->group(function () {

@@ -26,6 +26,10 @@ class DashboardController extends Controller
         // `valida_motos` é barrado nesse painel (403), e redirecioná-lo para lá
         // deixava a conta sem tela inicial — o login caía direto num erro.
         if ($user->isGestor() && $user->podeValidarMotos()) {
+            // O aviso que mandou para o início (ex.: módulo desativado) sobrevive
+            // a este segundo redirecionamento, senão o gestor nunca o veria.
+            $request->session()->reflash();
+
             return redirect()->route('gestor.index');
         }
 
