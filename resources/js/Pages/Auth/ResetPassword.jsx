@@ -25,7 +25,7 @@ export default function ResetPassword({ token, email }) {
             titulo="Definir nova senha"
             descricao="Escolha uma senha que você não use em outro sistema."
         >
-            <Head title="Redefinir senha — Shineray By Sabel" />
+            <Head title="Redefinir senha — BySabel Logística" />
 
             <form onSubmit={submit} className="space-y-5">
                 <CampoTexto

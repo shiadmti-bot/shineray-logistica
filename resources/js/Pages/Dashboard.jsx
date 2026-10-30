@@ -181,8 +181,8 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                             {saudacao}, <span className="text-brand-700">{auth.user.name.split(' ')[0]}</span>!
                         </h1>
                         <p className="mt-1 text-sm text-content-secondary">
-                            Sistema de Logística Integrada{' '}
-                            <span className="font-bold text-brand-600">Shineray By Sabel</span>.
+                            Plataforma Operacional de Distribuição{' '}
+                            <span className="font-bold text-brand-600">BySabel Logística</span> (BS Log).
                         </p>
                     </div>
 

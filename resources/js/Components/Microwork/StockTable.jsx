@@ -268,7 +268,7 @@ export default function StockTable({ user }) {
                 <div class="header">
                     <div>
                         <h2>Conferência de Estoque: ${agrupamento.toUpperCase()}</h2>
-                        <p style="margin:0;">Shineray By Sabel - Logística</p>
+                        <p style="margin:0;">BySabel Logística - Microwork</p>
                     </div>
                     <div class="header-info">
                         Impresso em: ${new Date().toLocaleString('pt-BR')}<br/>

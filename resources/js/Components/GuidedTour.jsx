@@ -460,6 +460,21 @@ export default function GuidedTour({ user }) {
         };
     }, [updateTargetPosition]);
 
+    // Aplica classe de alto contraste e nitidez diretamente no elemento ativo
+    useEffect(() => {
+        if (isWelcome || !isOpen) return;
+
+        const step = steps[currentStep];
+        const el = getElementoVisivel(step?.targetSelector);
+
+        if (el) {
+            el.classList.add('tour-spotlight-target');
+            return () => {
+                el.classList.remove('tour-spotlight-target');
+            };
+        }
+    }, [isWelcome, isOpen, currentStep, steps]);
+
     const handleSkip = () => {
         if (user?.id) {
             localStorage.setItem(TOUR_STORAGE_KEY + user.id, 'true');
@@ -539,9 +554,9 @@ export default function GuidedTour({ user }) {
             style={{ zIndex: 99999 }}
         >
             {isWelcome ? (
-                /* Modal de Acolhimento Padronizado V3 */
-                <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-                    <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white border border-gray-200 shadow-2xl shadow-black/60 relative">
+                /* Modal de Acolhimento Padronizado BySabel Log */
+                <div className="fixed inset-0 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+                    <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white border border-gray-200 shadow-2xl shadow-black/80 relative">
                         <div className="h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-brand-700" />
 
                         <div className="p-6 sm:p-8 space-y-5 text-center">
@@ -551,13 +566,13 @@ export default function GuidedTour({ user }) {
 
                             <div className="space-y-1.5">
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-black uppercase tracking-wider border border-brand-200">
-                                    Perfil {perfil.toUpperCase()}
+                                    BS Log • Perfil {perfil.toUpperCase()}
                                 </span>
                                 <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-                                    Bem-vindo à Shineray V3
+                                    Bem-vindo ao BySabel Logística
                                 </h2>
                                 <p className="text-sm text-gray-600 max-w-md mx-auto leading-relaxed">
-                                    Vamos percorrer os recursos e fluxos operacionais preparados especificamente para o seu perfil.
+                                    Vamos percorrer os recursos e fluxos operacionais da plataforma <strong>BS Log</strong> preparados especificamente para o seu perfil.
                                 </p>
                             </div>
 
@@ -584,17 +599,47 @@ export default function GuidedTour({ user }) {
             ) : (
                 /* Spotlight e Cartão de Tour */
                 <div className="fixed inset-0 overflow-hidden">
-                    {/* Backdrop escurecido */}
-                    <div
-                        className="absolute inset-0 bg-[#0b1a2b]/80 backdrop-blur-[2px] transition-all duration-300"
+                    {/* Backdrop escurecido com recorte cirúrgico (SVG Mask) - ZERO BLUR e 100% de nitidez sobre o elemento alvo */}
+                    <svg
+                        className="fixed inset-0 w-full h-full cursor-pointer select-none transition-all duration-300"
+                        style={{ zIndex: 99997 }}
                         onClick={handleNext}
-                    />
+                    >
+                        <defs>
+                            <mask id="tour-spotlight-mask">
+                                {/* Máscara branca: cobre toda a tela com o backdrop escuro */}
+                                <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                                
+                                {/* Recorte preto: cria um furo 100% transparente exatamente sobre o elemento alvo */}
+                                {targetRect && (
+                                    <rect
+                                        x={targetRect.left - 6}
+                                        y={targetRect.top - 4}
+                                        width={targetRect.width + 12}
+                                        height={targetRect.height + 8}
+                                        rx="12"
+                                        fill="black"
+                                    />
+                                )}
+                            </mask>
+                        </defs>
+                        
+                        {/* O fundo escuro usa a máscara, garantindo que o buraco seja 100% livre de qualquer overlay */}
+                        <rect
+                            x="0"
+                            y="0"
+                            width="100%"
+                            height="100%"
+                            fill="rgba(11, 26, 43, 0.82)"
+                            mask="url(#tour-spotlight-mask)"
+                        />
+                    </svg>
 
-                    {/* Spotlight no Elemento Alvo com Feixe de Luz */}
+                    {/* Spotlight no Elemento Alvo com Moldura e Feixe de Luz */}
                     {targetRect && (
                         <div
                             aria-hidden="true"
-                            className="pointer-events-none fixed rounded-xl ring-4 ring-brand-500 ring-offset-2 ring-offset-brand-900 shadow-[0_0_0_9999px_rgba(11,26,43,0.78)] transition-all duration-300"
+                            className="pointer-events-none fixed rounded-xl transition-all duration-300"
                             style={{
                                 top: `${targetRect.top - 4}px`,
                                 left: `${targetRect.left - 6}px`,
@@ -603,8 +648,14 @@ export default function GuidedTour({ user }) {
                                 zIndex: 99998,
                             }}
                         >
-                            {/* Feixe indicador pulsante apontando para o card */}
-                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-brand-500 rotate-45 rounded-xs shadow-md"></div>
+                            {/* Moldura de destaque vibrante em vermelho BySabel com pulso */}
+                            <div className="absolute inset-0 rounded-xl ring-4 ring-brand-500 shadow-[0_0_25px_rgba(239,68,68,0.7)] animate-pulse" />
+                            
+                            {/* Borda interna fina branca com alto contraste para separar perfeitamente da barra */}
+                            <div className="absolute inset-0 rounded-xl ring-1 ring-white/90" />
+
+                            {/* Feixe indicador em diamante apontando para o card explicativo */}
+                            <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-brand-500 rotate-45 rounded-xs shadow-lg ring-2 ring-white"></div>
                         </div>
                     )}
 

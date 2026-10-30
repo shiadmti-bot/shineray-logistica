@@ -5,7 +5,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Shineray By Sabel';
+const appName = import.meta.env.VITE_APP_NAME || 'BySabel Logística';
 
 // Telas fora do shell autenticado: login e afins, erro e manutenção.
 const SEM_SHELL = /^(Auth\/|Error$|Maintenance$)/;

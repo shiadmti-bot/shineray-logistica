@@ -19,7 +19,7 @@ export default function VerifyEmail({ status }) {
             titulo="Confirme seu e-mail"
             descricao="Enviamos um link de verificação para o e-mail cadastrado. Abra o link para liberar seu acesso."
         >
-            <Head title="Verificar e-mail — Shineray By Sabel" />
+            <Head title="Verificar e-mail — BySabel Logística" />
 
             {linkEnviado && (
                 <div className="mb-6 rounded-xl border border-status-success-solid/30 bg-status-success-bg px-4 py-3 text-sm font-medium text-status-success-fg">

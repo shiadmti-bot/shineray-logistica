@@ -135,6 +135,27 @@
 
 /*
 |--------------------------------------------------------------------------
+| TOUR GUIADO - EVIDENCIAÇÃO DO ALVO (100% NITIDEZ E ALTO CONTRASTE)
+|--------------------------------------------------------------------------
+*/
+.tour-spotlight-target {
+    position: relative !important;
+    z-index: 99998 !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 10px rgba(255, 255, 255, 0.6) !important;
+    transition: all 0.2s ease-in-out !important;
+}
+.tour-spotlight-target *,
+.tour-spotlight-target button,
+.tour-spotlight-target a,
+.tour-spotlight-target span {
+    color: #ffffff !important;
+    font-weight: 800 !important;
+}
+
+/*
+|--------------------------------------------------------------------------
 | ÁREA SEGURA (iOS)
 |--------------------------------------------------------------------------
 | A barra de ações fixa da montagem de carga (Romaneios/Create) já usava

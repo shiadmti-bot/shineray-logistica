@@ -18,7 +18,7 @@ export default function ForgotPassword({ status }) {
             titulo="Recuperação de senha"
             descricao="Informe seu e-mail corporativo para receber as instruções de redefinição."
         >
-            <Head title="Recuperar senha — Shineray By Sabel" />
+            <Head title="Recuperar senha — BySabel Logística" />
 
             {status && (
                 <div className="mb-6 rounded-xl border border-status-success-solid/30 bg-status-success-bg px-4 py-3 text-sm font-medium text-status-success-fg">

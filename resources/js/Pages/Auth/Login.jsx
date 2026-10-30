@@ -36,7 +36,7 @@ export default function Login({ status, canResetPassword }) {
 
     return (
         <div className="min-h-screen flex flex-col justify-center items-center px-4 py-12 bg-gradient-to-br from-brand-950 via-brand-700 to-brand-800 relative overflow-hidden selection:bg-brand-900 selection:text-white">
-            <Head title="Acesso ao Sistema - Shineray By Sabel" />
+            <Head title="Acesso ao Sistema — BySabel Logística" />
 
             {/* ================= EFEITOS DEGRADÊ EM BRANCO & ILUMINAÇÃO ================= */}
             {/* Halos de luz branca em degradê translúcido para alto contraste */}
@@ -65,7 +65,7 @@ export default function Login({ status, canResetPassword }) {
                         <div className="bg-white px-8 py-4 rounded-3xl shadow-2xl shadow-black/30 border border-white/80 flex items-center justify-center gap-3 mx-auto transition-all duration-300 group-hover:scale-105 group-hover:shadow-white/20">
                             <img 
                                 src="/img/logo.png" 
-                                alt="Logo Shineray By Sabel" 
+                                alt="Logo BySabel Logística" 
                                 className="h-12 w-auto object-contain transition-transform duration-300" 
                             />
                         </div>
@@ -80,13 +80,13 @@ export default function Login({ status, canResetPassword }) {
                     {/* Cabeçalho do Card */}
                     <div className="text-center mb-8">
                         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 border border-brand-200 text-brand-700 text-[11px] font-black uppercase tracking-wider mb-2 shadow-xs transition-transform duration-200 hover:scale-105">
-                            <ShieldCheckIcon className="w-3.5 h-3.5" /> Portal de Acesso Corporativo
+                            <ShieldCheckIcon className="w-3.5 h-3.5" /> BS Log • Portal Corporativo
                         </div>
                         <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-                            Logística Integrada
+                            BySabel Logística
                         </h1>
                         <p className="text-xs text-gray-500 mt-1.5 font-medium">
-                            Informe suas credenciais para acessar o painel
+                            Plataforma Operacional de Distribuição &bull; BS Log
                         </p>
                     </div>
 
@@ -203,9 +203,9 @@ export default function Login({ status, canResetPassword }) {
 
                 {/* Rodapé e Versão com Contraste Branco */}
                 <div className="text-center text-xs text-white/90 space-y-2">
-                    <p className="font-medium drop-shadow-sm">&copy; {new Date().getFullYear()} Shineray By Sabel • Logística & Distribuição</p>
+                    <p className="font-medium drop-shadow-sm">&copy; {new Date().getFullYear()} BySabel Logística • BS Log</p>
                     <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-white/70 uppercase tracking-widest drop-shadow-sm">
-                        <span>Sistema V3.0</span>
+                        <span>BS Log v3.0</span>
                         <span>•</span>
                         <span>Hub & Spoke</span>
                         <span>•</span>

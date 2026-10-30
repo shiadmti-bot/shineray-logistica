@@ -50,7 +50,7 @@ export default function CardRotaPedido({ pedido, destinoFinalLabel }) {
                     {pedido.origem ? pedido.origem.filial : 'Centro de Distribuição'}
                 </div>
                 <div className="text-sm text-content-secondary mt-1 font-medium">
-                    {pedido.origem?.name || 'Matriz Shineray By Sabel'}
+                    {pedido.origem?.name || 'Matriz BySabel Logística'}
                 </div>
 
                 {pedido.previsao_coleta && (

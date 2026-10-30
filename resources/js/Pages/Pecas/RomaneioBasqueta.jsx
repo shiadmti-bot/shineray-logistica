@@ -91,7 +91,7 @@ export default function RomaneioBasqueta({ basqueta, podeConferir = false }) {
                             Romaneio de Peças
                         </h1>
                         <p className="text-xs font-bold uppercase tracking-widest text-content-muted print:text-black">
-                            Shineray By Sabel · Conferência do Pós-Venda
+                            BySabel Logística · Conferência do Pós-Venda
                         </p>
                     </div>
 

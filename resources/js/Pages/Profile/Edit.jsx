@@ -64,12 +64,12 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
         bg: 'bg-gradient-to-br from-slate-800 to-slate-900', 
         icon: '👤', 
         role: 'USUÁRIO', 
-        desc: 'Bem-vindo ao sistema Shineray By Sabel Logística.' 
+        desc: 'Bem-vindo ao sistema BySabel Logística.' 
     };
 
     return (
         <>
-            <Head title="Meu Perfil - Shineray By Sabel" />
+            <Head title="Meu Perfil — BySabel Logística" />
             <PageHeader
                 title="Configurações da Conta"
                 description="Gerencie seus dados de acesso, preferências corporativas e credenciais de segurança."
@@ -216,7 +216,7 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                         <span className="w-1 h-1 bg-line-strong rounded-full"></span>
                         <span>Protocolo TLS 1.3</span>
                         <span className="w-1 h-1 bg-line-strong rounded-full"></span>
-                        <span>Shineray By Sabel V3.0</span>
+                        <span>BySabel Logística • BS Log</span>
                     </div>
                 </div>
 

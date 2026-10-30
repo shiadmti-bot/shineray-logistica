@@ -45,7 +45,7 @@ import{r as h,d as ke,j as e,H as Se,h as X,L as oe}from"./vendor-DFiCZbm7.js";i
                 <div class="header">
                     <div>
                         <h2>Conferência de Estoque: ${s.toUpperCase()}</h2>
-                        <p style="margin:0;">Shineray By Sabel - Logística</p>
+                        <p style="margin:0;">BySabel Logística - Microwork</p>
                     </div>
                     <div class="header-info">
                         Impresso em: ${new Date().toLocaleString("pt-BR")}<br/>

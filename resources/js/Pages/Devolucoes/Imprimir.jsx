@@ -68,7 +68,7 @@ function Folha({ devolucao, item, checklist, ultima }) {
                         Checklist de recebimento de moto
                     </h1>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-content-muted print:text-black">
-                        Shineray By Sabel · Devolução Loja → CD
+                        BySabel Logística · Devolução Loja → CD
                     </p>
                 </div>
 

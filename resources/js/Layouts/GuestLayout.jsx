@@ -41,7 +41,7 @@ export default function GuestLayout({ titulo, descricao, children }) {
                     <Link href="/" className="rounded-2xl bg-white px-7 py-4 shadow-xl shadow-black/20 transition hover:shadow-2xl">
                         <img
                             src="/img/logo.png"
-                            alt="Shineray By Sabel"
+                            alt="BySabel Logística"
                             className="h-11 w-auto object-contain"
                         />
                     </Link>
@@ -74,10 +74,10 @@ export default function GuestLayout({ titulo, descricao, children }) {
                 {/* De volta à superfície de marca: branco fixo, não token. */}
                 <div className="space-y-1.5 text-center text-white/80">
                     <p className="text-xs">
-                        © {new Date().getFullYear()} Shineray By Sabel · Logística &amp; Distribuição
+                        © {new Date().getFullYear()} BySabel Logística · BS Log
                     </p>
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">
-                        Sistema V3 · Hub &amp; Spoke · Milk Run
+                        BS Log v3.0 · Hub &amp; Spoke · Milk Run
                     </p>
                 </div>
             </div>

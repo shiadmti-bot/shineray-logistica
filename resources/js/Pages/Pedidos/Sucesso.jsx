@@ -61,7 +61,7 @@ export default function PedidoSucesso({ auth }) {
 
                 </div>
                 
-                <p className="mt-8 text-content-muted text-sm">Shineray By Sabel Logística</p>
+                <p className="mt-8 text-content-muted text-sm">BySabel Logística • BS Log</p>
             </div>
         </>
     );

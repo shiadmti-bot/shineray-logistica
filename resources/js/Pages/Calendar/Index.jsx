@@ -207,7 +207,7 @@ export default function CalendarIndex({ auth, initialEvents, canEdit, minhaLoja 
 
     return (
         <>
-            <Head title="Calendário de Rotas - Shineray By Sabel" />
+            <Head title="Calendário de Rotas — BySabel Logística" />
             <PageHeader
                 title="Calendário de Rotas"
                 description="Planejamento tático de saídas, agendamentos e previsão de entrega por filial."

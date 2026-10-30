@@ -38,11 +38,11 @@ export default function Manual({ auth }) {
 
     return (
         <>
-            <Head title="Manual do Sistema - V3.0" />
+            <Head title="Manual do Sistema — BySabel Logística" />
             
             <PageHeader
                 title="Central de Conhecimento"
-                description="Guia oficial de operação e fluxos de trabalho do Sistema de Logística Shineray By Sabel v3.0"
+                description="Guia oficial de operação e fluxos de trabalho da plataforma BySabel Logística (BS Log)"
                 breadcrumbs={[
                     { label: 'Início', href: route('dashboard') },
                     { label: 'Manual do Sistema' },
@@ -643,7 +643,7 @@ export default function Manual({ auth }) {
                                 <div className="text-center md:text-right border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-8">
                                     <p className="text-[10px] uppercase tracking-widest text-content-muted font-bold">Desenvolvimento & Arquitetura</p>
                                     <h5 className="text-lg font-black text-white mt-1">Délcio Farias Dias Neto</h5>
-                                    <p className="text-content-muted text-xs">Shineray By Sabel • Sistema Logístico V3.0</p>
+                                    <p className="text-content-muted text-xs">BySabel Logística • BS Log v3.0</p>
                                 </div>
                             </div>
                         </div>

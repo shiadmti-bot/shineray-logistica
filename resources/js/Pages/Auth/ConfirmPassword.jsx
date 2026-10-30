@@ -22,7 +22,7 @@ export default function ConfirmPassword() {
             titulo="Confirme sua senha"
             descricao="Esta é uma área protegida do sistema. Confirme sua senha para continuar."
         >
-            <Head title="Confirmar senha — Shineray By Sabel" />
+            <Head title="Confirmar senha — BySabel Logística" />
 
             <form onSubmit={submit} className="space-y-5">
                 <CampoTexto
