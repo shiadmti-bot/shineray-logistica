@@ -460,21 +460,6 @@ export default function GuidedTour({ user }) {
         };
     }, [updateTargetPosition]);
 
-    // Aplica classe de alto contraste e nitidez diretamente no elemento ativo
-    useEffect(() => {
-        if (isWelcome || !isOpen) return;
-
-        const step = steps[currentStep];
-        const el = getElementoVisivel(step?.targetSelector);
-
-        if (el) {
-            el.classList.add('tour-spotlight-target');
-            return () => {
-                el.classList.remove('tour-spotlight-target');
-            };
-        }
-    }, [isWelcome, isOpen, currentStep, steps]);
-
     const handleSkip = () => {
         if (user?.id) {
             localStorage.setItem(TOUR_STORAGE_KEY + user.id, 'true');
@@ -648,11 +633,8 @@ export default function GuidedTour({ user }) {
                                 zIndex: 99998,
                             }}
                         >
-                            {/* Moldura de destaque vibrante em vermelho BySabel com pulso */}
-                            <div className="absolute inset-0 rounded-xl ring-4 ring-brand-500 shadow-[0_0_25px_rgba(239,68,68,0.7)] animate-pulse" />
-                            
-                            {/* Borda interna fina branca com alto contraste para separar perfeitamente da barra */}
-                            <div className="absolute inset-0 rounded-xl ring-1 ring-white/90" />
+                            {/* Moldura de destaque vibrante em vermelho BySabel */}
+                            <div className="absolute inset-0 rounded-xl ring-2 ring-brand-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]" />
 
                             {/* Feixe indicador em diamante apontando para o card explicativo */}
                             <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-4 h-4 bg-brand-500 rotate-45 rounded-xs shadow-lg ring-2 ring-white"></div>

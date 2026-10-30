@@ -97,17 +97,6 @@ export default function MotorDeTour({ titulo, passos = [], onFechar, onConcluir 
         };
     }, [recalcular]);
 
-    // Aplica destaque de alta nitidez diretamente no elemento alvo ativo
-    useEffect(() => {
-        const el = passo?.alvo ? alvoVisivel(passo.alvo) : null;
-        if (el) {
-            el.classList.add('tour-spotlight-target');
-            return () => {
-                el.classList.remove('tour-spotlight-target');
-            };
-        }
-    }, [passo]);
-
     const avancar = () => {
         if (indice < total - 1) {
             setIndice((i) => i + 1);
@@ -244,8 +233,7 @@ export default function MotorDeTour({ titulo, passos = [], onFechar, onConcluir 
                         zIndex: 99998,
                     }}
                 >
-                    <div className="absolute inset-0 rounded-xl ring-4 ring-brand-500 shadow-[0_0_25px_rgba(239,68,68,0.7)] animate-pulse" />
-                    <div className="absolute inset-0 rounded-xl ring-1 ring-white/90" />
+                    <div className="absolute inset-0 rounded-xl ring-2 ring-brand-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]" />
                 </div>
             )}
 
