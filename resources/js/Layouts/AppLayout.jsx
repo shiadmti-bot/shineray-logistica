@@ -69,7 +69,14 @@ export default function AppLayout({ user, header, children, contained = true }) 
         }
     };
 
-    const secoes = navegacaoPara(currentUser, props.modulos ?? {});
+    const modulosNormalizados = Array.isArray(props.modulos)
+        ? props.modulos.reduce((acc, m) => {
+            if (m && m.chave) acc[m.chave] = Boolean(m.ativo);
+            return acc;
+        }, {})
+        : (props.modulos ?? {});
+
+    const secoes = navegacaoPara(currentUser, modulosNormalizados);
     const contadores = props.navCounts ?? {};
 
     const contarSecao = (secao) =>

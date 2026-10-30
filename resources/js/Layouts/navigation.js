@@ -281,6 +281,16 @@ export function navegacaoPara(userOrPerfil, modulos = {}) {
         : (perfil === 'admin');
     const isAdmin = perfil === 'admin';
 
+    // Normaliza mapa de módulos caso venha como array da tela Admin/Modulos (evita colisão de prop com o Inertia)
+    const mapaModulos = Array.isArray(modulos)
+        ? modulos.reduce((acc, m) => {
+            if (m && m.chave) {
+                acc[m.chave] = Boolean(m.ativo);
+            }
+            return acc;
+        }, {})
+        : (modulos || {});
+
     return NAV_SECTIONS
         .map((secao) => ({
             ...secao,
@@ -288,7 +298,7 @@ export function navegacaoPara(userOrPerfil, modulos = {}) {
                 if (item.pronto === false) return false;
 
                 // Módulo opcional desligado em Gestão > Módulos
-                if (item.modulo && modulos[item.modulo] === false) return false;
+                if (item.modulo && mapaModulos[item.modulo] === false) return false;
 
                 // Restrição por perfil genérico
                 if (item.perfis && !item.perfis.includes(perfil)) {
