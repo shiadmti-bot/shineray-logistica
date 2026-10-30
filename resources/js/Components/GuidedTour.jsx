@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
     SparklesIcon,
     ArrowRightIcon,
@@ -36,6 +37,11 @@ export default function GuidedTour({ user }) {
     const [isWelcome, setIsWelcome] = useState(true);
     const [currentStep, setCurrentStep] = useState(0);
     const [targetRect, setTargetRect] = useState(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const perfil = user?.perfil || 'loja';
 
@@ -44,54 +50,86 @@ export default function GuidedTour({ user }) {
             {
                 id: 'dashboard',
                 targetSelector: '[data-tour="dashboard"]',
-                badge: 'Aba Início',
+                badge: 'Aba Geral',
                 icon: HomeIcon,
-                title: 'Painel da Sua Filial',
-                description: 'Visão central dos seus pedidos: motos em trânsito com previsão de chegada, histórico e solicitações ativas.',
-                tip: 'Verifique diariamente se há caminhões previstos para descarregar na sua loja!',
+                title: 'Aba Início (Dashboard da Filial)',
+                description: 'Visão panorâmica da sua filial: acompanhe solicitações ativas, previsão de caminhões na sua cidade e alertas operacionais.',
+                subItems: [
+                    { name: 'Cards de Resumo', desc: 'Totais de pedidos em análise, aprovados, em separação e em trânsito.' },
+                    { name: 'Avisos da Loja & Mural', desc: 'Comunicados oficiais da matriz e alertas de motos solicitadas do seu pátio.' },
+                    { name: 'Atalhos Rápidos', desc: 'Acesso direto para nova solicitação de motos, catálogo de peças e consultas.' }
+                ],
+                tip: 'Acesse diariamente para verificar se há caminhões previstos para descarregar na sua filial!',
             },
             {
                 id: 'calendario',
                 targetSelector: '[data-tour="calendario"]',
-                badge: 'Logística',
+                badge: 'Aba Geral',
                 icon: CalendarIcon,
-                title: 'Calendário de Rotas da Frota',
-                description: 'Cronograma semanal de saídas do CD e estimativa de chegada na sua cidade.',
-                tip: 'Viagens em verde já estão confirmadas com motorista escalado.',
+                title: 'Aba Calendário de Rotas',
+                description: 'Programação semanal de saídas do CD e previsão de entregas na sua filial para planejamento de equipe e pátio.',
+                subItems: [
+                    { name: 'Eventos Amarelos', desc: 'Viagens em planejamento prévio pela logística.' },
+                    { name: 'Eventos Verdes', desc: 'Viagens confirmadas com rota, placa e motorista escalado.' }
+                ],
+                tip: 'O calendário é atualizado em tempo real pelo CD conforme as rotas e saídas são autorizadas.',
             },
             {
                 id: 'motos',
                 targetSelector: '[data-tour="motos"]',
-                badge: 'Módulo Principal',
+                badge: 'Menu Suspenso',
                 icon: CubeIcon,
-                title: 'Motos & Reposição',
-                description: 'Faça novos pedidos de reposição ao CD, consulte estoque da rede e acompanhe a aprovação comercial.',
-                tip: 'Regra Oficial: Em pedidos normais de reposição, você NÃO precisa de chassi! Peça apenas Modelo, Cor e Quantidade.',
+                title: 'Módulo de Motos',
+                description: 'Gerenciamento completo do ciclo de vida das motos para sua filial:',
+                subItems: [
+                    { name: 'Nova Solicitação', desc: 'Reposição ao CD (somente Modelo, Cor e Qtd) ou Venda Confirmada com Chassi específico.' },
+                    { name: 'Estoque de Motos', desc: 'Consulte a disponibilidade de motos físicas no estoque central e na sua loja.' },
+                    { name: 'Meus Pedidos & Recebimento', desc: 'Acompanhe aprovação comercial e faça o Recebimento Rápido com foto do canhoto direto da câmera.' },
+                    { name: 'Censo de Pátio', desc: 'Auditoria física rápida com bipagem contínua de chassis via leitor USB, Bluetooth ou celular.' }
+                ],
+                tip: 'Regra Oficial: Em pedidos de reposição ao CD, você NÃO precisa de chassi! Peça apenas Modelo, Cor e Quantidade.',
             },
             {
                 id: 'pecas',
                 targetSelector: '[data-tour="pecas"]',
-                badge: 'Pós-Venda',
+                badge: 'Menu Suspenso',
                 icon: WrenchScrewdriverIcon,
-                title: 'Peças & Acessórios',
-                description: 'Catálogo integrado ao ERP Microwork. Permite solicitar peças por modelo de moto e checar saldos em outras lojas.',
-                tip: 'Não sabe o código? Use a opção "Peça sem código" e o Call Center identifica para você.',
+                title: 'Módulo de Peças & Acessórios',
+                description: 'Catálogo integrado com mais de 2.380 SKUs e sincronização com o ERP Microwork:',
+                subItems: [
+                    { name: 'Solicitar Peças', desc: 'Busca rápida de itens com visualização de foto, código e modelos compatíveis.' },
+                    { name: 'Kits de Revisão Periódica', desc: 'Adicione kits oficiais de revisão (1.000 km, 3.000 km, 6.000 km) com 1 clique no carrinho.' },
+                    { name: 'Pedir Novamente (Recorrentes)', desc: 'Reencomende os itens mais pedidos da sua filial sem precisar pesquisar do zero.' },
+                    { name: 'Onde Encontrar (Multiloja)', desc: 'Consulte saldos de peças em outras filiais parceiras para remanejamento rápido.' },
+                    { name: 'Entrada / Inventário', desc: 'Registro de recebimento de peças e conferência local do estoque da oficina.' },
+                    { name: 'Pendências', desc: 'Acompanhe a triagem e separação de peças solicitadas ao CD.' }
+                ],
+                tip: 'Use o botão "Onde Encontrar" antes de solicitar compras externas — você pode remanejar de uma loja vizinha!',
             },
             {
                 id: 'notificacoes',
                 targetSelector: '[data-tour="notificacoes"]',
-                badge: 'Comunicação',
+                badge: 'Barra de Ações',
                 icon: BellAlertIcon,
-                title: 'Central de Notificações & Alertas',
-                description: 'Avisos em tempo real sempre que seu pedido for aprovado, separado ou despachado pelo CD.',
+                title: 'Central de Notificações (Sininho & Push)',
+                description: 'Alertas instantâneos via WebSocket e notificações Push no smartphone/PWA sempre que seus pedidos avançarem de status.',
+                subItems: [
+                    { name: 'Aprovações Comerciais', desc: 'Avisos de quando seu pedido foi autorizado ou se houve algum corte com motivo.' },
+                    { name: 'Expedição & Portaria', desc: 'Notificação com dados do motorista e previsão de chegada na liberação da carga.' }
+                ],
+                tip: 'Ao receber motos na loja, o sininho avisará a liberação de portaria para você conferir os chassis.',
             },
             {
                 id: 'manual',
                 targetSelector: '[data-tour="manual"]',
-                badge: 'Base de Conhecimento',
+                badge: 'Aba Geral',
                 icon: QuestionMarkCircleIcon,
-                title: 'Manuais & Regras Operacionais',
-                description: 'Regras fiscais, prazos de garantia e procedimentos de conferência com foto do canhoto.',
+                title: 'Central de Ajuda & Manuais',
+                description: 'Base de conhecimento completa: manuais de conferência, regras fiscais, prazos de garantia e procedimentos operacionais.',
+                subItems: [
+                    { name: 'Procedimento de Recebimento', desc: 'Passo a passo com foto do canhoto e conferência por exceção.' },
+                    { name: 'FAQ & Dúvidas Frequentes', desc: 'Respostas para as principais regras comerciais e operacionais.' }
+                ],
             },
             {
                 id: 'perfil',
@@ -99,7 +137,7 @@ export default function GuidedTour({ user }) {
                 badge: 'Sua Conta',
                 icon: ShieldCheckIcon,
                 title: 'Perfil & Sessão',
-                description: 'Altere sua senha de acesso e reinicie este tour guiado a qualquer momento.',
+                description: 'Altere sua senha de acesso corporativa e reinicie este tour guiado a qualquer momento pelo menu de perfil.',
             },
         ];
 
@@ -107,51 +145,78 @@ export default function GuidedTour({ user }) {
             {
                 id: 'dashboard',
                 targetSelector: '[data-tour="dashboard"]',
-                badge: 'Mesa de Operações',
+                badge: 'Aba Geral',
                 icon: HomeIcon,
-                title: 'Painel da Expedição CD',
-                description: 'Controle em tempo real de pedidos liberados para separação física, motos no pátio e caminhões em rota.',
+                title: 'Aba Início (Painel da Operação CD)',
+                description: 'Controle central da expedição: pedidos aprovados pela diretoria aguardando separação física, motos no pátio e romaneios em rota.',
+                subItems: [
+                    { name: 'Fila de Separação', desc: 'Pedidos liberados pelo gestor prontos para atendimento físico.' },
+                    { name: 'Status do Pátio (ERP)', desc: 'Unidades montadas, desmontadas e prontas no pátio central.' },
+                    { name: 'Tempo Real', desc: 'Painel com atualização automática e pulso de sincronização.' }
+                ],
+                tip: 'Dê prioridade aos pedidos com bandeira de urgência ou venda com cliente aguardando!',
             },
             {
                 id: 'motos',
                 targetSelector: '[data-tour="motos"]',
-                badge: 'Módulo de Motos',
+                badge: 'Menu Suspenso',
                 icon: CubeIcon,
-                title: 'Separação & Pátio',
-                description: 'Estoque de motos do CD e conferência de chassis físicos vinculados aos pedidos.',
+                title: 'Módulo de Motos & Separação',
+                description: 'Gestão de estoque físico, separação e conferência de chassis:',
+                subItems: [
+                    { name: 'Estoque do CD', desc: 'Consulta de motos por modelo, cor, status de montagem e pátio.' },
+                    { name: 'Censo de Pátio', desc: 'Auditoria rápida com leitor de código de barras, bipagem contínua e identificação de motos intrusas.' },
+                    { name: 'Conferência de Pedidos', desc: 'Leitura e vinculação de chassis físicos às solicitações aprovadas.' }
+                ],
+                tip: 'O censo de pátio emite alerta sonoro diferenciado para chassis não cadastrados ou fora de lote!',
             },
             {
                 id: 'logistica',
                 targetSelector: '[data-tour="logistica"]',
-                badge: 'Expedição',
+                badge: 'Menu Suspenso',
                 icon: TruckIcon,
-                title: 'Montagem de Romaneios',
-                description: 'Mesa de expedição: agrupe motos e basquetas de peças por filial, aloque motorista e emita o Manifesto.',
+                title: 'Módulo de Logística (Expedição & Cargas)',
+                description: 'Mesa de expedição: agrupe pedidos, dimensione cargas e despache romaneios:',
+                subItems: [
+                    { name: 'Expedição / Montagem', desc: 'Criação de novos romaneios e agrupamento de motos e basquetas por filial.' },
+                    { name: 'Termômetro de Ocupação', desc: 'Cálculo de cubagem mista (1 moto = 1 un; 2 basquetas = 0.5 moto eq.) com alerta de sobrecarga.' },
+                    { name: 'Sequenciamento LIFO', desc: 'Estivagem inversa na doca: a última entrega fica no fundo do baú e a primeira na porta.' },
+                    { name: 'Cargas & Manifesto', desc: 'Emissão de Manifesto em PDF, controle de portaria e timeline com WhatsApp do motorista.' }
+                ],
                 tip: 'Ao aprovar a saída de portaria, todos os pedidos entram automaticamente no status "Em Trânsito"!',
             },
             {
                 id: 'pecas',
                 targetSelector: '[data-tour="pecas"]',
-                badge: 'Almoxarifado',
+                badge: 'Menu Suspenso',
                 icon: WrenchScrewdriverIcon,
-                title: 'Peças & Basquetas',
-                description: 'Triagem de pedidos do Pós-Venda, conferência de inventário e separação de basquetas de peças para inclusão nas cargas.',
+                title: 'Módulo de Peças & Almoxarifado',
+                description: 'Triagem e expedição de peças solicitadas pela rede:',
+                subItems: [
+                    { name: 'Triagem de Peças', desc: 'Identificação no catálogo e-Part e triagem de pedidos técnicos do Pós-Venda.' },
+                    { name: 'Basquetas de Carga', desc: 'Montagem de caixas plásticas com QR Code e inclusão nos romaneios.' },
+                    { name: 'Estoque & Inventário', desc: 'Controle de saldos no almoxarifado central sincronizado com o ERP.' }
+                ],
             },
             {
                 id: 'calendario',
                 targetSelector: '[data-tour="calendario"]',
-                badge: 'Planejamento',
+                badge: 'Aba Geral',
                 icon: CalendarIcon,
-                title: 'Grade Semanal de Viagens',
+                title: 'Aba Calendário de Rotas',
                 description: 'Cadastre e confirme viagens planejadas para que as lojas visualizem a previsão de chegada.',
+                subItems: [
+                    { name: 'Viagens Planejadas', desc: 'Rascunho de rotas para consolidação de frete e contratação de motoristas.' },
+                    { name: 'Viagens Confirmadas', desc: 'Confirmação com rota e data fixada para notificação das filiais.' }
+                ],
             },
             {
                 id: 'perfil',
                 targetSelector: '[data-tour="perfil"]',
                 badge: 'Sua Conta',
                 icon: ShieldCheckIcon,
-                title: 'Perfil & Preferências',
-                description: 'Ajustes da conta e encerramento seguro de sessão.',
+                title: 'Perfil & Sessão',
+                description: 'Ajustes da conta operacional e encerramento seguro de sessão.',
             },
         ];
 
@@ -159,48 +224,84 @@ export default function GuidedTour({ user }) {
             {
                 id: 'dashboard',
                 targetSelector: '[data-tour="dashboard"]',
-                badge: 'Visão Geral',
+                badge: 'Aba Geral',
                 icon: HomeIcon,
-                title: 'Painel Comercial & Faturamento',
-                description: 'Visão consolidada de pedidos pendentes de validação comercial e volume de vendas da rede.',
+                title: 'Aba Início (Painel Comercial & Faturamento)',
+                description: 'Visão consolidada de pedidos pendentes de validação comercial, estoque geral e frotas.',
+                subItems: [
+                    { name: 'Fila Comercial', desc: 'Pedidos aguardando validação de cota e crédito.' },
+                    { name: 'Indicadores Globais', desc: 'Contagem de romaneios em trânsito e pedidos por status.' },
+                    { name: 'Avisos & Alertas', desc: 'Controle de recusas e comunicados para a rede.' }
+                ],
             },
             {
                 id: 'motos',
                 targetSelector: '[data-tour="motos"]',
-                badge: 'Aprovações Comerciais',
+                badge: 'Menu Suspenso',
                 icon: CubeIcon,
                 title: 'Módulo de Motos & Aprovações',
-                description: 'Acesse a fila de Aprovações de Motos: aprove o pedido integralmente, realize cortes parciais com justificativa ou converse no chat com a loja.',
-                tip: 'As aprovações comerciais de motos ficam neste menu!',
+                description: 'Validação e autorização comercial dos pedidos da rede:',
+                subItems: [
+                    { name: 'Aprovações de Motos', desc: 'Fila de autorização comercial com aprovação total, cortes parciais com justificativa e chat direto com a loja.' },
+                    { name: 'Estoque da Rede', desc: 'Consulta de estoque no CD e saldos em todas as filiais.' },
+                    { name: 'Pedidos de Motos', desc: 'Rastreabilidade de ponta a ponta e auditoria de canhotos entregues.' },
+                    { name: 'Censo de Pátio', desc: 'Acompanhamento das atas de auditoria física realizadas pelas lojas.' }
+                ],
+                tip: 'As aprovações comerciais de motos ficam centralizadas neste menu!',
             },
             {
                 id: 'pecas',
                 targetSelector: '[data-tour="pecas"]',
-                badge: 'Validação de Peças',
+                badge: 'Menu Suspenso',
                 icon: WrenchScrewdriverIcon,
                 title: 'Módulo de Peças & Estoques Multiloja',
-                description: 'Consulta de saldos de peças em todas as filiais e validação de requisições emergenciais de garantia.',
+                description: 'Validação técnica e consulta de peças em toda a rede:',
+                subItems: [
+                    { name: 'Aprovações de Peças (Gate 1)', desc: 'Validação técnica de pedidos pelo Pós-Venda antes da liberação ao almoxarifado.' },
+                    { name: 'Estoque & Indicadores', desc: 'Consulta de saldos de peças em todas as filiais e métricas de atendimento.' },
+                    { name: 'Kits de Revisão', desc: 'Monitoramento de giro dos kits periódicos e consumo por modelo de moto.' }
+                ],
+                tip: 'Remaneje peças entre filiais próximas antes de aprovar pedidos de compras externas.',
             },
             {
                 id: 'logistica',
                 targetSelector: '[data-tour="logistica"]',
-                badge: 'Monitoramento',
+                badge: 'Menu Suspenso',
                 icon: TruckIcon,
-                title: 'Logística & Cargas',
-                description: 'Acompanhe romaneios em trânsito, motoristas e controle de canhotos pendentes de baixa.',
+                title: 'Módulo de Logística (Cargas)',
+                description: 'Acompanhamento estratégico de romaneios em trânsito, motoristas em rota e canhotos:',
+                subItems: [
+                    { name: 'Termômetro de Ocupação', desc: 'Ocupação volumétrica e peso das cargas despachadas.' },
+                    { name: 'Timeline LIFO', desc: 'Visualização sequencial das paradas e motoristas escalados.' },
+                    { name: 'Controle de Canhotos', desc: 'Monitoramento de entregas e conferência de comprovantes assinados.' }
+                ],
+                tip: 'Monitore os prazos de entrega e confirme a baixa do canhoto pelas lojas.',
             },
             {
                 id: 'gestao',
                 targetSelector: '[data-tour="gestao"]',
-                badge: 'Governança & BI',
+                badge: 'Menu Suspenso',
                 icon: ClipboardDocumentCheckIcon,
-                title: 'Módulo de Gestão & Relatórios',
-                description: 'Indicadores estratégicos de desempenho logístico (OTIF), tempo médio de rota e filiais.',
+                title: 'Módulo de Gestão & BI',
+                description: 'Governança comercial, auditoria e inteligência de dados:',
+                subItems: [
+                    { name: 'BI Logística', desc: 'Indicadores estratégicos de pontualidade (OTIF), tempo de rota e custos.' },
+                    { name: 'Filiais', desc: 'Parâmetros e capacidades de estocagem das lojas.' }
+                ],
+                tip: 'A aprovação Web autoriza a separação física no CD. A NF-e oficial é faturada no Microwork.',
+            },
+            {
+                id: 'calendario',
+                targetSelector: '[data-tour="calendario"]',
+                badge: 'Aba Geral',
+                icon: CalendarIcon,
+                title: 'Aba Calendário de Rotas',
+                description: 'Acompanhe a grade logística semanal planejada pela equipe do CD para alinhar prazos com gerentes de lojas e clientes.',
             },
             {
                 id: 'perfil',
                 targetSelector: '[data-tour="perfil"]',
-                badge: 'Conta',
+                badge: 'Sua Conta',
                 icon: ShieldCheckIcon,
                 title: 'Perfil do Gestor',
                 description: 'Gerenciamento de credenciais e atalhos rápidos.',
@@ -211,50 +312,89 @@ export default function GuidedTour({ user }) {
             {
                 id: 'dashboard',
                 targetSelector: '[data-tour="dashboard"]',
-                badge: 'Administração',
+                badge: 'Aba Geral',
                 icon: ShieldCheckIcon,
-                title: 'Painel de Auditoria & Sistema',
-                description: 'Visão unificada de frotas, movimentações de pedidos, logs de auditoria e usuários online.',
-            },
-            {
-                id: 'motos',
-                targetSelector: '[data-tour="motos"]',
-                badge: 'Motos',
-                icon: CubeIcon,
-                title: 'Módulo de Motos Completo',
-                description: 'Gestão de estoque físico, aprovação de solicitações e auditoria de chassis.',
-            },
-            {
-                id: 'pecas',
-                targetSelector: '[data-tour="pecas"]',
-                badge: 'Peças',
-                icon: WrenchScrewdriverIcon,
-                title: 'Catálogo de Peças & SKUs',
-                description: 'Mais de 2.380 SKUs sincronizados com o ERP Microwork, saldos por filial e triagem do Call Center.',
-            },
-            {
-                id: 'logistica',
-                targetSelector: '[data-tour="logistica"]',
-                badge: 'Expedição',
-                icon: TruckIcon,
-                title: 'Módulo de Logística',
-                description: 'Expedição, manifesto de transporte, conferência de carga e rotas Milk Run.',
+                title: 'Aba Início (Painel Administrativo)',
+                description: 'Visão holística de todo o sistema: solicitações de motos, catálogo de peças, frotas em trânsito, alertas de auditoria e estoque do ERP.',
+                subItems: [
+                    { name: 'Auditoria de Pedidos', desc: 'Visão geral de fluxos em andamento, cancelamentos e entregas.' },
+                    { name: 'Estoque ERP em Tempo Real', desc: 'Monitoramento direto do saldo do CD Microwork (montadas, desmontadas, avarias).' },
+                    { name: 'Mural de Avisos', desc: 'Publicação e gerenciamento de comunicados com formatação rica para a rede.' }
+                ],
+                tip: 'Acesso pleno a todos os parâmetros e rotinas operacionais.',
             },
             {
                 id: 'gestao',
                 targetSelector: '[data-tour="gestao"]',
-                badge: 'Governança',
+                badge: 'Menu Suspenso',
                 icon: UsersIcon,
-                title: 'Gestão de Usuários & Parâmetros',
-                description: 'Controle de permissões (Admin, Gestor, CD, Loja), filiais, auditoria e ativação de módulos opcionais.',
+                title: 'Módulo de Gestão & Governança',
+                description: 'Controle de acessos, inteligência, parâmetros e auditoria:',
+                subItems: [
+                    { name: 'Usuários & Perfis', desc: 'Cadastro de operadores, definição de alçadas (Admin, Gestor, CD, Loja) e vínculo com filiais.' },
+                    { name: 'Módulos Opcionais', desc: 'Ativação e desligamento seletivo de módulos (Pedidos de Peças, Devoluções, etc.) em tempo real.' },
+                    { name: 'Filiais', desc: 'Cadastro, parametrização e endereçamento das unidades de distribuição.' },
+                    { name: 'Auditoria Completa', desc: 'Trilha detalhada de ações, alterações de status e logs de segurança.' },
+                    { name: 'BI Logística', desc: 'Relatórios consolidados de lead time, desempenho de rotas e volumes transportados.' }
+                ],
+                tip: 'Mantenha o vínculo de filiais correto para que os filtros de estoque atuem com precisão.',
+            },
+            {
+                id: 'motos',
+                targetSelector: '[data-tour="motos"]',
+                badge: 'Menu Suspenso',
+                icon: CubeIcon,
+                title: 'Módulo de Motos Completo',
+                description: 'Gestão de estoque físico, solicitações, censo e aprovação de chassis:',
+                subItems: [
+                    { name: 'Estoque & Censo de Pátio', desc: 'Inventário contínuo por bipagem via leitor USB/Bluetooth e geração de atas.' },
+                    { name: 'Solicitações & Aprovações', desc: 'Fila unificada com controle de cortes parciais, recusas e histórico.' },
+                    { name: 'Recebimento & Canhotos', desc: 'Auditoria dos comprovantes físicos fotografados pelas filiais.' }
+                ],
+            },
+            {
+                id: 'pecas',
+                targetSelector: '[data-tour="pecas"]',
+                badge: 'Menu Suspenso',
+                icon: WrenchScrewdriverIcon,
+                title: 'Módulo de Peças & Saldos Microwork',
+                description: 'Mais de 2.380 SKUs integrados ao ERP Microwork, consulta multiloja, triagem e basquetas:',
+                subItems: [
+                    { name: 'Catálogo de Peças', desc: 'Sincronização em tempo real de saldos físicos e disponíveis.' },
+                    { name: 'Kits de Revisão Periódica', desc: 'Parametrização e compra rápida de pacotes oficiais de manutenção preventiva.' },
+                    { name: 'Aprovações & Triagem', desc: 'Gate 1 técnico do Pós-Venda e triagem no e-Part pelo almoxarifado.' },
+                    { name: 'Basquetas & Pendências', desc: 'Rastreabilidade de caixas de peças vinculadas aos romaneios de motos.' }
+                ],
+            },
+            {
+                id: 'logistica',
+                targetSelector: '[data-tour="logistica"]',
+                badge: 'Menu Suspenso',
+                icon: TruckIcon,
+                title: 'Módulo de Logística (Expedição & Cargas)',
+                description: 'Gestão de frotas, montagem de romaneios, manifesto PDF, controle de portaria e rotas Milk Run:',
+                subItems: [
+                    { name: 'Montagem de Romaneios', desc: 'Agrupamento inteligente de pedidos com cubagem mista.' },
+                    { name: 'Termômetro de Ocupação & LIFO', desc: 'Controle de peso/volume do caminhão e sequenciamento de doca em ordem inversa.' },
+                    { name: 'Controle de Portaria & Cargas', desc: 'Liberação de saída com geração de manifesto PDF e timeline de paradas.' }
+                ],
+            },
+            {
+                id: 'calendario',
+                targetSelector: '[data-tour="calendario"]',
+                badge: 'Aba Geral',
+                icon: CalendarIcon,
+                title: 'Aba Calendário de Rotas',
+                description: 'Cronograma semanal completo de viagens planejadas e confirmadas da frota.',
+                tip: 'Visão unificada das rotas de distribuição de toda a rede.',
             },
             {
                 id: 'perfil',
                 targetSelector: '[data-tour="perfil"]',
-                badge: 'Conta',
+                badge: 'Sua Conta',
                 icon: ShieldCheckIcon,
                 title: 'Perfil & Sessão',
-                description: 'Configurações de segurança e auditoria pessoal.',
+                description: 'Configurações de segurança, auditoria pessoal e reinicialização do tour.',
             },
         ];
 
@@ -285,7 +425,6 @@ export default function GuidedTour({ user }) {
                 right: rect.right,
             });
         } else {
-            // Em telas móveis ou elementos ocultos, fica centralizado suavemente sem quebrar
             setTargetRect(null);
         }
     }, [isWelcome, isOpen, currentStep, steps]);
@@ -354,33 +493,70 @@ export default function GuidedTour({ user }) {
         setIsOpen(false);
     };
 
-    if (!isOpen) return null;
+    if (!isOpen || !mounted) return null;
 
     const step = steps[currentStep];
     const Icon = step?.icon || SparklesIcon;
     const progress = Math.round(((currentStep + 1) / steps.length) * 100);
 
-    return (
-        <div className="fixed inset-0 z-modal select-none">
+    // ================= POSICIONAMENTO MATEMÁTICO PRECISO =================
+    // Largura do card limitada responsivamente
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
+    const CARD_WIDTH = Math.min(500, viewportWidth - 32);
+
+    let cardLeft = '50%';
+    let cardTop = '50%';
+    let cardTransform = 'translate(-50%, -50%)';
+    let arrowLeft = '50%';
+
+    if (targetRect) {
+        // Centro horizontal do elemento alvo da topbar
+        const targetCenter = targetRect.left + (targetRect.width / 2);
+        
+        // Posição horizontal do card centralizada sob o alvo, delimitada com precisão (clamp)
+        const idealLeft = targetCenter - (CARD_WIDTH / 2);
+        const clampedLeft = Math.max(16, Math.min(idealLeft, viewportWidth - CARD_WIDTH - 16));
+        
+        // Posição vertical abaixo da barra de navegação sem corte de tela
+        const idealTop = targetRect.bottom + 14;
+        const maxAllowedTop = Math.max(16, viewportHeight - 380);
+        const clampedTop = Math.min(idealTop, maxAllowedTop);
+
+        cardLeft = `${clampedLeft}px`;
+        cardTop = `${clampedTop}px`;
+        cardTransform = 'none';
+
+        // Posição relativa da seta/beak apontando exatamente para o centro do botão da topbar
+        const relArrowLeft = targetCenter - clampedLeft;
+        const clampedArrowLeft = Math.max(28, Math.min(relArrowLeft, CARD_WIDTH - 28));
+        arrowLeft = `${clampedArrowLeft}px`;
+    }
+
+    const modalContent = (
+        <div 
+            className="fixed inset-0 select-none" 
+            style={{ zIndex: 99999 }}
+        >
             {isWelcome ? (
                 /* Modal de Acolhimento Padronizado V3 */
-                <div className="fixed inset-0 flex items-center justify-center p-4 bg-content-primary/70 backdrop-blur-sm animate-fadeIn">
-                    <div className="w-full max-w-lg overflow-hidden rounded-card bg-surface-card border border-line shadow-overlay relative">
+                <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+                    <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white border border-gray-200 shadow-2xl shadow-black/60 relative">
                         <div className="h-1.5 bg-gradient-to-r from-brand-700 via-brand-500 to-brand-700" />
 
                         <div className="p-6 sm:p-8 space-y-5 text-center">
-                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 border border-brand-200 text-brand-600 shadow-inner">
-                                <SparklesIcon className="w-7 h-7 text-brand-600 animate-pulse" />
+                            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 border border-brand-200 text-brand-600 shadow-inner">
+                                <SparklesIcon className="w-8 h-8 text-brand-600 animate-pulse" />
                             </div>
 
                             <div className="space-y-1.5">
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-black uppercase tracking-wider border border-brand-200">
                                     Perfil {perfil.toUpperCase()}
                                 </span>
-                                <h2 className="text-2xl font-black text-content-primary tracking-tight">
+                                <h2 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
                                     Bem-vindo à Shineray V3
                                 </h2>
-                                <p className="text-sm text-content-secondary max-w-md mx-auto leading-relaxed">
+                                <p className="text-sm text-gray-600 max-w-md mx-auto leading-relaxed">
                                     Vamos percorrer os recursos e fluxos operacionais preparados especificamente para o seu perfil.
                                 </p>
                             </div>
@@ -397,7 +573,7 @@ export default function GuidedTour({ user }) {
                                 <button
                                     type="button"
                                     onClick={handleSkip}
-                                    className="w-full sm:w-auto px-5 py-3 rounded-xl border border-line hover:bg-surface-sunken text-content-secondary font-bold text-sm transition cursor-pointer"
+                                    className="w-full sm:w-auto px-5 py-3 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-sm transition cursor-pointer"
                                 >
                                     Pular Apresentação
                                 </button>
@@ -408,55 +584,87 @@ export default function GuidedTour({ user }) {
             ) : (
                 /* Spotlight e Cartão de Tour */
                 <div className="fixed inset-0 overflow-hidden">
+                    {/* Backdrop escurecido */}
                     <div
-                        className="absolute inset-0 bg-content-primary/65 backdrop-blur-[2px] transition-all duration-300"
+                        className="absolute inset-0 bg-[#0b1a2b]/80 backdrop-blur-[2px] transition-all duration-300"
                         onClick={handleNext}
                     />
 
+                    {/* Spotlight no Elemento Alvo com Feixe de Luz */}
                     {targetRect && (
                         <div
                             aria-hidden="true"
-                            className="pointer-events-none fixed rounded-xl ring-4 ring-brand-500 ring-offset-2 ring-offset-black/50 transition-all duration-300 shadow-2xl"
+                            className="pointer-events-none fixed rounded-xl ring-4 ring-brand-500 ring-offset-2 ring-offset-brand-900 shadow-[0_0_0_9999px_rgba(11,26,43,0.78)] transition-all duration-300"
                             style={{
                                 top: `${targetRect.top - 4}px`,
-                                left: `${targetRect.left - 4}px`,
-                                width: `${targetRect.width + 8}px`,
+                                left: `${targetRect.left - 6}px`,
+                                width: `${targetRect.width + 12}px`,
                                 height: `${targetRect.height + 8}px`,
+                                zIndex: 99998,
                             }}
-                        />
+                        >
+                            {/* Feixe indicador pulsante apontando para o card */}
+                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-brand-500 rotate-45 rounded-xs shadow-md"></div>
+                        </div>
                     )}
 
+                    {/* Botão Pular Fixo no Topo Direito */}
+                    <button
+                        type="button"
+                        onClick={handleSkip}
+                        className="fixed top-4 right-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-bold backdrop-blur-md shadow-lg transition cursor-pointer"
+                        style={{ zIndex: 100000 }}
+                    >
+                        Pular Tour ✕
+                    </button>
+
+                    {/* Balão / Card Informativo com Posicionamento Matemático */}
                     <div
-                        className="fixed z-modal transition-all duration-300 p-4 w-[min(26rem,calc(100vw-2rem))]"
+                        className="fixed transition-all duration-300 p-2 sm:p-4"
                         style={{
-                            top: targetRect
-                                ? `${Math.min(targetRect.bottom + 12, window.innerHeight - 340)}px`
-                                : '50%',
-                            left: targetRect
-                                ? `${Math.min(Math.max(16, targetRect.left - 20), window.innerWidth - 430)}px`
-                                : '50%',
-                            transform: !targetRect ? 'translate(-50%, -50%)' : 'none',
+                            top: cardTop,
+                            left: cardLeft,
+                            transform: cardTransform,
+                            width: `${CARD_WIDTH}px`,
+                            zIndex: 99999,
                         }}
                     >
-                        <div className="overflow-hidden rounded-card bg-surface-card border border-line shadow-overlay">
-                            <div className="h-1 bg-surface-sunken w-full">
+                        <div className="relative overflow-hidden rounded-3xl bg-white border border-gray-200 shadow-2xl shadow-black/60">
+                            {/* Seta superior apontando exatamente para o alvo */}
+                            {targetRect && (
+                                <div 
+                                    className="absolute -top-2 w-4 h-4 bg-white border-t border-l border-gray-200 rotate-45"
+                                    style={{ left: arrowLeft, transform: 'translateX(-50%) rotate(45deg)' }}
+                                />
+                            )}
+
+                            {/* Barra de Progresso */}
+                            <div className="h-1.5 bg-gray-100 w-full">
                                 <div
-                                    className="h-full bg-brand-600 transition-all duration-300"
+                                    className="h-full bg-gradient-to-r from-brand-600 to-brand-500 transition-all duration-300"
                                     style={{ width: `${progress}%` }}
                                 />
                             </div>
 
-                            <div className="p-5 space-y-4">
+                            {/* Corpo com rolagem contida caso necessário (elimina corte de tela) */}
+                            <div 
+                                className="p-5 sm:p-6 space-y-4 overflow-y-auto scrollbar-slim"
+                                style={{
+                                    maxHeight: targetRect 
+                                        ? `calc(100vh - ${Math.min(targetRect.bottom + 60, viewportHeight - 120)}px)`
+                                        : '75vh'
+                                }}
+                            >
                                 <div className="flex items-start justify-between gap-3">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-                                            <Icon className="w-5 h-5" />
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-50 border border-brand-200 text-brand-600 shadow-xs">
+                                            <Icon className="w-5 h-5 text-brand-600" />
                                         </div>
                                         <div>
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-content-muted">
-                                                {step.badge} · {currentStep + 1} de {steps.length}
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-brand-600">
+                                                {step.badge} · Passo {currentStep + 1} de {steps.length}
                                             </span>
-                                            <h3 className="text-base font-black text-content-primary leading-tight">
+                                            <h3 className="text-base sm:text-lg font-black text-gray-900 leading-tight">
                                                 {step.title}
                                             </h3>
                                         </div>
@@ -465,35 +673,55 @@ export default function GuidedTour({ user }) {
                                     <button
                                         type="button"
                                         onClick={handleSkip}
-                                        className="rounded-lg p-1 text-content-muted hover:bg-surface-sunken hover:text-content-primary transition cursor-pointer"
+                                        className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition cursor-pointer"
                                         title="Fechar tour"
                                     >
-                                        <XMarkIcon className="w-4 h-4" />
+                                        <XMarkIcon className="w-5 h-5" />
                                     </button>
                                 </div>
 
-                                <p className="text-sm text-content-secondary leading-relaxed">
+                                <p className="text-sm text-gray-700 leading-relaxed">
                                     {step.description}
                                 </p>
 
+                                {/* Lista Restaurada de Sub-Itens / Sub-Páginas */}
+                                {step.subItems && step.subItems.length > 0 && (
+                                    <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200 space-y-2">
+                                        <p className="text-xs font-black text-gray-900 flex items-center gap-1.5 uppercase tracking-wide">
+                                            <span>📄</span> O que você encontra nesta aba:
+                                        </p>
+                                        <ul className="space-y-1.5 text-xs text-gray-600">
+                                            {step.subItems.map((item, idx) => (
+                                                <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                                                    <span className="text-brand-600 font-bold">•</span>
+                                                    <div>
+                                                        <strong className="text-gray-900">{item.name}:</strong> {item.desc}
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Dica de Ouro */}
                                 {step.tip && (
-                                    <div className="bg-brand-50/70 border border-brand-200 rounded-xl p-3 flex items-start gap-2.5">
-                                        <span className="text-sm shrink-0">💡</span>
+                                    <div className="bg-brand-50/80 border border-brand-200 rounded-2xl p-3.5 flex items-start gap-2.5">
+                                        <span className="text-base shrink-0">💡</span>
                                         <div className="text-xs text-brand-950 font-medium leading-relaxed">
                                             {step.tip}
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="pt-2 border-t border-line flex items-center justify-between gap-3">
+                                <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
                                     <button
                                         type="button"
                                         onClick={handlePrev}
                                         disabled={currentStep === 0}
-                                        className={`inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                                        className={`inline-flex items-center gap-1 rounded-xl border border-gray-300 px-3.5 py-2 text-xs font-bold transition cursor-pointer ${
                                             currentStep === 0
-                                                ? 'opacity-30 cursor-not-allowed text-content-muted'
-                                                : 'hover:bg-surface-sunken text-content-secondary'
+                                                ? 'opacity-30 cursor-not-allowed text-gray-400 bg-gray-50'
+                                                : 'hover:bg-gray-100 text-gray-700'
                                         }`}
                                     >
                                         <ArrowLeftIcon className="w-3.5 h-3.5" />
@@ -504,7 +732,7 @@ export default function GuidedTour({ user }) {
                                         <button
                                             type="button"
                                             onClick={handleSkip}
-                                            className="px-2.5 py-1.5 text-xs font-bold text-content-muted hover:text-content-primary cursor-pointer"
+                                            className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-800 transition cursor-pointer"
                                         >
                                             Sair
                                         </button>
@@ -513,19 +741,19 @@ export default function GuidedTour({ user }) {
                                             <button
                                                 type="button"
                                                 onClick={handleNext}
-                                                className="inline-flex items-center gap-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition cursor-pointer"
+                                                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 text-xs font-black shadow-md hover:shadow-brand-600/30 active:scale-95 transition cursor-pointer"
                                             >
-                                                <span>Próximo</span>
+                                                <span>Próxima Aba</span>
                                                 <ArrowRightIcon className="w-3.5 h-3.5" />
                                             </button>
                                         ) : (
                                             <button
                                                 type="button"
                                                 onClick={handleComplete}
-                                                className="inline-flex items-center gap-1 rounded-lg bg-status-success-solid hover:brightness-95 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition cursor-pointer"
+                                                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-black shadow-md active:scale-95 transition cursor-pointer"
                                             >
                                                 <CheckCircleIcon className="w-4 h-4" />
-                                                <span>Concluir</span>
+                                                <span>Concluir Tour</span>
                                             </button>
                                         )}
                                     </div>
@@ -537,4 +765,6 @@ export default function GuidedTour({ user }) {
             )}
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 }
