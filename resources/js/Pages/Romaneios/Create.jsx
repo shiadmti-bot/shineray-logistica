@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import {
     ArrowPathIcon,
     MagnifyingGlassIcon,
@@ -17,6 +18,7 @@ import AbaComposicaoCarga from '@/Components/Romaneios/AbaComposicaoCarga';
 import AbasMontagem from '@/Components/Romaneios/AbasMontagem';
 import BarraResumoCarga from '@/Components/Romaneios/BarraResumoCarga';
 import ConfiguracaoViagem from '@/Components/Romaneios/ConfiguracaoViagem';
+import TermometroOcupacao from '@/Components/Romaneios/TermometroOcupacao';
 import GrupoBasquetas from '@/Components/Romaneios/GrupoBasquetas';
 import GrupoColeta from '@/Components/Romaneios/GrupoColeta';
 import GrupoExpedicao from '@/Components/Romaneios/GrupoExpedicao';
@@ -51,10 +53,15 @@ export default function RomaneioCreate({
 
     const { data, setData, post, transform, processing, errors } = useForm({
         motorista: '',
+        telefone_motorista: '',
         placa: '',
         rota_nome: '',
+        tipo_veiculo: '3_4',
+        capacidade_veiculo: 16,
         romaneio_id: '',
     });
+
+    const [ordemParadas, setOrdemParadas] = useState([]);
 
     // --- AGRUPAMENTO POR FILIAL / DESTINO ---
     const agrupadosExpedicao = useMemo(() => agruparPor(expedicao, destinoDoPedido), [expedicao]);
@@ -147,6 +154,16 @@ export default function RomaneioCreate({
         return mapa;
     }, [expedicao, coletas, selecao.motoIds, basquetasSelecionadas]);
 
+    // Sincroniza a sequência de paradas mantendo a reordenação manual feita pelo usuário
+    useEffect(() => {
+        const paradasAtuais = Object.keys(paradas);
+        setOrdemParadas((ordemAnterior) => {
+            const mantidas = ordemAnterior.filter((p) => paradasAtuais.includes(p));
+            const novas = paradasAtuais.filter((p) => !mantidas.includes(p));
+            return [...mantidas, ...novas];
+        });
+    }, [paradas]);
+
     const resumo = {
         motos: selecao.motoIds.length,
         basquetas: selecao.basquetaIds.length,
@@ -154,6 +171,8 @@ export default function RomaneioCreate({
         volumes: basquetasSelecionadas.reduce((t, b) => t + (b.volumes || 1), 0),
         destinos: Object.keys(paradas).length,
         total: selecao.total,
+        capacidade: data.capacidade_veiculo || 16,
+        tipoVeiculo: data.tipo_veiculo || '3_4',
     };
 
     const destinoCompleto = (local) => ({
@@ -179,7 +198,14 @@ export default function RomaneioCreate({
             return;
         }
 
-        transform((dados) => ({ ...dados, motos_ids: selecao.motoIds, basquetas_ids: selecao.basquetaIds }));
+        transform((dados) => ({
+            ...dados,
+            motos_ids: selecao.motoIds,
+            basquetas_ids: selecao.basquetaIds,
+            ordem_paradas: ordemParadas,
+            tipo_veiculo: dados.tipo_veiculo || '3_4',
+            capacidade_veiculo: dados.capacidade_veiculo || 16,
+        }));
 
         post(route('romaneios.store'), {
             onSuccess: () =>
@@ -207,9 +233,10 @@ export default function RomaneioCreate({
                         { label: 'Cargas', href: route('romaneios.index') },
                         { label: 'Nova Carga' },
                     ]}
+                    actions={<BotaoTourDoModulo modulo="romaneios.expedicao" />}
                 />
 
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div data-tour="expedicao.kpis" className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     <StatCard
                         label="Motos no CD"
                         value={contarMotos(expedicao)}
@@ -240,8 +267,19 @@ export default function RomaneioCreate({
                     />
                 </div>
 
+                {/* Termômetro Visual de Ocupação da Carga no Cabeçalho */}
+                <TermometroOcupacao
+                    motos={resumo.motos}
+                    basquetas={resumo.basquetas}
+                    capacidade={data.capacidade_veiculo || 16}
+                    tipoVeiculo={data.tipo_veiculo || '3_4'}
+                    variante="cabecalho"
+                />
+
                 <form onSubmit={gerarCarga} className="space-y-6">
-                    <ConfiguracaoViagem data={data} setData={setData} errors={errors} rotas={rotas} cargasEmAberto={cargasEmAberto} />
+                    <div data-tour="expedicao.viagem">
+                        <ConfiguracaoViagem data={data} setData={setData} errors={errors} rotas={rotas} cargasEmAberto={cargasEmAberto} />
+                    </div>
 
                     {/* Busca e atalhos */}
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -274,7 +312,9 @@ export default function RomaneioCreate({
                         )}
                     </div>
 
-                    <AbasMontagem ativa={abaAtiva} onMudar={setAbaAtiva} contagens={contagens} />
+                    <div data-tour="expedicao.abas">
+                        <AbasMontagem ativa={abaAtiva} onMudar={setAbaAtiva} contagens={contagens} />
+                    </div>
 
                     {abaAtiva === 'expedicao' && (
                         <div className="space-y-6">
@@ -385,18 +425,24 @@ export default function RomaneioCreate({
                     {abaAtiva === 'composicao' && (
                         <AbaComposicaoCarga
                             paradas={paradas}
+                            ordemParadas={ordemParadas}
+                            onReordenarParadas={setOrdemParadas}
                             resumo={resumo}
                             selecao={selecao}
                             onIrParaMotos={() => setAbaAtiva('expedicao')}
                         />
                     )}
 
-                    <BarraResumoCarga
-                        resumo={resumo}
-                        processando={processing}
-                        romaneioId={data.romaneio_id}
-                        onVerComposicao={() => setAbaAtiva('composicao')}
-                    />
+                    <div data-tour="expedicao.resumo">
+                        <BarraResumoCarga
+                            resumo={resumo}
+                            processando={processing}
+                            romaneioId={data.romaneio_id}
+                            capacidadeVeiculo={data.capacidade_veiculo || 16}
+                            tipoVeiculo={data.tipo_veiculo || '3_4'}
+                            onVerComposicao={() => setAbaAtiva('composicao')}
+                        />
+                    </div>
                 </form>
             </div>
         </>

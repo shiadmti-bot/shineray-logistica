@@ -3,17 +3,22 @@ import { Head, Link, router } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 import {
     ArrowLeftIcon,
-    PrinterIcon,
-    TruckIcon,
-    TrashIcon,
-    MapPinIcon,
-    CubeIcon,
-    WrenchScrewdriverIcon,
-    ExclamationTriangleIcon,
+    ChatBubbleLeftRightIcon,
     CheckIcon,
+    CubeIcon,
+    ExclamationTriangleIcon,
+    MapPinIcon,
+    PhoneIcon,
+    PrinterIcon,
+    TrashIcon,
+    TruckIcon,
+    WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline';
 
 import { Card, PageHeader, StatCard, Button, StatusBadge, EmptyState } from '@/Components/UI';
+import { formatarTelefone, gerarLinkWhatsapp } from '@/Lib/whatsapp';
+import TimelineParadas from '@/Components/Romaneios/TimelineParadas';
+import TermometroOcupacao from '@/Components/Romaneios/TermometroOcupacao';
 
 /**
  * Detalhe da carga e manifesto de impressão.
@@ -86,9 +91,23 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
 
         (pecas || []).forEach((peca) => grupo(peca.destino).pecas.push(peca));
 
-        return Object.keys(grupos)
-            .sort()
-            .map((chave) => grupos[chave]);
+        const chaves = Object.keys(grupos);
+        const ordemParadas = Array.isArray(romaneio.ordem_paradas) ? romaneio.ordem_paradas : [];
+
+        if (ordemParadas.length > 0) {
+            chaves.sort((a, b) => {
+                const idxA = ordemParadas.findIndex((p) => p.toUpperCase().trim() === a);
+                const idxB = ordemParadas.findIndex((p) => p.toUpperCase().trim() === b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b);
+            });
+        } else {
+            chaves.sort();
+        }
+
+        return chaves.map((chave) => grupos[chave]);
     }, [romaneio, pecas]);
 
     /* ---------- Totais ---------- */
@@ -344,6 +363,15 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                         />
                     </div>
 
+                    {/* --- Termômetro de Ocupação da Carga --- */}
+                    <TermometroOcupacao
+                        motos={totalMotos}
+                        basquetas={romaneio.basquetas_count || 0}
+                        capacidade={romaneio.capacidade_veiculo || 16}
+                        tipoVeiculo={romaneio.tipo_veiculo || '3_4'}
+                        variante="padrao"
+                    />
+
                     {/* --- Motorista --- */}
                     <Card padding="none">
                         <div className="flex flex-col gap-4 border-l-4 border-brand-600 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
@@ -352,14 +380,27 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                                     <TruckIcon className="h-6 w-6" />
                                 </span>
                                 <div className="min-w-0">
-                                    <h2 className="text-lg font-bold text-content-primary">
-                                        {romaneio.motorista}
-                                    </h2>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h2 className="text-lg font-bold text-content-primary">
+                                            {romaneio.motorista}
+                                        </h2>
+                                        {romaneio.telefone_motorista && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-600/20">
+                                                <PhoneIcon className="h-3.5 w-3.5" />
+                                                {formatarTelefone(romaneio.telefone_motorista)}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="mt-0.5 text-sm text-content-secondary">
                                         Placa{' '}
                                         <span className="rounded border border-line bg-surface-sunken px-2 py-0.5 font-mono font-bold uppercase text-content-primary">
                                             {romaneio.placa}
                                         </span>
+                                        {romaneio.tipo_veiculo && (
+                                            <span className="ml-2 text-content-muted">
+                                                · Veículo: <strong className="text-content-secondary uppercase">{romaneio.tipo_veiculo}</strong> ({romaneio.capacidade_veiculo || 16} motos)
+                                            </span>
+                                        )}
                                         {romaneio.transportadora && (
                                             <span className="ml-2 text-content-muted">
                                                 · {romaneio.transportadora}
@@ -369,9 +410,32 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                                 </div>
                             </div>
 
-                            <StatusBadge status={romaneio.status} />
+                            <div className="flex flex-wrap items-center gap-3">
+                                {romaneio.telefone_motorista && (
+                                    <a
+                                        href={gerarLinkWhatsapp(romaneio.telefone_motorista, {
+                                            mensagem: `Olá ${romaneio.motorista}, estou entrando em contato a respeito da Carga #${numero} (Placa ${romaneio.placa}) da Shineray.`,
+                                        })}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                                    >
+                                        <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                                        Falar com o Motorista no WhatsApp
+                                    </a>
+                                )}
+                                <StatusBadge status={romaneio.status} />
+                            </div>
                         </div>
                     </Card>
+
+                    {/* --- Linha do Tempo Visual de Paradas da Rota (Timeline de Rastreio) --- */}
+                    <TimelineParadas
+                        romaneio={romaneio}
+                        destinos={destinos}
+                        filialAtual={auth?.user?.filial}
+                        origemPadrao={romaneio.user?.filial || 'CD Matriz (Origem)'}
+                    />
 
                     {/* --- Milk run --- */}
                     {itensParaColetar.length > 0 && (
@@ -445,7 +509,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                             </Card>
                         )}
 
-                        {destinos.map((destino) => {
+                        {destinos.map((destino, index) => {
                             const motosABordo = destino.motos.filter(
                                 (m) => m.status !== 'aguardando_coleta'
                             );
@@ -458,18 +522,33 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                                 0
                             );
 
+                            const isPrimeira = index === 0;
+                            const isUltima = index === destinos.length - 1 && destinos.length > 1;
+
                             return (
                                 <Card key={destino.nome} padding="none">
                                     {/* Cabeçalho do destino */}
                                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface-sunken px-5 py-4 sm:px-6">
                                         <div className="flex items-center gap-3">
-                                            <span className="rounded-full bg-surface-card p-2 text-status-success-fg ring-1 ring-line">
-                                                <MapPinIcon className="h-5 w-5" />
+                                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-xs font-black text-white shadow-xs">
+                                                {index + 1}º
                                             </span>
                                             <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-content-muted">
-                                                    Destino final
-                                                </p>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-content-muted">
+                                                        Destino final · Parada {index + 1} de {destinos.length}
+                                                    </p>
+                                                    {isPrimeira && (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 border border-emerald-300">
+                                                            🚪 Porta Traseira (LIFO)
+                                                        </span>
+                                                    )}
+                                                    {isUltima && (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-800 border border-amber-300">
+                                                            🚛 Fundo do Baú (LIFO)
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <h3 className="text-lg font-black leading-tight text-content-primary">
                                                     {destino.nome}
                                                 </h3>
@@ -721,6 +800,11 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                     <div className="p-3">
                         <span className="mb-1 block text-[9px] font-bold uppercase">Motorista</span>
                         <span className="block text-sm font-bold uppercase">{romaneio.motorista}</span>
+                        {romaneio.telefone_motorista && (
+                            <span className="block text-[10px] font-bold text-gray-800">
+                                Tel: {formatarTelefone(romaneio.telefone_motorista)}
+                            </span>
+                        )}
                     </div>
                     <div className="p-3">
                         <span className="mb-1 block text-[9px] font-bold uppercase">Placa</span>
@@ -742,7 +826,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
 
                 {/* Blocos por destino */}
                 <div className="mx-8">
-                    {destinos.map((destino) => {
+                    {destinos.map((destino, idx) => {
                         const unidadesPeca = destino.pecas.reduce((s, p) => s + (p.quantidade || 0), 0);
 
                         return (
@@ -751,7 +835,7 @@ export default function RomaneioShow({ auth, romaneio, pecas = [] }) {
                                 className="page-break-inside-avoid mb-8 break-inside-avoid overflow-hidden rounded-sm border border-black"
                             >
                                 <div className="flex items-center justify-between bg-black px-4 py-2 text-sm font-bold uppercase text-white print:bg-black print:text-white">
-                                    <span>📍 DESTINO: {destino.nome}</span>
+                                    <span>📍 {idx + 1}ª PARADA: {destino.nome}</span>
                                     <span className="flex gap-2">
                                         {destino.motos.length > 0 && (
                                             <span className="rounded bg-white px-2 py-0.5 text-xs font-black text-black">

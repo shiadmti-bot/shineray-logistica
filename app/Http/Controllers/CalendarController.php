@@ -242,6 +242,13 @@ class CalendarController extends Controller
         // --- REGRESSÃO DE STATUS ---
         $lojasId = $schedule->stops()->pluck('user_id')->toArray();
 
+        // Regressão de basquetas vinculadas a esta rota para o status aberta
+        \App\Models\Basqueta::where('schedule_id', $schedule->id)
+            ->update([
+                'schedule_id' => null,
+                'status'      => \App\Models\Basqueta::STATUS_ABERTA,
+            ]);
+
         // Deletar a rota (garante a limpeza manual)
         $schedule->stops()->delete();
         $schedule->delete(); 

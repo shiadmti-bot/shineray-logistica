@@ -611,10 +611,12 @@ class PedidoController extends Controller
         app(\App\Services\AtribuicaoChassiService::class)
             ->encerrarSaldo($item, $request->justificativa);
 
+        $itemDesc = $item->isPeca() ? ($item->descricao_solicitada ?? $item->peca?->descricao ?? 'Peça') : "{$item->modelo} {$item->cor}";
+
         $this->enviarNotificacao(
             $item->pedido->user,
             'Saldo Encerrado ✂️',
-            "{$pendenteAntes}x {$item->modelo} {$item->cor} do pedido #{$item->pedido_id} não serão enviadas: {$request->justificativa}",
+            "{$pendenteAntes}x {$itemDesc} do pedido #{$item->pedido_id} não serão enviadas: {$request->justificativa}",
             route('pedidos.show', $item->pedido_id)
         );
 
@@ -700,7 +702,8 @@ class PedidoController extends Controller
             'origem', // <--- ADICIONADO: Traz os dados da loja de origem
             'rejeitadoPor:id,name',
             'motos' => function($q) {
-                $q->withPivot(['id', 'detalhes_avaria', 'foto_avaria', 'motivo', 'pedido_item_id']);
+                $q->withPivot(['id', 'detalhes_avaria', 'foto_avaria', 'motivo', 'pedido_item_id'])
+                  ->with('romaneio:id,motorista,telefone_motorista,placa,rota,ordem_paradas,status,tipo_veiculo,capacidade_veiculo');
             },
             'itensPedido.canceladoPor:id,name', // V2.6: cotas do pedido
             'itensPedido.peca:id,codigo,descricao,unidade', // v3: cotas de peça

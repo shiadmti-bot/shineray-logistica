@@ -240,10 +240,12 @@ class AtribuicaoChassiService
                 'cancelado_em'        => now(),
             ]);
 
+            $itemDesc = $item->isPeca() ? ($item->descricao_solicitada ?? $item->peca?->descricao ?? 'Peça') : "{$item->modelo} {$item->cor}";
+
             $this->log(
                 $item->pedido,
                 'Saldo Encerrado ✂️',
-                "{$pendente}x {$item->modelo} {$item->cor} não serão enviadas. Motivo: {$justificativa}"
+                "{$pendente}x {$itemDesc} não serão enviadas. Motivo: {$justificativa}"
             );
 
             // Se após encerrar o saldo todos os itens restantes do pedido já estiverem em trânsito, atualiza para 'em_transito'

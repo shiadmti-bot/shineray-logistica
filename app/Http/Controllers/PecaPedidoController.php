@@ -11,6 +11,7 @@ use App\Models\PedidoItem;
 use App\Models\PedidoLog;
 use App\Models\User;
 use App\Services\Pecas\CatalogoModelos;
+use App\Services\Pecas\KitRevisaoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -54,25 +55,38 @@ class PecaPedidoController extends Controller
             )
             : null;
 
+        $kits = $modelo ? KitRevisaoService::obterKitsParaModelo($modelo) : [];
+
         $locais = $user->isAdmin()
             ? EstoqueLocal::filiaisDePeca()
                 ->orderBy('nome')
                 ->get(['id', 'nome'])
             : [];
 
+        $localId = $request->input('local_id') ?? $request->input('local_destino_id');
+        if (! $localId && ! $user->isAdmin()) {
+            $localId = $user->estoque_local_id;
+        }
+
+        $recorrentes = $this->obterItensRecorrentes($user, $localId ? (int) $localId : null);
+
         return Inertia::render('Pecas/Solicitar', [
-            'pecas'   => $pecas,
-            'modelos' => $this->modelosDisponiveis(),
-            'filtros' => [
-                'modelo' => $modelo ?? '',
-                'busca'  => $busca ?? '',
+            'pecas'       => $pecas,
+            'recorrentes' => $recorrentes,
+            'maisPedidos' => $recorrentes,
+            'kits'        => $kits,
+            'modelos'     => $this->modelosDisponiveis(),
+            'filtros'     => [
+                'modelo'   => $modelo ?? '',
+                'busca'    => $busca ?? '',
+                'local_id' => $localId ? (string) $localId : '',
             ],
-            'loja'    => [
+            'loja'        => [
                 'nome'  => $user->filial ?: $user->name,
                 'local' => $user->estoque_local_id,
             ],
-            'locais'  => $locais,
-            'isAdmin' => $user->isAdmin(),
+            'locais'      => $locais,
+            'isAdmin'     => $user->isAdmin(),
         ]);
     }
 
@@ -392,6 +406,89 @@ class PecaPedidoController extends Controller
                 'label' => CatalogoModelos::label($r->familia),
                 'total' => (int) $r->total,
             ])
+            ->all();
+    }
+
+    /**
+     * Busca os itens mais pedidos nos últimos 90 dias para reposição rápida da oficina.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function obterItensRecorrentes(User $user, ?int $localId = null): array
+    {
+        $statusValidos = [
+            'concluido',
+            'em_transito',
+            'solicitado',
+            'aprovado',
+            'separado',
+            'aguardando_confirmacao',
+            'expedido',
+        ];
+
+        $query = PedidoItem::query()
+            ->join('pedidos', 'pedido_itens.pedido_id', '=', 'pedidos.id')
+            ->whereNull('pedidos.deleted_at')
+            ->whereNull('pedido_itens.deleted_at')
+            ->where('pedidos.tipo_carga', 'peca')
+            ->whereIn('pedidos.status', $statusValidos)
+            ->where('pedidos.created_at', '>=', now()->subDays(90))
+            ->whereNotNull('pedido_itens.peca_id');
+
+        if (! $user->isAdmin()) {
+            $query->where(function ($q) use ($user, $localId) {
+                $local = $localId ?: $user->estoque_local_id;
+                if ($local) {
+                    $q->where('pedidos.local_destino_id', $local)
+                      ->orWhere('pedidos.user_id', $user->id);
+                } else {
+                    $q->where('pedidos.user_id', $user->id);
+                }
+            });
+        } elseif ($localId) {
+            $query->where('pedidos.local_destino_id', $localId);
+        }
+
+        $recorrentesRows = $query
+            ->select('pedido_itens.peca_id')
+            ->selectRaw('SUM(pedido_itens.quantidade) as total_quantidade')
+            ->selectRaw('COUNT(DISTINCT pedidos.id) as total_pedidos')
+            ->groupBy('pedido_itens.peca_id')
+            ->orderByDesc('total_quantidade')
+            ->orderByDesc('total_pedidos')
+            ->limit(8)
+            ->get();
+
+        if ($recorrentesRows->isEmpty()) {
+            return [];
+        }
+
+        $pecas = Peca::query()
+            ->whereIn('id', $recorrentesRows->pluck('peca_id'))
+            ->where('ativo', true)
+            ->with([
+                'aplicacoes' => fn ($q) => $q->orderBy('familia'),
+                'saldosExternos' => fn ($q) => $q->comSaldo()->with('empresa')->orderByDesc('saldo'),
+            ])
+            ->get()
+            ->keyBy('id');
+
+        return $recorrentesRows
+            ->map(function ($row) use ($pecas) {
+                $peca = $pecas->get($row->peca_id);
+                if (! $peca) {
+                    return null;
+                }
+
+                $item = $this->serializar($peca);
+                $item['categoria'] = $peca->categoria;
+                $item['total_quantidade'] = (int) $row->total_quantidade;
+                $item['total_pedidos'] = (int) $row->total_pedidos;
+
+                return $item;
+            })
+            ->filter()
+            ->values()
             ->all();
     }
 

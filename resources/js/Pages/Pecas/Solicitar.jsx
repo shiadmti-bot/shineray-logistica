@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import {
     MagnifyingGlassIcon,
     ShoppingCartIcon,
@@ -13,6 +14,8 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { Card, PageHeader, Button, EmptyState, Pagination } from '@/Components/UI';
+import KitsRevisaoRapida from '@/Components/Pecas/KitsRevisaoRapida';
+import ItensRecorrentes from '@/Components/Pecas/ItensRecorrentes';
 
 /**
  * Solicitação de peças da loja ao CD.
@@ -29,6 +32,9 @@ import { Card, PageHeader, Button, EmptyState, Pagination } from '@/Components/U
  */
 export default function SolicitarPecas({
     pecas,
+    recorrentes = [],
+    maisPedidos = [],
+    kits = [],
     modelos = [],
     filtros = {},
     loja = {},
@@ -36,17 +42,23 @@ export default function SolicitarPecas({
     isAdmin = false,
 }) {
     const { errors: pageErrors = {} } = usePage().props;
+    const listaRecorrentes = recorrentes?.length > 0 ? recorrentes : (maisPedidos || []);
     const [busca, setBusca] = useState(filtros.busca ?? '');
     const [carrinho, setCarrinho] = useState([]);
     const [semCodigo, setSemCodigo] = useState('');
     const [observacao, setObservacao] = useState('');
-    const [destinoId, setDestinoId] = useState(locais[0]?.id ?? '');
+    const [destinoId, setDestinoId] = useState(filtros.local_id || locais[0]?.id || '');
     const [isEnviando, setIsEnviando] = useState(false);
 
     const filtrar = (novos = {}) => {
         router.get(
             route('pecas.solicitar'),
-            { modelo: filtros.modelo || undefined, busca: busca || undefined, ...novos },
+            {
+                modelo: filtros.modelo || undefined,
+                busca: busca || undefined,
+                local_id: isAdmin ? (destinoId || undefined) : undefined,
+                ...novos,
+            },
             { preserveState: true, replace: true }
         );
     };
@@ -74,6 +86,91 @@ export default function SolicitarPecas({
                 unidade: peca.unidade,
                 quantidade: 1,
             }];
+        });
+    };
+
+    /** Adiciona uma lista de peças ao carrinho em lote (1 clique) */
+    const adicionarEmLote = (itensParaAdicionar) => {
+        if (!itensParaAdicionar?.length) return;
+
+        setCarrinho((atual) => {
+            let novoCarrinho = [...atual];
+
+            itensParaAdicionar.forEach((peca) => {
+                const chave = `peca-${peca.id}`;
+                const idx = novoCarrinho.findIndex((i) => i.key === chave);
+
+                if (idx >= 0) {
+                    novoCarrinho[idx] = {
+                        ...novoCarrinho[idx],
+                        quantidade: novoCarrinho[idx].quantidade + 1,
+                    };
+                } else {
+                    novoCarrinho.push({
+                        key: chave,
+                        peca_id: peca.id,
+                        codigo: peca.codigo,
+                        descricao: peca.descricao,
+                        unidade: peca.unidade || 'UN',
+                        quantidade: 1,
+                    });
+                }
+            });
+
+            return novoCarrinho;
+        });
+    };
+
+    /** Adiciona todos os itens de um Kit Frequente de Revisão em 1 clique */
+    const adicionarKit = (kit) => {
+        if (!kit?.itens?.length) return;
+
+        setCarrinho((atual) => {
+            let novoCarrinho = [...atual];
+
+            kit.itens.forEach((item) => {
+                const qtdItem = item.quantidade || 1;
+
+                if (item.peca_id) {
+                    const chave = `peca-${item.peca_id}`;
+                    const idx = novoCarrinho.findIndex((i) => i.key === chave);
+
+                    if (idx >= 0) {
+                        novoCarrinho[idx] = {
+                            ...novoCarrinho[idx],
+                            quantidade: novoCarrinho[idx].quantidade + qtdItem,
+                        };
+                    } else {
+                        novoCarrinho.push({
+                            key: chave,
+                            peca_id: item.peca_id,
+                            codigo: item.codigo,
+                            descricao: item.descricao,
+                            unidade: item.unidade || 'UN',
+                            quantidade: qtdItem,
+                        });
+                    }
+                } else {
+                    const chave = `kit-${kit.id}-${(item.slot_nome || '').toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+                    const idx = novoCarrinho.findIndex((i) => i.key === chave);
+
+                    if (idx >= 0) {
+                        novoCarrinho[idx] = {
+                            ...novoCarrinho[idx],
+                            quantidade: novoCarrinho[idx].quantidade + qtdItem,
+                        };
+                    } else {
+                        novoCarrinho.push({
+                            key: chave,
+                            peca_id: null,
+                            descricao_solicitada: item.descricao_solicitada || item.descricao,
+                            quantidade: qtdItem,
+                        });
+                    }
+                }
+            });
+
+            return novoCarrinho;
         });
     };
 
@@ -151,6 +248,7 @@ export default function SolicitarPecas({
                         : `Pedido de ${loja.nome ?? 'sua loja'} para o Centro de Distribuição.`
                 }
                 breadcrumbs={[{ label: 'Peças' }, { label: 'Solicitar' }]}
+                actions={<BotaoTourDoModulo modulo="pecas.solicitar" />}
             />
 
             <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
@@ -159,6 +257,7 @@ export default function SolicitarPecas({
                     <Card padding="none" className="mb-4">
                         <div className="flex flex-col gap-3 p-4 sm:flex-row">
                             <select
+                                data-tour="pecas-solicitar.modelo"
                                 value={filtros.modelo ?? ''}
                                 onChange={(e) => filtrar({ modelo: e.target.value || undefined })}
                                 className="rounded-lg border-line bg-surface-card py-2 text-sm font-semibold text-content-primary focus:border-brand-500 focus:ring-brand-500 sm:w-52"
@@ -188,6 +287,26 @@ export default function SolicitarPecas({
                             </Button>
                         </div>
                     </Card>
+
+                    {/* Itens Recorrentes da Concessionária (Pedir Novamente / Reposição Rápida) */}
+                    {listaRecorrentes.length > 0 && (
+                        <ItensRecorrentes
+                            itens={listaRecorrentes}
+                            lojaNome={loja?.nome}
+                            carrinho={carrinho}
+                            onAdicionarItem={adicionar}
+                            onAdicionarTodos={adicionarEmLote}
+                        />
+                    )}
+
+                    {/* Kits Rápidos de Revisão / Giro Rápido para a moto selecionada */}
+                    {filtros.modelo && kits && kits.length > 0 && (
+                        <KitsRevisaoRapida
+                            kits={kits}
+                            modeloLabel={modeloLabel}
+                            onAdicionarKit={adicionarKit}
+                        />
+                    )}
 
                     {!pecas ? (
                         <Card>
@@ -337,7 +456,11 @@ export default function SolicitarPecas({
                             </p>
                             <select
                                 value={destinoId}
-                                onChange={(e) => setDestinoId(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setDestinoId(val);
+                                    filtrar({ local_id: val || undefined });
+                                }}
                                 className="w-full rounded-lg border-line bg-surface-card text-xs font-semibold text-content-primary focus:border-brand-500 focus:ring-brand-500"
                             >
                                 <option value="">Selecione uma filial...</option>
@@ -366,7 +489,7 @@ export default function SolicitarPecas({
 
                     {/* Passo 2 do manual: pedir sem saber o código. Antes isso
                         acontecia por mensagem, fora do sistema. */}
-                    <Card title="Não achou no catálogo?" padding="sm">
+                    <Card data-tour="pecas-solicitar.sem-codigo" title="Não achou no catálogo?" padding="sm">
                         <p className="mb-2 text-xs text-content-secondary">
                             Descreva a peça e o modelo da moto. O Estoque Central identifica
                             o código e devolve para você conferir antes de separar.
@@ -391,6 +514,7 @@ export default function SolicitarPecas({
                     </Card>
 
                     <Card
+                        data-tour="pecas-solicitar.carrinho"
                         title="Seu pedido"
                         subtitle={totalUnidades > 0 ? `${totalUnidades} unidade(s)` : 'Nenhum item ainda'}
                         padding="none"

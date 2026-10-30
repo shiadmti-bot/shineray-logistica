@@ -250,6 +250,16 @@ class BasquetaController extends Controller
             ]);
         }
 
+        $jaAberta = Basqueta::where('local_aberto_id', $basqueta->estoque_local_id)
+            ->where('id', '!=', $basqueta->id)
+            ->first();
+
+        if ($jaAberta) {
+            return back()->withErrors([
+                'geral' => "Já existe a Basqueta #{$jaAberta->id} aberta para esta filial no CD. Conclua ou fature a basqueta atual antes de reabrir esta para ajuste.",
+            ]);
+        }
+
         DB::transaction(function () use ($basqueta, $dados) {
             $nota = $basqueta->notaVigente();
 

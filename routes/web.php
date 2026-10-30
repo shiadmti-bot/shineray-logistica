@@ -241,6 +241,9 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         |--------------------------------------------------------------------------
         */
         // IMPORTANTE: Rotas específicas ANTES do resource para evitar conflito de ID
+        Route::get('/motos/censo', [\App\Http\Controllers\CensoPatioController::class, 'index'])
+            ->middleware('check_perfil:admin,cd,gestor,loja')
+            ->name('motos.censo');
         Route::get('/motos/timeline', [MotoController::class, 'timeline'])->name('motos.timeline'); // Nova V2
         Route::post('/motos/{id}/solicitar-retirada', [PedidoController::class, 'solicitarRetiradaItem'])->name('motos.solicitarRetirada');
         

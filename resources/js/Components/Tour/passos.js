@@ -1,5 +1,9 @@
 import {
     AdjustmentsHorizontalIcon,
+    ArrowPathIcon,
+    BellAlertIcon,
+    BoltIcon,
+    ChartBarIcon,
     ChatBubbleLeftRightIcon,
     CheckBadgeIcon,
     ClipboardDocumentCheckIcon,
@@ -7,14 +11,18 @@ import {
     DocumentTextIcon,
     FunnelIcon,
     HashtagIcon,
+    HomeIcon,
     MagnifyingGlassIcon,
     PaperAirplaneIcon,
+    PrinterIcon,
+    QrCodeIcon,
     ScissorsIcon,
     ShoppingCartIcon,
     Squares2X2Icon,
     SwatchIcon,
     TagIcon,
     TruckIcon,
+    WrenchScrewdriverIcon,
     XCircleIcon,
 } from '@heroicons/react/24/outline';
 
@@ -235,6 +243,259 @@ export const TOURS = {
                 descricao:
                     'Conversa ligada a este pedido. Serve para resolver a dúvida sem cortar — cortar e a loja pedir de novo custa um ciclo inteiro de análise.',
                 exigeAlvo: true,
+            },
+        ],
+    },
+
+    'dashboard.geral': {
+        titulo: 'Painel de controle',
+        descricao: 'Visão geral da sua operação, alertas prioritários e atalhos rápidos.',
+        passos: [
+            {
+                alvo: '[data-tour="dashboard.boas-vindas"]',
+                icone: HomeIcon,
+                titulo: 'Identificação e status',
+                descricao:
+                    'Mostra sua saudação, filial ativa e perfil de acesso. Para CD e Admin, exibe também o pulso de atualização automática em tempo real.',
+            },
+            {
+                alvo: '[data-tour="dashboard.avisos"]',
+                icone: BellAlertIcon,
+                titulo: 'Quadro de avisos e alertas',
+                descricao:
+                    'Comunicados internos da matriz, alertas de pedidos aguardando separação física ou avisos de recusas recentes com justificativa.',
+                exigeAlvo: true,
+            },
+            {
+                alvo: '[data-tour="dashboard.kpis"]',
+                icone: ChartBarIcon,
+                titulo: 'Indicadores operacionais (KPIs)',
+                descricao:
+                    'Cartões com contagens consolidadas: pedidos em andamento, cargas na rua e estoque físico no CD sincronizado direto do Microwork.',
+                dica: 'Clique em qualquer cartão com seta para navegar direto para a lista filtrada correspondente.',
+            },
+            {
+                alvo: '[data-tour="dashboard.acoes-rapidas"]',
+                icone: BoltIcon,
+                titulo: 'Atalhos e mesa de operação',
+                descricao:
+                    'Acesso direto aos fluxos mais frequentes do seu dia a dia: nova solicitação de motos, reposição de peças, separação de pedidos ou montagem de cargas.',
+            },
+        ],
+    },
+
+    'motos.estoque': {
+        titulo: 'Estoque de motos',
+        descricao: 'Consulta de motos, histórico do sistema e pátio do CD em tempo real.',
+        passos: [
+            {
+                alvo: '[data-tour="motos.censo"]',
+                icone: QrCodeIcon,
+                titulo: 'Censo e inventário de pátio',
+                descricao:
+                    'Auditoria física rápida com bipagem contínua de chassis via leitor USB, Bluetooth ou smartphone. Identifica unidades presentes, pendentes e intrusas.',
+            },
+            {
+                alvo: '[data-tour="motos.abas"]',
+                icone: Squares2X2Icon,
+                titulo: 'Origem dos dados',
+                descricao:
+                    'Alterna entre o histórico registrado no BySabel (movimentações e pedidos) e o estoque físico real no CD (sincronizado do Microwork).',
+                dica: 'A loja consulta diretamente a aba do CD para checar disponibilidade antes de pedir.',
+            },
+            {
+                alvo: '[data-tour="motos.busca"]',
+                icone: MagnifyingGlassIcon,
+                titulo: 'Filtros e pesquisa',
+                descricao:
+                    'Localize motos por chassi, modelo, loja alocada ou status da unidade no fluxo logístico.',
+            },
+            {
+                alvo: '[data-tour="motos.tabela"]',
+                icone: CubeIcon,
+                titulo: 'Listagem e linha do tempo',
+                descricao:
+                    'Exibe o chassi, cor, localização atual e status. O ícone de relógio abre a linha do tempo completa do chassi desde a fabricação até a entrega.',
+            },
+        ],
+    },
+
+    'motos.censo': {
+        titulo: 'Censo e inventário de pátio',
+        descricao: 'Bipagem contínua para conferência de estoque físico com zero latência.',
+        passos: [
+            {
+                alvo: '[data-tour="censo.bipagem"]',
+                icone: QrCodeIcon,
+                titulo: 'Bipagem contínua de chassis',
+                descricao:
+                    'Aponte o leitor de código de barras ou digite o chassi e pressione Enter. O campo mantém o foco ativo para leituras consecutivas e emite sons distintos de aprovação ou divergência.',
+            },
+            {
+                alvo: '[data-tour="censo.kpis"]',
+                icone: ChartBarIcon,
+                titulo: 'Progresso da auditoria',
+                descricao:
+                    'Monitore em tempo real o percentual de conformidade física e as contagens de motos confirmadas, faltantes e intrusas.',
+            },
+            {
+                alvo: '[data-tour="censo.abas"]',
+                icone: Squares2X2Icon,
+                titulo: 'Listas e divergências',
+                descricao:
+                    'Navegue entre as motos confirmadas no pátio, as que ainda não foram localizadas e eventuais motos intrusas que pertencem a outra loja.',
+            },
+            {
+                alvo: '[data-tour="censo.acoes"]',
+                icone: PrinterIcon,
+                titulo: 'Relatório e finalização',
+                descricao:
+                    'Imprima o relatório resumido de conferência para assinatura da gestão ou reinicie a contagem quando necessário.',
+            },
+        ],
+    },
+
+    'pecas.estoque': {
+        titulo: 'Estoque de peças',
+        descricao: 'Saldo por SKU, controle de reservas e compatibilidade por modelo.',
+        passos: [
+            {
+                alvo: '[data-tour="pecas.kpis"]',
+                icone: ChartBarIcon,
+                titulo: 'Resumo do catálogo',
+                descricao:
+                    'Total de itens cadastrados, SKUs com saldo positivo, peças prometidas a pedidos abertos e itens abaixo do estoque mínimo de segurança.',
+            },
+            {
+                alvo: '[data-tour="pecas.filtro-modelo"]',
+                icone: FunnelIcon,
+                titulo: 'Compatibilidade por modelo',
+                descricao:
+                    'O jeito mais inteligente de encontrar peças: escolha a moto do cliente para ver apenas os itens compatíveis (ou universais).',
+                dica: 'Peças universais são marcadas com selo azul e atendem qualquer modelo.',
+            },
+            {
+                alvo: '[data-tour="pecas.busca"]',
+                icone: MagnifyingGlassIcon,
+                titulo: 'Busca rápida',
+                descricao:
+                    'Pesquise por código interno da peça, código de barras original ou palavras da descrição comercial.',
+            },
+            {
+                alvo: '[data-tour="pecas.tabela"]',
+                icone: WrenchScrewdriverIcon,
+                titulo: 'Saldo disponível vs físico',
+                descricao:
+                    'Diferença crucial: "Disponível" é o saldo livre para pedidos. "Onde tem" reflete a localização física no Microwork para orientar a separação.',
+            },
+        ],
+    },
+
+    'pecas.solicitar': {
+        titulo: 'Solicitação de peças',
+        descricao: 'Como pedir reposição de peças para sua filial.',
+        passos: [
+            {
+                alvo: '[data-tour="pecas-solicitar.modelo"]',
+                icone: FunnelIcon,
+                titulo: 'Filtre pela moto',
+                descricao:
+                    'Selecione o modelo da moto para carregar as peças compatíveis. Você também pode digitar palavras na busca textual ao lado.',
+            },
+            {
+                alvo: '[data-tour="pecas-solicitar.recorrentes"]',
+                icone: ArrowPathIcon,
+                titulo: '🔁 Pedir Novamente / Reposição Rápida',
+                descricao:
+                    'Reúne os itens mais solicitados pela sua concessionária nos últimos 90 dias. Adicione peças de alto giro com 1 clique ou adicione a lista completa em lote.',
+                exigeAlvo: true,
+            },
+            {
+                alvo: '[data-tour="pecas-solicitar.kits"]',
+                icone: BoltIcon,
+                titulo: '⚡ Kits Rápidos de Revisão',
+                descricao:
+                    'Ao selecionar o modelo, pacotes de revisão de alta frequência (Básica, Relação, Freios e Periódica) aparecem prontos para adicionar todos os itens ao pedido com 1 clique.',
+            },
+            {
+                alvo: '[data-tour="pecas-solicitar.sem-codigo"]',
+                icone: DocumentTextIcon,
+                titulo: 'Não achou o código?',
+                descricao:
+                    'Se a peça não estiver cadastrada, digite a descrição do defeito ou da peça aqui. O Estoque Central identifica o código correto antes de faturar.',
+            },
+            {
+                alvo: '[data-tour="pecas-solicitar.carrinho"]',
+                icone: ShoppingCartIcon,
+                titulo: 'Conferência do pedido',
+                descricao:
+                    'Revise os itens adicionados, ajuste as quantidades necessárias e envie para análise do CD com apenas um clique.',
+            },
+        ],
+    },
+
+    'romaneios.lista': {
+        titulo: 'Histórico de cargas',
+        descricao: 'Acompanhamento de romaneios, rotas e status das entregas.',
+        passos: [
+            {
+                alvo: '[data-tour="romaneios.novo"]',
+                icone: TruckIcon,
+                titulo: 'Nova expedição',
+                descricao:
+                    'Inicia a montagem de uma nova carga mista ou coleta Milk Run para despacho.',
+                perfis: ['cd', 'admin'],
+                exigeAlvo: true,
+            },
+            {
+                alvo: '[data-tour="romaneios.busca"]',
+                icone: MagnifyingGlassIcon,
+                titulo: 'Busca e filtros de período',
+                descricao:
+                    'Filtre cargas por placa do caminhão, nome do motorista, rota ou data de saída.',
+            },
+            {
+                alvo: '[data-tour="romaneios.tabela"]',
+                icone: ClipboardDocumentCheckIcon,
+                titulo: 'Detalhamento do romaneio',
+                descricao:
+                    'Consulte o volume transportado (motos e basquetas de peças), motorista responsável e barra de progresso do trânsito até a confirmação de recebimento.',
+            },
+        ],
+    },
+
+    'romaneios.expedicao': {
+        titulo: 'Montagem de carga',
+        descricao: 'Expedição unificada de motos, basquetas e coletas Milk Run.',
+        perfis: ['cd', 'admin'],
+        passos: [
+            {
+                alvo: '[data-tour="expedicao.kpis"]',
+                icone: ChartBarIcon,
+                titulo: 'Fila de itens prontos',
+                descricao:
+                    'Painel de motos aguardando saída, basquetas de peças faturadas prontas para viagem e coletas programadas nas lojas.',
+            },
+            {
+                alvo: '[data-tour="expedicao.viagem"]',
+                icone: TruckIcon,
+                titulo: 'Configuração da viagem',
+                descricao:
+                    'Informe motorista, placa e rota. Você também pode anexar itens a uma carga que já está em aberto.',
+            },
+            {
+                alvo: '[data-tour="expedicao.abas"]',
+                icone: Squares2X2Icon,
+                titulo: 'Abas operacionais',
+                descricao:
+                    'Selecione motos prontas no CD, inclua basquetas de peças embaladas, adicione coletas Milk Run ou bipe chassis com leitor de código de barras.',
+            },
+            {
+                alvo: '[data-tour="expedicao.resumo"]',
+                icone: ClipboardDocumentCheckIcon,
+                titulo: 'Barra de resumo e finalização',
+                descricao:
+                    'Acompanhe o total de paradas, volume ocupado e clique em "Gerar Carga" para emitir o romaneio e iniciar o trânsito.',
             },
         ],
     },

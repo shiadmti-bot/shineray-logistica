@@ -3,9 +3,12 @@ import {
     ArrowDownOnSquareIcon,
     ArrowUpOnSquareIcon,
     CalendarIcon,
+    ChatBubbleLeftRightIcon,
     DocumentTextIcon,
     PaperClipIcon,
 } from '@heroicons/react/24/outline';
+import { gerarLinkWhatsapp } from '@/Lib/whatsapp';
+import TimelineParadas from '@/Components/Romaneios/TimelineParadas';
 
 /** Data vinda como 'AAAA-MM-DD...' exibida sem o deslocamento de fuso do navegador. */
 const dataLocal = (valor) => new Date(valor.substring(0, 10) + 'T12:00:00');
@@ -26,10 +29,20 @@ const cargasDoPedido = (pedido) => {
 export default function CardRotaPedido({ pedido, destinoFinalLabel }) {
     const cargas = cargasDoPedido(pedido);
 
+    const romaneioEfetivo = pedido.romaneio || (pedido.motos || []).find((m) => m.romaneio)?.romaneio;
+    const motorista = romaneioEfetivo?.motorista || pedido.romaneio?.motorista;
+    const telefone = romaneioEfetivo?.telefone_motorista || pedido.romaneio?.telefone_motorista;
+    const placa = romaneioEfetivo?.placa || pedido.romaneio?.placa;
+    const romaneioId = romaneioEfetivo?.id || pedido.romaneio_id;
+
+    const mensagemWhatsapp = `Olá ${motorista || 'motorista'}, sou da loja ${destinoFinalLabel || 'destino'}. Gostaria de saber a previsão de chegada do Pedido #${pedido.id}${romaneioId ? ` (Carga #${romaneioId})` : ''}.`;
+    const linkWhatsapp = telefone ? gerarLinkWhatsapp(telefone, { mensagem: mensagemWhatsapp }) : null;
+
     return (
-        <div className="bg-surface-card rounded-card shadow-sm border border-line overflow-hidden grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
-            {/* Origem */}
-            <div className="p-6 bg-surface-sunken/50">
+        <div className="bg-surface-card rounded-card shadow-sm border border-line overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-line">
+                {/* Origem */}
+                <div className="p-6 bg-surface-sunken/50">
                 <h3 className="text-xs font-bold text-content-muted uppercase tracking-widest mb-3 flex items-center gap-2">
                     <ArrowUpOnSquareIcon className="w-4 h-4 text-status-info-fg" /> Origem (Sai De)
                 </h3>
@@ -108,7 +121,51 @@ export default function CardRotaPedido({ pedido, destinoFinalLabel }) {
                         </a>
                     </div>
                 )}
+
+                {motorista && (
+                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-line">
+                        <span className="text-xs font-bold text-content-muted uppercase tracking-wide">Motorista</span>
+                        <div className="text-right">
+                            <span className="text-xs font-bold text-content-primary block uppercase">
+                                {motorista}
+                            </span>
+                            {placa && (
+                                <span className="font-mono text-[10px] text-content-secondary uppercase">
+                                    {placa}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {linkWhatsapp && (
+                    <div className="mt-3 pt-3 border-t border-line">
+                        <a
+                            href={linkWhatsapp}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-1.5 w-full bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold shadow-xs transition"
+                        >
+                            <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                            Falar no WhatsApp
+                        </a>
+                    </div>
+                )}
             </div>
+            </div>
+
+            {/* Linha do Tempo Visual de Paradas da Rota */}
+            {romaneioEfetivo && (
+                <div className="border-t border-line bg-surface-sunken/40 p-3 sm:p-4">
+                    <TimelineParadas
+                        romaneio={romaneioEfetivo}
+                        filialAtual={destinoFinalLabel || pedido.user?.filial}
+                        origemPadrao={pedido.origem ? pedido.origem.filial : 'CD Matriz (Origem)'}
+                        compacto
+                        titulo={`Trajeto da Viagem · Carga #${romaneioId}${romaneioEfetivo.rota ? ` (${romaneioEfetivo.rota})` : ''}`}
+                    />
+                </div>
+            )}
         </div>
     );
 }

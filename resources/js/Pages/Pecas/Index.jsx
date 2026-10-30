@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import {
     WrenchScrewdriverIcon,
     CubeIcon,
@@ -204,10 +205,11 @@ export default function PecasIndex({
                 title="Estoque de Peças"
                 description="Saldo por SKU e local. O número que vale para atender pedido é o disponível."
                 breadcrumbs={[{ label: 'Peças' }, { label: 'Estoque' }]}
+                actions={<BotaoTourDoModulo modulo="pecas.estoque" />}
             />
 
             {/* Resumo */}
-            <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <div data-tour="pecas.kpis" className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <StatCard label="Catálogo" value={resumo.catalogo} icon={WrenchScrewdriverIcon} tone="brand"
                           hint="Peças cadastradas (todas as lojas)" />
                 <StatCard label="Com saldo aqui" value={resumo.skus} icon={CubeIcon} tone="info"
@@ -240,10 +242,10 @@ export default function PecasIndex({
                 </div>
             </div>
 
-            <Card padding="none">
+            <Card data-tour="pecas.tabela" padding="none">
                 {/* Filtros */}
                 <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center">
-                    <div className="relative flex-1">
+                    <div data-tour="pecas.busca" className="relative flex-1">
                         <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-muted" />
                         <input
                             type="search"
@@ -257,6 +259,7 @@ export default function PecasIndex({
 
                     {/* Filtro por moto: o caminho mais rápido para montar um pedido */}
                     <select
+                        data-tour="pecas.filtro-modelo"
                         value={filtros.modelo ?? ''}
                         onChange={(e) => aplicarFiltro({ modelo: e.target.value || undefined })}
                         className="rounded-lg border-line bg-surface-card py-2 text-sm text-content-primary focus:border-brand-500 focus:ring-brand-500"

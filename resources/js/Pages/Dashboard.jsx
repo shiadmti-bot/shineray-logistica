@@ -2,6 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import NoticeBoard from '@/Components/NoticeBoard';
 import { Card, StatCard, Button } from '@/Components/UI';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import axios from 'axios';
 import {
     ClockIcon,
@@ -173,7 +174,7 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
             )}
 
             {/* ============ BOAS-VINDAS ============ */}
-            <Card className="mb-6 border-l-4 border-l-brand-600">
+            <Card data-tour="dashboard.boas-vindas" className="mb-6 border-l-4 border-l-brand-600">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                     <div>
                         <h1 className="text-2xl font-black tracking-tight text-content-primary md:text-3xl">
@@ -186,10 +187,13 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                     </div>
 
                     <div className="flex flex-col items-start gap-2 md:items-end">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 ring-1 ring-inset ring-brand-600/20">
-                            <IconePerfil className="h-4 w-4" />
-                            {perfilAtual.label}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 ring-1 ring-inset ring-brand-600/20">
+                                <IconePerfil className="h-4 w-4" />
+                                {perfilAtual.label}
+                            </span>
+                            <BotaoTourDoModulo modulo="dashboard.geral" />
+                        </div>
 
                         <div className="flex items-center gap-3">
                             <p className="flex items-center gap-1 text-xs text-content-muted">
@@ -219,13 +223,15 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                 </div>
             </Card>
 
-            <NoticeBoard notices={notices} auth={auth} />
+            <div data-tour="dashboard.avisos">
+                <NoticeBoard notices={notices} auth={auth} />
+            </div>
 
             {/* ============ ADMIN ============ */}
             {perfil === 'admin' && (
                 <>
                     <SecaoTitulo icon={ClipboardDocumentCheckIcon}>Movimentação de pedidos</SecaoTitulo>
-                    <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <div data-tour="dashboard.kpis" className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
                         <StatCard label="Total histórico" value={stats.total_pedidos} icon={ArchiveBoxIcon} tone="neutral" hint="Pedidos processados" />
                         <StatCard label="Em operação" value={stats.em_andamento} icon={ArrowPathIcon} tone="info" hint="Fluxo ativo agora" />
                         <StatCard label="Cargas na rua" value={stats.cargas_transito} icon={TruckIcon} tone="warning" hint="Romaneios em trânsito" href={route('romaneios.index')} />
@@ -244,7 +250,7 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                     </div>
 
                     <SecaoTitulo icon={BuildingStorefrontIcon}>Atalhos</SecaoTitulo>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div data-tour="dashboard.acoes-rapidas" className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                         <CartaoAcao href={route('pedidos.index')} titulo="Auditoria de pedidos" desc="Inspecionar solicitações e tempos." icon={ClipboardDocumentCheckIcon} />
                         <CartaoAcao href={route('romaneios.index')} titulo="Monitorar cargas" desc="Rastrear motoristas e entregas." icon={TruckIcon} />
                         <CartaoAcao href={route('pecas.index')} titulo="Catálogo de peças" desc="Estoque por filial e modelo." icon={WrenchScrewdriverIcon} />
@@ -266,7 +272,7 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                     )}
 
                     <SecaoTitulo icon={ArchiveBoxIcon}>Status da operação</SecaoTitulo>
-                    <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <div data-tour="dashboard.kpis" className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
                         <StatCard label="Total expedido" value={stats.cargas_total} icon={ArchiveBoxIcon} tone="neutral" hint="Motos enviadas" />
                         <StatCard label="Na fila p/ carga" value={stats.no_patio} icon={PauseCircleIcon} tone="info" hint="Separadas no pool" href={route('romaneios.create')} />
                         <StatCard label="Trânsito ativo" value={stats.cargas_transito} icon={TruckIcon} tone="warning" hint="Romaneios na rua" href={route('romaneios.index')} />
@@ -274,7 +280,7 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                     </div>
 
                     <SecaoTitulo icon={BuildingStorefrontIcon}>Mesa de operações</SecaoTitulo>
-                    <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div data-tour="dashboard.acoes-rapidas" className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <CartaoAcao
                             href={route('pedidos.index')}
                             titulo="1. Separar pedidos"
@@ -355,7 +361,7 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                         />
                     )}
 
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <div data-tour="dashboard.acoes-rapidas" className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                         {/* Chamada principal */}
                         <Link
                             href={route('solicitar')}
@@ -383,7 +389,7 @@ export default function Dashboard({ auth, stats, perfil, notices, recusas = [] }
                             <ShoppingCartIcon className="pointer-events-none absolute -bottom-8 -right-8 h-48 w-48 opacity-10 transition duration-500 group-hover:scale-110" />
                         </Link>
 
-                        <div className="grid grid-cols-1 gap-4">
+                        <div data-tour="dashboard.kpis" className="grid grid-cols-1 gap-4">
                             <StatCard
                                 label="A chegar"
                                 value={stats.receber}

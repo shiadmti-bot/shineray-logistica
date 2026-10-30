@@ -83,6 +83,12 @@ class MotoController extends Controller
         ]);
     }
 
+    // 1.1 CENSO / INVENTÁRIO RÁPIDO DE PÁTIO (BIPAGEM CONTÍNUA)
+    public function censo(Request $request)
+    {
+        return app(\App\Http\Controllers\CensoPatioController::class)->index($request);
+    }
+
     // 2. TIMELINE (RASTREABILIDADE DO CHASSI) - NOVO V2
     public function timeline(Request $request)
     {

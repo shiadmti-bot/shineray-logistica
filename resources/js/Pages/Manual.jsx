@@ -182,25 +182,45 @@ export default function Manual({ auth }) {
                                 </ul>
                             </Step>
 
-                            <Step number="4" title="Trânsito e Despacho pelo CD">
+                            <Step number="4" title="Trânsito, Rota em Tempo Real & WhatsApp do Motorista">
                                 <p>Assim que o caminhão for carregado e a equipe do CD liberar a saída de portaria, o status muda para <span className="text-status-warning-fg font-bold bg-status-warning-bg px-2 py-0.5 rounded border border-status-warning-solid/30 text-xs">Em Trânsito</span>.</p>
-                                <p className="mt-2 text-sm text-content-muted italic">Nota: Lojas acompanham a evolução pelo menu "Meus Pedidos". O controle de romaneios e rotas de caminhão é restrito ao CD.</p>
+                                <div className="mt-3 space-y-2">
+                                    <p className="text-sm text-content-secondary">
+                                        Na tela de detalhes do pedido, a filial conta com recursos dedicados de acompanhamento:
+                                    </p>
+                                    <ul className="list-disc ml-6 space-y-1 text-sm text-content-secondary">
+                                        <li><strong>Linha do Tempo de Paradas:</strong> Visualize o trajeto sequencial do caminhão com a tag <em>📍 Sua Loja</em> destacando a ordem exata em que sua mercadoria será entregue.</li>
+                                        <li><strong>Botão de WhatsApp do Motorista:</strong> Abra um diálogo direto no WhatsApp em 1 clique (<code>wa.me</code>) já com mensagem pré-formatada contendo o número do romaneio e a placa do caminhão.</li>
+                                    </ul>
+                                </div>
                             </Step>
 
-                            <Step number="5" title="Conferência Física e Finalização (Upload do Canhoto)">
-                                <p className="font-bold text-content-primary mb-2">Quando o caminhão descarregar na sua loja:</p>
+                            <Step number="5" title="Recebimento Rápido '100% Conforme' (Modal Nativo V3)">
+                                <p className="font-bold text-content-primary mb-2">Quando o caminhão descarregar na sua concessionária:</p>
                                 <ol className="list-decimal ml-6 mt-2 space-y-2 text-sm text-content-secondary">
-                                    <li>Confira fisicamente o chassi de cada moto com o documento do motorista.</li>
-                                    <li>Assine e carimbe o comprovante de entrega do transportador.</li>
-                                    <li>Abra o pedido na tela e clique no botão verde <strong>Conferir e Finalizar</strong>.</li>
-                                    <li>Faça o upload da foto nítida do documento assinado.</li>
-                                    <li>Caso haja avaria (arranhões, peças quebradas), descreva no campo específico e anexe a foto do dano no mesmo ato.</li>
-                                    <li>Clique em <strong>Salvar</strong>. As motos passam para o status <strong>Concluído</strong> e integram seu estoque!</li>
+                                    <li>Abra o pedido e clique no botão verde <strong>Conferir e Finalizar</strong>.</li>
+                                    <li><strong>Fluxo Ágil (Padrão Conforme):</strong> O novo modal nativo da V3 já carrega todas as motos marcadas como <em>100% conferidas e em perfeito estado</em>. Se tudo estiver correto, você não precisa clicar em unidade por unidade.</li>
+                                    <li><strong>Foto do Canhoto / Documento:</strong> Tire uma foto direta pelo celular (suporte automático a <code>câmera traseira</code>) ou anexe o arquivo. O modal exibe preview instantâneo e botão de remoção para correções rápidas.</li>
+                                    <li><strong>Tratamento de Exceções (Avarias):</strong> Somente se alguma moto tiver dano de transporte (ex: risco na carenagem, espelho quebrado), desmarque a chave daquela unidade. Uma gaveta retrátil se abrirá para descrever o dano.</li>
+                                    <li>Clique em <strong>Confirmar e Finalizar Recebimento</strong>. As motos passam para <strong>Concluído</strong> e são integradas imediatamente ao estoque da loja em menos de 45 segundos!</li>
                                 </ol>
                                 <div className="mt-4 bg-status-warning-bg border border-status-warning-solid/30 rounded-xl p-4">
                                     <p className="text-xs font-bold text-status-warning-fg uppercase mb-1">🔒 Bloqueio Automático em Trânsito</p>
-                                    <p className="text-sm text-status-warning-fg">Se a loja mantiver pedidos "Em Trânsito" pendentes de finalização após a entrega, novas solicitações serão temporariamente bloqueadas até o upload do comprovante.</p>
+                                    <p className="text-sm text-status-warning-fg">Se a loja mantiver pedidos "Em Trânsito" pendentes de finalização após a entrega física, novas solicitações serão temporariamente bloqueadas até o upload do comprovante de entrega.</p>
                                 </div>
+                            </Step>
+
+                            <Step number="6" title="Censo e Auditoria de Estoque de Pátio com Bipagem Contínua">
+                                <p className="font-bold text-content-primary mb-2">Inventário instantâneo de pátio com latência zero (Menu: Motos ➔ Censo de Pátio):</p>
+                                <p className="text-sm text-content-secondary leading-relaxed">
+                                    Acesse o botão <strong>Censo de Pátio</strong> no topo da listagem de motos para realizar contagens físicas de estoque sem papel nem prancheta:
+                                </p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1.5 text-sm text-content-secondary">
+                                    <li><strong>Leitor de Código de Barras / Câmera:</strong> Mantenha o foco no campo de chassi e bipe sucessivamente. O sistema processa tudo no navegador sem travar, mesmo em áreas do pátio com internet lenta.</li>
+                                    <li><strong>Feedback Sonoro Diferenciado:</strong> Bip agudo confirma a moto esperada; tom grave alerta duplicatas já bipadas; sinal sonoro duplo adverte sobre <strong>Motos Intrusas</strong> (veículos de outras filiais descarregados por equívoco).</li>
+                                    <li><strong>Abas de Auditoria:</strong> Acompanhe os totais de <em>Confirmadas</em>, <em>Faltantes</em> e <em>Intrusas</em> em tempo real.</li>
+                                    <li><strong>Relatório Oficial de Auditoria:</strong> Clique em <strong>Imprimir Relatório</strong> para gerar a ata formal de censo com data, hora e assinatura do auditor de pátio.</li>
+                                </ul>
                             </Step>
                         </div>
                     </div>
@@ -330,13 +350,15 @@ export default function Manual({ auth }) {
                                 <span>📋</span> Guia Operacional Passo a Passo
                             </h3>
 
-                            <Step number="1" title="Catálogo Inteligente, 'Onde Encontrar' & Montagem do Carrinho (Loja)">
-                                <p>Acesse <strong>Peças ➔ Estoque de Peças</strong> para consultar os mais de 2.380 SKUs homologados da rede:</p>
-                                <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
+                            <Step number="1" title="Catálogo Inteligente, Kits de Revisão & Reposição Rápida (Loja)">
+                                <p>Acesse <strong>Peças ➔ Solicitar Peças</strong> ou <strong>Peças ➔ Estoque</strong> para montar seu carrinho com os mais de 2.380 SKUs homologados:</p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1.5 text-sm text-content-secondary">
+                                    <li><strong>Kits de Revisão Periódica (1 Clique):</strong> Para agilizar o atendimento da oficina, o topo da tela exibe 4 pacotes pré-montados (<em>Revisão Essencial 1k/3k</em>, <em>Revisão Intermediária 6k</em>, <em>Kit Transmissão & Relação</em> e <em>Kit Frenagem Segura</em>). O sistema localiza automaticamente os SKUs compatíveis e adiciona todos ao carrinho de uma só vez.</li>
+                                    <li><strong>Seção "Pedir Novamente" (Itens Recorrentes):</strong> Baseada no histórico dos últimos 90 dias da sua filial, lista os 8 produtos de maior giro para reposição expressa em 1 clique (óleo, velas, pastilhas, lâmpadas).</li>
                                     <li><strong>Filtro por Família:</strong> Localize peças compatíveis com JET 50, JEF 150, SHI 175, STORM 200, FLASH 120 e outros modelos.</li>
                                     <li><strong>Botão 'Onde Encontrar':</strong> Consulta em tempo real o saldo físico e disponível no ERP Microwork em todas as filiais (CD Matriz, Ananindeua, Capanema, Castanhal, etc.).</li>
                                     <li><strong>Itens sem Código:</strong> Se precisar de uma peça de balcão ainda não cadastrada, use a opção "Solicitar sem código" com foto e descrição da peça avulsa.</li>
-                                    <li><strong>Carrinho & Urgência:</strong> Acesse <em>Peças ➔ Solicitar Peças</em>, preencha as quantidades e marque se o pedido é emergencial (cliente em box ou garantia expressa).</li>
+                                    <li><strong>Carrinho & Urgência:</strong> Preencha as quantidades e marque se o pedido é emergencial (cliente em box ou garantia expressa).</li>
                                 </ul>
                             </Step>
 
@@ -504,19 +526,29 @@ export default function Manual({ auth }) {
                                 </ul>
                             </Step>
 
-                            <Step number="3" title="Montagem de Romaneio de Carga (Novo Romaneio)">
-                                <p>Acesse <strong>Logística ➔ Expedição</strong>:</p>
-                                <ol className="list-decimal ml-6 mt-2 space-y-2 text-sm text-content-secondary">
-                                    <li>Informe o nome do Motorista, Placa do Veículo e Rota de destino.</li>
-                                    <li>Selecione as motos e pacotes de peças no checklist com contadores automáticos de volume no rodapé.</li>
-                                    <li>Suporta <strong>entregas parciais</strong>: envie apenas o que couber no caminhão de hoje; o saldo continuará na fila.</li>
-                                    <li>Clique em <strong>Salvar e Gerar Carga</strong> para emitir o Manifesto em PDF.</li>
+                            <Step number="3" title="Montagem de Romaneio de Carga, Termômetro de Ocupação & Estivagem LIFO">
+                                <p>Acesse <strong>Logística ➔ Expedição ➔ Novo Romaneio</strong>:</p>
+                                <ol className="list-decimal ml-6 mt-2 space-y-2.5 text-sm text-content-secondary">
+                                    <li><strong>Configuração do Veículo e Motorista:</strong> Informe o nome do motorista, a placa do veículo e o <strong>Telefone de WhatsApp</strong> (para permitir contato das filiais). Selecione o tipo de veículo da frota (<em>Furgão [4], 3/4 [16], Toco [22], Truck [30], Carreta [60]</em> ou defina uma capacidade personalizada).</li>
+                                    <li><strong>Termômetro Visual de Ocupação:</strong> À medida que você adiciona motos e basquetas, o termômetro calcula a cubagem em tempo real (1 moto = 1 un; cada 2 basquetas de peças = 0.5 moto equivalente). A barra fica <span className="text-status-success-fg font-bold">verde até 90%</span>, <span className="text-status-warning-fg font-bold">âmbar até 100%</span> e <span className="text-status-danger-fg font-bold">vermelha pulsante se houver sobrecarga</span>.</li>
+                                    <li><strong>Sequenciamento LIFO (Estivagem Inversa):</strong> Ordene as paradas da viagem (1ª Parada $\rightarrow$ 2ª Parada $\rightarrow$ ...). A interface informa a <strong>ordem física de estivagem na doca</strong>: o fundo do baú recebe a última parada da rota, enquanto a 1ª parada fica junto à porta traseira, garantindo descarga imediata sem retrabalho.</li>
+                                    <li><strong>Carga Mista:</strong> Selecione as motos liberadas e marque as basquetas de peças faturadas. O sistema unifica ambos no manifesto.</li>
+                                    <li>Clique em <strong>Salvar e Gerar Carga</strong> para emitir o Manifesto de Transporte em PDF.</li>
                                 </ol>
                             </Step>
 
                             <Step number="4" title="Saída do Galpão e Coleta Milk Run">
                                 <p>Após o carregamento e conferência dos papéis, clique em <strong>Aprovar Saída</strong>. Todos os pedidos da carga entram simultaneamente em <strong>Em Trânsito</strong>.</p>
                                 <p className="mt-2 text-sm text-content-secondary">Se a rota incluir coletas em lojas do interior (*Milk Run*), o operador confirma a coleta na tela da carga assim que o motorista embarcar a moto.</p>
+                            </Step>
+
+                            <Step number="5" title="Censo e Auditoria Periódica do Pátio do CD Matriz">
+                                <p>No menu <strong>Motos ➔ Censo de Pátio</strong>, a equipe do CD audita centenas de chassis com alta velocidade:</p>
+                                <ul className="list-disc ml-6 mt-2 space-y-1 text-sm text-content-secondary">
+                                    <li><strong>Bipagem em Massa:</strong> Bipagem direta sem latência de rede. A cada leitura de chassi, o sistema emite bips sonoros e atualiza o painel instantaneamente.</li>
+                                    <li><strong>Controle de Divergências:</strong> Identifique na hora veículos com status divergente, chassis faltantes no lote de expedição ou unidades não registradas no pátio.</li>
+                                    <li><strong>Exportação:</strong> Emita a ata oficial de auditoria para o fechamento mensal de inventário.</li>
+                                </ul>
                             </Step>
                         </div>
                     </div>
@@ -532,6 +564,34 @@ export default function Manual({ auth }) {
                         />
 
                         <div className="grid gap-3">
+                            <FaqItem question="O que é o Recebimento Rápido 100% Conforme nas concessionárias?">
+                                É o fluxo simplificado em modal nativo V3 onde mais de 95% das entregas chegam em perfeito estado. O sistema já abre com todas as unidades dadas como conferidas. Basta acionar a câmera do celular para fotografar o canhoto assinado e confirmar. O registro detalhado de avarias só é preenchido como exceção ao desmarcar a moto afetada.
+                            </FaqItem>
+
+                            <FaqItem question="Como funciona o Censo de Pátio com leitor de código de barras e bipes sonoros?">
+                                Em <em>Motos ➔ Censo de Pátio</em>, o auditor usa o leitor de código de barras ou a câmera sem tocar no teclado. Toda a validação ocorre instantaneamente no navegador com latência zero: bipes agudos para acerto, graves para duplicata e sinal duplo para moto intrusa. No fim, gera-se uma ata de conferência com data e hora pronta para impressão.
+                            </FaqItem>
+
+                            <FaqItem question="O que significa uma moto marcada como 'Intrusa' no Censo de Pátio?">
+                                Uma moto é classificada como <strong>Intrusa</strong> quando seu chassi físico foi bipado no pátio da sua loja, mas no sistema ela pertence ao estoque de outra filial ou do CD Matriz. Isso indica que a transportadora descarregou o veículo na loja errada durante a rota.
+                            </FaqItem>
+
+                            <FaqItem question="Como funciona o Termômetro de Ocupação da Carga e a cubagem de basquetas de peças?">
+                                O expedidor escolhe o porte do veículo (Furgão, 3/4, Toco, Truck ou Carreta) e o termômetro calcula a cubagem mista em tempo real: cada moto ocupa 1 unidade de vaga e cada 2 basquetas plásticas de peças equivalem ao espaço volumétrico de 0.5 moto. Se a carga exceder a capacidade nominal, o termômetro pulsa em vermelho alertando sobrecarga física.
+                            </FaqItem>
+
+                            <FaqItem question="O que é o Sequenciamento LIFO na montagem de carga?">
+                                LIFO significa <em>Last In, First Out</em> (Último a Entrar, Primeiro a Sair). Em rotas com paradas múltiplas, as motos da última parada devem ser carregadas no fundo do caminhão (primeiras a entrar), enquanto as motos da 1ª parada ficam junto à porta traseira (últimas a entrar e primeiras a sair), evitando que o motorista tenha que descarregar motos alheias na doca.
+                            </FaqItem>
+
+                            <FaqItem question="Como usar os Kits de Revisão Periódica e a lista 'Pedir Novamente' no módulo de peças?">
+                                Na tela de <em>Solicitar Peças</em>, o topo da página oferece 4 kits prontos para revisões de oficina (1k/3k, 6k, transmissão e freios) que adicionam os SKUs ideais em 1 clique. Além disso, a seção 'Pedir Novamente' lista os 8 produtos mais comprados pela sua filial nos últimos 90 dias para reposição instantânea.
+                            </FaqItem>
+
+                            <FaqItem question="Como entrar em contato com o motorista que transporta meu pedido?">
+                                Na tela de acompanhamento do pedido em trânsito, a filial visualiza o card do romaneio com a Timeline de Paradas e um botão direto de WhatsApp. Um toque abre a conversa no WhatsApp oficial do motorista com o número da carga e a placa do caminhão já preenchidos.
+                            </FaqItem>
+
                             <FaqItem question="Por que o sistema bloqueia novas solicitações para minha loja?">
                                 O sistema possui trava de conformidade: se houver pedidos com status <strong>Em Trânsito</strong> já descarregados na sua loja que não tiveram o comprovante finalizado, o sistema bloqueia novos pedidos até a conclusão do upload da foto do canhoto assinado.
                             </FaqItem>

@@ -1,6 +1,7 @@
 import { Head, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import StockTable from '@/Components/Microwork/StockTable';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import {
     BuildingStorefrontIcon,
     BuildingOffice2Icon,
@@ -9,6 +10,7 @@ import {
     FunnelIcon,
     MapPinIcon,
     ClockIcon,
+    QrCodeIcon,
 } from '@heroicons/react/24/outline';
 
 import { Card, PageHeader, Button, StatusBadge, EmptyState, Tabs, DataTable, Pagination } from '@/Components/UI';
@@ -181,15 +183,28 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                 description="Histórico de movimentação do sistema e pátio do CD em tempo real."
                 breadcrumbs={[{ label: 'Motos' }, { label: 'Estoque' }]}
                 actions={
-                    !isLoja && (
-                        <Button href={route('motos.timeline')} variant="secondary" icon={MagnifyingGlassIcon}>
-                            Timeline
+                    <div className="flex items-center gap-2">
+                        <Button
+                            href={route('motos.censo')}
+                            variant="primary"
+                            icon={QrCodeIcon}
+                            data-tour="motos.censo"
+                        >
+                            Censo de Pátio
                         </Button>
-                    )
+                        {!isLoja && (
+                            <Button href={route('motos.timeline')} variant="secondary" icon={MagnifyingGlassIcon}>
+                                Timeline
+                            </Button>
+                        )}
+                        <BotaoTourDoModulo modulo="motos.estoque" />
+                    </div>
                 }
             />
 
-            <Tabs tabs={abas} active={abaAtiva} onChange={setAbaAtiva} className="mb-6" />
+            <div data-tour="motos.abas">
+                <Tabs tabs={abas} active={abaAtiva} onChange={setAbaAtiva} className="mb-6" />
+            </div>
 
             {abaAtiva === 'fabrica' ? (
                 <div className="animate-fade-in-up">
@@ -198,7 +213,7 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
             ) : (
                 <div className="animate-fade-in-up space-y-6">
                     {/* ---------- FILTROS ---------- */}
-                    <Card>
+                    <Card data-tour="motos.busca">
                         <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-4">
                             <div>
                                 <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">
@@ -273,8 +288,9 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                         </div>
                     </Card>
 
-                    {/* ---------- DESKTOP ---------- */}
-                    <Card padding="none" className="hidden md:block">
+                    <div data-tour="motos.tabela">
+                        {/* ---------- DESKTOP ---------- */}
+                        <Card padding="none" className="hidden md:block">
                         <DataTable
                             columns={colunas}
                             rows={motos.data}
@@ -375,8 +391,9 @@ export default function MotosIndex({ auth, motos, lojas, filters }) {
                             </Card>
                         )}
                     </div>
+                </div>
 
-                    {/* ---------- PAGINAÇÃO ---------- */}
+                {/* ---------- PAGINAÇÃO ---------- */}
                     <Pagination links={motos.links} />
                 </div>
             )}

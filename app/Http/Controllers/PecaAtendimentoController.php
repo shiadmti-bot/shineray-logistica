@@ -413,7 +413,17 @@ class PecaAtendimentoController extends Controller
                 ->count();
 
             if ($pendentesNaCarga === 0 && ($recebido > 0 || $divergencias > 0)) {
-                $pedido->update(['status' => 'concluido']);
+                $saldoRestante = $pedido->itensPedido()
+                    ->where('tipo', 'peca')
+                    ->whereRaw('quantidade > (qtd_atribuida + qtd_cancelada)')
+                    ->count();
+
+                if ($saldoRestante === 0) {
+                    $pedido->update(['status' => 'concluido']);
+                } else {
+                    // Há saldo não atendido que ainda precisa ser separado pelo CD em um próximo lote
+                    $pedido->update(['status' => 'aprovado']);
+                }
             }
 
             /*

@@ -16,12 +16,22 @@ class Romaneio extends Model
         'user_id', 
         'status', 
         'motorista', 
+        'telefone_motorista',
         'placa', 
         'transportadora', 
         'observacao',
         'rota',      // Adicionado
+        'ordem_paradas',
         'tipo',      // Adicionado
+        'tipo_veiculo',
+        'capacidade_veiculo',
         'saida_em'   // Adicionado
+    ];
+
+    protected $casts = [
+        'ordem_paradas' => 'array',
+        'capacidade_veiculo' => 'integer',
+        'saida_em'      => 'datetime',
     ];
 
     // Carrega a contagem de motos automaticamente (útil para as listas)
@@ -45,7 +55,7 @@ class Romaneio extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['motorista', 'placa', 'transportadora', 'status']) 
+            ->logOnly(['motorista', 'telefone_motorista', 'placa', 'transportadora', 'status', 'ordem_paradas', 'tipo_veiculo', 'capacidade_veiculo']) 
             ->logOnlyDirty() 
             ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Romaneio foi {$eventName}");
@@ -63,6 +73,10 @@ class Romaneio extends Model
 
     public function pedidos() {
         return $this->hasMany(Pedido::class);
+    }
+
+    public function basquetas() {
+        return $this->hasMany(Basqueta::class);
     }
 
     // --- CARGA MISTA (v3) ---

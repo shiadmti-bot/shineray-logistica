@@ -329,10 +329,15 @@ class RomaneioController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'motorista' => 'required_without:romaneio_id|string|nullable',
-            'placa'     => 'required_without:romaneio_id|string|nullable',
-            'rota_nome' => 'required_without:romaneio_id|string|nullable',
-            'romaneio_id' => 'nullable|exists:romaneios,id',
+            'motorista'          => 'required_without:romaneio_id|string|nullable',
+            'telefone_motorista' => 'nullable|string|max:30',
+            'placa'              => 'required_without:romaneio_id|string|nullable',
+            'rota_nome'          => 'required_without:romaneio_id|string|nullable',
+            'tipo_veiculo'       => 'nullable|string|max:50',
+            'capacidade_veiculo' => 'nullable|integer|min:1',
+            'romaneio_id'        => 'nullable|exists:romaneios,id',
+            'ordem_paradas'      => 'nullable|array',
+            'ordem_paradas.*'    => 'string',
             // v3: carga mista. A carga precisa de motos OU de peças — antes
             // motos_ids era sempre obrigatório e uma carga só de peças não passava.
             'motos_ids'          => 'required_without:basquetas_ids|array',
@@ -360,15 +365,33 @@ class RomaneioController extends Controller
                         'romaneio_id' => "A carga #{$romaneio->id} não está mais aberta (status '{$romaneio->status}'). Monte uma carga nova.",
                     ]);
                 }
+
+                if ($request->filled('telefone_motorista') && empty($romaneio->telefone_motorista)) {
+                    $romaneio->telefone_motorista = $request->telefone_motorista;
+                }
+                if ($request->filled('ordem_paradas')) {
+                    $romaneio->ordem_paradas = $request->ordem_paradas;
+                }
+                if ($request->filled('tipo_veiculo')) {
+                    $romaneio->tipo_veiculo = $request->tipo_veiculo;
+                }
+                if ($request->filled('capacidade_veiculo')) {
+                    $romaneio->capacidade_veiculo = (int) $request->capacidade_veiculo;
+                }
+                $romaneio->save();
             } else {
                 $romaneio = Romaneio::create([
-                    'user_id'   => Auth::id(),
-                    'status'    => 'aberto',
-                    'motorista' => mb_strtoupper($request->motorista),
-                    'placa'     => mb_strtoupper($request->placa),
-                    'rota'      => mb_strtoupper($request->rota_nome),
-                    'tipo'      => 'misto', // Milk Run
-                    'saida_em'  => now()
+                    'user_id'            => Auth::id(),
+                    'status'             => 'aberto',
+                    'motorista'          => mb_strtoupper($request->motorista),
+                    'telefone_motorista' => $request->telefone_motorista ?: null,
+                    'placa'              => mb_strtoupper($request->placa),
+                    'rota'               => mb_strtoupper($request->rota_nome),
+                    'tipo_veiculo'       => $request->tipo_veiculo ?: '3_4',
+                    'capacidade_veiculo' => $request->capacidade_veiculo ? (int) $request->capacidade_veiculo : 16,
+                    'ordem_paradas'      => $request->ordem_paradas ?: null,
+                    'tipo'               => 'misto', // Milk Run
+                    'saida_em'           => now()
                 ]);
             }
 
@@ -492,7 +515,7 @@ class RomaneioController extends Controller
     // 4. VISUALIZAR DETALHES
     public function show($id)
     {
-        $romaneio = Romaneio::with([
+        $romaneio = Romaneio::withCount('basquetas')->with([
             'user', 
             // Carrega motos diretas e seus pedidos
             'motos' => function($query) {
@@ -622,12 +645,20 @@ class RomaneioController extends Controller
                 // aprovado cujas motos ja foram bipadas na carga precisa receber o
                 // log e o aviso de despacho, mesmo sem ter passado por 'separado'.
                 if (in_array($pedido->status, ['expedido', 'coletado', 'em_transito', 'separado', 'aguardando_coleta', 'solicitado'])) {
-                    $saldoSemChassi = $pedido->saldoPendente();
-                    $motosNaoDespachadas = $pedido->motos()
-                        ->whereNotIn('motos.status', ['transito_loja', 'em_transito', 'concluido', 'vendida', 'cancelado', 'avariado'])
-                        ->count();
+                    if ($pedido->tipo_carga === 'peca') {
+                        $saldoNaoAtendido = $pedido->itensPedido()
+                            ->where('tipo', 'peca')
+                            ->whereRaw('quantidade > (qtd_atribuida + qtd_cancelada)')
+                            ->count();
+                        $isTotalmenteDespachado = ($saldoNaoAtendido === 0);
+                    } else {
+                        $saldoSemChassi = $pedido->saldoPendente();
+                        $motosNaoDespachadas = $pedido->motos()
+                            ->whereNotIn('motos.status', ['transito_loja', 'em_transito', 'concluido', 'vendida', 'cancelado', 'avariado'])
+                            ->count();
 
-                    $isTotalmenteDespachado = ($saldoSemChassi === 0 && $motosNaoDespachadas === 0);
+                        $isTotalmenteDespachado = ($saldoSemChassi === 0 && $motosNaoDespachadas === 0);
+                    }
 
                     // Só avança o pedido pai para 'em_transito' se 100% dos itens solicitados foram despachados
                     if ($isTotalmenteDespachado) {
@@ -951,9 +982,13 @@ class RomaneioController extends Controller
                 ->pecas()
                 ->delete();
 
-            // Limpa o vínculo de romaneio das basquetas que estavam nesta carga.
+            // Limpa o vínculo de romaneio das basquetas e restaura o status para liberada
+            // para que possam ser reembarcadas em outra carga.
             \App\Models\Basqueta::where('romaneio_id', $romaneio->id)
-                ->update(['romaneio_id' => null]);
+                ->update([
+                    'romaneio_id' => null,
+                    'status'      => \App\Models\Basqueta::STATUS_LIBERADA,
+                ]);
 
             foreach ($pedidosParaReverter as $dados) {
                 $pedido = $dados['model'];

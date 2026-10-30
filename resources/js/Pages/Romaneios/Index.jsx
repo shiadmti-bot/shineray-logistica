@@ -1,4 +1,5 @@
 import { Head, Link, useForm } from '@inertiajs/react';
+import BotaoTourDoModulo from '@/Components/Tour/BotaoTourDoModulo';
 import {
     TruckIcon,
     MagnifyingGlassIcon,
@@ -50,16 +51,21 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                 description={`${safeRomaneios.total} carga(s) no histórico.`}
                 breadcrumbs={[{ label: 'Logística' }, { label: 'Cargas' }]}
                 actions={
-                    ['cd', 'admin'].includes(auth.user.perfil) && (
-                        <Button href={route('romaneios.create')} icon={PlusIcon}>
-                            Nova Expedição
-                        </Button>
-                    )
+                    <div className="flex items-center gap-2">
+                        {['cd', 'admin'].includes(auth.user.perfil) && (
+                            <div data-tour="romaneios.novo">
+                                <Button href={route('romaneios.create')} icon={PlusIcon}>
+                                    Nova Expedição
+                                </Button>
+                            </div>
+                        )}
+                        <BotaoTourDoModulo modulo="romaneios.lista" />
+                    </div>
                 }
             />
 
             {/* ---------- FILTROS ---------- */}
-            <Card padding="none" className="mb-6">
+            <Card data-tour="romaneios.busca" padding="none" className="mb-6">
                 <form onSubmit={handleSearch} className="grid grid-cols-1 items-end gap-3 p-4 md:grid-cols-12">
                     <div className="md:col-span-4">
                         <label className="mb-1 block text-xs font-bold uppercase text-content-secondary">
@@ -127,8 +133,10 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                 </form>
             </Card>
 
-            {/* ---------- MOBILE ---------- */}
-            <div className="space-y-3 md:hidden">
+            {/* ---------- TABELA E CARDS ---------- */}
+            <div data-tour="romaneios.tabela">
+                {/* ---------- MOBILE ---------- */}
+                <div className="space-y-3 md:hidden">
                 {safeRomaneios.data.length > 0 ? (
                     safeRomaneios.data.map((romaneio) => (
                         <Link
@@ -261,6 +269,7 @@ export default function RomaneioIndex({ auth, romaneios, filters }) {
                     />
                 )}
             </Card>
+            </div>
 
             {/* ---------- PAGINAÇÃO ---------- */}
             <Pagination links={safeRomaneios.links} className="mt-6" />
