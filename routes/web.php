@@ -464,8 +464,8 @@ Route::middleware([\App\Http\Middleware\VerificarManutencao::class])->group(func
         | MÓDULO 4: GESTÃO COMERCIAL & USUÁRIOS
         |--------------------------------------------------------------------------
         */
-        // Área do Gestor (Aprovações)
-        Route::prefix('gestor')->name('gestor.')->group(function () {
+        // Área do Gestor (Aprovações) - Exclusivo Admin e Gestor
+        Route::prefix('gestor')->name('gestor.')->middleware('check_perfil:admin,gestor')->group(function () {
             Route::get('/', [GestorController::class, 'index'])->name('index');
             Route::get('/historico', [GestorController::class, 'historico'])->name('historico');
             Route::get('/{id}', [GestorController::class, 'show'])->name('show');

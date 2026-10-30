@@ -142,11 +142,11 @@ export const TOURS = {
             {
                 alvo: '[data-tour="criar.cor"]',
                 icone: SwatchIcon,
-                titulo: 'Cor',
+                titulo: 'Cor e Estoque Disponível',
                 descricao:
-                    'As cores são as que o Microwork já registrou PARA AQUELE MODELO, com o saldo de cada uma entre parênteses. Trocar o modelo limpa a cor, porque a cor anterior pode não existir na nova linha.',
-                atencao:
-                    'Antes havia sete cores fixas no código. Dava para pedir uma variante que não existe, e o pedido nascia com um nome que não casava com o cadastro.',
+                    'Flexibilidade total: selecione entre as cores do catálogo do modelo, cores da paleta padrão ou digite livremente qualquer cor personalizada ou sob encomenda. O sistema exibe em tempo real o saldo disponível no CD.',
+                dica:
+                    'Você pode encomendar qualquer cor mesmo sem saldo imediato no CD — o sistema registrará a solicitação e a expedição programará o atendimento.',
             },
             {
                 alvo: '[data-tour="criar.motivo"]',

@@ -55,18 +55,18 @@ export default function BotaoTourDoModulo({ modulo, className = '' }) {
             <button
                 type="button"
                 onClick={() => setAberto(true)}
-                title={`Passo a passo: ${tour.titulo}`}
+                title={`Passo a passo interativo: ${tour.titulo}`}
                 aria-label={`Abrir o passo a passo desta tela: ${tour.titulo}`}
-                className={`relative inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-card px-3 py-2 text-xs font-bold text-content-secondary shadow-xs transition hover:bg-surface-sunken hover:text-content-primary ${className}`}
+                className={`relative inline-flex items-center gap-2 rounded-xl border border-line bg-surface-card px-3.5 py-2 text-xs font-bold text-content-primary shadow-xs transition-all duration-200 hover:border-brand-500/50 hover:bg-brand-50/40 hover:text-brand-700 hover:shadow-sm active:scale-95 cursor-pointer ${className}`}
             >
-                <QuestionMarkCircleIcon className="h-4 w-4" />
-                <span className="hidden sm:inline">Como usar</span>
+                <QuestionMarkCircleIcon className="h-4 w-4 text-brand-600 shrink-0" />
+                <span className="inline font-bold">Como usar</span>
 
                 {!visto && (
-                    <span
-                        aria-hidden="true"
-                        className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand-600 ring-2 ring-surface-card"
-                    />
+                    <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-600"></span>
+                    </span>
                 )}
             </button>
 

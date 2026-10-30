@@ -4,6 +4,7 @@ import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect, useMemo } from 'react';
 import Swal from 'sweetalert2';
 import SeletorModelo from '@/Components/Pedidos/SeletorModelo';
+import SeletorCor from '@/Components/Pedidos/SeletorCor';
 import axios from 'axios';
 import {
     ArchiveBoxIcon,
@@ -241,10 +242,13 @@ export default function PedidoCreate({
         const novosItens = [...data.itens];
         novosItens[index] = { ...novosItens[index], [field]: value };
 
-        // Trocou o modelo: a cor anterior pode não existir para o novo modelo
+        // Trocou o modelo: se ainda não houver cor escolhida e o novo modelo tiver apenas uma cor oficial, sugere-a.
+        // Se o usuário já escolheu ou digitou uma cor, preserva para permitir liberdade total de encomenda.
         if (field === 'modelo' && temCatalogo && data.modo === 'cd') {
             const cores = coresDoModelo(value);
-            novosItens[index].cor = cores.length === 1 ? cores[0].cor : '';
+            if (!novosItens[index].cor && cores.length === 1) {
+                novosItens[index].cor = cores[0].cor;
+            }
         }
 
         // Trocou para um motivo que não pede chassi: descarta o chassi digitado,
@@ -438,35 +442,22 @@ export default function PedidoCreate({
             ? "w-full border-line-strong rounded-lg uppercase text-base py-3 px-4"
             : "w-full border-line-strong rounded uppercase text-sm";
 
-        if (data.modo === 'cd' && !exigeChassi(item) && temCatalogo) {
+        if (data.modo === 'cd' && !exigeChassi(item)) {
             const cores = coresDoModelo(item.modelo);
-
-            // Modelo fora do catálogo e sem saldo conhecido: não há cor para
-            // sugerir, então o campo volta a texto em vez de um select vazio.
-            if (item.modelo && cores.length === 0) {
-                return (
-                    <input
-                        required type="text" placeholder="COR" value={item.cor}
-                        onChange={(e) => updateItem(index, 'cor', e.target.value.toUpperCase())}
-                        className={base}
-                    />
-                );
-            }
+            const disp = disponivelDe(item.modelo, item.cor);
 
             return (
-                <select
-                    required value={item.cor} disabled={!item.modelo}
-                    onChange={(e) => updateItem(index, 'cor', e.target.value)}
-                    className={`${base} disabled:bg-surface-sunken disabled:text-content-muted`}
-                >
-                    <option value="">{item.modelo ? 'Cor...' : 'Escolha o modelo'}</option>
-                    {cores.map(c => (
-                        <option key={c.cor} value={c.cor}>
-                            {/* Sem sincronia de saldo o numero seria mentira: mostra so a cor. */}
-                            {temSaldo ? `${c.cor} (${c.disponivel})` : c.cor}
-                        </option>
-                    ))}
-                </select>
+                <SeletorCor
+                    required
+                    mobile={mobile}
+                    valor={item.cor}
+                    modelo={item.modelo}
+                    cores={cores}
+                    disponivel={disp}
+                    mostrarSaldo={temSaldo}
+                    disabled={!item.modelo}
+                    onChange={(cor) => updateItem(index, 'cor', cor)}
+                />
             );
         }
 
@@ -687,13 +678,12 @@ export default function PedidoCreate({
 
                             {/* CABEÇALHO DESKTOP */}
                             <div className="hidden md:grid grid-cols-12 gap-3 mb-2 font-bold text-xs uppercase text-content-muted px-2 items-end">
-                                <div className="col-span-1 text-center">#</div>
+                                <div className="col-span-1 text-center">Item</div>
                                 <div className="col-span-3">Modelo *</div>
                                 <div className="col-span-2">{data.modo === 'transferencia' ? 'Chassi *' : 'Chassi / Qtd *'}</div>
                                 <div className="col-span-2">Destino Final *</div>
-                                <div className="col-span-1">Cor *</div>
+                                <div className="col-span-2">Cor *</div>
                                 <div className="col-span-2">Motivo *</div>
-                                <div className="col-span-1"></div>
                             </div>
 
                             <div className="space-y-3">
@@ -702,7 +692,16 @@ export default function PedidoCreate({
 
                                         {/* ===== LAYOUT DESKTOP (md+) ===== */}
                                         <div className="hidden md:grid grid-cols-12 gap-3 items-center p-4">
-                                            <div className="col-span-1 text-center font-bold text-content-muted">{index + 1}</div>
+                                            <div className="col-span-1 flex flex-col items-center justify-center gap-1">
+                                                <span className="font-black text-xs text-content-secondary bg-surface-card px-2.5 py-0.5 rounded-full border border-line shadow-xs">
+                                                    #{index + 1}
+                                                </span>
+                                                {data.itens.length > 1 && (
+                                                    <button type="button" onClick={() => removeItem(index)} title="Remover item" className="text-content-muted hover:text-status-danger-fg p-1.5 transition rounded-full hover:bg-status-danger-bg">
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
 
                                             <div data-tour={index === 0 ? 'criar.modelo' : undefined} className="col-span-3">
                                                 {campoModelo(item, index, false)}
@@ -728,20 +727,12 @@ export default function PedidoCreate({
                                                 )}
                                             </div>
 
-                                            <div data-tour={index === 0 ? 'criar.cor' : undefined} className="col-span-1">
+                                            <div data-tour={index === 0 ? 'criar.cor' : undefined} className="col-span-2">
                                                 {campoCor(item, index, false)}
                                             </div>
 
                                             <div data-tour={index === 0 ? 'criar.motivo' : undefined} className="col-span-2">
                                                 {campoMotivo(item, index, false)}
-                                            </div>
-
-                                            <div className="col-span-1 text-center">
-                                                {data.itens.length > 1 && (
-                                                    <button type="button" onClick={() => removeItem(index)} className="text-content-muted hover:text-status-danger-fg text-xl p-2 transition rounded-full hover:bg-status-danger-bg">
-                                                        <TrashIcon className="w-5 h-5" />
-                                                    </button>
-                                                )}
                                             </div>
                                         </div>
 

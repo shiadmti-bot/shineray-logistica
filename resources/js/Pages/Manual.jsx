@@ -1,17 +1,22 @@
 import { PageHeader } from '@/Components/UI';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
     BuildingStorefrontIcon, 
     ClipboardDocumentCheckIcon, 
     TruckIcon, 
     QuestionMarkCircleIcon, 
     ArchiveBoxIcon, 
-    PhoneIcon,
-    EnvelopeIcon,
-    WrenchScrewdriverIcon,
-    ShieldCheckIcon,
-    SparklesIcon
+    PhoneIcon, 
+    EnvelopeIcon, 
+    WrenchScrewdriverIcon, 
+    ShieldCheckIcon, 
+    SparklesIcon,
+    MagnifyingGlassIcon,
+    XMarkIcon,
+    SwatchIcon,
+    ArrowRightIcon,
+    CheckCircleIcon
 } from '@heroicons/react/24/outline';
 
 export default function Manual({ auth }) {
@@ -23,6 +28,7 @@ export default function Manual({ auth }) {
     };
 
     const [activeTab, setActiveTab] = useState(getPerfilInicial());
+    const [busca, setBusca] = useState('');
 
     useEffect(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -35,6 +41,120 @@ export default function Manual({ auth }) {
         { id: 'cd',     label: 'Logística / CD',    color: 'blue',   icon: <TruckIcon className="w-5 h-5" />, desc: 'Expedição, Romaneios e Rotas' },
         { id: 'faq',    label: 'Suporte TI & FAQ',  color: 'emerald',icon: <QuestionMarkCircleIcon className="w-5 h-5" />, desc: 'Regras, Dúvidas e Contatos' },
     ];
+
+    const INDICE_PESQUISA = [
+        {
+            id: 'loja-solicitar-moto',
+            tab: 'loja',
+            categoria: 'Motos & Pedidos',
+            titulo: 'Como solicitar motos e escolher modelo e cor com estoque em tempo real',
+            resumo: 'Passo a passo para novos pedidos: reposição regular ao CD, venda confirmada com chassi ou transferência entre filiais.',
+            detalhe: 'Novo seletor inteligente com flexibilidade total: escolha qualquer cor do catálogo, paleta padrão ou digite livremente cores personalizadas ou sob encomenda com saldo físico do CD em tempo real.',
+            tags: ['modelo', 'cor', 'pedido', 'solicitar', 'chassi', 'estoque', 'sob encomenda', 'cd', 'loja', 'cores', 'personalizada']
+        },
+        {
+            id: 'loja-recebimento',
+            tab: 'loja',
+            categoria: 'Recebimento & Carga',
+            titulo: 'Recebimento Conforme e Registro de Avarias',
+            resumo: 'Fluxo 100% conforme no modal nativo da V3: conferência rápida, upload da foto do canhoto e lançamento de avarias pontuais.',
+            detalhe: 'As motos já nascem aprovadas; se houver avaria de transporte, desmarque a unidade e descreva o dano com fotos instantâneas.',
+            tags: ['recebimento', 'conferir', 'finalizar', 'canhoto', 'avaria', 'foto', 'comprovante']
+        },
+        {
+            id: 'loja-censo',
+            tab: 'loja',
+            categoria: 'Auditoria de Pátio',
+            titulo: 'Censo de Pátio com Bipagem Contínua',
+            resumo: 'Auditoria de veículos físicos na concessionária com bipagem contínua no navegador e sons de alerta para motos intrusas.',
+            detalhe: 'Bipe chassis sucessivamente. Sons diferenciados identificam motos confirmadas, duplicadas ou de outras filiais.',
+            tags: ['censo', 'patio', 'bipagem', 'leitor', 'chassi', 'intrusas', 'auditoria', 'estoque']
+        },
+        {
+            id: 'pecas-ciclo-completo',
+            tab: 'pecas',
+            categoria: 'Módulo de Peças',
+            titulo: 'Ciclo Completo de Peças em 6 Etapas',
+            resumo: 'Do catálogo da oficina ao recebimento com Basquetas, Gate 1 (técnico) e Gate 2 (romaneio fiscal).',
+            detalhe: 'Peças são fungíveis por SKU/local e acondicionadas em basquetas de transporte até a emissão da NF-e.',
+            tags: ['pecas', 'basqueta', 'gate 1', 'gate 2', 'faturamento', 'nf-e', 'triagem', 'garantia']
+        },
+        {
+            id: 'pecas-gate1',
+            tab: 'pecas',
+            categoria: 'Módulo de Peças',
+            titulo: 'Gate 1: Liberação Técnica do Pós-Venda',
+            resumo: 'Validação técnica de garantia e conformidade de catálogo antes da liberação para separação no CD.',
+            detalhe: 'Realizado pela equipe de Pós-Venda/Garantia em Peças > Triagem & Liberação.',
+            tags: ['gate 1', 'pos-venda', 'liberacao', 'garantia', 'pecas']
+        },
+        {
+            id: 'pecas-gate2',
+            tab: 'pecas',
+            categoria: 'Módulo de Peças',
+            titulo: 'Gate 2: Conferência de Romaneio e Canhoto',
+            resumo: 'A loja confere as peças faturadas no romaneio digital e anexa o canhoto assinado para liberar embarque.',
+            detalhe: 'Etapa documental que garante integridade fiscal e física antes do caminhão seguir viagem.',
+            tags: ['gate 2', 'canhoto', 'romaneio', 'embarque', 'pecas', 'loja']
+        },
+        {
+            id: 'gestor-aprovacao',
+            tab: 'gestor',
+            categoria: 'Gestão Comercial',
+            titulo: 'Aprovação Comercial e Liberação de Carga',
+            resumo: 'Controle de cotas, limites financeiros de filiais e aprovação ou recusa fundamentada de pedidos de motos.',
+            detalhe: 'Gestores avaliam pedidos em análise, visualizam histórico e autorizam o envio para a expedição.',
+            tags: ['gestor', 'aprovacao', 'cota', 'comercial', 'limite', 'recusar', 'analise']
+        },
+        {
+            id: 'cd-romaneios',
+            tab: 'cd',
+            categoria: 'Expedição & Logística',
+            titulo: 'Criação de Romaneios, Vinculação de Chassis e Saída de Portaria',
+            resumo: 'Montagem de rotas, alocação de caminhão, motorista, bipagem física de chassis e saída de portaria.',
+            detalhe: 'A equipe do CD vincula chassis aos pedidos aprovados e gera o romaneio de expedição para entrega.',
+            tags: ['cd', 'romaneio', 'expedicao', 'motorista', 'caminhao', 'rotas', 'saida', 'portaria']
+        },
+        {
+            id: 'seguranca-rbac',
+            tab: 'faq',
+            categoria: 'Segurança & Permissões',
+            titulo: 'Níveis de Permissão RBAC (Admin, Gestor, CD e Loja)',
+            resumo: 'Matriz estrita de permissões com isolamento completo de filiais e segregação de funções operacionais.',
+            detalhe: 'Lojas operam estritamente o próprio estoque e pedidos. Gestor aprova motos. Pós-venda valida peças. CD opera expedição e estoque central. Admin gerencia usuários e configurações.',
+            tags: ['rbac', 'permissao', 'seguranca', 'perfil', 'admin', 'gestor', 'cd', 'loja', 'acesso']
+        },
+        {
+            id: 'faq-chassi-obrigatorio',
+            tab: 'faq',
+            categoria: 'Dúvidas Frequentes',
+            titulo: 'Quando o Chassi é Obrigatório na Solicitação?',
+            resumo: 'Em transferências entre filiais, devoluções ao CD e pedidos com motivo "Venda Confirmada (Cliente)".',
+            detalhe: 'Nos pedidos de reposição regular ao CD ("Estoque Regular - Giro"), não se digita chassi — o CD aloca as motos.',
+            tags: ['chassi', 'obrigatorio', 'motivo', 'giro', 'reposicao', 'venda confirmada']
+        },
+        {
+            id: 'faq-suporte-ti',
+            tab: 'faq',
+            categoria: 'Suporte & Contato',
+            titulo: 'Plantão Técnico TI & Desenvolvedor Responsável',
+            resumo: 'Canais oficiais de suporte para desbloqueios de rota, redefinição de senhas e atendimento corporativo.',
+            detalhe: 'Telefone/WhatsApp: (91) 98492-8535 • E-mail: ti@shineraybysabel.com.br • BySabel Logística (BS Log).',
+            tags: ['suporte', 'ti', 'contato', 'telefone', 'whatsapp', 'ajuda', 'email']
+        }
+    ];
+
+    const resultadosBusca = useMemo(() => {
+        const termo = busca.trim().toLowerCase();
+        if (!termo) return [];
+
+        return INDICE_PESQUISA.filter(item => 
+            item.titulo.toLowerCase().includes(termo) ||
+            item.resumo.toLowerCase().includes(termo) ||
+            item.detalhe.toLowerCase().includes(termo) ||
+            item.tags.some(t => t.toLowerCase().includes(termo))
+        );
+    }, [busca]);
 
     return (
         <>
@@ -75,15 +195,69 @@ export default function Manual({ auth }) {
                 </button>
             </div>
 
-            {/* BARRA DE ABAS COM DESIGN V3 */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+            {/* BARRA DE PESQUISA RÁPIDA DA CENTRAL */}
+            <div className="mb-6 bg-surface-card border border-line rounded-3xl p-4 sm:p-5 shadow-sm">
+                <div className="relative">
+                    <MagnifyingGlassIcon className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-content-muted" />
+                    <input
+                        type="text"
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        placeholder="Pesquisar no guia (ex: cores, chassi, gate 1, basqueta, avaria, permissões RBAC)..."
+                        className="w-full rounded-2xl border border-line-strong bg-surface-sunken pl-11 pr-10 py-3 text-sm sm:text-base font-medium text-content-primary focus:border-brand-500 focus:bg-surface-card focus:ring-brand-500 transition-all placeholder:text-content-muted"
+                    />
+                    {busca && (
+                        <button
+                            type="button"
+                            onClick={() => setBusca('')}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary p-1 rounded-full hover:bg-surface-card transition cursor-pointer"
+                            title="Limpar busca"
+                        >
+                            <XMarkIcon className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
+
+                {/* CHIPS DE FILTRO RÁPIDO */}
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-content-muted mr-1">Sugestões:</span>
+                    {[
+                        { label: '🎨 Cores & Modelos', query: 'cores' },
+                        { label: '🏍️ Pedido de Motos', query: 'solicitar' },
+                        { label: '⚙️ Peças & Basquetas', query: 'basqueta' },
+                        { label: '🛡️ Gates 1 e 2', query: 'gate' },
+                        { label: '📦 Recebimento & Avarias', query: 'recebimento' },
+                        { label: '🔒 Permissões RBAC', query: 'rbac' },
+                    ].map((sugestao) => (
+                        <button
+                            key={sugestao.query}
+                            type="button"
+                            onClick={() => setBusca(busca === sugestao.query ? '' : sugestao.query)}
+                            className={`rounded-full px-3 py-1 text-xs font-bold transition-all border cursor-pointer ${
+                                busca.toLowerCase() === sugestao.query.toLowerCase()
+                                    ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                                    : 'bg-surface-card text-content-secondary border-line hover:border-brand-500/40 hover:bg-surface-sunken'
+                            }`}
+                        >
+                            {sugestao.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* BARRA DE ABAS COM DESIGN V3 E SUPORTE RESPONSIVO */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-8">
                 {tabs.map((tab) => {
-                    const isActive = activeTab === tab.id;
+                    const isActive = activeTab === tab.id && !busca;
+                    const isMeuPerfil = auth?.user?.perfil === tab.id;
                     return (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`p-4 rounded-2xl transition-all duration-300 shadow-sm flex flex-col items-start justify-between gap-3 border text-left relative overflow-hidden ${
+                            onClick={() => {
+                                setActiveTab(tab.id);
+                                setBusca('');
+                            }}
+                            className={`p-3.5 sm:p-4 rounded-2xl transition-all duration-300 shadow-sm flex flex-col items-start justify-between gap-2.5 sm:gap-3 border text-left relative overflow-hidden cursor-pointer ${
                                 isActive 
                                     ? 'bg-surface-card border-brand-600 shadow-md ring-2 ring-brand-600/10' 
                                     : 'bg-surface-card border-line text-content-muted hover:border-line-strong hover:bg-surface-sunken'
@@ -93,12 +267,17 @@ export default function Manual({ auth }) {
                                 <span className={`p-2 rounded-xl ${isActive ? 'bg-brand-50 text-brand-600' : 'bg-surface-sunken text-content-muted'}`}>
                                     {tab.icon}
                                 </span>
-                                {isActive && (
+                                {isMeuPerfil && (
+                                    <span className="text-[9px] font-black uppercase tracking-wider bg-brand-50 text-brand-700 border border-brand-200/60 px-1.5 py-0.5 rounded-md">
+                                        Seu Perfil
+                                    </span>
+                                )}
+                                {isActive && !isMeuPerfil && (
                                     <span className="w-2 h-2 rounded-full bg-brand-600"></span>
                                 )}
                             </div>
                             <div>
-                                <div className={`font-black text-sm tracking-tight ${isActive ? 'text-content-primary' : 'text-content-secondary'}`}>
+                                <div className={`font-black text-xs sm:text-sm tracking-tight ${isActive ? 'text-content-primary' : 'text-content-secondary'}`}>
                                     {tab.label}
                                 </div>
                                 <div className="text-[11px] text-content-muted mt-0.5 line-clamp-1">
@@ -113,8 +292,88 @@ export default function Manual({ auth }) {
             {/* CONTEÚDO DA CENTRAL */}
             <div className="bg-surface-card overflow-hidden shadow-card rounded-2xl border border-line p-6 md:p-10 min-h-[600px]">
                 
+                {/* ==================== MODO DE BUSCA ATIVO ==================== */}
+                {busca && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-4">
+                            <div>
+                                <h3 className="text-xl font-black text-content-primary flex items-center gap-2">
+                                    <MagnifyingGlassIcon className="w-5 h-5 text-brand-600" />
+                                    Resultados para “{busca}”
+                                </h3>
+                                <p className="text-xs text-content-muted mt-0.5">
+                                    {resultadosBusca.length === 1 
+                                        ? '1 tópico encontrado na base de conhecimento' 
+                                        : `${resultadosBusca.length} tópicos encontrados na base de conhecimento`}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setBusca('')}
+                                className="text-xs font-bold text-brand-600 hover:text-brand-700 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                                Limpar busca e ver manual por abas
+                            </button>
+                        </div>
+
+                        {resultadosBusca.length === 0 ? (
+                            <div className="text-center py-12 px-4 space-y-3">
+                                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-surface-sunken text-content-muted">
+                                    <QuestionMarkCircleIcon className="h-8 w-8" />
+                                </div>
+                                <h4 className="text-base font-bold text-content-primary">Nenhum tópico localizado</h4>
+                                <p className="text-xs text-content-muted max-w-md mx-auto">
+                                    Não encontramos nenhum guia para o termo “{busca}”. Tente palavras-chave como <em>cores, chassi, gate, romaneio</em> ou navegue pelas abas acima.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setBusca('')}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-brand-700 transition"
+                                >
+                                    Voltar à navegação geral
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4">
+                                {resultadosBusca.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="rounded-2xl border border-line bg-surface-sunken p-5 hover:border-brand-500/50 hover:bg-surface-card transition-all space-y-2.5 shadow-xs"
+                                    >
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-brand-700 border border-brand-200/50">
+                                                {item.categoria}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setActiveTab(item.tab);
+                                                    setBusca('');
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 hover:underline cursor-pointer"
+                                            >
+                                                <span>Ver na aba {tabs.find(t => t.id === item.tab)?.label}</span>
+                                                <ArrowRightIcon className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                        <h4 className="text-base font-black text-content-primary">
+                                            {item.titulo}
+                                        </h4>
+                                        <p className="text-xs text-content-secondary leading-relaxed">
+                                            {item.resumo}
+                                        </p>
+                                        <div className="rounded-xl bg-surface-card p-3 border border-line/60 text-xs text-content-secondary leading-relaxed">
+                                            {item.detalhe}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* ==================== 1. ABA LOJA ==================== */}
-                {activeTab === 'loja' && (
+                {!busca && activeTab === 'loja' && (
                     <div className="space-y-10 animate-fade-in">
                         <HeaderSection 
                             title="Manual da Loja (Pontos de Venda)" 
@@ -142,6 +401,21 @@ export default function Manual({ auth }) {
                                         <p className="text-xs text-status-info-fg font-medium">
                                             💡 <strong>Importante:</strong> Nestes pedidos de reposição ao CD, <u>não se preenche chassi</u>. A equipe de expedição do CD é quem define e vincula quais chassis físicos serão separados e despachados.
                                         </p>
+                                    </div>
+
+                                    {/* Dica de Flexibilidade: Cores e Modelos */}
+                                    <div className="bg-brand-50/70 border border-brand-200/80 rounded-2xl p-4 space-y-2">
+                                        <div className="flex items-center gap-2 text-brand-700 font-black text-sm uppercase">
+                                            <span>🎨</span> Liberdade de Escolha de Modelo e Cor com Saldo do CD em Tempo Real
+                                        </div>
+                                        <p className="text-sm text-content-secondary leading-relaxed">
+                                            O novo seletor inteligente do sistema não restringe seu pedido apenas aos modelos ou cores com saldo imediato:
+                                        </p>
+                                        <ul className="list-disc ml-5 space-y-1 text-xs text-content-secondary">
+                                            <li><strong>Qualquer Modelo:</strong> Pesquise pelo nome oficial ou digite o modelo livremente. Modelos sem saldo no CD exibem o selo cinza <em>"sem estoque"</em>, mas continuam disponíveis para solicitação ou encomenda.</li>
+                                            <li><strong>Qualquer Cor:</strong> Escolha entre as cores oficiais do modelo, opções da paleta padrão ou digite livremente qualquer cor especial/personalizada.</li>
+                                            <li><strong>Visibilidade de Estoque:</strong> O sistema exibe instantaneamente o indicador: <code>🟢 X un. no CD</code> quando há pronta-entrega, <code>🟠 0 no CD (sob encomenda)</code> quando zerado, ou <code>⚪ Sob encomenda</code> para cores personalizadas.</li>
+                                        </ul>
                                     </div>
 
                                     {/* Caso 2: Venda Confirmada */}
@@ -227,7 +501,7 @@ export default function Manual({ auth }) {
                 )}
 
                 {/* ==================== 2. ABA PEÇAS ==================== */}
-                {activeTab === 'pecas' && (
+                {!busca && activeTab === 'pecas' && (
                     <div className="space-y-10 animate-fade-in">
                         <HeaderSection 
                             title="Módulo de Peças & Acessórios (V3.3)" 
@@ -460,7 +734,7 @@ export default function Manual({ auth }) {
                 )}
 
                 {/* ==================== 3. ABA GESTOR ==================== */}
-                {activeTab === 'gestor' && (
+                {!busca && activeTab === 'gestor' && (
                     <div className="space-y-10 animate-fade-in">
                         <HeaderSection 
                             title="Manual da Gestão Comercial & Diretoria" 
@@ -501,7 +775,7 @@ export default function Manual({ auth }) {
                 )}
 
                 {/* ==================== 4. ABA CD / LOGÍSTICA ==================== */}
-                {activeTab === 'cd' && (
+                {!busca && activeTab === 'cd' && (
                     <div className="space-y-10 animate-fade-in">
                         <HeaderSection 
                             title="Manual da Operação CD (Expedição e Pátio)" 
@@ -555,7 +829,7 @@ export default function Manual({ auth }) {
                 )}
 
                 {/* ==================== 5. ABA FAQ & SUPORTE ==================== */}
-                {activeTab === 'faq' && (
+                {!busca && activeTab === 'faq' && (
                     <div className="space-y-8 animate-fade-in">
                         <HeaderSection 
                             title="Suporte Técnico TI & Perguntas Frequentes" 
